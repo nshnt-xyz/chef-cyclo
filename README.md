@@ -3,7 +3,7 @@
 Non-Android Linux bike-computer OS for the Motorola One Power (codename `chef`, XT1942-2, SDM636).
 
 ## Layout
-- `kernel/` — Motorola kernel source `kernel-msm-MMI-QPT30.61-18` (Linux 4.4.192). Config = `arch/arm64/configs/sdm660_defconfig` + `ext_config/moto-sdm660-chef.config`; DT = `sdm636-chef-evt.dts`.
+- `kernel/` — Motorola kernel source `kernel-msm-MMI-QPT30.61-18` (Linux 4.4.192). Config = `arch/arm64/configs/sdm660_defconfig` + `ext_config/moto-sdm660.config` + `ext_config/moto-sdm660-chef.config`; DT = `sdm636-chef-evt.dts`.
 - `stock/partitions/` — full raw dump of every partition except userdata, taken 2026-09-13 from stock QPTS30.61-18-16-19 (Android 10). `SHA256SUMS` verified against the device. Includes device-unique `persist`, `modemst1/2`, `fsg_*`, `utags`, `cid`, `hw` — do not lose.
 - `stock/twrp-3.7.0_9-0-chef.img` — official TWRP, verified. `fastboot boot` it for a root adb shell (nothing flashed).
 - `stock/twrp-*.txt` — kernel dmesg, cmdline, input devices and display info captured from the 4.4 kernel running under TWRP.
@@ -19,10 +19,10 @@ Non-Android Linux bike-computer OS for the Motorola One Power (codename `chef`, 
 ```
 scripts/setup-toolchain.sh   # once: fetches AOSP GCC 4.9 aarch64 into toolchain/ (gitignored)
 . scripts/env.sh             # defines kmake and chef_defconfig
-chef_defconfig               # sdm660_defconfig + moto-sdm660-chef.config -> out/kernel/.config
+chef_defconfig               # sdm660_defconfig + moto-sdm660.config + moto-sdm660-chef.config -> out/kernel/.config
 kmake -j$(nproc)             # Image.gz-dtb comes out in out/kernel/arch/arm64/boot/
 ```
-`kmake` is `make` in `kernel/` with `O=out/kernel`, the cross prefix, and the command-line overrides a 4.4 tree needs on a modern host (`PYTHON=python3`, `HOSTCFLAGS+=-fcommon`). DTB targets are relative to `arch/arm64/boot/dts` (`kmake qcom/sdm636-chef-evt.dtb`). Host deps: `libssl-dev` (for `sign-file`, since stock has `CONFIG_MODULE_SIG=y`).
+`kmake` is `make` in `kernel/` with `O=out/kernel`, the cross prefix, and the command-line overrides a 4.4 tree needs on a modern host (`CC=` to bypass `gcc-wrapper.py`, `HOSTCFLAGS+=-fcommon`). DTB targets are relative to `arch/arm64/boot/dts` (`kmake qcom/sdm636-chef-evt.dtb`). Host deps: `libssl-dev` (for `sign-file`, since stock has `CONFIG_MODULE_SIG=y`).
 
 ## Host gotcha
 On the ASRock B450 Steel Legend, `fastboot` data transfers hang on the chipset USB controller (bus 1). Use one of the four blue CPU-attached rear USB 3.1 Gen1 ports (shows as bus 3). A hung send leaves the bootloader confused — Power+VolDown to reset.
@@ -59,12 +59,14 @@ Boot this phone into a plain Linux userspace (no Android) and run a bike-compute
 
 ### 2026-09-13 (later) — toolchain
 
-Set up AOSP `aarch64-linux-android-4.9` (branch `android-10.0.0_r47`, "GCC 4.9.x 20150123 (prerelease)" — the same compiler line as the stock kernel banner). Gotchas: in that release `gcc`/`g++` are python2 wrapper scripts that only print a deprecation nag and exec a UUID-named real driver — `scripts/setup-toolchain.sh` replaces them with symlinks to the real binaries. The kernel Makefile hardcodes `PYTHON = python` for `scripts/gcc-wrapper.py` (which is python3-clean) and the tree's bundled dtc defines `yylloc` twice (fails to link under GCC ≥ 10's `-fno-common`); both are handled by command-line overrides in `kmake`. Verified: merged chef `.config` generates (the two `override: reassigning` warnings are the chef fragment overriding the base, expected), host scripts build, `init/main.o` cross-compiles, `sdm636-chef-evt.dtb` builds (model "chef"). Note the submodule tags `MMI-QPT30.61-18` and `MMI-QPW30.61-21` are the same commit.
+Set up AOSP `aarch64-linux-android-4.9` (branch `android-10.0.0_r47`, "GCC 4.9.x 20150123 (prerelease)" — the same compiler line as the stock kernel banner). Gotchas: in that release `gcc`/`g++` are python2 wrapper scripts that only print a deprecation nag and exec a UUID-named real driver — `scripts/setup-toolchain.sh` replaces them with symlinks to the real binaries. The kernel Makefile hardcodes `PYTHON = python` for `scripts/gcc-wrapper.py` (which is python3-clean) and the tree's bundled dtc defines `yylloc` twice (fails to link under GCC ≥ 10's `-fno-common`); both are handled by command-line overrides in `kmake`. Note the submodule tags `MMI-QPT30.61-18` and `MMI-QPW30.61-21` are the same commit.
+
+**First full build.** Two problems. (1) `scripts/gcc-wrapper.py` is *not* python3-clean: its warning path uses py2 `print >>` and, by design, it fails the build on any warning at all; `kmake` now passes `CC=` to bypass it. (2) `arch/arm64/kernel/cpuinfo.c` failed on `system_rev` undeclared — it's guarded by `CONFIG_BOOTINFO`, which lives in `ext_config/moto-sdm660.config`. So the real stack per `defconfig.mk` is **three** files: `sdm660_defconfig` + `moto-sdm660.config` (platform, via `moto-$(DEFCONFIG_BASENAME)`) + `moto-sdm660-chef.config` (device, via `KERNEL_EXTRA_CONFIG`). The chef fragment is clearly a delta on the platform one (it un-sets Madera options the platform enables). The platform fragment also turns on `CONFIG_TOUCHSCREEN_NT36xxx`, the Novatek driver our unit needs. With that, `kmake -j12` completes in ~5 min with one harmless host warning (modpost). Output: `Image.gz-dtb` 14.5 MB (Image.gz + `sdm636-chef-evt.dtb` only, thanks to `CONFIG_CHEF_DTB`), `UTS_RELEASE 4.4.192-g6d83ef138`. Stock `boot_a.img` header (v0, 4096-byte pages) carries a 12.4 MB kernel and a 10.4 MB ramdisk.
 
 ## Next steps
 
 1. ~~Toolchain~~ — done, see *Building*.
-2. Build the kernel: `sdm660_defconfig` + `moto-sdm660-chef.config`, produce `Image.gz-dtb`.
+2. ~~Build the kernel~~ — done, `out/kernel/arch/arm64/boot/Image.gz-dtb`.
 3. Minimal initramfs (busybox or Alpine) that brings up USB gadget RNDIS/CDC-ECM + telnet/ssh — a shell without needing the screen.
 4. Pack a boot image using `stock/partitions/boot_a.img` as the template (header values, cmdline minus `skip_initramfs`), `fastboot boot` it. Android remains as the fallback until this works reliably.
 5. Then in order: display (fbdev/DRM), touch (evdev), battery, BT (BlueZ + `bluetooth_a` firmware), GPS (QMI-LOC via libqmi/ModemManager + `modem_a` firmware), Wi-Fi (qcacld + blobs), suspend.
