@@ -32,8 +32,17 @@ fastboot boot out/boot.img   # nothing is flashed; Power+VolDown to get back to 
 Once booted, the phone shows up as a USB NCM ethernet device; it hands the host an address by DHCP and listens on `telnet 172.16.42.1` (root, no password). It buzzes once when `/init` starts and twice when the network is up.
 `kmake` is `make` in `kernel/` with `O=out/kernel`, the cross prefix, and the command-line overrides a 4.4 tree needs on a modern host (`CC=` to bypass `gcc-wrapper.py`, `HOSTCFLAGS+=-fcommon`). DTB targets are relative to `arch/arm64/boot/dts` (`kmake qcom/sdm636-chef-evt.dtb`). Host deps: `libssl-dev` (for `sign-file`, since stock has `CONFIG_MODULE_SIG=y`).
 
-## Host gotcha
-On the ASRock B450 Steel Legend, `fastboot` data transfers hang on the chipset USB controller (bus 1). Use one of the four blue CPU-attached rear USB 3.1 Gen1 ports (shows as bus 3). A hung send leaves the bootloader confused — Power+VolDown to reset.
+## Gotchas (the short list — details in the log)
+- **fastboot hangs on bulk transfers** on the ASRock B450 Steel Legend's chipset USB controller (bus 1). Use one of the four blue CPU-attached rear USB 3.1 Gen1 ports (bus 3). A hung send leaves the bootloader confused — Power+VolDown to reset.
+- **`skip_initramfs` is appended by the bootloader** at runtime (with `root=/dev/mmcblk0p67 rootwait ro init=/init`); it is not in the boot image header, so it can't be stripped. Our kernel ignores it (as TWRP's does).
+- **Kernel config is three fragments**, not two: `sdm660_defconfig` + `moto-sdm660.config` + `moto-sdm660-chef.config`. Missing the middle one silently drops `BOOTINFO` (build breaks in `cpuinfo.c`) and the Novatek touch driver.
+- **Old tree on a new host:** `scripts/gcc-wrapper.py` is python2-only on its warning path and aborts on *any* warning → bypass with `CC=`; bundled dtc needs `-fcommon`; the Makefile's `PYTHON`/`HOSTCFLAGS` use `=` so they must be overridden on the make command line, not the environment. All in `kmake`.
+- **AOSP GCC 4.9 prebuilt:** `gcc`/`g++` are python2 wrapper scripts → symlink to the UUID-named real drivers (`setup-toolchain.sh`).
+- **Static busybox:** Alpine's lacks `telnetd`/`udhcpd`; use Debian's `busybox-static` arm64.
+- **DTB targets** are relative to `arch/arm64/boot/dts`: `kmake qcom/sdm636-chef-evt.dtb`.
+- **zsh doesn't word-split unquoted variables** — build scripts use `set --`/`"$@"` for lists so they work under both zsh and bash.
+- **TWRP downloads** from dl.twrp.me get silently truncated; verify sha256 and resume with `curl -C -`.
+- **TWRP shell scripting:** toybox `dd` wants `bs=4194304` not `4M`; `adb shell` inside `while read` eats the loop's stdin.
 
 ## Goal
 
