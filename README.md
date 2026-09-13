@@ -10,6 +10,7 @@ Non-Android Linux bike-computer OS for the Motorola One Power (codename `chef`, 
 - `kernel-config/chef-cyclo.config` — our kernel config fragment on top of Motorola's stack.
 - `initramfs/` — the boot ramdisk: `/init` (USB NCM gadget + telnet shell), inittab, udhcpd config.
 - `scripts/` — `setup-toolchain.sh`, `env.sh` (`kmake`, `chef_defconfig`), `mkinitramfs.sh`, `mkboot.sh`.
+- `logs/` — dmesg captures from our own kernel boots.
 - `toolchain/` (gitignored) — GCC 4.9, AOSP `mkbootimg`, Debian static busybox; all fetched by `setup-toolchain.sh`.
 
 ## Device facts
@@ -90,13 +91,32 @@ Set up AOSP `aarch64-linux-android-4.9` (branch `android-10.0.0_r47`, "GCC 4.9.x
 
 **USB gadget.** Stock config offers configfs functions NCM (`ncm.usb0`), Qualcomm RNDIS (`rndis_bam`), FunctionFS, MTP/PTP etc. — no plain ECM/RNDIS. NCM works with the in-kernel `cdc_ncm` driver on any Linux host, so `/init` builds a single-function NCM gadget (`1d6b:0104`, locally-administered MACs), binds it to whatever appears in `/sys/class/udc` (expected `a800000.dwc3`), gives `usb0` 172.16.42.1/24, runs `udhcpd` (leases .2–.9, no router option) and `telnetd -l /bin/sh`, then `exec`s busybox init with a small inittab that respawns both. Vibrator is `/sys/class/timed_output/vibrator/enable` (ms) — used as a display-less progress signal.
 
-**busybox.** Alpine's `busybox-static` lacks `telnetd`/`udhcpd` (they live in a dynamic `busybox-extras`); Debian's `busybox-static` 1.37 arm64 has both plus `ip`, `mdev`, `cttyhack`, so `setup-toolchain.sh` pulls that `.deb` (`dpkg-deb --fsys-tarfile`). Initramfs is ~1 MB. `mkboot.sh` uses AOSP `mkbootimg.py` with the header values read out of `stock/partitions/boot_a.img` (v0, 4096-byte pages, offsets 0x8000/0x1000000/0xf00000/0x100, os 10.0.0 / 2021-10, stock cmdline). `unpack_bootimg` on the result matches stock field for field. **Not yet booted on the phone.**
+**busybox.** Alpine's `busybox-static` lacks `telnetd`/`udhcpd` (they live in a dynamic `busybox-extras`); Debian's `busybox-static` 1.37 arm64 has both plus `ip`, `mdev`, `cttyhack`, so `setup-toolchain.sh` pulls that `.deb` (`dpkg-deb --fsys-tarfile`). Initramfs is ~1 MB. `mkboot.sh` uses AOSP `mkbootimg.py` with the header values read out of `stock/partitions/boot_a.img` (v0, 4096-byte pages, offsets 0x8000/0x1000000/0xf00000/0x100, os 10.0.0 / 2021-10, stock cmdline). `unpack_bootimg` on the result matches stock field for field.
+
+### 2026-09-13 (evening) — first boot of our own kernel: works
+
+`adb reboot bootloader`, `fastboot boot out/boot.img` (send 0.35 s, "Booting OKAY" 5 s). Gadget enumerated on the host ~14 s later as `1d6b:0104 chef-cyclo / Moto One Power (cyclo) / ZF6223WZGL`, `cdc_ncm` bound it, NetworkManager took a DHCP lease (172.16.42.7), ping 2–4 ms, `telnet 172.16.42.1` → root ash. `uname -r` = `4.4.192-cyclo-g6d83ef138-00001-g1c67115bc`; dmesg shows `initramfs: ignoring skip_initramfs` and the four `cyclo-init:` lines (`/init` ran at t=14.3 s, gadget bound to `a800000.dwc3`). Full dmesg in `logs/first-boot-dmesg.txt`.
+
+**Bootloader rewrites the cmdline.** Our header said `console=ttyMSM0,115200,n8 androidboot.console=ttyMSM0 earlycon=…`; the kernel got `rcupdate.rcu_expedited=1 console=null … quiet` plus the usual appended `androidboot.*`, `root=`, `skip_initramfs rootwait ro init=/init`. So the header cmdline is only partly ours; don't rely on it for console or debug options.
+
+**Hardware survey from the shell** (everything below comes from the stock config, nothing configured by us yet):
+- Display: `/dev/fb0`, `/dev/fb1` (mdss fb); no `/sys/class/backlight` — backlight is `/sys/class/leds/lcd-backlight` (+ `wled`). DSI PLL registered; panel state unknown until the replacement display is in.
+- Input: `NVTCapacitiveTouchScreen` = `event1`, `gpio-keys` = `event6` (volume), `qpnp_pon` = `event0` (power key), SX9310 SAR sensors, `hbtp_vm`.
+- Power: `/sys/class/power_supply/battery` 90 %, Charging, Good, 4.257 V; also `bms`, `usb`, `dc`, `main`, `wireless`, `pc_port`.
+- LEDs: `charging`, `blue`, `green`, flash/torch, `mmc0::`, `mmc1::`.
+- Storage: all 68 `/dev/mmcblk0p*` present. UFS host fails init (`ufshcd-qcom -19`) — expected, chef is eMMC.
+- Serial: `/dev/ttyMSM0` (debug UART, `console=null`ed by the bootloader), `/dev/ttyHS0` (BT HCI UART).
+- Net: `rmnet_ipa0`, `usb0`, plus tunnel/dummy noise; no `wlan0` yet (firmware not loaded). `msm_subsys` devices `subsys0–3` (modem/adsp/cdsp/wlan) present, unbooted.
+- 8 CPUs online, thermal zones 22–33 °C. 78 error/fail lines in dmesg, all probe noise (camera eeprom/actuator, LCDB regulator `-517` deferrals, msm-thermal DT keys).
+- Small nit: NCM `host_addr` didn't take; the host side got a random MAC (`enx5ebd33268f05`) — harmless, NetworkManager matched it anyway.
+
+**Status.** Milestones 1–4 of the hardware list are reached: boot → USB networking/shell. Nothing flashed; a `reboot` from the telnet shell (or Power+VolDown) returns to stock Android.
 
 ## Next steps
 
 1. ~~Toolchain~~ — done, see *Building*.
 2. ~~Build the kernel~~ — done, `out/kernel/arch/arm64/boot/Image.gz-dtb`.
 3. ~~Minimal initramfs~~ — done: busybox, USB NCM gadget, udhcpd + telnetd (`initramfs/`).
-4. ~~Pack a boot image~~ — done (`scripts/mkboot.sh`). **Next: `fastboot boot out/boot.img`** from a blue rear USB port, wait for two buzzes, `telnet 172.16.42.1`. If it doesn't come up: check `lsusb`/`dmesg` on the host for the `1d6b:0104` device, then Power+VolDown. Android remains the fallback; nothing is flashed.
-5. Then in order: display (fbdev/DRM), touch (evdev), battery, BT (BlueZ + `bluetooth_a` firmware), GPS (QMI-LOC via libqmi/ModemManager + `modem_a` firmware), Wi-Fi (qcacld + blobs), suspend.
+4. ~~Pack a boot image and `fastboot boot` it~~ — done, boots to a telnet shell (see log).
+5. Then in order: display (`/dev/fb0` + `lcd-backlight` LED — needs the replacement panel), touch (`event1`, already enumerated), battery (`power_supply/battery`, already readable), BT (BlueZ + `bluetooth_a` firmware on `ttyHS0`), GPS (QMI-LOC via libqmi/ModemManager + `modem_a` firmware), Wi-Fi (qcacld + blobs), suspend.
 6. Later: rootfs on the userdata partition, flash `boot_a`, retire Android.
