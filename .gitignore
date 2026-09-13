@@ -1,0 +1,8 @@
+# Device backup: 11 GB of raw partition images, includes device-unique data (IMEI, MACs,
+# calibration) and proprietary firmware. Never commit. Keep an offline copy instead.
+stock/partitions/
+stock/*.img
+
+# Build output
+out/
+*.o

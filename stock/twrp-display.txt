@@ -1,0 +1,5 @@
+fb0
+fb1
+U:1080x2246p-60
+U:1080x2246p-60
+mipi dsi video panel
