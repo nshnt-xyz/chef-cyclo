@@ -15,6 +15,15 @@ Non-Android Linux bike-computer OS for the Motorola One Power (codename `chef`, 
 - Stock cmdline has `skip_initramfs` — strip it for our own boot image.
 - No ANT+ (not enabled by Motorola). Plan: BLE via BlueZ; USB ANT stick over OTG as fallback.
 
+## Building
+```
+scripts/setup-toolchain.sh   # once: fetches AOSP GCC 4.9 aarch64 into toolchain/ (gitignored)
+. scripts/env.sh             # defines kmake and chef_defconfig
+chef_defconfig               # sdm660_defconfig + moto-sdm660-chef.config -> out/kernel/.config
+kmake -j$(nproc)             # Image.gz-dtb comes out in out/kernel/arch/arm64/boot/
+```
+`kmake` is `make` in `kernel/` with `O=out/kernel`, the cross prefix, and the command-line overrides a 4.4 tree needs on a modern host (`PYTHON=python3`, `HOSTCFLAGS+=-fcommon`). DTB targets are relative to `arch/arm64/boot/dts` (`kmake qcom/sdm636-chef-evt.dtb`). Host deps: `libssl-dev` (for `sign-file`, since stock has `CONFIG_MODULE_SIG=y`).
+
 ## Host gotcha
 On the ASRock B450 Steel Legend, `fastboot` data transfers hang on the chipset USB controller (bus 1). Use one of the four blue CPU-attached rear USB 3.1 Gen1 ports (shows as bus 3). A hung send leaves the bootloader confused — Power+VolDown to reset.
 
@@ -48,9 +57,13 @@ Boot this phone into a plain Linux userspace (no Android) and run a bike-compute
 
 **Status at end of day.** Nothing on the phone has been modified. Paused pending a replacement display (not a blocker for the next steps — they only need USB networking).
 
+### 2026-09-13 (later) — toolchain
+
+Set up AOSP `aarch64-linux-android-4.9` (branch `android-10.0.0_r47`, "GCC 4.9.x 20150123 (prerelease)" — the same compiler line as the stock kernel banner). Gotchas: in that release `gcc`/`g++` are python2 wrapper scripts that only print a deprecation nag and exec a UUID-named real driver — `scripts/setup-toolchain.sh` replaces them with symlinks to the real binaries. The kernel Makefile hardcodes `PYTHON = python` for `scripts/gcc-wrapper.py` (which is python3-clean) and the tree's bundled dtc defines `yylloc` twice (fails to link under GCC ≥ 10's `-fno-common`); both are handled by command-line overrides in `kmake`. Verified: merged chef `.config` generates (the two `override: reassigning` warnings are the chef fragment overriding the base, expected), host scripts build, `init/main.o` cross-compiles, `sdm636-chef-evt.dtb` builds (model "chef"). Note the submodule tags `MMI-QPT30.61-18` and `MMI-QPW30.61-21` are the same commit.
+
 ## Next steps
 
-1. Toolchain: AOSP `aarch64-linux-android-4.9` GCC (what stock was built with) or an AOSP-era Clang.
+1. ~~Toolchain~~ — done, see *Building*.
 2. Build the kernel: `sdm660_defconfig` + `moto-sdm660-chef.config`, produce `Image.gz-dtb`.
 3. Minimal initramfs (busybox or Alpine) that brings up USB gadget RNDIS/CDC-ECM + telnet/ssh — a shell without needing the screen.
 4. Pack a boot image using `stock/partitions/boot_a.img` as the template (header values, cmdline minus `skip_initramfs`), `fastboot boot` it. Android remains as the fallback until this works reliably.

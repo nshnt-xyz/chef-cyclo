@@ -6,3 +6,6 @@ stock/*.img
 # Build output
 out/
 *.o
+
+# Cross toolchain, fetched by scripts/setup-toolchain.sh
+toolchain/
