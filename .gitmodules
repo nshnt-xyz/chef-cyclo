@@ -1,3 +1,4 @@
 [submodule "kernel"]
 	path = kernel
-	url = https://github.com/MotorolaMobilityLLC/kernel-msm.git
+	url = https://github.com/nshnt-xyz/kernel-msm.git
+	branch = chef-cyclo
