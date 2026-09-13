@@ -26,3 +26,23 @@ done
 [ -L aarch64-linux-android-g++ ] || ln -sf "$GXX_REAL" aarch64-linux-android-g++
 
 ./aarch64-linux-android-gcc --version | head -1
+
+# --- host tools for packing boot images -------------------------------------
+cd "$OLDPWD" 2>/dev/null || cd "$(dirname "$0")/.."
+if [ ! -f toolchain/mkbootimg/mkbootimg.py ]; then
+    git clone --depth=1 -b android-14.0.0_r1 \
+        https://android.googlesource.com/platform/system/tools/mkbootimg toolchain/mkbootimg
+fi
+python3 toolchain/mkbootimg/unpack_bootimg.py --help >/dev/null && echo "mkbootimg: ok"
+
+# --- static aarch64 busybox for the initramfs ------------------------------
+# Debian's build, not Alpine's: Alpine's busybox-static omits telnetd/udhcpd.
+BB_DEB=busybox-static_1.37.0-6+b9_arm64.deb
+if [ ! -x toolchain/busybox/busybox ]; then
+    mkdir -p toolchain/busybox
+    curl -fsSL -o "toolchain/busybox/$BB_DEB" \
+        "https://deb.debian.org/debian/pool/main/b/busybox/$BB_DEB"
+    dpkg-deb --fsys-tarfile "toolchain/busybox/$BB_DEB" \
+        | tar -xf - -C toolchain/busybox --strip-components=3 ./usr/bin/busybox
+fi
+file -b toolchain/busybox/busybox | cut -d, -f1-4

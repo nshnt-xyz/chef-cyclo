@@ -23,12 +23,14 @@ kmake() {
 
 # chef_defconfig: Motorola's build (kernel/defconfig.mk) concatenates the base
 # sdm660 defconfig, the platform fragment moto-sdm660.config, and the device
-# fragment moto-sdm660-chef.config (KERNEL_EXTRA_CONFIG); do the same and load it.
+# fragment moto-sdm660-chef.config (KERNEL_EXTRA_CONFIG); do the same, append
+# our own kernel-config/chef-cyclo.config, and load it.
 chef_defconfig() {
     local cfgs="$CHEF_ROOT/kernel/arch/arm64/configs"
     mkdir -p "$KERNEL_OUT"
     ( cd "$cfgs" || exit 1
-      set -- sdm660_defconfig ext_config/moto-sdm660.config ext_config/moto-sdm660-chef.config
+      set -- sdm660_defconfig ext_config/moto-sdm660.config ext_config/moto-sdm660-chef.config \
+             "$CHEF_ROOT/kernel-config/chef-cyclo.config"
       perl -le 'print "# This file was automatically generated from:\n#\t" . join("\n#\t", @ARGV) . "\n"' "$@"
       cat "$@"
     ) > "$KERNEL_OUT/chef_defconfig"

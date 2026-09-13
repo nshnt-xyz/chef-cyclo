@@ -7,6 +7,10 @@ Non-Android Linux bike-computer OS for the Motorola One Power (codename `chef`, 
 - `stock/partitions/` — full raw dump of every partition except userdata, taken 2026-09-13 from stock QPTS30.61-18-16-19 (Android 10). `SHA256SUMS` verified against the device. Includes device-unique `persist`, `modemst1/2`, `fsg_*`, `utags`, `cid`, `hw` — do not lose.
 - `stock/twrp-3.7.0_9-0-chef.img` — official TWRP, verified. `fastboot boot` it for a root adb shell (nothing flashed).
 - `stock/twrp-*.txt` — kernel dmesg, cmdline, input devices and display info captured from the 4.4 kernel running under TWRP.
+- `kernel-config/chef-cyclo.config` — our kernel config fragment on top of Motorola's stack.
+- `initramfs/` — the boot ramdisk: `/init` (USB NCM gadget + telnet shell), inittab, udhcpd config.
+- `scripts/` — `setup-toolchain.sh`, `env.sh` (`kmake`, `chef_defconfig`), `mkinitramfs.sh`, `mkboot.sh`.
+- `toolchain/` (gitignored) — GCC 4.9, AOSP `mkbootimg`, Debian static busybox; all fetched by `setup-toolchain.sh`.
 
 ## Device facts
 - Bootloader already unlocked; A/B, active slot `_a`; no dtbo partition (DTB appended to kernel).
@@ -21,7 +25,11 @@ scripts/setup-toolchain.sh   # once: fetches AOSP GCC 4.9 aarch64 into toolchain
 . scripts/env.sh             # defines kmake and chef_defconfig
 chef_defconfig               # sdm660_defconfig + moto-sdm660.config + moto-sdm660-chef.config -> out/kernel/.config
 kmake -j$(nproc)             # Image.gz-dtb comes out in out/kernel/arch/arm64/boot/
+scripts/mkinitramfs.sh       # initramfs/ + busybox -> out/initramfs.cpio.gz
+scripts/mkboot.sh            # -> out/boot.img (header values from stock boot_a.img)
+fastboot boot out/boot.img   # nothing is flashed; Power+VolDown to get back to Android
 ```
+Once booted, the phone shows up as a USB NCM ethernet device; it hands the host an address by DHCP and listens on `telnet 172.16.42.1` (root, no password). It buzzes once when `/init` starts and twice when the network is up.
 `kmake` is `make` in `kernel/` with `O=out/kernel`, the cross prefix, and the command-line overrides a 4.4 tree needs on a modern host (`CC=` to bypass `gcc-wrapper.py`, `HOSTCFLAGS+=-fcommon`). DTB targets are relative to `arch/arm64/boot/dts` (`kmake qcom/sdm636-chef-evt.dtb`). Host deps: `libssl-dev` (for `sign-file`, since stock has `CONFIG_MODULE_SIG=y`).
 
 ## Host gotcha
@@ -61,13 +69,25 @@ Boot this phone into a plain Linux userspace (no Android) and run a bike-compute
 
 Set up AOSP `aarch64-linux-android-4.9` (branch `android-10.0.0_r47`, "GCC 4.9.x 20150123 (prerelease)" — the same compiler line as the stock kernel banner). Gotchas: in that release `gcc`/`g++` are python2 wrapper scripts that only print a deprecation nag and exec a UUID-named real driver — `scripts/setup-toolchain.sh` replaces them with symlinks to the real binaries. The kernel Makefile hardcodes `PYTHON = python` for `scripts/gcc-wrapper.py` (which is python3-clean) and the tree's bundled dtc defines `yylloc` twice (fails to link under GCC ≥ 10's `-fno-common`); both are handled by command-line overrides in `kmake`. Note the submodule tags `MMI-QPT30.61-18` and `MMI-QPW30.61-21` are the same commit.
 
+**Kernel branch.** The `kernel/` submodule is now on a local branch `chef-cyclo` (one patch so far) that is not pushed anywhere yet — a fresh clone can't resolve the submodule pointer until it's forked and pushed.
+
 **First full build.** Two problems. (1) `scripts/gcc-wrapper.py` is *not* python3-clean: its warning path uses py2 `print >>` and, by design, it fails the build on any warning at all; `kmake` now passes `CC=` to bypass it. (2) `arch/arm64/kernel/cpuinfo.c` failed on `system_rev` undeclared — it's guarded by `CONFIG_BOOTINFO`, which lives in `ext_config/moto-sdm660.config`. So the real stack per `defconfig.mk` is **three** files: `sdm660_defconfig` + `moto-sdm660.config` (platform, via `moto-$(DEFCONFIG_BASENAME)`) + `moto-sdm660-chef.config` (device, via `KERNEL_EXTRA_CONFIG`). The chef fragment is clearly a delta on the platform one (it un-sets Madera options the platform enables). The platform fragment also turns on `CONFIG_TOUCHSCREEN_NT36xxx`, the Novatek driver our unit needs. With that, `kmake -j12` completes in ~5 min with one harmless host warning (modpost). Output: `Image.gz-dtb` 14.5 MB (Image.gz + `sdm636-chef-evt.dtb` only, thanks to `CONFIG_CHEF_DTB`), `UTS_RELEASE 4.4.192-g6d83ef138`. Stock `boot_a.img` header (v0, 4096-byte pages) carries a 12.4 MB kernel and a 10.4 MB ramdisk.
+
+### 2026-09-13 (later) — initramfs and boot image
+
+**`skip_initramfs` comes from the bootloader, not the boot image.** Neither the stock nor the TWRP boot image header has it; the runtime cmdline TWRP saw does (`… androidboot.slot_suffix=_a skip_initramfs rootwait ro init=/init …`, all appended by the bootloader, together with `root=/dev/mmcblk0p67`). TWRP still booted its ramdisk (`Trying to unpack rootfs image as initramfs…` in its dmesg) because its kernel ignores the parameter. So instead of stripping it, our kernel does the same: `init/initramfs.c` accepts `skip_initramfs` and does nothing (commit `1c67115bc` on the `chef-cyclo` branch). With an initramfs providing `/init`, the bootloader's `root=`/`init=` are ignored by the kernel.
+
+**Config fragment.** `kernel-config/chef-cyclo.config`, appended by `chef_defconfig`: `CONFIG_DEVTMPFS(+_MOUNT)=y` (Android populates `/dev` with ueventd, stock has it off), `ANDROID_PARANOID_NETWORK` off, `LOCALVERSION=-cyclo`. Kernel is now `4.4.192-cyclo-g6d83ef138-00001-g1c67115bc`.
+
+**USB gadget.** Stock config offers configfs functions NCM (`ncm.usb0`), Qualcomm RNDIS (`rndis_bam`), FunctionFS, MTP/PTP etc. — no plain ECM/RNDIS. NCM works with the in-kernel `cdc_ncm` driver on any Linux host, so `/init` builds a single-function NCM gadget (`1d6b:0104`, locally-administered MACs), binds it to whatever appears in `/sys/class/udc` (expected `a800000.dwc3`), gives `usb0` 172.16.42.1/24, runs `udhcpd` (leases .2–.9, no router option) and `telnetd -l /bin/sh`, then `exec`s busybox init with a small inittab that respawns both. Vibrator is `/sys/class/timed_output/vibrator/enable` (ms) — used as a display-less progress signal.
+
+**busybox.** Alpine's `busybox-static` lacks `telnetd`/`udhcpd` (they live in a dynamic `busybox-extras`); Debian's `busybox-static` 1.37 arm64 has both plus `ip`, `mdev`, `cttyhack`, so `setup-toolchain.sh` pulls that `.deb` (`dpkg-deb --fsys-tarfile`). Initramfs is ~1 MB. `mkboot.sh` uses AOSP `mkbootimg.py` with the header values read out of `stock/partitions/boot_a.img` (v0, 4096-byte pages, offsets 0x8000/0x1000000/0xf00000/0x100, os 10.0.0 / 2021-10, stock cmdline). `unpack_bootimg` on the result matches stock field for field. **Not yet booted on the phone.**
 
 ## Next steps
 
 1. ~~Toolchain~~ — done, see *Building*.
 2. ~~Build the kernel~~ — done, `out/kernel/arch/arm64/boot/Image.gz-dtb`.
-3. Minimal initramfs (busybox or Alpine) that brings up USB gadget RNDIS/CDC-ECM + telnet/ssh — a shell without needing the screen.
-4. Pack a boot image using `stock/partitions/boot_a.img` as the template (header values, cmdline minus `skip_initramfs`), `fastboot boot` it. Android remains as the fallback until this works reliably.
+3. ~~Minimal initramfs~~ — done: busybox, USB NCM gadget, udhcpd + telnetd (`initramfs/`).
+4. ~~Pack a boot image~~ — done (`scripts/mkboot.sh`). **Next: `fastboot boot out/boot.img`** from a blue rear USB port, wait for two buzzes, `telnet 172.16.42.1`. If it doesn't come up: check `lsusb`/`dmesg` on the host for the `1d6b:0104` device, then Power+VolDown. Android remains the fallback; nothing is flashed.
 5. Then in order: display (fbdev/DRM), touch (evdev), battery, BT (BlueZ + `bluetooth_a` firmware), GPS (QMI-LOC via libqmi/ModemManager + `modem_a` firmware), Wi-Fi (qcacld + blobs), suspend.
 6. Later: rootfs on the userdata partition, flash `boot_a`, retire Android.

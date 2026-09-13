@@ -1,0 +1,6 @@
+# busybox init. /init has already done the mounts and USB gadget setup.
+::respawn:/usr/sbin/telnetd -F -l /bin/sh
+::respawn:/usr/sbin/udhcpd -f /etc/udhcpd.conf
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init

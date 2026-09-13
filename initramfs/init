@@ -1,0 +1,84 @@
+#!/bin/busybox sh
+# chef-cyclo initramfs /init.
+#
+# The phone has no usable display or serial console at this stage, so this
+# brings up a USB NCM network interface (phone = 172.16.42.1, DHCP for the
+# host) and a root telnet shell on it, and hands over to busybox init.
+# Progress is logged to the kernel log (readable later with dmesg) and
+# signalled on the vibrator: one buzz when init starts, two when the USB
+# network is up.
+
+/bin/busybox --install -s
+export PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+log()  { echo "cyclo-init: $*" > /dev/kmsg 2>/dev/null; }
+buzz() { echo "$1" > /sys/class/timed_output/vibrator/enable 2>/dev/null; }
+
+mount -t proc     proc     /proc
+mount -t sysfs    sysfs    /sys
+mount -t devtmpfs devtmpfs /dev || { mount -t tmpfs tmpfs /dev; mdev -s; }
+mkdir -p /dev/pts
+mount -t devpts   devpts   /dev/pts
+mount -t tmpfs    tmpfs    /tmp
+mount -t configfs configfs /sys/kernel/config
+
+log "starting ($(uname -r))"
+buzz 150
+
+# --- USB gadget: one NCM ethernet function, via configfs ------------------
+SERIAL=chef
+for a in $(cat /proc/cmdline); do
+    case "$a" in
+        androidboot.serialno=*) SERIAL="${a#*=}" ;;
+    esac
+done
+
+G=/sys/kernel/config/usb_gadget/cyclo
+if mkdir -p "$G"; then
+    echo 0x1d6b > "$G/idVendor"      # Linux Foundation
+    echo 0x0104 > "$G/idProduct"     # Multifunction Composite Gadget
+    echo 0x0200 > "$G/bcdUSB"
+    echo 0x0100 > "$G/bcdDevice"
+    mkdir -p "$G/strings/0x409"
+    echo "$SERIAL"                > "$G/strings/0x409/serialnumber"
+    echo "chef-cyclo"             > "$G/strings/0x409/manufacturer"
+    echo "Moto One Power (cyclo)" > "$G/strings/0x409/product"
+    mkdir -p "$G/configs/c.1/strings/0x409"
+    echo "ncm" > "$G/configs/c.1/strings/0x409/configuration"
+    echo 500   > "$G/configs/c.1/MaxPower"
+    mkdir -p "$G/functions/ncm.usb0"
+    echo 02:43:59:43:4c:01 > "$G/functions/ncm.usb0/dev_addr"   # locally administered
+    echo 02:43:59:43:4c:02 > "$G/functions/ncm.usb0/host_addr"
+    ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/"
+
+    # The UDC (a800000.dwc3) can take a moment to register.
+    i=0
+    while [ -z "$(ls /sys/class/udc 2>/dev/null)" ] && [ $i -lt 100 ]; do
+        sleep 0.1; i=$((i+1))
+    done
+    UDC=$(ls /sys/class/udc 2>/dev/null | head -n1)
+    if [ -n "$UDC" ] && echo "$UDC" > "$G/UDC"; then
+        log "gadget bound to $UDC"
+    else
+        log "no UDC found, USB gadget not started"
+    fi
+    IFACE=$(cat "$G/functions/ncm.usb0/ifname" 2>/dev/null)
+else
+    log "configfs usb_gadget unavailable"
+fi
+
+# --- network: static address on the gadget interface, DHCP for the host ---
+IFACE=${IFACE:-usb0}
+if ip link set "$IFACE" up 2>/dev/null; then
+    ip addr add 172.16.42.1/24 dev "$IFACE"
+    sed -i "s/^interface .*/interface $IFACE/" /etc/udhcpd.conf
+    touch /tmp/udhcpd.leases
+    log "$IFACE up, 172.16.42.1/24"
+    buzz 150; sleep 0.3; buzz 150
+else
+    log "no $IFACE interface"
+fi
+
+# Hand over to busybox init: /etc/inittab keeps telnetd and udhcpd running.
+log "exec init"
+exec /sbin/init
