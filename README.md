@@ -112,11 +112,23 @@ Set up AOSP `aarch64-linux-android-4.9` (branch `android-10.0.0_r47`, "GCC 4.9.x
 
 **Status.** Milestones 1–4 of the hardware list are reached: boot → USB networking/shell. Nothing flashed; a `reboot` from the telnet shell (or Power+VolDown) returns to stock Android.
 
+### 2026-09-15 — Bluetooth survey (offline; phone awaiting battery + display)
+
+Read from the `bluetooth_a` dump and the kernel tree, nothing tested on the device yet.
+
+- **Chip is a WCN3990 ("Cherokee"), not ROME.** `bluetooth_a` is a 4.5 MB ext4 image holding `/image/crbtfw21.tlv` + `crnv21.bin` (v2.1 firmware + NV) alongside older `cr*11/20` and `apbtfw11`/`apnv11` sets. Android mounts it at `/vendor/bt_firmware`.
+- **Transport is `/dev/ttyHS0`** (`c1af000.uart`, MSM HS UART, base_baud 460800) — already probed in our first boot. Power is `/dev/btpower` (`bluetooth-power.c`, `BT_CMD_PWR_CTRL` ioctl 0xbfad), also present; `bt_power_populate_dt_pinfo` warnings about missing `bt-reset-gpio`/`qca,bt-vdd-*` are normal for WCN3990 (it's powered through the PMIC, not GPIOs). `BTFM_SLIM_WCN3990` is on for BT audio over SLIMbus (not needed).
+- **The kernel can't drive it as-is.** `CONFIG_BT_HCIUART` is off — Android does HCI entirely in userspace (`android.hardware.bluetooth@1.0-service-qti`: powers via btpower, downloads the TLV firmware over the raw UART, then speaks H4 + IBS in-band sleep). The tree's `drivers/bluetooth/hci_qca.c` only knows ROME (`qca_uart_setup_rome`); WCN3990 support landed in mainline 4.20 and depends on `serdev`, which 4.4 doesn't have.
+- **Two ways to BlueZ**, both compile without the phone:
+  1. Backport the WCN3990 parts of mainline `hci_qca` (`qca_wcn3990_init`, firmware/NV download via `btqca`, IBS) onto the ldisc path: userspace powers the chip through `/dev/btpower`, then `btattach -B /dev/ttyHS0 -P qca`. Cleanest end state, most kernel work.
+  2. Userspace TLV loader (port of what the QTI HAL does), then `btattach -P h4` with plain `hci_uart`; IBS sleep has to be disabled or tolerated. Less kernel work, more fragile.
+- Either way the first step is `CONFIG_BT_HCIUART=y` + `CONFIG_BT_HCIUART_QCA=y` (+`BT_QCA`) in `kernel-config/chef-cyclo.config`, and a rootfs bigger than the busybox initramfs to hold BlueZ.
+
 ## Next steps
 
 1. ~~Toolchain~~ — done, see *Building*.
 2. ~~Build the kernel~~ — done, `out/kernel/arch/arm64/boot/Image.gz-dtb`.
 3. ~~Minimal initramfs~~ — done: busybox, USB NCM gadget, udhcpd + telnetd (`initramfs/`).
 4. ~~Pack a boot image and `fastboot boot` it~~ — done, boots to a telnet shell (see log).
-5. Then in order: display (`/dev/fb0` + `lcd-backlight` LED — needs the replacement panel), touch (`event1`, already enumerated), battery (`power_supply/battery`, already readable), BT (BlueZ + `bluetooth_a` firmware on `ttyHS0`), GPS (QMI-LOC via libqmi/ModemManager + `modem_a` firmware), Wi-Fi (qcacld + blobs), suspend.
+5. Then in order: display (`/dev/fb0` + `lcd-backlight` LED — needs the replacement panel), touch (`event1`, already enumerated), battery (`power_supply/battery`, already readable), BT (WCN3990 on `ttyHS0`; see 2026-09-15 log — needs `hci_qca` WCN3990 backport + BlueZ in a real rootfs), GPS (QMI-LOC via libqmi/ModemManager + `modem_a` firmware), Wi-Fi (qcacld + blobs), suspend.
 6. Later: rootfs on the userdata partition, flash `boot_a`, retire Android.
