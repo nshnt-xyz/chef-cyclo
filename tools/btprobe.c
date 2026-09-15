@@ -6,13 +6,17 @@
  *   btprobe transact /dev/ttyHS0 HEX
  *   btprobe download /dev/ttyHS0 TLV_FILE
  *   btprobe baud /dev/ttyHS0 RATE 0|1
- *   btprobe attach /dev/ttyHS0 RATE
+ *   btprobe attach /dev/ttyHS0 RATE [PROTO]
  *   btprobe hciup INDEX
  *   btprobe lescan INDEX
+ *   btprobe bdaddr INDEX XX:XX:XX:XX:XX:XX   mgmt Set Public Address
+ *   btprobe restart [REASON]   reboot(2) with RESTART2, e.g. "bootloader"
  *
  * "transact" writes the bytes, then prints everything received for two
  * seconds as hexadecimal.  UART framing and baud rate are set with busybox
- * stty by bt-bringup.
+ * stty by the calling script.  "attach" binds the N_HCI line discipline
+ * with the given hci_uart protocol id (0 = H4, 8 = QCA; default H4) and
+ * keeps the UART open; it is what btattach does, for when BlueZ is absent.
  */
 
 typedef unsigned long usize;
@@ -47,6 +51,8 @@ typedef unsigned long usize;
 #define SYS_BIND       200
 #define SYS_SETSOCKOPT 208
 #define SYS_EXIT       93
+#define SYS_SYNC       81
+#define SYS_REBOOT     142
 
 struct timespec {
 	long tv_sec;
@@ -432,10 +438,12 @@ static int set_baud(const char *path, const char *rate_string,
 	return 0;
 }
 
-static int attach_h4(const char *path, const char *rate_string)
+static int attach(const char *path, const char *rate_string,
+		  const char *proto_string)
 {
 	struct timespec delay = { 1, 0 };
 	int ldisc = 15; /* N_HCI */
+	int proto = proto_string ? (int)decimal(proto_string) : 0;
 	long fd;
 	if (set_baud(path, rate_string, "1"))
 		return 1;
@@ -448,11 +456,11 @@ static int attach_h4(const char *path, const char *rate_string)
 		puts2("btprobe: TIOCSETD N_HCI failed\n");
 		return 1;
 	}
-	if (syscall3(SYS_IOCTL, fd, HCIUARTSETPROTO, 0) < 0) {
-		puts2("btprobe: HCIUARTSETPROTO H4 failed\n");
+	if (syscall3(SYS_IOCTL, fd, HCIUARTSETPROTO, proto) < 0) {
+		puts2("btprobe: HCIUARTSETPROTO failed\n");
 		return 1;
 	}
-	puts2("btprobe: H4 attached; keeping UART open\n");
+	puts2("btprobe: line discipline attached; keeping UART open\n");
 	for (;;)
 		syscall2(SYS_NANOSLEEP, (long)&delay, 0);
 }
@@ -570,6 +578,90 @@ static int uart(const char *path, const char *hex, int receive)
 	return 0;
 }
 
+/* Bluetooth management API: Set Public Address on an unconfigured
+ * controller.  Kept here because btmgmt (a bt_shell program) exits before
+ * the reply when its stdin is /dev/null, which is how init runs things.
+ */
+static int set_public_address(const char *index_string, const char *text)
+{
+	struct sockaddr_hci addr;
+	unsigned char msg[12], reply[64];
+	unsigned int index = decimal(index_string);
+	int i, tries;
+	long fd, ret;
+
+	/* "XX:XX:XX:XX:XX:XX" -> 6 bytes, least significant byte first */
+	for (i = 0; i < 6; i++) {
+		int hi = hexval(text[i * 3]), lo = hexval(text[i * 3 + 1]);
+		if (hi < 0 || lo < 0 || (i < 5 && text[i * 3 + 2] != ':')) {
+			puts2("btprobe: bad address\n");
+			return 2;
+		}
+		msg[6 + 5 - i] = (unsigned char)((hi << 4) | lo);
+	}
+
+	fd = syscall3(SYS_SOCKET, 31, 3 | 02000000, 1); /* AF_BLUETOOTH, SOCK_RAW|SOCK_CLOEXEC, HCI */
+	if (fd < 0) {
+		puts2("btprobe: cannot open HCI socket\n");
+		return 1;
+	}
+	addr.family = 31;
+	addr.dev = 0xffff;   /* HCI_DEV_NONE */
+	addr.channel = 3;    /* HCI_CHANNEL_CONTROL */
+	if (syscall3(SYS_BIND, fd, (long)&addr, sizeof(addr)) < 0) {
+		puts2("btprobe: cannot bind management channel\n");
+		syscall1(SYS_CLOSE, fd);
+		return 1;
+	}
+
+	msg[0] = 0x39; msg[1] = 0x00;                        /* MGMT_OP_SET_PUBLIC_ADDRESS */
+	msg[2] = (unsigned char)index; msg[3] = (unsigned char)(index >> 8);
+	msg[4] = 6; msg[5] = 0;                              /* parameter length */
+	/* A short return (0) is how the kernel reports a command it refused
+	 * (e.g. invalid index while setup runs): the status event is queued.
+	 */
+	if (syscall3(SYS_WRITE, fd, (long)msg, sizeof(msg)) < 0) {
+		puts2("btprobe: management write failed\n");
+		syscall1(SYS_CLOSE, fd);
+		return 1;
+	}
+
+	/* Wait for the Command Complete/Status for our opcode; other events
+	 * (index added/removed) may arrive first.
+	 */
+	for (tries = 0; tries < 500; tries++) {
+		ret = syscall3(SYS_READ, fd, (long)reply, sizeof(reply));
+		if (ret < 0) {
+			delay_10ms();
+			continue;
+		}
+		if (ret >= 9 && (reply[0] == 0x01 || reply[0] == 0x02) &&
+		    reply[1] == 0 && reply[6] == 0x39 && reply[7] == 0x00) {
+			syscall1(SYS_CLOSE, fd);
+			if (reply[8] == 0)
+				return 0;
+			puts2("btprobe: Set Public Address failed, status ");
+			put_number(reply[8]);
+			return 1;
+		}
+	}
+	syscall1(SYS_CLOSE, fd);
+	puts2("btprobe: no management reply\n");
+	return 1;
+}
+
+/* Reboot straight from here (the RAM-only OS has nothing to unmount); the
+ * MSM restart handler passes REASON such as "bootloader" to the bootloader.
+ */
+static int restart(const char *reason)
+{
+	syscall1(SYS_SYNC, 0);
+	syscall4(SYS_REBOOT, 0xfee1dead, 672274793,
+		 reason ? 0xa1b2c3d4 : 0x01234567, (long)reason);
+	puts2("btprobe: reboot failed\n");
+	return 1;
+}
+
 static int program_main(int argc, char **argv)
 {
 	if (argc == 3 && same(argv[1], "power"))
@@ -582,13 +674,17 @@ static int program_main(int argc, char **argv)
 		return download(argv[2], argv[3]);
 	if (argc == 5 && same(argv[1], "baud"))
 		return set_baud(argv[2], argv[3], argv[4]);
-	if (argc == 4 && same(argv[1], "attach"))
-		return attach_h4(argv[2], argv[3]);
+	if ((argc == 4 || argc == 5) && same(argv[1], "attach"))
+		return attach(argv[2], argv[3], argc == 5 ? argv[4] : 0);
 	if (argc == 3 && same(argv[1], "hciup"))
 		return hci_up(argv[2]);
 	if (argc == 3 && same(argv[1], "lescan"))
 		return le_scan(argv[2]);
-	puts2("usage: btprobe power 0|1 | write UART HEX | transact UART HEX | download UART FILE | baud UART RATE FLOW | attach UART RATE | hciup INDEX | lescan INDEX\n");
+	if (argc == 4 && same(argv[1], "bdaddr"))
+		return set_public_address(argv[2], argv[3]);
+	if ((argc == 2 || argc == 3) && same(argv[1], "restart"))
+		return restart(argc == 3 ? argv[2] : 0);
+	puts2("usage: btprobe power 0|1 | write UART HEX | transact UART HEX | download UART FILE | baud UART RATE FLOW | attach UART RATE [PROTO] | hciup INDEX | lescan INDEX | bdaddr INDEX ADDR | restart [REASON]\n");
 	return 2;
 }
 

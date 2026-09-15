@@ -8,7 +8,10 @@
 # signalled on the vibrator: one buzz when init starts, two when the USB
 # network is up.
 
+# Alpine's busybox packages create their applet links in a post-install
+# trigger that mkrootfs.sh cannot run; do it here.
 /bin/busybox --install -s
+/bin/busybox-extras --install -s 2>/dev/null
 export PATH=/sbin:/usr/sbin:/bin:/usr/bin
 
 log()  { echo "cyclo-init: $*" > /dev/kmsg 2>/dev/null; }
@@ -20,7 +23,10 @@ mount -t devtmpfs devtmpfs /dev || { mount -t tmpfs tmpfs /dev; mdev -s; }
 mkdir -p /dev/pts
 mount -t devpts   devpts   /dev/pts
 mount -t tmpfs    tmpfs    /tmp
+mount -t tmpfs    tmpfs    /run
 mount -t configfs configfs /sys/kernel/config
+mkdir -p /run/dbus /var/lib/dbus
+dbus-uuidgen --ensure 2>/dev/null
 
 log "starting ($(uname -r))"
 buzz 150
@@ -79,6 +85,7 @@ else
     log "no $IFACE interface"
 fi
 
-# Hand over to busybox init: /etc/inittab keeps telnetd and udhcpd running.
+# Hand over to busybox init: /etc/inittab keeps telnetd, udhcpd, dbus,
+# bluetoothd and the Bluetooth attach (bt-up) running.
 log "exec init"
 exec /sbin/init

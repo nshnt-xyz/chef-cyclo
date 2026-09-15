@@ -35,14 +35,21 @@ if [ ! -f toolchain/mkbootimg/mkbootimg.py ]; then
 fi
 python3 toolchain/mkbootimg/unpack_bootimg.py --help >/dev/null && echo "mkbootimg: ok"
 
-# --- static aarch64 busybox for the initramfs ------------------------------
-# Debian's build, not Alpine's: Alpine's busybox-static omits telnetd/udhcpd.
-BB_DEB=busybox-static_1.37.0-6+b9_arm64.deb
-if [ ! -x toolchain/busybox/busybox ]; then
-    mkdir -p toolchain/busybox
-    curl -fsSL -o "toolchain/busybox/$BB_DEB" \
-        "https://deb.debian.org/debian/pool/main/b/busybox/$BB_DEB"
-    dpkg-deb --fsys-tarfile "toolchain/busybox/$BB_DEB" \
-        | tar -xf - -C toolchain/busybox --strip-components=3 ./usr/bin/busybox
+# --- static apk for building the Alpine aarch64 rootfs ----------------------
+# apk only unpacks packages, so the x86_64 build can populate an aarch64 root
+# with --no-scripts; no qemu-user needed. Alpine's signing keys come along.
+ALPINE=https://dl-cdn.alpinelinux.org/alpine/v3.24
+if [ ! -x toolchain/apk/apk.static ]; then
+    mkdir -p toolchain/apk
+    for p in $(curl -fsSL "$ALPINE/main/x86_64/" | grep -o 'apk-tools-static-[^"]*\.apk' | head -1); do
+        curl -fsSL -o toolchain/apk/apk-tools-static.apk "$ALPINE/main/x86_64/$p"
+    done
+    tar -xzf toolchain/apk/apk-tools-static.apk -C toolchain/apk --strip-components=1 sbin/apk.static 2>/dev/null
+    for p in $(curl -fsSL "$ALPINE/main/aarch64/" | grep -o 'alpine-keys-[^"]*\.apk' | head -1); do
+        curl -fsSL -o toolchain/apk/alpine-keys.apk "$ALPINE/main/aarch64/$p"
+    done
+    mkdir -p toolchain/apk/keys
+    tar -xzf toolchain/apk/alpine-keys.apk -C toolchain/apk/keys --strip-components=3 etc/apk/keys 2>/dev/null
 fi
-file -b toolchain/busybox/busybox | cut -d, -f1-4
+toolchain/apk/apk.static --version
+ls toolchain/apk/keys | head -3

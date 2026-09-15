@@ -1,0 +1,82 @@
+#!/bin/sh
+# Bring the WCN3990 to the point where the kernel takes over: power it, send
+# the power-on pulses, then hand /dev/ttyHS0 to hci_uart with the QCA
+# protocol and stay attached.  Everything after that (version request, switch
+# to 3.2 Mbaud, crbtfw/crnv download from /lib/firmware/qca, HCI reset, IBS
+# sleep) happens in the kernel when BlueZ powers the adapter on.
+#
+# Run from inittab as a respawn entry: if btattach exits the controller is
+# power-cycled and re-attached.
+set -u
+
+UART=/dev/ttyHS0
+log() { echo "cyclo-bt: $*" | tee /dev/kmsg; }
+
+fail() { log "$*"; sleep 5; exit 1; }
+
+[ -c /dev/btpower ] || fail "missing /dev/btpower"
+[ -c "$UART" ] || fail "missing $UART"
+
+if [ -e /run/bt-powered ]; then
+    # A previous attach left the firmware running (btattach died or was
+    # restarted).  The rails are shared with Wi-Fi and cutting them does not
+    # reliably reset the chip, and a running firmware ignores the power
+    # pulses; so do what mainline's qca_power_off does: wake it over IBS
+    # and send the vendor pre-shutdown command, then pulse.  The bytes are
+    # harmless if the chip is in fact sitting in its ROM at 115200.
+    log "shutting down the running WCN3990 firmware"
+    btprobe baud "$UART" 3200000 1
+    btprobe write "$UART" fd; sleep 0.05
+    btprobe write "$UART" fd; sleep 0.05
+    btprobe write "$UART" 0108fc00; sleep 0.05
+else
+    log "enabling WCN3990 power rails"
+    btprobe power 1 || fail "btpower failed"
+    touch /run/bt-powered
+fi
+
+# The external circuit on TX decodes these single-byte pulses: c0 = BT core
+# off, fc = on (boots the ROM); hardware flow control must be off while they
+# go out (mainline hci_qca does the same).
+stty -F "$UART" 2400 raw -echo -crtscts
+btprobe write "$UART" c0
+sleep 0.02
+stty -F "$UART" 115200 raw -echo -crtscts
+btprobe write "$UART" fc
+sleep 0.15
+
+# btattach reopens the UART, which resynchronises RTS/CTS after the pulses,
+# sets 115200 with flow control and binds the N_HCI ldisc with proto qca.
+log "attaching $UART as hci_uart/qca"
+btattach -B "$UART" -P qca -S 115200 &
+BTATTACH=$!
+
+# The NVM only has a placeholder BD address, so hci_qca registers the
+# controller as unconfigured; program the one the bootloader passes on the
+# cmdline, which configures it and lets bluetoothd take it from there.
+ADDR=
+for a in $(cat /proc/cmdline); do
+    case "$a" in androidboot.btmacaddr=*) ADDR="${a#*=}" ;; esac
+done
+if [ -n "$ADDR" ]; then
+    i=0
+    while [ ! -d /sys/class/bluetooth/hci0 ] && [ $i -lt 50 ]; do
+        sleep 0.1; i=$((i+1))
+    done
+    # Rejected (status 11) while the initial setup still has the adapter
+    # powered; retried until the controller sits unconfigured and takes it.
+    # (btprobe rather than btmgmt: bt_shell quits on init's /dev/null stdin.)
+    i=0
+    while [ $i -lt 20 ]; do
+        if btprobe bdaddr 0 "$ADDR" >/tmp/bdaddr.log 2>&1; then
+            log "hci0 public address set to $ADDR"
+            break
+        fi
+        sleep 0.5; i=$((i+1))
+    done
+    [ $i -lt 20 ] || log "failed to set the public address: $(cat /tmp/bdaddr.log)"
+else
+    log "no androidboot.btmacaddr on the cmdline; hci0 stays unconfigured"
+fi
+
+wait $BTATTACH

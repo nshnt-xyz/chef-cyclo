@@ -8,10 +8,11 @@ Non-Android Linux bike-computer OS for the Motorola One Power (codename `chef`, 
 - `stock/twrp-3.7.0_9-0-chef.img` — official TWRP, verified. `fastboot boot` it for a root adb shell (nothing flashed).
 - `stock/twrp-*.txt` — kernel dmesg, cmdline, input devices and display info captured from the 4.4 kernel running under TWRP.
 - `kernel-config/chef-cyclo.config` — our kernel config fragment on top of Motorola's stack.
-- `initramfs/` — the boot ramdisk: `/init` (USB NCM gadget + telnet shell), inittab, udhcpd config.
-- `scripts/` — `setup-toolchain.sh`, `env.sh` (`kmake`, `chef_defconfig`), `mkinitramfs.sh`, `mkboot.sh`.
+- `initramfs/` — overlay on top of the Alpine rootfs for the boot ramdisk: `/init` (USB NCM gadget + telnet shell), inittab (telnetd, udhcpd, dbus, bluetoothd, `bt-up`), users, udhcpd and BlueZ config, `bt-up` (WCN3990 power + attach).
+- `tools/btprobe.c` — libc-free helper for `/dev/btpower`, raw UART pokes, ldisc attach and an LE scan without BlueZ.
+- `scripts/` — `setup-toolchain.sh`, `env.sh` (`kmake`, `chef_defconfig`), `mkrootfs.sh` (Alpine aarch64 packages → `out/rootfs`), `mkinitramfs.sh`, `mkboot.sh`.
 - `logs/` — dmesg captures from our own kernel boots.
-- `toolchain/` (gitignored) — GCC 4.9, AOSP `mkbootimg`, Debian static busybox; all fetched by `setup-toolchain.sh`.
+- `toolchain/` (gitignored) — GCC 4.9, AOSP `mkbootimg`, static `apk` + Alpine keys and package cache; all fetched by `setup-toolchain.sh`.
 
 ## Device facts
 - Bootloader already unlocked; A/B, active slot `_a`; no dtbo partition (DTB appended to kernel).
@@ -26,11 +27,12 @@ scripts/setup-toolchain.sh   # once: fetches AOSP GCC 4.9 aarch64 into toolchain
 . scripts/env.sh             # defines kmake and chef_defconfig
 chef_defconfig               # sdm660_defconfig + moto-sdm660.config + moto-sdm660-chef.config -> out/kernel/.config
 kmake -j$(nproc)             # Image.gz-dtb comes out in out/kernel/arch/arm64/boot/
-scripts/mkinitramfs.sh       # initramfs/ + busybox -> out/initramfs.cpio.gz
+scripts/mkrootfs.sh          # Alpine aarch64 musl/busybox/dbus/BlueZ -> out/rootfs (once, or after changing the package list)
+scripts/mkinitramfs.sh       # out/rootfs + initramfs/ overlay + btprobe + BT firmware -> out/initramfs.cpio.gz
 scripts/mkboot.sh            # -> out/boot.img (header values from stock boot_a.img)
 fastboot boot out/boot.img   # nothing is flashed; Power+VolDown to get back to Android
 ```
-Once booted, the phone shows up as a USB NCM ethernet device; it hands the host an address by DHCP and listens on `telnet 172.16.42.1` (root, no password). It buzzes once when `/init` starts and twice when the network is up.
+Once booted, the phone shows up as a USB NCM ethernet device; it hands the host an address by DHCP and listens on `telnet 172.16.42.1` (root, no password). It buzzes once when `/init` starts and twice when the network is up. `bt-up` powers the WCN3990 and attaches it, bluetoothd powers it on; `bluetoothctl`, `btmgmt`, `btmon` and `hciconfig` are in the image.
 `kmake` is `make` in `kernel/` with `O=out/kernel`, the cross prefix, and the command-line overrides a 4.4 tree needs on a modern host (`CC=` to bypass `gcc-wrapper.py`, `HOSTCFLAGS+=-fcommon`). DTB targets are relative to `arch/arm64/boot/dts` (`kmake qcom/sdm636-chef-evt.dtb`). Host deps: `libssl-dev` (for `sign-file`, since stock has `CONFIG_MODULE_SIG=y`).
 
 ## Gotchas (the short list — details in the log)
@@ -39,11 +41,16 @@ Once booted, the phone shows up as a USB NCM ethernet device; it hands the host 
 - **Kernel config is three fragments**, not two: `sdm660_defconfig` + `moto-sdm660.config` + `moto-sdm660-chef.config`. Missing the middle one silently drops `BOOTINFO` (build breaks in `cpuinfo.c`) and the Novatek touch driver.
 - **Old tree on a new host:** `scripts/gcc-wrapper.py` is python2-only on its warning path and aborts on *any* warning → bypass with `CC=`; bundled dtc needs `-fcommon`; the Makefile's `PYTHON`/`HOSTCFLAGS` use `=` so they must be overridden on the make command line, not the environment. All in `kmake`.
 - **AOSP GCC 4.9 prebuilt:** `gcc`/`g++` are python2 wrapper scripts → symlink to the UUID-named real drivers (`setup-toolchain.sh`).
-- **Static busybox:** Alpine's lacks `telnetd`/`udhcpd`; use Debian's `busybox-static` arm64.
+- **Rootfs from Alpine without qemu:** the host's x86_64 `apk.static` populates an aarch64 root with `--arch aarch64 --usermode --no-scripts`. Skipped post-install scripts mean no busybox applet links (`/init` runs `busybox --install -s` and `busybox-extras --install -s`), no `messagebus` user (in `initramfs/etc/passwd`) and no D-Bus machine-id (`dbus-uuidgen --ensure` in `/init`). `telnetd`/`udhcpd` live in `busybox-extras`.
 - **DTB targets** are relative to `arch/arm64/boot/dts`: `kmake qcom/sdm636-chef-evt.dtb`.
 - **zsh doesn't word-split unquoted variables** — build scripts use `set --`/`"$@"` for lists so they work under both zsh and bash.
 - **TWRP downloads** from dl.twrp.me get silently truncated; verify sha256 and resume with `curl -C -`.
 - **TWRP shell scripting:** toybox `dd` wants `bs=4194304` not `4M`; `adb shell` inside `while read` eats the loop's stdin.
+- **WCN3990 on a 4.4 line discipline:** no serdev, so the SoC's power-on (btpower ioctl + `c0`@2400 / `fc`@115200 pulses) and the UART reopen the pulses require happen in userspace (`bt-up`) before `btattach -P qca`; the kernel's `hci_qca` does the rest. The SoC type is taken from the DT node `compatible = "qca,wcn3990"` (the btpower node), and IBS clock votes go to the UART through the generic `TIOCPMGET`/`TIOCPMPUT` tty ioctls, which msm_serial_hs implements as its runtime-PM vote.
+- **A running WCN3990 ignores the power pulses.** Its rails are shared with Wi-Fi and dropping them for <3 s does not reset it; it must be told (IBS wake + vendor pre-shutdown `01 08 fc 00` at 3.2 Mbaud) before `c0`/`fc` work again. `bt-up` does this when it restarts.
+- **msm_serial_hs resets RX on every termios change** and asserts RFR on every one too, so any bytes the controller sends between two consecutive `tty_set_termios()` calls are lost. `hci_uart_set_baudrate_flow_control()` changes speed and re-enables CRTSCTS in one call, RTS last.
+- **`btmgmt`/`bluetoothctl` quit early with stdin on `/dev/null`** (bt_shell reads EOF before the reply) — the way init runs things. `btprobe bdaddr` speaks mgmt directly for the one command boot needs.
+- **The vendor tree's `BT_INFO`/`BT_ERR` printed pointers**: a blanket `%p`→`%pK` sed had turned `%pV` into `%pKV` in `net/bluetooth/lib.c`.
 
 ## Goal
 
@@ -126,7 +133,7 @@ Read from the `bluetooth_a` dump and the kernel tree, nothing tested on the devi
 
 ### 2026-09-15 — Bluetooth live bring-up: BLE works
 
-Booted a diagnostic initramfs and reproduced the WCN3990 initialization without Android. `bt-bringup` powers the rails through `/dev/btpower`, sends the required UART pulses (`c0` at 2400 baud, `fc` at 115200), and issues the QCA EDL version request. The controller reports product `0x0000000a`, patch `0x0001`, ROM/build `0x0201`, and SOC `0x40020140` (Linux key `0x01400201`), confirming `crbtfw21.tlv` + `crnv21.bin`.
+Booted a diagnostic initramfs and reproduced the WCN3990 initialization without Android. `bt-bringup` (since replaced by `bt-up`; last version in commit ae43429) powers the rails through `/dev/btpower`, sends the required UART pulses (`c0` at 2400 baud, `fc` at 115200), and issues the QCA EDL version request. The controller reports product `0x0000000a`, patch `0x0001`, ROM/build `0x0201`, and SOC `0x40020140` (Linux key `0x01400201`), confirming `crbtfw21.tlv` + `crnv21.bin`.
 
 The probe switches both ends to 3.2 Mbaud, downloads the patch (download mode 3 suppresses all responses on this firmware), then receives success from all 19 NVM segments. For the diagnostic copy in RAM it disables IBS/deep sleep while retaining the 3.2 Mbaud setting; the stock partition is never modified. HCI Reset succeeds, and Read Local Version reports HCI/LMP 5.0, Qualcomm manufacturer `0x001d`, subversion `0x02be`.
 
@@ -136,11 +143,30 @@ Killing the process that held the HCI line discipline exposed a dormant Motorola
 
 The live-tested diagnostic image is `out/boot.img`, SHA-256 `347399a82148935c0f364dba312eb96603b78da6df857bbcb4c026f9dc60b066`.
 
+### 2026-09-15 (evening) — BlueZ in the image, WCN3990 driven by the kernel, IBS sleep working
+
+Goal: replace the diagnostic userspace loader + plain H4 with the real thing — `hci_qca` with in-band sleep — and put BlueZ on the phone.
+
+**Rootfs.** The initramfs is now an Alpine v3.24 aarch64 root (musl, busybox + busybox-extras, dbus 1.16, BlueZ 5.86 with btmgmt/btmon/hciconfig) built on the host by the static x86_64 `apk` with `--arch aarch64 --usermode --no-scripts` (`scripts/mkrootfs.sh`, 18 MB unpacked, 6.3 MB compressed), with `initramfs/` as an overlay on top. inittab runs telnetd, udhcpd, `dbus-daemon --system`, `bluetoothd -n` (LE only, `AutoEnable`) and `bt-up`.
+
+**Kernel** (fork branch `chef-cyclo`, all in `drivers/bluetooth` + `net/bluetooth`):
+- `btqca`: backport of mainline's WCN3990 support — version request, `crbtfw%02x.tlv`/`crnv%02x.bin` names from the ROM version, download mode from the patch header (mode 3: segments sent without waiting, a command-complete injected afterwards so the HCI core's command credit and timer stay sane), `qca_set_bdaddr` (`0xFC14`, which wants the address byte-swapped — first attempt programmed `75:0D:6F:07:4B:30`), pre-shutdown command, and the unified type-4 NVM container the stock `crnv21.bin` uses (a type-2 NVM block plus a type-3 block; tags 17/27 patched inside the type-2 block). `__hci_cmd_send()` backported to hci_core for the unacked segments.
+- `hci_qca`: WCN3990 setup on the ldisc path — SoC type from the DT `qca,wcn3990` node, version at 115200, switch to 3.2 Mbaud (flow control off, vendor event caught at the new rate and dropped), firmware, HCI reset, then IBS on. The IBS state machine was already there; its clock-vote stubs now call the tty's `TIOCPMGET`/`TIOCPMPUT` outside the IBS spinlock, which on msm_serial_hs is the runtime-PM reference the Android HAL used to hold. `HCI_QUIRK_INVALID_BDADDR` so the placeholder NVM address is never used.
+- `hci_ldisc`: flow-control re-enable reordered (termios first, RTS last) and a combined speed+flow-control setter — see gotchas; without it the baud-change vendor event was lost in the msm_hs receiver reset and setup failed.
+- `lib.c`: `%pKV` → `%pV`, which is why the Motorola kernel had never printed a readable Bluetooth log line.
+
+**Userspace.** `bt-up` (inittab respawn): power rails on via btpower (first run) or IBS wake + pre-shutdown at 3.2 Mbaud (restart — see gotchas), `c0`/`fc` pulses, `btattach -B /dev/ttyHS0 -P qca -S 115200`, then `btprobe bdaddr 0 <androidboot.btmacaddr>` (mgmt Set Public Address, retried while the initial setup still has the adapter powered). bluetoothd powers the adapter up as soon as it is configured. `btprobe attach` takes a protocol id now, and `btprobe restart bootloader` saves a trip through Android.
+
+**Measured on the phone** (`logs/bluez-ibs-dmesg.txt`): attach → setup complete in 0.85 s (version 6 ms, baud switch 30 ms, patch 1.02 s of which ~0.6 s is the wait for a last-segment ack that this firmware never sends — confirmed with a 3 s window — NVM 19 segments in 37 ms), address set 0.5 s later, `Powered: yes`, address `30:4B:07:6F:0D:75`. `bluetoothctl scan on` sees 9 devices (a Mi Smart Band 5 among them). Four seconds after the scan both IBS sides are asleep (`rx_ibs_state=0`, `tx_ibs_state=0`, votes off) and the UART's `power/runtime_status` reads `suspended`; over a 30 s window the UART clock was on for 7.3 s. `bluetoothctl power off`/`on` and killing `btattach` (bt-up restarts the controller from the running firmware) both recover fully.
+
+Image: `out/boot.img`, SHA-256 `b027f7896fe587be39093650c8791f239fa5885a2657e4b95a622f153620b2d5`.
+
 ## Next steps
 
 1. ~~Toolchain~~ — done, see *Building*.
 2. ~~Build the kernel~~ — done, `out/kernel/arch/arm64/boot/Image.gz-dtb`.
 3. ~~Minimal initramfs~~ — done: busybox, USB NCM gadget, udhcpd + telnetd (`initramfs/`).
 4. ~~Pack a boot image and `fastboot boot` it~~ — done, boots to a telnet shell (see log).
-5. Then in order: display (`/dev/fb0` + `lcd-backlight` LED — needs the replacement panel), touch (`event1`, already enumerated), battery (`power_supply/battery`, already readable), BT (WCN3990 on `ttyHS0`; see 2026-09-15 log — needs `hci_qca` WCN3990 backport + BlueZ in a real rootfs), GPS (QMI-LOC via libqmi/ModemManager + `modem_a` firmware), Wi-Fi (qcacld + blobs), suspend.
-6. Later: rootfs on the userdata partition, flash `boot_a`, retire Android.
+5. ~~BLE with BlueZ and IBS sleep~~ — done (see 2026-09-15 evening log). Open BT items: pair/connect a real sensor (HR strap, speed/cadence) through `bluetoothctl` and read GATT notifications; check the idle power draw with BT asleep vs. off.
+6. Then in order: display (`/dev/fb0` + `lcd-backlight` LED — needs the replacement panel), touch (`event1`, already enumerated), battery (`power_supply/battery`, already readable), GPS (QMI-LOC via libqmi/ModemManager + `modem_a` firmware), Wi-Fi (qcacld + blobs — note it shares the WCN3990's rails, so BT restarts must keep using the pre-shutdown path), suspend.
+7. Later: rootfs on the userdata partition (the Alpine root is already the seed), flash `boot_a`, retire Android.

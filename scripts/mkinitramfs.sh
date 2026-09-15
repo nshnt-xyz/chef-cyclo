@@ -1,28 +1,29 @@
 #!/bin/sh
-# Build out/initramfs.cpio.gz from initramfs/ plus the static busybox.
+# Build out/initramfs.cpio.gz: the Alpine rootfs from scripts/mkrootfs.sh
+# with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
+# the btprobe helper and the WCN3990 firmware on top.
 set -eu
 cd "$(dirname "$0")/.."
-BB=toolchain/busybox/busybox
-[ -x "$BB" ] || { echo "run scripts/setup-toolchain.sh first" >&2; exit 1; }
+[ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
 
 ROOT=out/initramfs-root
 rm -rf "$ROOT"
-mkdir -p "$ROOT"/bin "$ROOT"/sbin "$ROOT"/usr/bin "$ROOT"/usr/sbin \
-         "$ROOT"/etc "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp \
-         "$ROOT"/root "$ROOT"/mnt
+mkdir -p "$ROOT"
+cp -a out/rootfs/. "$ROOT"/
+mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
+         "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus
 cp -a initramfs/. "$ROOT"/
-install -m 755 "$BB" "$ROOT"/bin/busybox
-ln -s busybox "$ROOT"/bin/sh   # /init's #! line; the rest is --install'ed at boot
-chmod 755 "$ROOT"/init
+chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up
 
-# Small libc-free helper used by bt-bringup to exercise /dev/btpower and the
-# WCN3990 UART before a full BlueZ userspace exists.
+# Small libc-free helper used by bt-up to exercise /dev/btpower and the
+# WCN3990 UART; also a raw H4/QCA attach and LE scan for debugging without
+# BlueZ.
 BTCC=toolchain/aarch64-linux-android-4.9/bin/aarch64-linux-android-gcc
 "$BTCC" -Os -static -nostdlib -fno-stack-protector \
     -o "$ROOT/usr/bin/btprobe" tools/btprobe.c
-chmod 755 "$ROOT/usr/bin/bt-bringup"
 
-# Pull the device-matched WCN3990 firmware from the verified stock partition.
+# Pull the device-matched WCN3990 firmware from the verified stock partition;
+# hci_qca requests qca/crbtfw21.tlv and qca/crnv21.bin by ROM version.
 BTIMG=stock/partitions/bluetooth_a.img
 if [ -r "$BTIMG" ] && command -v debugfs >/dev/null 2>&1; then
     mkdir -p "$ROOT/lib/firmware/qca"
@@ -30,6 +31,8 @@ if [ -r "$BTIMG" ] && command -v debugfs >/dev/null 2>&1; then
         "$BTIMG" >/dev/null 2>&1
     debugfs -R "dump /image/crnv21.bin $ROOT/lib/firmware/qca/crnv21.bin" \
         "$BTIMG" >/dev/null 2>&1
+else
+    echo "warning: $BTIMG not readable, no Bluetooth firmware in the image" >&2
 fi
 
 # newc format, everything owned by root, reproducible ordering.
