@@ -1,0 +1,55 @@
+#!/bin/sh
+# Exercise the WCN3990 power sequence and request its ROM/SOC version.
+# Run manually from the telnet shell; output is both displayed and logged.
+set -eu
+
+UART=/dev/ttyHS0
+FW_DIR=/lib/firmware/qca
+log() { echo "cyclo-bt: $*" | tee /dev/kmsg; }
+
+[ -c /dev/btpower ] || { log "missing /dev/btpower"; exit 1; }
+[ -c "$UART" ] || { log "missing $UART"; exit 1; }
+
+log "enabling WCN3990 power rails"
+btprobe power 1
+
+# The external circuit on TX decodes these single-byte pulses.  Hardware flow
+# control must be disabled while sending them (Linux v4.20 hci_qca sequence).
+log "power-off pulse c0 at 2400 baud"
+stty -F "$UART" 2400 raw -echo -crtscts
+btprobe write "$UART" c0
+
+log "power-on pulse fc at 115200 baud"
+stty -F "$UART" 115200 raw -echo -crtscts
+btprobe write "$UART" fc
+sleep 0.1
+
+# Reopening the UART after the pulse is required to resynchronize RTS/CTS.
+stty -F "$UART" 115200 raw -echo crtscts
+log "sending QCA EDL version request: H4 command 01 00 fc 01 19"
+btprobe transact "$UART" 0100fc0119
+
+if [ -r "$FW_DIR/crbtfw21.tlv" ] && [ -r "$FW_DIR/crnv21.bin" ]; then
+    log "requesting 3.2 Mbaud (QCA rate code 0x11)"
+    stty -F "$UART" 115200 raw -echo -crtscts
+    btprobe write "$UART" 0148fc0111
+    sleep 0.3
+    btprobe baud "$UART" 3200000 1
+    log "downloading crbtfw21.tlv"
+    btprobe download "$UART" "$FW_DIR/crbtfw21.tlv"
+    log "downloading diagnostic crnv21.bin (IBS/deep sleep off)"
+    btprobe download "$UART" "$FW_DIR/crnv21.bin"
+    log "sending HCI reset"
+    btprobe transact "$UART" 01030c00
+    log "reading standard HCI local version"
+    btprobe transact "$UART" 01011000
+    log "attaching initialized controller to Linux H4"
+    btprobe attach "$UART" 3200000 >/tmp/btattach.log 2>&1 &
+    sleep 1
+    cat /tmp/btattach.log
+    btprobe hciup 0
+    log "hci0 ready; run 'btprobe lescan 0' to scan for 10 seconds"
+else
+    log "firmware files absent; version-only probe complete"
+fi
+log "probe complete; inspect the hex responses and dmesg"

@@ -124,6 +124,18 @@ Read from the `bluetooth_a` dump and the kernel tree, nothing tested on the devi
   2. Userspace TLV loader (port of what the QTI HAL does), then `btattach -P h4` with plain `hci_uart`; IBS sleep has to be disabled or tolerated. Less kernel work, more fragile.
 - Either way the first step is `CONFIG_BT_HCIUART=y` + `CONFIG_BT_HCIUART_QCA=y` (+`BT_QCA`) in `kernel-config/chef-cyclo.config`, and a rootfs bigger than the busybox initramfs to hold BlueZ.
 
+### 2026-09-15 — Bluetooth live bring-up: BLE works
+
+Booted a diagnostic initramfs and reproduced the WCN3990 initialization without Android. `bt-bringup` powers the rails through `/dev/btpower`, sends the required UART pulses (`c0` at 2400 baud, `fc` at 115200), and issues the QCA EDL version request. The controller reports product `0x0000000a`, patch `0x0001`, ROM/build `0x0201`, and SOC `0x40020140` (Linux key `0x01400201`), confirming `crbtfw21.tlv` + `crnv21.bin`.
+
+The probe switches both ends to 3.2 Mbaud, downloads the patch (download mode 3 suppresses all responses on this firmware), then receives success from all 19 NVM segments. For the diagnostic copy in RAM it disables IBS/deep sleep while retaining the 3.2 Mbaud setting; the stock partition is never modified. HCI Reset succeeds, and Read Local Version reports HCI/LMP 5.0, Qualcomm manufacturer `0x001d`, subversion `0x02be`.
+
+Attaching the UART with the kernel's plain H4 line discipline creates and starts `hci0`. A 10-second raw LE scan (`btprobe lescan 0`) receives valid advertising reports from five distinct devices. This proves power, UART, stock firmware/NVM, Linux HCI, and BLE radio RX. Next integration step: package BlueZ and replace the diagnostic no-sleep NVM edit with working QCA IBS power management.
+
+Killing the process that held the HCI line discipline exposed a dormant Motorola-tree teardown bug and caused a kernel panic/reboot: `hci_uart_tty_close` unregistered and freed the same `hci_dev` twice. The duplicated unregister/free block and a stale `rx_lock` initialization (the field no longer exists) were removed. A live regression test on the rebuilt kernel cleanly removed `hci0`, kept the phone reachable over USB networking, and produced no panic, confirming the corrected single-unregister/single-free lifetime.
+
+The live-tested diagnostic image is `out/boot.img`, SHA-256 `347399a82148935c0f364dba312eb96603b78da6df857bbcb4c026f9dc60b066`.
+
 ## Next steps
 
 1. ~~Toolchain~~ — done, see *Building*.
