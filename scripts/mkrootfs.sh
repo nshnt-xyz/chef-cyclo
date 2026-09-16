@@ -14,7 +14,8 @@ ALPINE=${ALPINE:-https://dl-cdn.alpinelinux.org/alpine/v3.24}
 ROOT=out/rootfs
 CACHE=$PWD/toolchain/apk/cache
 PKGS="alpine-baselayout musl busybox busybox-extras
-      dbus bluez bluez-btmgmt bluez-btmon bluez-deprecated"
+      dbus bluez bluez-btmgmt bluez-btmon bluez-deprecated
+      qmi-utils"
 
 rm -rf "$ROOT"
 mkdir -p "$ROOT" "$CACHE"
@@ -28,4 +29,4 @@ rm -rf "$ROOT/var/cache/apk" "$ROOT/etc/apk/keys"
 
 du -sh "$ROOT"
 ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/dbus-daemon" \
-   "$ROOT/usr/sbin/telnetd" "$ROOT/usr/sbin/udhcpd"
+   "$ROOT/usr/bin/qmicli" "$ROOT/bin/busybox" "$ROOT/bin/busybox-extras"

@@ -1,0 +1,328 @@
+# run3 (2026-09-16) RMTFS relative-offset fix live probe: boot.img sha256 b9e94a7130745621068ea2b1f2b3596c4bbd927daed4e6ef5c7f76ef84f9222c, fastboot boot only
+
+## before baseline
+SLOT: _a
+modemst1 /dev/mmcblk0p34 4096 950fe51f610dcdb9ae94fd614b037ca25f5291358c111595eac1ec448b61723e
+modemst2 /dev/mmcblk0p35 4096 9b289f4106c005fe64defd61e3f0a29b6f8224248395e3e1267ce0646e0800fc
+fsc /dev/mmcblk0p27 8 ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7
+fsg_a /dev/mmcblk0p36 20480 d4430abc2d7492206e40ceda92b5853c1b134ef18f8e7cda30bcca584e4a73b9
+fsg_b /dev/mmcblk0p37 20480 d4430abc2d7492206e40ceda92b5853c1b134ef18f8e7cda30bcca584e4a73b9
+
+## after baseline (after gps-up SIGTERM cleanup, modem OFFLINE)
+SLOT: _a
+modemst1 /dev/mmcblk0p34 4096 950fe51f610dcdb9ae94fd614b037ca25f5291358c111595eac1ec448b61723e
+modemst2 /dev/mmcblk0p35 4096 9b289f4106c005fe64defd61e3f0a29b6f8224248395e3e1267ce0646e0800fc
+fsc /dev/mmcblk0p27 8 ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7
+fsg_a /dev/mmcblk0p36 20480 d4430abc2d7492206e40ceda92b5853c1b134ef18f8e7cda30bcca584e4a73b9
+fsg_b /dev/mmcblk0p37 20480 d4430abc2d7492206e40ceda92b5853c1b134ef18f8e7cda30bcca584e4a73b9
+
+## gps-up start / UIO map
+START_UPTIME: 102.49 797.84
+GPSUP_PID=1048
+---gps-up.out---
+gps-up: mounted active modem_a read-only
+gps-up: validated active-slot fsg_a (mmcblk0p36): 10485760 bytes
+failed to open /dev/qcom_rmtfs_mem1: No such file or directory
+falling back to uio access
+registering services
+gps-up: opening /dev/subsys_modem (boots mpss; keep fd 3 open for the modem's lifetime)
+[storage] failed to open '/dev/disk/by-partlabel/fsg' (requested '/boot/modem_fsg'): No such file or directory
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+---sharedmem---
+cat: can't open '/sys/kernel/debug/msm_sharedmem/info': No such file or directory
+---uio---
+/sys/class/uio/uio0 name=rmtfs maps:
+  map0 addr=0x00000000fd601000 size=0x0000000000200000 offset=0x0
+/sys/class/uio/uio1 name=/soc/qcom,msm-core@780000 maps:
+  map0 addr=0x0000000000780000 size=0x0000000000001000 offset=0x0
+---ps---
+1048 gps-up
+1220 rmtfs
+
+--- end (ok) ---
+
+## poll at 134s uptime
+UPTIME: 134.71 1047.71
+---iovec/read lines---
+---counts---
+iovec_ok=0 iovec_fail=0 failsector=0 lines=9
+---dmesg modem---
+[    8.939855,5] mmi_unit_info (SMEM) for modem: version = 0x03, device = 'chef', radio = 0x0, radio_str = 'APAC', system_rev = 0xc000, system_serial = 0x00000000130bc260, machine = '', barcode = 'ZF6223WZGL', baseband = '', carrier = 'retin', pu_reason = 0x00004000
+[  104.934948,6] pil-q6v5-mss 4080000.qcom,mss: modem: loading from 0x000000008ac00000 to 0x0000000092200000
+[  106.018605,6] pil-q6v5-mss 4080000.qcom,mss: MBA boot done
+[  107.231950,4] pil-q6v5-mss 4080000.qcom,mss: modem: Brought out of reset
+[  107.354948,0] pil-q6v5-mss 4080000.qcom,mss: modem: Power/Clock ready interrupt received
+restarts=0
+---dump_servers---
+Service    |Instance   |Node_id    |Port_id    |
+------------------------------------------------------------
+0x00001001 |0x00000000 |0x00000001 |0x00000008 |
+0x00001001 |0x00000002 |0x00000001 |0x00000009 |
+0x00001001 |0x00000004 |0x00000001 |0x0000000a |
+0x00001001 |0x00000040 |0x00000001 |0x0000000b |
+0x00001001 |0x00000044 |0x00000001 |0x0000000d |
+0x00001001 |0x00000080 |0x00000001 |0x0000000e |
+0x00001001 |0x00000082 |0x00000001 |0x0000000f |
+0x00001001 |0x00000084 |0x00000001 |0x00000010 |
+0x00001001 |0x000000c0 |0x00000001 |0x00000011 |
+0x00001001 |0x000000c2 |0x00000001 |0x00000012 |
+0x00001001 |0x000000c4 |0x00000001 |0x00000013 |
+0x00001001 |0x00000140 |0x00000001 |0x00000014 |
+0x00001001 |0x00000042 |0x00000001 |0x0000000c |
+0x00001001 |0x00000102 |0x00000001 |0x00000018 |
+0x00001001 |0x00000104 |0x00000001 |0x00000019 |
+0x00001001 |0x00000142 |0x00000001 |0x00000015 |
+0x00001001 |0x00000144 |0x00000001 |0x00000016 |
+0x00001001 |0x00000100 |0x00000001 |0x00000017 |
+0x00000042 |0x0000b401 |0x00000000 |0x00000001 |
+0x0000002b |0x00001202 |0x00000000 |0x00000004 |
+0x0000000e |0x00000001 |0x00000001 |0x0000001e |
+0x00000031 |0x00000101 |0x00000001 |0x0000001b |
+0x00000034 |0x00000101 |0x00000001 |0x00000001 |
+0x0000001c |0x00000101 |0x00000001 |0x00000004 |
+0x0000041d |0x00000001 |0x00000001 |0x00000006 |
+---socket---
+ls: /run/qmux_socket: No such file or directory
+---debugfs---
+800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800 a800000.dwc3 adsprpc afe_loopback afe_loopback_gain android_verity asoc audio_in_latency_measurement_node audio_out_latency_measurement_node bdi binder bluetooth camera charger cleancache clk cma cnss-prealloc cnss_utils cpr3-regulator debug debug_enabled debug_objects diag dma_buf dynamic_debug extfrag fail_page_alloc fault_around_bytes fg fire_softlockup_reset fire_watchdog_reset glink gpio hid icnss ieee80211 iio iommu ion ipa ipa_usb ipc_logging kernel_page_tables kgsl l2tp lmh_monitor lpm_stats mdp mdss_panel_fb0 memblock mmc0 mmc1 msm-apm msm-bus-dbg msm-perf-patches msm_apr_debug msm_core msm_cpp msm_gfx_ldo msm_ipc_router msm_isp0 msm_isp1 msm_perf msm_serial_hs msm_subsys msm_thermal msm_vidc opp osm page_owner pci-msm perf_debug_tp pinctrl pm_qos pmic-votable provoke-crash pwm qcedev qcota qcrypto ras regmap regulator remoteqdss rmt_storage rpm_heap rpm_log rpm_master_stats rpm_rail_stats rpm_send_msg rpm_stats sched_features sde_rotator0 service_notifier show_mem_notifier sleep_time smd smem smem_log smp2p smsm soc:devfreq_spdm_cpu sps suspend_stats sync system_stats test_servloc tracing tsens tzdbg usb usb-pdphy usb_diag usb_qti wakeup_sources 
+ls: /sys/kernel/debug/msm_sharedmem*: No such file or directory
+ls: /sys/kernel/debug/*sharedmem*: No such file or directory
+/sys/kernel/debug/smem:
+[0;0mbuild[m    [0;0mmem[m      [0;0mversion[m
+
+/sys/kernel/debug/smem_log:
+[0;0mdump[m           [0;0mdump_cont[m      [0;0mdump_sym[m       [0;0mdump_sym_cont[m
+
+--- end (ok) ---
+
+## poll at 189s uptime
+UPTIME: 189.87 1484.00
+iovec_ok=3 iovec_fail=0 failsector=0 lines=41 restarts=1
+---tail gps-up.out---
+[RMTFS] packet; from: 0:18
+[RMTFS] iovec 1, not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:19
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 2:4094 0x400
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 ([RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+---LOC---
+servers=25
+ls: /run/qmux_socket: No such file or directory
+1048 gps-up
+---rmt_storage debugfs---
+total 0
+drwxr-xr-x    2 root     root             0 Jan  1  1970 [1;34m.[m
+drwx------   93 root     root             0 Jan  1  1970 [1;34m..[m
+-r--------    1 root     root             0 Jan  1  1970 [0;0minfo[m
+--w-------    1 root     root             0 Jan  1  1970 [0;0mrfsa[m
+--w-------    1 root     root             0 Jan  1  1970 [0;0mrmts[m
+== /sys/kernel/debug/rmt_storage/info
+
+Client_name: rmtfs
+Client_id: 0x00000001
+Buffer Size: 0x00200000 (2097152)
+Address: 0x00000000FD601000
+Address Allocation: Dynamic
+Request count: 2
+
+
+RFSA server start count = 0
+RMTS server start count = 0
+
+== /sys/kernel/debug/rmt_storage/rfsa
+head: /sys/kernel/debug/rmt_storage/rfsa: I/O error
+== /sys/kernel/debug/rmt_storage/rmts
+head: /sys/kernel/debug/rmt_storage/rmts: I/O error
+---dmesg tail---
+[  190.050481,0] ipa ipa2_teardown_sys_pipe:1519 bad parm.
+[  190.050515,0] ipa-wan ipa_wwan_remove:2272 Failed to teardown IPA->APPS pipe
+[  190.051626,0] [RMNET:HI] rmnet_config_notify_cb(): Kernel is trying to unregister rmnet_ipa0
+[  190.077215,0] [RMNET:HI] rmnet_config_notify_cb(): Kernel is trying to unregister rmnet_ipa0
+[  190.077581,0] ipa-wan ipa_del_dflt_wan_rt_tables:402 Deleting Route hdl:(0x9) with ip type: 0
+[  190.079834,0] ipa-wan ipa_del_dflt_wan_rt_tables:411 Deleting Route hdl:(0xb) with ip type: 1
+[  190.081812,0] rmnet_ipa completed deinitialization
+[  190.081988,0] IPA BEFORE_SHUTDOWN handling is complete
+[  190.082019,0] subsys-restart: subsystem_shutdown(): [kworker/0:1:234]: Shutting down modem
+[  190.082049,0] pil-q6v5-mss 4080000.qcom,mss: MSS is shutting down
+[  190.107088,0] pil-q6v5-mss 4080000.qcom,mss: Port ffffff800bbce000 halt timeout
+[  190.132140,0] pil-q6v5-mss 4080000.qcom,mss: Port ffffff800bbd0000 halt timeout
+[  190.134681,0] apr_tal_link_state_cb: edge[mpss] link state[1]
+[  190.134878,5] <CORE> smem:mpss glink_open: Error 0 - unable to find transport
+[  190.134902,5] <LBSRV> smem:mpss:LOOPBACK_CTL_APSS glink_lbsrv_open_worker: unable to open channel
+[  190.135473,0] icnss: Collecting msa0 segment dump
+[  190.135507,0] Ramdump(ramdump_wcss_msa0): No consumers. Aborting..
+[  190.135648,0] smd_channel_reset: allocation table not initialized
+[  190.135674,0] IPA received MPSS AFTER_SHUTDOWN
+[  190.135726,0] ipa ipa_q6_post_shutdown_cleanup:2531 uC is not loaded, won't reset Q6 pipes
+[  190.135759,0] IPA AFTER_SHUTDOWN handling is complete
+[  190.135940,0] IPA received MPSS BEFORE_POWERUP
+[  190.146588,0] IPA BEFORE_POWERUP handling is complete
+[  190.146617,0] subsys-restart: subsystem_powerup(): [kworker/0:1:234]: Powering up modem
+[  190.147240,0] pil-q6v5-mss 4080000.qcom,mss: modem: loading from 0x000000008ac00000 to 0x0000000092200000
+
+--- end (ok) ---
+
+## stop trigger snapshot (221s)
+UPTIME: 221.41 1733.95
+restarts=2 iovec_ok=6 iovec_fail=0 failsector=0
+---restart context---
+22:[    0.000000,0] Reserved memory: reserved region for node 'wdog_cpuctx_region': base 0x00000000aefd2000, size 0 MiB
+194:[    3.393672,5] msm_watchdog 17817000.qcom,wdt: wdog absent resource not present
+195:[    3.397576,5] msm_watchdog 17817000.qcom,wdt: MSM Watchdog Initialized
+589:[    8.939855,5] mmi_unit_info (SMEM) for modem: version = 0x03, device = 'chef', radio = 0x0, radio_str = 'APAC', system_rev = 0xc000, system_serial = 0x00000000130bc260, machine = '', barcode = 'ZF6223WZGL', baseband = '', carrier = 'retin', pu_reason = 0x00004000
+609:[    9.207022,5] lkdtm: No crash points registered, enable through debugfs
+833:[   11.701764,0] msm_camera_cci_i2c_poll:425 poll failed rc=1(non-fatal)
+1514:[  147.379192,0] modem subsystem failure reason: (unknown, smem_get_entry_no_rlock failed).
+1515:[  147.379210,0] subsys-restart: subsystem_restart_dev(): Restart sequence requested for modem, restart_level = RELATED.
+1516:[  147.379833,0] icnss: Modem went down, state: 0x80080, crashed: 1
+1563:[  150.049410,0] subsys-restart: subsystem_restart_wq_func(): [kworker/0:1:234]: Restart sequence for modem completed.
+1591:[  190.044104,0] modem subsystem failure reason: (unknown, smem_get_entry_no_rlock failed).
+1592:[  190.044127,0] subsys-restart: subsystem_restart_dev(): Restart sequence requested for modem, restart_level = RELATED.
+1593:[  190.044730,0] icnss: Modem went down, state: 0x84080, crashed: 1
+1641:[  192.684661,0] subsys-restart: subsystem_restart_wq_func(): [kworker/0:1:234]: Restart sequence for modem completed.
+---subsys state---
+/sys/bus/msm_subsys/devices/subsys0 venus state=OFFLINING restart_level=SYSTEM
+/sys/bus/msm_subsys/devices/subsys1 a512_zap state=OFFLINING restart_level=SYSTEM
+/sys/bus/msm_subsys/devices/subsys2 adsp state=OFFLINING restart_level=SYSTEM
+/sys/bus/msm_subsys/devices/subsys3 modem state=ONLINE restart_level=RELATED
+---rmt_storage info---
+
+Client_name: rmtfs
+Client_id: 0x00000001
+Buffer Size: 0x00200000 (2097152)
+Address: 0x00000000FD601000
+Address Allocation: Dynamic
+Request count: 3
+
+
+RFSA server start count = 0
+RMTS server start count = 0
+
+1048 gps-up
+1220 rmtfs
+ls: /run/qmux_socket: No such file or directory
+
+--- end (ok) ---
+
+## SIGTERM stop + cleanup verification (252s)
+STOP_UPTIME: 252.18 1975.68
+sending TERM to gps-up pid 1048
+gps-up alive after 3 half-seconds? no
+---procs---
+(pgrep done)
+---leftovers---
+ls: /run/gps-up.lock: No such file or directory
+ls: /run/qmux_socket: No such file or directory
+no /firmware mount
+---subsys---
+venus state=OFFLINING
+a512_zap state=OFFLINING
+adsp state=OFFLINING
+modem state=OFFLINE
+---counts---
+restarts=3 iovec_ok=11 iovec_fail=0 failsector=0 lines=107
+---dmesg tail---
+[  252.590220,1] pil-q6v5-mss 4080000.qcom,mss: Port ffffff800bbd0000 halt timeout
+[  252.592091,1] apr_tal_link_state_cb: edge[mpss] link state[1]
+[  252.592330,3] <CORE> smem:mpss glink_open: Error 0 - unable to find transport
+[  252.592367,3] <LBSRV> smem:mpss:LOOPBACK_CTL_APSS glink_lbsrv_open_worker: unable to open channel
+[  252.592850,7] smd_channel_reset: allocation table not initialized
+[  252.592872,7] IPA received MPSS AFTER_SHUTDOWN
+[  252.592906,7] ipa ipa_q6_post_shutdown_cleanup:2531 uC is not loaded, won't reset Q6 pipes
+[  252.592924,7] IPA AFTER_SHUTDOWN handling is complete
+[  252.820051,4] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:13
+[  252.836876,5] gps-up (1048) used greatest stack depth: 10272 bytes left
+[  254.826716,4] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[  256.833380,4] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:31
+[1]+  Done                       gps-up 1>/tmp/gps-up.out 2>&1
+
+--- end (ok) ---
+
+## dump_servers / rmt_storage debugfs / smem debugfs / uio after stop
+Service    |Instance   |Node_id    |Port_id    |
+------------------------------------------------------------
+0x00001001 |0x00000000 |0x00000001 |0x00000008 |
+0x00001001 |0x00000002 |0x00000001 |0x00000009 |
+0x00001001 |0x00000004 |0x00000001 |0x0000000a |
+0x00001001 |0x00000040 |0x00000001 |0x0000000b |
+0x00001001 |0x00000044 |0x00000001 |0x0000000d |
+0x00001001 |0x00000080 |0x00000001 |0x0000000e |
+0x00001001 |0x00000082 |0x00000001 |0x0000000f |
+0x00001001 |0x00000084 |0x00000001 |0x00000010 |
+0x00001001 |0x000000c0 |0x00000001 |0x00000011 |
+0x00001001 |0x000000c2 |0x00000001 |0x00000012 |
+0x00001001 |0x000000c4 |0x00000001 |0x00000013 |
+0x00001001 |0x00000140 |0x00000001 |0x00000014 |
+0x00001001 |0x00000042 |0x00000001 |0x0000000c |
+0x00001001 |0x00000102 |0x00000001 |0x00000018 |
+0x00001001 |0x00000104 |0x00000001 |0x00000019 |
+0x00001001 |0x00000142 |0x00000001 |0x00000015 |
+0x00001001 |0x00000144 |0x00000001 |0x00000016 |
+0x00001001 |0x00000100 |0x00000001 |0x00000017 |
+0x00000031 |0x00000101 |0x00000001 |0x00000029 |
+0x00000034 |0x00000101 |0x00000001 |0x00000001 |
+0x0000001c |0x00000101 |0x00000001 |0x00000004 |
+0x0000041d |0x00000001 |0x00000001 |0x00000006 |
+---rmt_storage/info---
+
+Client_name: rmtfs
+Client_id: 0x00000001
+Buffer Size: 0x00200000 (2097152)
+Address: 0x00000000FD601000
+Address Allocation: Dynamic
+Request count: 4
+
+
+RFSA server start count = 0
+RMTS server start count = 0
+
+---smem/version---
+entry 0:c0000 smem = 12  proc_comm = 0
+entry 1:0 smem = 0  proc_comm = 0
+entry 2:0 smem = 0  proc_comm = 0
+entry 3:0 smem = 0  proc_comm = 0
+entry 4:0 smem = 0  proc_comm = 0
+entry 5:0 smem = 0  proc_comm = 0
+entry 6:0 smem = 0  proc_comm = 0
+entry 7:c0000 smem = 12  proc_comm = 0
+entry 8:0 smem = 0  proc_comm = 0
+entry 9:c0000 smem = 12  proc_comm = 0
+entry 10:0 smem = 0  proc_comm = 0
+entry 11:0 smem = 0  proc_comm = 0
+entry 12:0 smem = 0  proc_comm = 0
+entry 13:0 smem = 0  proc_comm = 0
+entry 14:c0000 smem = 12  proc_comm = 0
+entry 15:0 smem = 0  proc_comm = 0
+entry 16:0 smem = 0  proc_comm = 0
+entry 17:0 smem = 0  proc_comm = 0
+entry 18:0 smem = 0  proc_comm = 0
+entry 19:0 smem = 0  proc_comm = 0
+entry 20:0 smem = 0  proc_comm = 0
+entry 21:0 smem = 0  proc_comm = 0
+entry 22:0 smem = 0  proc_comm = 0
+entry 23:0 smem = 0  proc_comm = 0
+entry 24:0 smem = 0  proc_comm = 0
+entry 25:0 smem = 0  proc_comm = 0
+entry 26:0 smem = 0  proc_comm = 0
+entry 27:0 smem = 0  proc_comm = 0
+entry 28:0 smem = 0  proc_comm = 0
+entry 29:0 smem = 0  proc_comm = 0
+entry 30:0 smem = 0  proc_comm = 0
+entry 31:0 smem = 0  proc_comm = 0
+---smem/build---
+   Y                                     �                                          �`   l                 ---smem/mem---
+SMEM_HEAP_INFO is NULL
+---uio---
+rmtfs map0 addr=0x00000000fd601000 size=0x0000000000200000
+
+--- end (ok) ---

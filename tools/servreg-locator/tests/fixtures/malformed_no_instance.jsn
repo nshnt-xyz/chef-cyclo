@@ -1,0 +1,11 @@
+{
+    "sr_version": { "major": 1, "minor": 1, "patch": 1 },
+    "sr_domain": {
+        "soc": "msm",
+        "domain": "broken",
+        "subdomain": "root_pd"
+    },
+    "sr_service": [
+        { "provider": "tms", "service": "servreg", "service_data_valid": 0, "service_data": 0 }
+    ]
+}

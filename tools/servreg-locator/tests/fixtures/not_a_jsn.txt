@@ -1,0 +1,1 @@
+{"sr_domain":{"soc":"msm","domain":"ignored","subdomain":"root_pd","qmi_instance_id":1},"sr_service":[{"provider":"x","service":"y"}]}

@@ -1,0 +1,107 @@
+gps-up: mounted active modem_a read-only
+gps-up: validated active-slot fsg_a (mmcblk0p36): 10485760 bytes
+failed to open /dev/qcom_rmtfs_mem1: No such file or directory
+falling back to uio access
+registering services
+gps-up: opening /dev/subsys_modem (boots mpss; keep fd 3 open for the modem's lifetime)
+[storage] failed to open '/dev/disk/by-partlabel/fsg' (requested '/boot/modem_fsg'): No such file or directory
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:18
+[RMTFS] iovec 1, not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:19
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 2:4094 0x400
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 ([RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:18
+[RMTFS] iovec 1, not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:19
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 2:4094 0x400
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:18
+[RMTFS] iovec 1, not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:19
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 2:4094 0x400
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:18
+[RMTFS] iovec 1, not forced => (0:0)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:19
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 2:4094 0x400

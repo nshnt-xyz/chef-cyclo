@@ -1,0 +1,2336 @@
+
+$ cat /tmp/gps-up.out
+gps-up: mounted active modem_a read-only
+gps-up: validated active-slot fsg_a (mmcblk0p36): 10485760 bytes
+failed to open /dev/qcom_rmtfs_mem1: No such file or directory
+falling back to uio access
+registering services
+gps-up: opening /dev/subsys_modem (boots mpss; keep fd 3 open for the modem's lifetime)
+[storage] failed to open '/dev/disk/by-partlabel/fsg' (requested '/boot/modem_fsg'): No such file or directory
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+/boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: [RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+ => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: [RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_1', rejecting
+[RMTFS storage] request for unknown partition '/boot/modem_fsg_oem_2', rejecting
+[RMTFS] failed to read sector 1
+gps-up: timed out waiting for LOC service (0x10); modem may not have booted
+gps-up: dump_servers: Service    |Instance   |Node_id    |Port_id    |
+gps-up: dump_servers: ------------------------------------------------------------
+gps-up: dump_servers: 0x00001001 |0x00000002 |0x00000001 |0x00000008 |
+gps-up: dump_servers: 0x00001001 |0x00000000 |0x00000001 |0x00000009 |
+gps-up: dump_servers: 0x00001001 |0x00000004 |0x00000001 |0x0000000a |
+gps-up: dump_servers: 0x00001001 |0x00000040 |0x00000001 |0x0000000b |
+gps-up: dump_servers: 0x00001001 |0x00000102 |0x00000001 |0x0000000e |
+gps-up: dump_servers: 0x00001001 |0x00000084 |0x00000001 |0x0000000f |
+gps-up: dump_servers: 0x00001001 |0x00000140 |0x00000001 |0x00000010 |
+gps-up: dump_servers: 0x00001001 |0x00000104 |0x00000001 |0x00000011 |
+gps-up: dump_servers: 0x00001001 |0x000000c4 |0x00000001 |0x00000018 |
+gps-up: dump_servers: 0x00001001 |0x00000144 |0x00000001 |0x0000001a |
+gps-up: dump_servers: 0x00001001 |0x00000042 |0x00000001 |0x0000000c |
+gps-up: dump_servers: 0x00001001 |0x00000080 |0x00000001 |0x00000012 |
+gps-up: dump_servers: 0x00001001 |0x000000c0 |0x00000001 |0x00000013 |
+gps-up: dump_servers: 0x00001001 |0x00000044 |0x00000001 |0x0000000d |
+gps-up: dump_servers: 0x00001001 |0x00000100 |0x00000001 |0x00000014 |
+gps-up: dump_servers: 0x00001001 |0x00000142 |0x00000001 |0x00000015 |
+gps-up: dump_servers: 0x00001001 |0x00000082 |0x00000001 |0x00000016 |
+gps-up: dump_servers: 0x00001001 |0x000000c2 |0x00000001 |0x00000017 |
+gps-up: dump_servers: 0x0000000e |0x00000001 |0x00000001 |0x0000001e |
+gps-up: dump_servers: 0x00000034 |0x00000101 |0x00000001 |0x00000001 |
+gps-up: dump_servers: 0x0000001c |0x00000101 |0x00000001 |0x00000004 |
+gps-up: dump_servers: 0x0000041d |0x00000001 |0x00000001 |0x00000006 |
+0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+[RMTFS] packet; from: 0:8
+[RMTFS] open /boot/modem_fs1 => 0 (0:0)
+[RMTFS] packet; from: 0:10
+[RMTFS] open /boot/modem_fs2 => 1 (0:0)
+[RMTFS] packet; from: 0:11
+[RMTFS] open /boot/modem_fsg => 2 (0:0)
+[RMTFS] packet; from: 0:12
+[RMTFS] open /boot/modem_fsc => 3 (0:0)
+[RMTFS] packet; from: 0:13
+[RMTFS] open /boot/modem_fsg_oem_1 => -1 (1:1)
+[RMTFS] packet; from: 0:14
+[RMTFS] open /boot/modem_fsg_oem_2 => -1 (1:1)
+[RMTFS] packet; from: 0:16
+[RMTFS] alloc 0, 0 => 0xfd601000 (0:0)
+[RMTFS] packet; from: 0:17
+[RMTFS] iovec 0, not forced => (1:1)
+[RMTFS]       read 1:1 0x200
+
+--- end (ok) ---

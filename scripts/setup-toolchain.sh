@@ -53,3 +53,20 @@ if [ ! -x toolchain/apk/apk.static ]; then
 fi
 toolchain/apk/apk.static --version
 ls toolchain/apk/keys | head -3
+
+# --- musl aarch64 cross compiler for the GPS/QMI userspace helpers ---------
+# rmtfs/msmipc/qmuxd-lite need real libc (malloc, getopt, sockets, pthreads)
+# and must run against the Alpine rootfs's musl, not bionic: the AOSP GCC
+# above is glibc/bionic-targeted and only used freestanding (-nostdlib) for
+# btprobe. Static -Os builds so nothing but the kernel ABI is required at
+# runtime.
+MUSLTC=toolchain/aarch64-musl
+MUSL_REL=aarch64--musl--stable-2026.08-1
+if [ ! -x "$MUSLTC/bin/aarch64-buildroot-linux-musl-gcc" ]; then
+    mkdir -p "$MUSLTC"
+    curl -fsSL -o /tmp/$$-musl-cc.tar.xz \
+        "https://toolchains.bootlin.com/downloads/releases/toolchains/aarch64/tarballs/$MUSL_REL.tar.xz"
+    tar -xf /tmp/$$-musl-cc.tar.xz -C "$MUSLTC" --strip-components=1
+    rm -f /tmp/$$-musl-cc.tar.xz
+fi
+"$MUSLTC/bin/aarch64-buildroot-linux-musl-gcc" --version | head -1

@@ -1,0 +1,328 @@
+#!/bin/sh
+# Bring up the modem for QMI-LOC GPS: mount its firmware read-only, start the
+# RMTFS EFS server in RAM-shadow mode (never touches the real EFS partitions)
+# and the servreg-locator server (answers the modem's boot-time
+# service-registry lookup -- without it the modem's own "dog" startup-grace
+# timer ERR_FATALs it after ~40s), open /dev/subsys_modem to trigger PIL,
+# then start the QMUX bridge once the LOC service is visible on the IPC
+# router.
+#
+# EFS partition naming on this device is mixed, confirmed against the live
+# partition table (not assumed): modemst1/modemst2/fsc are unsuffixed; fsg is
+# genuinely per-slot (fsg_a/fsg_b only, no unsuffixed fsg). gps-up exposes
+# only the unsuffixed modemst1/modemst2/fsc links itself and never creates an
+# unsuffixed "fsg" alias; it validates the *active* slot's fsg_$SLOT (exact
+# partition, exact 10485760-byte size) and hands that slot to `rmtfs -S`,
+# which is what makes rmtfs's own unsuffixed-then-suffixed lookup land on
+# fsg_$SLOT. The other slot's fsg is never read, sized, linked or retried.
+#
+# Manual opt-in only (not in inittab yet) while this is being verified live:
+# run it by hand from the telnet shell with `gps-up &`. Promote it to
+# inittab as a `once` entry (not `respawn` — each respawn reopens
+# /dev/subsys_modem, which restarts the modem) only after §5 of the GPS
+# handoff passes on-device.
+set -u
+
+LOCK=/run/gps-up.lock
+RMTFS_PID=
+SERVREG_PID=
+QMUX_PID=
+FIRMWARE_MOUNTED=0
+MODEM_FD_OPEN=0
+
+# Required exact size of the active slot's fsg partition, confirmed against
+# the live partition table for both fsg_a and fsg_b.
+FSG_SIZE_EXPECT=10485760
+
+# Overridable so gps-up's selection logic can be exercised against a fake
+# sysfs/cmdline tree in tools/tests/test_gps-up.sh; unset in production, so
+# these default to the real device paths.
+SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
+CMDLINE=${CMDLINE:-/proc/cmdline}
+FW_PATH_NODE=${FW_PATH_NODE:-/sys/module/firmware_class/parameters/path}
+
+part() {
+	for u in "$SYSFS_BLOCK"/*/uevent; do
+		grep -q "^PARTNAME=$1\$" "$u" 2>/dev/null && { basename "$(dirname "$u")"; return; }
+	done
+}
+
+part_size_bytes() {
+	# $1: partition device basename under $SYSFS_BLOCK (e.g. mmcblk0p12).
+	# Echoes the partition size in bytes on success.
+	s="$SYSFS_BLOCK/$1/size"
+	[ -r "$s" ] || return 1
+	sec=$(cat "$s" 2>/dev/null) || return 1
+	case "$sec" in '' | *[!0-9]*) return 1 ;; esac
+	echo $((sec * 512))
+}
+
+resolve_fsg() {
+	# $1: the validated active slot ("a" or "b"). Echoes "<label> <part>" on
+	# success. Only ever looks at fsg_$1 -- the other slot's fsg is never
+	# opened, sized, or considered as a fallback.
+	slot=$1
+	label=fsg_$slot
+	p=$(part "$label")
+	if [ -z "$p" ]; then
+		log "$label partition not found (only the active slot is ever probed; the other slot is never retried)"
+		return 1
+	fi
+	sz=$(part_size_bytes "$p") || { log "could not read size of $label ($p)"; return 1; }
+	if [ "$sz" -ne "$FSG_SIZE_EXPECT" ]; then
+		log "$label ($p) is $sz bytes, expected exactly $FSG_SIZE_EXPECT; refusing (never falls back to the other slot)"
+		return 1
+	fi
+	printf '%s %s\n' "$label" "$p"
+}
+
+set_firmware_path() {
+	# printf, not echo: /sys/module/firmware_class/parameters/path is a bare
+	# strcpy() of the sysfs write buffer (kernel/params.c's
+	# param_set_copystring(), no trailing-newline stripping), and that value
+	# is later used verbatim as "%s/%s" with the requested firmware name
+	# (drivers/base/firmware_class.c's fw_get_filesystem_firmware()). echo's
+	# trailing \n would land in the middle of the constructed path and make
+	# every direct-load lookup miss, even for firmware that is really there
+	# -- see the 2026-09-16 (live, fix) README entry. The sibling
+	# /sys/class/firmware/timeout write just below in the main flow does not
+	# have this problem: it's parsed with simple_strtol(), which stops at the
+	# first non-digit byte and tolerates a trailing \n fine.
+	printf '%s' /firmware/image > "$FW_PATH_NODE"
+}
+
+server_present() {
+	# dump_servers in this 4.4 tree writes the service in the first column as
+	# 0x000000NN, rather than the shorthand 0xNN used in some newer trees.
+	grep -Eq "^0x0*$1[[:space:]]*[|]" /sys/kernel/debug/msm_ipc_router/dump_servers 2>/dev/null
+}
+
+wait_for_server() {
+	service=$1
+	name=$2
+	limit=$3
+	i=0
+	while ! server_present "$service"; do
+		if [ -n "$RMTFS_PID" ] && ! kill -0 "$RMTFS_PID" 2>/dev/null; then
+			log "rmtfs exited before $name service became ready"
+			return 1
+		fi
+		if [ -n "$SERVREG_PID" ] && ! kill -0 "$SERVREG_PID" 2>/dev/null; then
+			log "servreg-locator exited before $name service became ready"
+			return 1
+		fi
+		[ "$i" -lt "$limit" ] || return 1
+		sleep 0.5
+		i=$((i + 1))
+	done
+	return 0
+}
+
+child_running() {
+	# kill -0 alone considers an unreaped zombie alive. A zombie is a failed
+	# daemon for our purposes, so inspect its proc state before deciding that
+	# the modem can remain up. BusyBox's wait -n availability is not assumed.
+	[ -r "/proc/$1/stat" ] || return 1
+	awk '{ exit ($3 == "Z") }' "/proc/$1/stat"
+}
+
+active_slot() {
+	for arg in $(cat "$CMDLINE" 2>/dev/null); do
+		case "$arg" in
+		androidboot.slot_suffix=_a) echo a; return 0 ;;
+		androidboot.slot_suffix=_b) echo b; return 0 ;;
+		esac
+	done
+	return 1
+}
+
+log() {
+	[ -w /dev/kmsg ] && echo "gps-up: $*" > /dev/kmsg 2>/dev/null
+	echo "gps-up: $*"
+}
+
+cleanup() {
+	status=$?
+	trap - EXIT HUP INT TERM
+	[ -n "$QMUX_PID" ] && kill "$QMUX_PID" 2>/dev/null
+	[ -n "$SERVREG_PID" ] && kill "$SERVREG_PID" 2>/dev/null
+	[ -n "$RMTFS_PID" ] && kill "$RMTFS_PID" 2>/dev/null
+	[ -n "$QMUX_PID" ] && wait "$QMUX_PID" 2>/dev/null
+	[ -n "$SERVREG_PID" ] && wait "$SERVREG_PID" 2>/dev/null
+	[ -n "$RMTFS_PID" ] && wait "$RMTFS_PID" 2>/dev/null
+	[ "$MODEM_FD_OPEN" -eq 1 ] && exec 3<&-
+	[ "$FIRMWARE_MOUNTED" -eq 1 ] && umount /firmware 2>/dev/null
+	rmdir "$LOCK" 2>/dev/null
+	exit "$status"
+}
+
+# Let tools/tests/test_gps-up.sh source this file for its functions (part,
+# part_size_bytes, active_slot, resolve_fsg) without running the modem
+# bring-up below.
+[ "${GPS_UP_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
+
+if ! mkdir "$LOCK" 2>/dev/null; then
+	log "already running (or stale $LOCK remains); refusing a second modem lifetime"
+	exit 1
+fi
+trap cleanup EXIT HUP INT TERM
+
+mkdir -p /firmware /dev/disk/by-partlabel /sys/kernel/debug
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+[ -r /sys/kernel/debug/msm_ipc_router/dump_servers ] || {
+	log "IPC-router debugfs dump_servers is unavailable; cannot prove service readiness"
+	exit 1
+}
+
+SLOT=$(active_slot) || { log "active A/B slot not present in /proc/cmdline, aborting"; exit 1; }
+MODEM_LABEL=modem_$SLOT
+MODEM_PART=$(part "$MODEM_LABEL")
+if [ -z "$MODEM_PART" ]; then
+	log "$MODEM_LABEL partition not found, aborting"
+	exit 1
+fi
+mount -o ro "/dev/$MODEM_PART" /firmware || { log "failed to mount $MODEM_LABEL read-only"; exit 1; }
+FIRMWARE_MOUNTED=1
+log "mounted active $MODEM_LABEL read-only"
+
+[ -w "$FW_PATH_NODE" ] || { log "firmware path sysfs node missing"; exit 1; }
+set_firmware_path || {
+	log "failed to set firmware search path"
+	exit 1
+}
+[ -w /sys/class/firmware/timeout ] || { log "firmware timeout sysfs node missing"; exit 1; }
+echo 1 > /sys/class/firmware/timeout	# msadp debug-policy file never exists (pil-msa.c:595)
+
+# modemst1/modemst2/fsc are genuinely unsuffixed on this device (confirmed
+# against the live partition table): expose exactly those three, unsuffixed,
+# and nothing else here. fsg is handled separately below -- it is never
+# aliased to an unsuffixed "fsg" link, because no such partition exists.
+for n in modemst1 modemst2 fsc; do
+	p=$(part "$n")
+	[ -n "$p" ] || { log "required EFS partition $n not found"; exit 1; }
+	ln -sfn "/dev/$p" "/dev/disk/by-partlabel/$n" || {
+		log "failed to expose required EFS partition $n"
+		exit 1
+	}
+done
+
+FSG=$(resolve_fsg "$SLOT") || { log "no valid active-slot fsg_$SLOT; aborting (the other slot is never tried)"; exit 1; }
+FSG_LABEL=${FSG% *}
+FSG_PART=${FSG#* }
+ln -sfn "/dev/$FSG_PART" "/dev/disk/by-partlabel/$FSG_LABEL" || {
+	log "failed to expose active-slot EFS partition $FSG_LABEL"
+	exit 1
+}
+log "validated active-slot $FSG_LABEL ($FSG_PART): $FSG_SIZE_EXPECT bytes"
+
+RMTFS_UIO=
+for u in /sys/class/uio/uio*; do
+	if [ -r "$u/name" ] && [ "$(cat "$u/name")" = rmtfs ]; then
+		RMTFS_UIO=/dev/$(basename "$u")
+		break
+	fi
+done
+[ -n "$RMTFS_UIO" ] || { log "no uio device named rmtfs found"; exit 1; }
+ln -sfn "$RMTFS_UIO" /dev/qcom_rmtfs_uio1 || { log "failed to expose rmtfs UIO"; exit 1; }
+[ -e /dev/qcom_rmtfs_uio1 ] || { log "rmtfs UIO device is unavailable"; exit 1; }
+
+if ! irsc; then
+	log "irsc failed; refusing to start clients that could block in IPC router security"
+	exit 1
+fi
+
+# -r: RAM-shadowed writes only. Non-negotiable until EFS writes are reviewed
+# and the user explicitly okays them (see README GPS section).
+# -S "$SLOT": required for fsg. There is no unsuffixed fsg partition on this
+# device (only fsg_a/fsg_b), so storage_open()'s unsuffixed lookup for "fsg"
+# always misses and its fallback appends slot_suffix; -S is what tells it
+# which slot's fsg that fallback should reach, and we validated and linked
+# exactly that partition above. modemst1/modemst2/fsc are matched on the
+# unsuffixed lookup regardless of -S, since they really are unsuffixed here.
+# rmtfs is only ever given the one slot this script validated; there is no
+# code path in it that also tries the other slot.
+rmtfs -P -r -S "$SLOT" -v &
+RMTFS_PID=$!
+
+# The modem can issue EFS traffic as soon as PIL starts. Do not open
+# /dev/subsys_modem until rmtfs has both opened its shared memory and bound
+# service 0x0e in the IPC router. On this kernel dump_servers prints it as
+# 0x0000000e in the first table column.
+if ! wait_for_server 0e RMTFS 40; then
+	log "timed out waiting for rmtfs service (0x0e); refusing modem boot"
+	exit 1
+fi
+
+# servreg-locator answers the modem's own boot-time service-registry lookup
+# (QMI service 0x40, instance 0x101 -- dump_servers prints it as
+# 0x00000040). Without it the modem's Hexagon "dog" startup-grace timer
+# fires ERR_FATAL ~40s after Power/Clock ready (see README's 2026-09-16 (dog
+# timeout) entry) -- this is the actual fix for that, not a nice-to-have, so
+# gps-up fails closed exactly like it does for RMTFS above rather than
+# opening /dev/subsys_modem without it.
+servreg-locator -v &
+SERVREG_PID=$!
+
+if ! wait_for_server 40 SERVREG-LOCATOR 20; then
+	log "timed out waiting for servreg-locator service (0x40); refusing modem boot"
+	exit 1
+fi
+
+MODEM_SUBSYS=
+for s in /sys/bus/msm_subsys/devices/subsys*; do
+	if [ -r "$s/name" ] && [ "$(cat "$s/name")" = modem ]; then
+		[ -w "$s/restart_level" ] || { log "modem restart_level is unavailable"; exit 1; }
+		echo related > "$s/restart_level" || { log "failed to set modem restart_level=related"; exit 1; }
+		MODEM_SUBSYS=$s
+		break
+	fi
+done
+[ -n "$MODEM_SUBSYS" ] || { log "modem subsystem was not found"; exit 1; }
+
+log "opening /dev/subsys_modem (boots mpss; keep fd 3 open for the modem's lifetime)"
+exec 3< /dev/subsys_modem || {
+	log "failed to open /dev/subsys_modem"
+	kill "$SERVREG_PID" 2>/dev/null
+	kill "$RMTFS_PID" 2>/dev/null
+	exit 1
+}
+MODEM_FD_OPEN=1
+
+# Wait for the LOC service (0x10) to appear on the IPC router.
+if ! wait_for_server 10 LOC 600; then
+	log "timed out waiting for LOC service (0x10); modem may not have booted"
+	cat /sys/kernel/debug/msm_ipc_router/dump_servers 2>/dev/null | while read -r line; do log "dump_servers: $line"; done
+	exit 1
+fi
+
+qmuxd-lite &
+QMUX_PID=$!
+sleep 1
+if ! kill -0 "$QMUX_PID" 2>/dev/null; then
+	log "qmux bridge failed to stay up"
+	exit 1
+fi
+log "modem up, qmux bridge on /run/qmux_socket"
+
+# Keep the /dev/subsys_modem fd held while all supporting services are
+# alive. A bare wait would wait for *all* children and leave the modem up if
+# one daemon died first. Poll their proc state instead (we cannot assume this
+# BusyBox has wait -n), reap the failed child, then exit through cleanup().
+while :; do
+	if ! child_running "$RMTFS_PID"; then
+		wait "$RMTFS_PID" 2>/dev/null
+		log "rmtfs exited; stopping modem safely"
+		exit 1
+	fi
+	if ! child_running "$SERVREG_PID"; then
+		wait "$SERVREG_PID" 2>/dev/null
+		log "servreg-locator exited; stopping modem safely"
+		exit 1
+	fi
+	if ! child_running "$QMUX_PID"; then
+		wait "$QMUX_PID" 2>/dev/null
+		log "qmux bridge exited; stopping modem safely"
+		exit 1
+	fi
+	sleep 1
+done

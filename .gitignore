@@ -9,3 +9,13 @@ out/
 
 # Cross toolchain, fetched by scripts/setup-toolchain.sh
 toolchain/
+
+# tools/ build outputs (see tools/Makefile)
+tools/irsc
+tools/qmuxd-lite
+tools/tests/test-qmux
+tools/tests/test-msmipc
+tools/rmtfs/tests/test-storage
+tools/servreg-locator/servreg-locator
+tools/servreg-locator/tests/test-jsn
+tools/servreg-locator/tests/test-servreg-loc
