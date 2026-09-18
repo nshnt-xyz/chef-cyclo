@@ -26,6 +26,7 @@ set -u
 LOCK=/run/gps-up.lock
 RMTFS_PID=
 SERVREG_PID=
+TFTP_PID=
 QMUX_PID=
 FIRMWARE_MOUNTED=0
 MODEM_FD_OPEN=0
@@ -111,6 +112,10 @@ wait_for_server() {
 			log "servreg-locator exited before $name service became ready"
 			return 1
 		fi
+		if [ -n "$TFTP_PID" ] && ! kill -0 "$TFTP_PID" 2>/dev/null; then
+			log "tftp-server exited before $name service became ready"
+			return 1
+		fi
 		[ "$i" -lt "$limit" ] || return 1
 		sleep 0.5
 		i=$((i + 1))
@@ -145,9 +150,11 @@ cleanup() {
 	status=$?
 	trap - EXIT HUP INT TERM
 	[ -n "$QMUX_PID" ] && kill "$QMUX_PID" 2>/dev/null
+	[ -n "$TFTP_PID" ] && kill "$TFTP_PID" 2>/dev/null
 	[ -n "$SERVREG_PID" ] && kill "$SERVREG_PID" 2>/dev/null
 	[ -n "$RMTFS_PID" ] && kill "$RMTFS_PID" 2>/dev/null
 	[ -n "$QMUX_PID" ] && wait "$QMUX_PID" 2>/dev/null
+	[ -n "$TFTP_PID" ] && wait "$TFTP_PID" 2>/dev/null
 	[ -n "$SERVREG_PID" ] && wait "$SERVREG_PID" 2>/dev/null
 	[ -n "$RMTFS_PID" ] && wait "$RMTFS_PID" 2>/dev/null
 	[ "$MODEM_FD_OPEN" -eq 1 ] && exec 3<&-
@@ -257,14 +264,37 @@ fi
 # (QMI service 0x40, instance 0x101 -- dump_servers prints it as
 # 0x00000040). Without it the modem's Hexagon "dog" startup-grace timer
 # fires ERR_FATAL ~40s after Power/Clock ready (see README's 2026-09-16 (dog
-# timeout) entry) -- this is the actual fix for that, not a nice-to-have, so
-# gps-up fails closed exactly like it does for RMTFS above rather than
-# opening /dev/subsys_modem without it.
+# timeout) entry). Fixing the +40.02s ERR_FATAL required this, but the
+# 2026-09-17 (stock read + TFTP/RFS) probe showed it alone was not
+# sufficient -- see tftp-server below, also required and also fail-closed.
 servreg-locator -v &
 SERVREG_PID=$!
 
 if ! wait_for_server 40 SERVREG-LOCATOR 20; then
 	log "timed out waiting for servreg-locator service (0x40); refusing modem boot"
+	exit 1
+fi
+
+# tftp-server answers the modem's boot-time TFTP/RFS transactions (QMI
+# service 0x1000, wire instance field 0x00000001, matching stock's own
+# tftp_server -- dump_servers prints the service column as 0x00001000; this
+# wait only checks that column, not the instance field, which is why an
+# earlier build that published the wrong instance value still passed this
+# same wait_for_server call -- see tools/tftp/tftpserv.c's
+# tftp_open_and_publish() for the fix and why):
+# stock Android's own tftp_server serves two WRQs
+# (/readwrite/mot_rfs/imei_sv, /readwrite/server_check.txt) within 0.3s of
+# Power/Clock-ready, interleaved with the RMTFS reads above (see REPORT.md
+# in the 2026-09-17 stock-read evidence and the README's 2026-09-17 (stock
+# read + TFTP/RFS) log entry). RAM-shadow only, seeded read-only at build
+# time -- see scripts/mkinitramfs.sh; never opens the persist partition or
+# any block device at runtime. Fails closed exactly like RMTFS and
+# servreg-locator above.
+tftp-server -v &
+TFTP_PID=$!
+
+if ! wait_for_server 1000 TFTP-SERVER 20; then
+	log "timed out waiting for tftp-server service (0x1000); refusing modem boot"
 	exit 1
 fi
 
@@ -282,6 +312,7 @@ done
 log "opening /dev/subsys_modem (boots mpss; keep fd 3 open for the modem's lifetime)"
 exec 3< /dev/subsys_modem || {
 	log "failed to open /dev/subsys_modem"
+	kill "$TFTP_PID" 2>/dev/null
 	kill "$SERVREG_PID" 2>/dev/null
 	kill "$RMTFS_PID" 2>/dev/null
 	exit 1
@@ -317,6 +348,11 @@ while :; do
 	if ! child_running "$SERVREG_PID"; then
 		wait "$SERVREG_PID" 2>/dev/null
 		log "servreg-locator exited; stopping modem safely"
+		exit 1
+	fi
+	if ! child_running "$TFTP_PID"; then
+		wait "$TFTP_PID" 2>/dev/null
+		log "tftp-server exited; stopping modem safely"
 		exit 1
 	fi
 	if ! child_running "$QMUX_PID"; then

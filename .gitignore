@@ -19,3 +19,10 @@ tools/rmtfs/tests/test-storage
 tools/servreg-locator/servreg-locator
 tools/servreg-locator/tests/test-jsn
 tools/servreg-locator/tests/test-servreg-loc
+tools/tftp/tftp-server
+tools/tftp/tests/test-translate
+tools/tftp/tests/test-protocol
+tools/tftp/tests/test-e2e
+tools/tftp/tests/test-translate-san
+tools/tftp/tests/test-protocol-san
+tools/tftp/tests/test-e2e-san

@@ -20,8 +20,11 @@
  * /dev/subsys_modem is opened; gps-up fails closed if this doesn't publish
  * 0x40 in time).
  *
- * Deliberately NOT provided (out of scope for this probe): TFTP/RFS
- * (service 0x1000, stock `tftp_server`/upstream `tqftpserv`) and dynamic
+ * This locator alone fixes the +40.02s ERR_FATAL (the Hexagon dog timer
+ * above), but the 2026-09-17 stock-read probe found it is not sufficient by
+ * itself to get the modem past its RFS boot writes -- see tools/tftp/
+ * (service 0x1000, stock `tftp_server`/upstream `tqftpserv`), started
+ * alongside this daemon in gps-up. Deliberately NOT provided here: dynamic
  * REGISTER_SERVICE_LIST handling (nothing on this device is known to send
  * it to us; stock's own pd-mapper logs it as "Unsupported request" too).
  *
