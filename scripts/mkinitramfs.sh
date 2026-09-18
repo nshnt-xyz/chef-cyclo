@@ -1,8 +1,8 @@
 #!/bin/sh
 # Build out/initramfs.cpio.gz: the Alpine rootfs from scripts/mkrootfs.sh
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
-# the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers and the
-# display/touch probe fbtouch on top.
+# the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
+# display/touch probe fbtouch and the on-device log screen fblog on top.
 set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
@@ -141,6 +141,18 @@ echo "built $ROOT/usr/bin/tftp-server"
 [ -f tools/fbtouch.c ] || { echo "missing required source: tools/fbtouch.c" >&2; exit 1; }
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/fbtouch" tools/fbtouch.c
 echo "built $ROOT/usr/bin/fbtouch"
+
+# Read-only boot/probe output screen (tools/fblog/fblog.c): tails /dev/kmsg
+# onto the panel through the same fbdev.h contract as fbtouch, never opens
+# an input device, yields the screen to `fbtouch show` via the advisory
+# /run/fb0.lock. Started from inittab (respawn); `touch /run/fblog.off` +
+# kill it to idle the panel. Font table tools/fblog/font9x15.h is generated
+# by tools/fblog/mkfont.py and committed, so the build needs no Pillow.
+for f in tools/fblog/fblog.c tools/fblog/font9x15.h tools/fbdev.h; do
+    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
+done
+"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/fblog" tools/fblog/fblog.c
+echo "built $ROOT/usr/bin/fblog"
 
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \

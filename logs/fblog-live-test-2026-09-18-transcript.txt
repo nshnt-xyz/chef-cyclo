@@ -1,0 +1,124 @@
+===== host preflight
+date: 2026-09-18T11:11:01+00:00
+List of devices attached
+ZF6223WZGL             device usb:1-1.2 product:chef model:motorola_one_power device:chef_sprout transport_id:16
+
+radio         1180     1  110844   1388 0                   0 S rmt_storage
+vendor_rfs    1181     1   40396   1084 0                   0 S tftp_server
+_a
+QPTS30.61-18-16-19
+c9247ec3209d3bf76ec3d7e63fac8857b2577b638eaffcf075a3e59a1fcc6d51  out/boot.img
+f0a06922751076fec56e3be25b3750f8e9e8a0d4c6f3a52e9fe0b67f52bdfd3e  out/initramfs.cpio.gz
+501daa1123307391cd36d619edf958b10bde1b322d7ddb93f2a852233783ef8d  out/kernel/arch/arm64/boot/Image.gz-dtb
+6565f99b1bd1fcded76d59a5f6eb192e919edaba
+ M .gitignore
+ M README.md
+ M initramfs/etc/inittab
+ M scripts/mkinitramfs.sh
+ M tools/Makefile
+ M tools/fbtouch.c
+?? tools/fbdev.h
+?? tools/fblog/
+?? tools/tests/test_fblog.c
+===== fastboot
+2026-09-18T11:11:09+00:00
+ZF6223WZGL	 fastboot
+c9247ec3209d3bf76ec3d7e63fac8857b2577b638eaffcf075a3e59a1fcc6d51  out/boot.img
+2026-09-18T11:11:21+00:00
+Sending 'boot.img' (22740 KB)                      OKAY [  0.562s]
+Booting                                            OKAY [  5.085s]
+Finished. Total time: 5.664s
+fastboot exit=0
+2026-09-18T11:11:26+00:00
+up after 13s 2026-09-18T11:11:50+00:00
+===== procs at +34 s
+    1     0 S     0:35   /sbin/init
+  609     1 S     0:20   /usr/bin/fblog
+===== packed inittab
+::respawn:/usr/sbin/telnetd -F -l /bin/sh
+::respawn:/usr/sbin/udhcpd -f /etc/udhcpd.conf
+::respawn:/usr/bin/dbus-daemon --system --nofork --nopidfile
+::respawn:/bin/sh -c 'while [ ! -S /run/dbus/system_bus_socket ]; do sleep 1; done; exec /usr/lib/bluetooth/bluetoothd -n'
+::respawn:/usr/bin/bt-up
+::respawn:/usr/bin/fblog
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init
+===== boot lines
+[    8.657284,6] mdss_panel_parse_panel_config_dt: BL: panel = mipi_mot_vid_tianma_nt_fhd_618, manufacture_id(0xDA) = 0x2 controller_ver(0xDB) = 0x61 controller_drv_ver(0XDC) = 0x21, full = 0x0000000000216102
+[    8.702611,6] mdss_fb_register: FrameBuffer[0] 1080x2246 registered successfully!
+[    9.834448,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1239: buf[1]=0x0B, buf[2]=0x00, buf[3]=0x00, buf[4]=0x25, buf[5]=0x65, buf[6]=0x03
+[    9.889401,0] [NVT-ts] nvt_read_pid 556: PID=3AD9
+[    9.891268,7] input: NVTCapacitiveTouchScreen as /devices/virtual/input/input1
+[   14.786615,0] cyclo-init: starting (4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty)
+[   14.897704,0] cyclo-init: gadget bound to a800000.dwc3
+[   14.952525,0] cyclo-init: usb0 up, 172.16.42.1/24
+[   15.263833,0] cyclo-init: exec init
+[   15.289757,1] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[   15.308301,5] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[   15.425884,3] mdss_dsi_on[0]+.
+[   15.425902,3] mdss_dsi_on[0]-.
+===== fblog/fbtouch/panel/touch lines (whole boot)
+[    9.760096,4] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[    9.834510,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[   15.289757,1] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[   15.308301,5] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[   15.308448,5] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   15.425884,3] mdss_dsi_on[0]+.
+[   15.425902,3] mdss_dsi_on[0]-.
+[   41.873689,2] PROBE-MARKER-7742 hello from the host at 22:21:20 UTC
+[   62.953996,4] fbtouch: show: opening /dev/fb0
+[   62.954351,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   62.957188,5] fblog: paused: screen borrowed (/run/fb0.lock)
+[   63.017958,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[   63.018920,4] fbtouch: backlight 160 (readback 160)
+[   68.012331,0] fbtouch: first touch contact at +5.058 s raw=(277,398)
+[   83.037306,0] fbtouch: done: frames=62 contacts=9
+[   83.038257,0] fbtouch: blanking before close
+[   83.038372,0] [NVT-ts] nvt_ts_suspend 1591: start
+[   83.090145,0] [NVT-ts] nvt_ts_suspend 1643: end
+[   83.102304,0] mdss_dsi_panel_off[0]+.
+[   83.310150,0] mdss_dsi_off[0]+.
+[   83.353863,0] mdss_dsi_off[0]-.
+[   83.364316,5] mdss_dsi_on[0]+.
+[   83.399383,5] mdss_dsi_on[0]-.
+[   83.399453,5] mdss_dsi_panel_on[0]+.
+[   83.543156,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[   83.556796,2] [NVT-ts] nvt_ts_resume 1668: start
+[   83.556812,2] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[   83.611703,2] [NVT-ts] nvt_ts_resume 1690: end
+[   83.711181,4] fblog: resumed
+[  108.936535,1] fbtouch: backlight 200 (readback 200)
+[  113.011411,2] fbtouch: backlight 96 (readback 96)
+[  126.856867,5] fblog: exiting: blanking before close
+[  126.857226,5] [NVT-ts] nvt_ts_suspend 1591: start
+[  126.910087,5] [NVT-ts] nvt_ts_suspend 1643: end
+[  126.911735,5] mdss_dsi_panel_off[0]+.
+[  127.120163,0] mdss_dsi_off[0]+.
+[  127.163607,0] mdss_dsi_off[0]-.
+[  127.373465,0] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[  128.917790,0] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+[  133.451135,0] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[  133.478467,6] mdss_dsi_on[0]+.
+[  133.512718,6] mdss_dsi_on[0]-.
+[  133.512793,6] mdss_dsi_panel_on[0]+.
+[  133.655924,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  133.656998,4] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[  133.670082,4] [NVT-ts] nvt_ts_resume 1668: start
+[  133.670092,4] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  133.725043,0] [NVT-ts] nvt_ts_resume 1690: end
+===== final procs / irq
+  765 /usr/bin/fblog
+249:        117          0          1          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+145.19 1113.08
+===== reboot
+2026-09-18T11:14:13+00:00
+reboot-issued
+stock adb back after 41s 2026-09-18T11:14:54+00:00
+List of devices attached
+ZF6223WZGL             device usb:1-1.2 product:chef model:motorola_one_power device:chef_sprout transport_id:17
+
+QPTS30.61-18-16-19
+_a
+radio         1176     1  110844   1988 0                   0 S rmt_storage
+vendor_rfs    1177     1   37836   1812 0                   0 S tftp_server

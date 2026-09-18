@@ -1,7 +1,7 @@
 # Builds this directory's new GPS transport/protocol code -- msmipc
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
-# qrtr/ QMI codec -- plus the display/touch probe fbtouch, and their host
-# tests. Does not touch btprobe.c
+# qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
+# log screen fblog (fblog/, binary fblog/fblog), and their host tests. Does not touch btprobe.c
 # or build anything under scripts/, initramfs/ -- those are built/wired into
 # the boot image by scripts/mkinitramfs.sh. `make test` does read (but not
 # build) initramfs/usr/bin/gps-up, to run its host-testable selection logic
@@ -28,9 +28,9 @@ LDFLAGS ?=
 INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := irsc qmuxd-lite fbtouch
+BIN := irsc qmuxd-lite fbtouch fblog/fblog
 VENDOR_OBJ := qmi.o logging.o
-TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch
+TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog
 
 .PHONY: all test test-shell clean
 
@@ -65,16 +65,26 @@ tests/test-msmipc: tests/test_msmipc.c msmipc.o
 # kernel include paths the QMI code needs (those would shadow the host's
 # headers). The test includes the .c with FBTOUCH_NO_MAIN to reach the
 # pure functions.
-fbtouch: fbtouch.c
+fbtouch: fbtouch.c fbdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c
+tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+# Read-only boot/probe output screen (fblog/fblog.c): tails /dev/kmsg onto
+# the panel through the same fbdev.h contract, never opens an input
+# device. Font table is generated (fblog/mkfont.py) and committed.
+fblog/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+tests/test-fblog: tests/test_fblog.c fblog/fblog.c fblog/font9x15.h fbdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 test: $(TEST_BIN) test-shell
 	./tests/test-qmux
 	./tests/test-msmipc
 	./tests/test-fbtouch
+	./tests/test-fblog
 
 # gps-up (initramfs/) selection-logic regression; not a build product of
 # this directory, but the natural place to run it alongside the rest of the
@@ -83,4 +93,4 @@ test-shell:
 	sh tests/test_gps-up.sh
 
 clean:
-	rm -f *.o irsc qmuxd-lite fbtouch $(TEST_BIN)
+	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog $(TEST_BIN)

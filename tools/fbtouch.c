@@ -16,7 +16,10 @@
  *   close (last fd)           -> mdss_fb_release_all() powers the panel down
  *
  * so the fb stays open for the whole run; the display only lives as long
- * as this process (or, later, the UI) holds it.
+ * as this process (or fblog / later the UI) holds it. The contract itself
+ * now lives in fbdev.h, shared with fblog; `show` takes fbdev.h's
+ * exclusive screen lock first so a resident fblog stops drawing while the
+ * pattern is up and redraws when this exits.
  *
  * Two mdss_fb quirks, both live-verified on chef (2026-09-18) and both
  * handled here, that any later display client must respect too:
@@ -88,8 +91,9 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <linux/fb.h>
 #include <linux/input.h>
+
+#include "fbdev.h"
 
 #define BL_PATH "/sys/class/leds/lcd-backlight/brightness"
 #define BL_MAX_PATH "/sys/class/leds/lcd-backlight/max_brightness"
@@ -97,62 +101,8 @@
 
 /* ---------------------------------------------------------------- pixels */
 
-/*
- * Pack an 8-bit-per-channel colour according to the framebuffer's bitfield
- * layout. MDSS registers fb0 as MDP_RGBA_8888 (red at bit 0, green 8, blue
- * 16, alpha 24 - i.e. bytes R,G,B,A in memory), but reading the offsets
- * from the var keeps this correct for RGB565 or ARGB layouts too.
- */
-static inline uint32_t pack_channel(uint32_t v8, const struct fb_bitfield *bf)
-{
-	if (bf->length == 0)
-		return 0;
-	if (bf->length >= 8)
-		return (v8 << (bf->length - 8)) << bf->offset;
-	return (v8 >> (8 - bf->length)) << bf->offset;
-}
-
-static uint32_t pack_pixel(const struct fb_var_screeninfo *var,
-			   uint8_t r, uint8_t g, uint8_t b)
-{
-	uint32_t px = pack_channel(r, &var->red) | pack_channel(g, &var->green)
-		    | pack_channel(b, &var->blue);
-	if (var->transp.length)
-		px |= pack_channel(0xff, &var->transp);
-	return px;
-}
-
-struct surface {
-	uint8_t *base;			/* start of the visible page */
-	uint32_t xres, yres;
-	uint32_t line_length;		/* bytes per line */
-	uint32_t bpp;			/* bytes per pixel: 2 or 4 */
-	const struct fb_var_screeninfo *var;
-};
-
-static void put_pixel(struct surface *s, int x, int y, uint32_t px)
-{
-	uint8_t *p;
-
-	if (x < 0 || y < 0 || (uint32_t)x >= s->xres || (uint32_t)y >= s->yres)
-		return;
-	p = s->base + (size_t)y * s->line_length + (size_t)x * s->bpp;
-	if (s->bpp == 4)
-		memcpy(p, &px, 4);
-	else {
-		uint16_t v = (uint16_t)px;
-		memcpy(p, &v, 2);
-	}
-}
-
-static void fill_rect(struct surface *s, int x0, int y0, int w, int h, uint32_t px)
-{
-	int x, y;
-
-	for (y = y0; y < y0 + h; y++)
-		for (x = x0; x < x0 + w; x++)
-			put_pixel(s, x, y, px);
-}
+/* Pixel packing, struct surface, put_pixel and fill_rect live in fbdev.h
+ * (shared with fblog); only the probe-specific drawing stays here. */
 
 static void fill_circle(struct surface *s, int cx, int cy, int r, uint32_t px)
 {
@@ -600,28 +550,35 @@ static void touch_print(const struct touch_dev *td)
 
 /* ------------------------------------------------------------------ fb */
 
-struct fbdev {
-	int fd;
-	struct fb_var_screeninfo var;
-	struct fb_fix_screeninfo fix;
-	uint8_t *map;
-	size_t map_len;
-	struct surface surf;
-};
-
-static int fb_open_probe(struct fbdev *fb, const char *path)
+/* The fb contract (open/unblank/map/commit/powerdown-before-close) is in
+ * fbdev.h; these wrappers keep fbtouch's diagnostics on stdout. */
+static int fb_open_report(struct fbdev *fb, const char *path)
 {
-	fb->fd = open(path, O_RDWR | O_CLOEXEC);
-	if (fb->fd < 0) {
-		printf("fb: open %s: %s\n", path, strerror(errno));
-		return -1;
-	}
-	if (ioctl(fb->fd, FBIOGET_VSCREENINFO, &fb->var) < 0 ||
-	    ioctl(fb->fd, FBIOGET_FSCREENINFO, &fb->fix) < 0) {
-		printf("fb: FBIOGET_*SCREENINFO: %s\n", strerror(errno));
-		return -1;
-	}
-	return 0;
+	int rc = fb_open_probe(fb, path);
+
+	if (rc)
+		printf("fb: open/FBIOGET_*SCREENINFO %s: %s\n", path, strerror(-rc));
+	return rc ? -1 : 0;
+}
+
+static int fb_map_report(struct fbdev *fb)
+{
+	int rc = fb_map(fb);
+
+	if (rc == -EINVAL)
+		printf("fb: unsupported %u bpp\n", fb->var.bits_per_pixel);
+	else if (rc)
+		printf("fb: mmap %zu bytes: %s\n", fb->map_len, strerror(-rc));
+	return rc ? -1 : 0;
+}
+
+static int fb_commit_report(struct fbdev *fb)
+{
+	int rc = fb_commit(fb);
+
+	if (rc)
+		printf("fb: FBIOPAN_DISPLAY: %s\n", strerror(-rc));
+	return rc ? -1 : 0;
 }
 
 static void fb_print(const struct fbdev *fb)
@@ -634,47 +591,6 @@ static void fb_print(const struct fbdev *fb)
 	       fb->var.red.offset, fb->var.red.length, fb->var.green.offset,
 	       fb->var.green.length, fb->var.blue.offset, fb->var.blue.length,
 	       fb->var.transp.offset, fb->var.transp.length);
-}
-
-static int fb_map(struct fbdev *fb)
-{
-	uint32_t bpp = fb->var.bits_per_pixel / 8;
-
-	if (bpp != 2 && bpp != 4) {
-		printf("fb: unsupported %u bpp\n", fb->var.bits_per_pixel);
-		return -1;
-	}
-	/* one visible page is enough; the driver allocates the whole
-	 * virtual size on the first mmap anyway */
-	fb->map_len = (size_t)fb->fix.line_length * fb->var.yres_virtual;
-	if (fb->map_len == 0)
-		fb->map_len = (size_t)fb->fix.line_length * fb->var.yres;
-	fb->map = mmap(NULL, fb->map_len, PROT_READ | PROT_WRITE, MAP_SHARED,
-		       fb->fd, 0);
-	if (fb->map == MAP_FAILED) {
-		printf("fb: mmap %zu bytes: %s\n", fb->map_len, strerror(errno));
-		fb->map = NULL;
-		return -1;
-	}
-	fb->surf.base = fb->map;
-	fb->surf.xres = fb->var.xres;
-	fb->surf.yres = fb->var.yres;
-	fb->surf.line_length = fb->fix.line_length;
-	fb->surf.bpp = bpp;
-	fb->surf.var = &fb->var;
-	return 0;
-}
-
-static int fb_commit(struct fbdev *fb)
-{
-	fb->var.xoffset = 0;
-	fb->var.yoffset = 0;
-	fb->var.activate = FB_ACTIVATE_VBL;
-	if (ioctl(fb->fd, FBIOPAN_DISPLAY, &fb->var) < 0) {
-		printf("fb: FBIOPAN_DISPLAY: %s\n", strerror(errno));
-		return -1;
-	}
-	return 0;
 }
 
 static void print_panel_sysfs(void)
@@ -749,11 +665,22 @@ static int blank_cycle(struct fbdev *fb, double t0)
 	}
 	printf("cycle: unblanked in %.3f s\n", now_s() - t);
 	draw_pattern(&fb->surf);
-	if (fb_commit(fb))
+	if (fb_commit_report(fb))
 		return -1;
 	printf("cycle: frame recommitted at +%.3f s\n", now_s() - t0);
 	kmsg("blank cycle: frame recommitted");
 	return 0;
+}
+
+/* Failure after fb0 is open: blank through the fb core first (quirk 2, the
+ * touch driver must suspend with the panel), close, hand the screen back. */
+static int show_abort(struct fbdev *fb, int lockfd)
+{
+	kmsg("aborting: blanking before close");
+	fb_powerdown_close(fb);
+	if (lockfd >= 0)
+		close(lockfd);
+	return 1;
 }
 
 static const uint8_t slot_rgb[8][3] = {
@@ -772,16 +699,36 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 	unsigned long contacts = 0, reports = 0, frames = 0;
 	int xmin = INT32_MAX, xmax = INT32_MIN, ymin = INT32_MAX, ymax = INT32_MIN;
 	double t0, t_end, last_commit = 0, t_touch_first = -1, t_cycle = 0;
-	int rc;
+	int rc, lockfd;
 
 	signal(SIGINT, on_signal);
 	signal(SIGTERM, on_signal);
 	print_panel_sysfs();
 
+	/* Borrow the screen from a resident fblog (fbdev.h lock protocol):
+	 * it stops drawing and drops its mapping within FB_LOCK_RETRY_MS,
+	 * and redraws with an unblank once we release the lock after the
+	 * POWERDOWN + close below. */
+	lockfd = fb_lock_open(NULL);
+	if (lockfd < 0)
+		printf("lock: %s: %s (continuing without)\n", FB_LOCK_PATH, strerror(-lockfd));
+	else {
+		rc = fb_lock_exclusive(lockfd, 10000);
+		if (rc) {
+			printf("lock: %s held by another screen client: %s\n",
+			       FB_LOCK_PATH, strerror(-rc));
+			close(lockfd);
+			return 1;
+		}
+	}
+
 	t0 = now_s();
 	kmsg("show: opening %s", fbpath);
-	if (fb_open_probe(&fb, fbpath))
+	if (fb_open_report(&fb, fbpath)) {
+		if (lockfd >= 0)
+			close(lockfd);
 		return 1;
+	}
 	fb_print(&fb);
 	printf("fb: opened in %.3f s\n", now_s() - t0);
 
@@ -792,12 +739,12 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 	else
 		printf("fb: unblanked in %.3f s\n", now_s() - t0);
 
-	if (fb_map(&fb))
-		return 1;
+	if (fb_map_report(&fb))
+		return show_abort(&fb, lockfd);
 	printf("fb: mapped %zu bytes\n", fb.map_len);
 	draw_pattern(&fb.surf);
-	if (fb_commit(&fb))
-		return 1;
+	if (fb_commit_report(&fb))
+		return show_abort(&fb, lockfd);
 	frames++;
 	last_commit = now_s();
 	printf("fb: first frame committed at +%.3f s\n", last_commit - t0);
@@ -805,7 +752,7 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 	     fb.var.bits_per_pixel);
 	set_backlight(bl);
 	/* quirk 1: the level is applied by the next commit */
-	if (fb_commit(&fb) == 0)
+	if (fb_commit_report(&fb) == 0)
 		frames++;
 	last_commit = now_s();
 
@@ -835,7 +782,7 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 			if (blank_cycle(&fb, t0) == 0) {
 				frames++;
 				set_backlight(bl);
-				if (fb_commit(&fb) == 0) /* quirk 1 */
+				if (fb_commit_report(&fb) == 0) /* quirk 1 */
 					frames++;
 				last_commit = now_s();
 			}
@@ -851,7 +798,7 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 			/* idle heartbeat (quirk 1): lets a backlight write made
 			 * from another shell take effect within a second */
 			if (now_s() - last_commit >= 1.0) {
-				if (fb_commit(&fb) == 0)
+				if (fb_commit_report(&fb) == 0)
 					frames++;
 				last_commit = now_s();
 			}
@@ -903,7 +850,7 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 		}
 		/* repaint at most ~60 Hz; the pan blocks until the frame is done */
 		if (dirty && now_s() - last_commit > 0.016) {
-			if (fb_commit(&fb) == 0)
+			if (fb_commit_report(&fb) == 0)
 				frames++;
 			last_commit = now_s();
 		}
@@ -927,7 +874,9 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 		printf("fb: FBIOBLANK POWERDOWN before close: %s\n", strerror(errno));
 	else
 		printf("fb: blanked before close\n");
-	close(fb.fd); /* last close: mdss_fb_release_all() */
+	close(fb.fd); /* last close (unless fblog holds it): mdss_fb_release_all() */
+	if (lockfd >= 0)
+		close(lockfd); /* releases the screen; fblog resumes */
 	if (require_touch && contacts == 0)
 		return 2;
 	return 0;

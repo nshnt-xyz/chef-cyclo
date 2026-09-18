@@ -4,6 +4,10 @@
 ::respawn:/usr/bin/dbus-daemon --system --nofork --nopidfile
 ::respawn:/bin/sh -c 'while [ ! -S /run/dbus/system_bus_socket ]; do sleep 1; done; exec /usr/lib/bluetooth/bluetoothd -n'
 ::respawn:/usr/bin/bt-up
+# On-device boot/probe output: paints /dev/kmsg on the panel, read-only, no
+# touch. Holds /dev/fb0 for the life of the boot (the panel is off otherwise);
+# `touch /run/fblog.off; kill $(pidof fblog)` idles it, rm + kill brings it back.
+::respawn:/usr/bin/fblog
 ::ctrlaltdel:/sbin/reboot
 ::shutdown:/bin/umount -a -r
 ::restart:/sbin/init

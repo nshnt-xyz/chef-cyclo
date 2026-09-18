@@ -1,0 +1,199 @@
+Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> rm -f /tmp/rc-164204656657.b64
+PROBE_SHELL> printf '%s' 'bWtkaXIgLXAgL3RtcC9mYmxvZy1ldmlkZW5jZTsgY2QgL3RtcC9mYmxvZy1ldmlkZW5jZQp1bmFtZSAtcjsgY2F0IC9wcm9jL3VwdGltZQplY2hvICc9PT0gcHJvY3MnOyBwcyAtbyBwaWQscHBpZCxzdGF0LGV0aW1lLGFyZ3MgfCBncmVwIC1FICdmYmxvZ3xmYnRvdWNofGluaXQnIHwgZ3JlcCAtdiBncmVwIHwgdGVlIHByb2NzLTEudHh0CmVjaG8gJz09PSBpbml0dGFiJzsgZ3JlcCAtdiAnXiMnIC9ldGMvaW5pdHRhYiB8IHRlZSBpbml0dGFiLnR4dAplY2hvICc9PT0gZmIvbG9jayc7IGxzIC1sIC9ydW4vZmIwLmxvY2sgL3J1bi9mYmxvZy5vZmYgMj4mMTsgY2F0IC9zeXMvY2xhc3MvZ3JhcGhpY3MvZmIwL21zbV9mYl9wYW5lbF9zdGF0dXM7IGVjaG8gImxjZC1iYWNrbGlnaHQ9JChjYXQgL3N5cy9jbGFzcy9sZWRzL2xjZC1iYWNrbGlnaHQvYnJpZ2h0bmVzcykgd2xlZD0kKGNhdCAvc3lz' >> /tmp/rc-164204656657.b64
+PROBE_SHELL> printf '%s' 'L2NsYXNzL2xlZHMvd2xlZC9icmlnaHRuZXNzKSIKZWNobyAnPT09IGZkcyc7IGxzIC1sIC9wcm9jLyQocGlkb2YgZmJsb2cpL2ZkIDI+JjEgfCBncmVwIC1FICdmYjB8a21zZ3xsb2NrfGlucHV0JyAKZWNobyAnPT09IGRtZXNnIGZibG9nL2ZiJzsgZG1lc2cgPiBkbWVzZy0xLnR4dDsgZ3JlcCAtRSAnZmJsb2d8ZmJ0b3VjaHxtZHNzX2RzaV8ob258cGFuZWxfb24pfGN5Y2xvLWluaXR8Qkw6IHBhbmVsfEZyYW1lQnVmZmVyXFswfE5WVC10c1xdIG52dF90c19jaGVja19jaGlwX3Zlcl90cmltIDEyMzl8bnZ0X3JlYWRfcGlkfGlucHV0OiBOVlQnIGRtZXNnLTEudHh0IHwgdGVlIGJvb3QtbGluZXMudHh0Cg==' >> /tmp/rc-164204656657.b64
+PROBE_SHELL> base64 -d /tmp/rc-164204656657.b64 > /tmp/rc-164204656657.sh; sha256sum /tmp/rc-164204656657.sh
+78473fb9c17b81437e6d0e951450e5b217334e330431d435b8cb733486c693a0  /tmp/rc-164204656657.sh
+PROBE_SHELL> sh /tmp/rc-164204656657.sh 2>&1; echo RC_DONE_$?
+4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty
+33.98 254.28
+=== procs
+    1     0 S     0:35   /sbin/init
+  609     1 S     0:20   /usr/bin/fblog
+=== inittab
+::respawn:/usr/sbin/telnetd -F -l /bin/sh
+::respawn:/usr/sbin/udhcpd -f /etc/udhcpd.conf
+::respawn:/usr/bin/dbus-daemon --system --nofork --nopidfile
+::respawn:/bin/sh -c 'while [ ! -S /run/dbus/system_bus_socket ]; do sleep 1; done; exec /usr/lib/bluetooth/bluetoothd -n'
+::respawn:/usr/bin/bt-up
+::respawn:/usr/bin/fblog
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init
+=== fb/lock
+ls: /run/fblog.off: No such file or directory
+-rw-------    1 root     root             0 Jan  1 22:20 /run/fb0.lock
+panel_status=alive
+lcd-backlight=96 wled=1542
+=== fds
+lr-x------    1 root     root            64 Jan  1 22:21 3 -> /dev/kmsg
+lrwx------    1 root     root            64 Jan  1 22:21 4 -> /run/fb0.lock
+lrwx------    1 root     root            64 Jan  1 22:21 5 -> /dev/fb0
+=== dmesg fblog/fb
+[    8.657284,6] mdss_panel_parse_panel_config_dt: BL: panel = mipi_mot_vid_tianma_nt_fhd_618, manufacture_id(0xDA) = 0x2 controller_ver(0xDB) = 0x61 controller_drv_ver(0XDC) = 0x21, full = 0x0000000000216102
+[    8.702611,6] mdss_fb_register: FrameBuffer[0] 1080x2246 registered successfully!
+[    9.834448,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1239: buf[1]=0x0B, buf[2]=0x00, buf[3]=0x00, buf[4]=0x25, buf[5]=0x65, buf[6]=0x03
+[    9.889401,0] [NVT-ts] nvt_read_pid 556: PID=3AD9
+[    9.891268,7] input: NVTCapacitiveTouchScreen as /devices/virtual/input/input1
+[   14.786615,0] cyclo-init: starting (4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty)
+[   14.897704,0] cyclo-init: gadget bound to a800000.dwc3
+[   14.952525,0] cyclo-init: usb0 up, 172.16.42.1/24
+[   15.263833,0] cyclo-init: exec init
+[   15.289757,1] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[   15.308301,5] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[   15.425884,3] mdss_dsi_on[0]+.
+[   15.425902,3] mdss_dsi_on[0]-.
+RC_DONE_0
+PROBE_SHELL> Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> rm -f /tmp/rc-164212613010.b64
+PROBE_SHELL> printf '%s' 'ZWNobyAiUFJPQkUtTUFSS0VSLTc3NDIgaGVsbG8gZnJvbSB0aGUgaG9zdCBhdCAkKGRhdGUgLXUgKyVIOiVNOiVTKSBVVEMiID4gL2Rldi9rbXNnCnNsZWVwIDE7IGRtZXNnIHwgZ3JlcCAtYyBQUk9CRS1NQVJLRVItNzc0Mgo=' >> /tmp/rc-164212613010.b64
+PROBE_SHELL> base64 -d /tmp/rc-164212613010.b64 > /tmp/rc-164212613010.sh; sha256sum /tmp/rc-164212613010.sh
+5f66baf3cdc61f2c678d46a688e9b4201a20579e1eba264b42811ff9e6e7874f  /tmp/rc-164212613010.sh
+PROBE_SHELL> sh /tmp/rc-164212613010.sh 2>&1; echo RC_DONE_$?
+1
+RC_DONE_0
+PROBE_SHELL> Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> rm -f /tmp/rc-164233658045.b64
+PROBE_SHELL> printf '%s' 'Y2QgL3RtcC9mYmxvZy1ldmlkZW5jZQpjYXQgL3Byb2MvdXB0aW1lID4gc2hvdy1sYXVuY2gudHh0CnNldHNpZCBub2h1cCBmYnRvdWNoIHNob3cgLXQgMjAgLWIgMTYwIC1yID4gL3RtcC9mYmxvZy1ldmlkZW5jZS9mYnRvdWNoLXNob3cub3V0IDI+JjEgPCAvZGV2L251bGwgJgpzbGVlcCAyOyBncmVwIC1FICdsb2NrfGZpcnN0IGZyYW1lfGJhY2tsaWdodHx0b3VjaDonIGZidG91Y2gtc2hvdy5vdXQ7IGVjaG8gIndsZWQ9JChjYXQgL3N5cy9jbGFzcy9sZWRzL3dsZWQvYnJpZ2h0bmVzcykiCmRtZXNnIHwgZ3JlcCAtRSAnZmJsb2d8ZmJ0b3VjaCcgfCB0YWlsIC00Cg==' >> /tmp/rc-164233658045.b64
+PROBE_SHELL> base64 -d /tmp/rc-164233658045.b64 > /tmp/rc-164233658045.sh; sha256sum /tmp/rc-164233658045.sh
+035bdd028e636c1c493133cfae749d7e97de490119be9268620f726d72447396  /tmp/rc-164233658045.sh
+PROBE_SHELL> sh /tmp/rc-164233658045.sh 2>&1; echo RC_DONE_$?
+backlight: 96/255
+fb: first frame committed at +0.064 s
+backlight: wrote 160, readback 160
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+wled=2569
+[   62.953996,4] fbtouch: show: opening /dev/fb0
+[   62.957188,5] fblog: paused: screen borrowed (/run/fb0.lock)
+[   63.017958,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[   63.018920,4] fbtouch: backlight 160 (readback 160)
+RC_DONE_0
+PROBE_SHELL> Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+~ # [Jstty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> rm -f /tmp/rc-164305724083.b64
+PROBE_SHELL> printf '%s' 'Y2QgL3RtcC9mYmxvZy1ldmlkZW5jZQpmb3IgaSBpbiAkKHNlcSAxIDEwKTsgZG8gcGdyZXAgZmJ0b3VjaCA+L2Rldi9udWxsIHx8IGJyZWFrOyBzbGVlcCAxOyBkb25lCnBncmVwIC1sIGZidG91Y2ggfHwgZWNobyAiZmJ0b3VjaCBleGl0ZWQiCmdyZXAgLUUgJ15zdW1tYXJ5fGJsYW5rZWQgYmVmb3JlIGNsb3NlfGxvY2snIGZidG91Y2gtc2hvdy5vdXQ7IGdyZXAgLWMgJ2Rvd24gcmF3JyBmYnRvdWNoLXNob3cub3V0CnNsZWVwIDE7IGVjaG8gInBhbmVsPSQoY2F0IC9zeXMvY2xhc3MvZ3JhcGhpY3MvZmIwL21zbV9mYl9wYW5lbF9zdGF0dXMpIGxjZC1iYWNrbGlnaHQ9JChjYXQgL3N5cy9jbGFzcy9sZWRzL2xjZC1iYWNrbGlnaHQvYnJpZ2h0bmVzcykgd2xlZD0kKGNhdCAvc3lzL2NsYXNzL2xlZHMvd2xlZC9icmlnaHRuZXNzKSIKcHMgLW8gcGlkLGFyZ3MgfCBncmVwIGZibG9nIHwgZ3Jl' >> /tmp/rc-164305724083.b64
+PROBE_SHELL> printf '%s' 'cCAtdiBncmVwCmRtZXNnIHwgZ3JlcCAtRSAnZmJsb2d8ZmJ0b3VjaHxudnRfdHNfKHN1c3BlbmR8cmVzdW1lKSAxKDU5MXw2NDN8NjYwfDY2OHw2OTApfG1kc3NfZHNpXyhwYW5lbF9vZmZ8b2ZmfG9ufHBhbmVsX29uKVxbfGJvb3Rsb2FkZXJfcmVzZXQnIHwgdGFpbCAtMTYK' >> /tmp/rc-164305724083.b64
+PROBE_SHELL> base64 -d /tmp/rc-164305724083.b64 > /tmp/rc-164305724083.sh; sha256sum /tmp/rc-164305724083.sh
+4456c4773dda0f07beed74b1fd146df20c823fd596db57f3460182fcdce6d415  /tmp/rc-164305724083.sh
+PROBE_SHELL> sh /tmp/rc-164305724083.sh 2>&1; echo RC_DONE_$?
+fbtouch exited
+summary: frames=62 touch_reports=91 contacts=9
+summary: touched screen area x=[145..974] y=[228..2243], first contact +5.058 s
+fb: blanked before close
+9
+panel=panel_status=alive lcd-backlight=96 wled=1542
+  609 /usr/bin/fblog
+[   68.012331,0] fbtouch: first touch contact at +5.058 s raw=(277,398)
+[   83.037306,0] fbtouch: done: frames=62 contacts=9
+[   83.038257,0] fbtouch: blanking before close
+[   83.038372,0] [NVT-ts] nvt_ts_suspend 1591: start
+[   83.090145,0] [NVT-ts] nvt_ts_suspend 1643: end
+[   83.102304,0] mdss_dsi_panel_off[0]+.
+[   83.310150,0] mdss_dsi_off[0]+.
+[   83.353863,0] mdss_dsi_off[0]-.
+[   83.364316,5] mdss_dsi_on[0]+.
+[   83.399383,5] mdss_dsi_on[0]-.
+[   83.399453,5] mdss_dsi_panel_on[0]+.
+[   83.543156,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[   83.556796,2] [NVT-ts] nvt_ts_resume 1668: start
+[   83.556812,2] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[   83.611703,2] [NVT-ts] nvt_ts_resume 1690: end
+[   83.711181,4] fblog: resumed
+RC_DONE_0
+PROBE_SHELL> Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> rm -f /tmp/rc-164319616047.b64
+PROBE_SHELL> printf '%s' 'Y2QgL3RtcC9mYmxvZy1ldmlkZW5jZQplY2hvICJiZWZvcmU6IHdsZWQ9JChjYXQgL3N5cy9jbGFzcy9sZWRzL3dsZWQvYnJpZ2h0bmVzcykiCmZidG91Y2ggYmwgMjAwOyB0MD0kKGN1dCAtZCcgJyAtZjEgL3Byb2MvdXB0aW1lKQpmb3IgaSBpbiAxIDIgMyA0IDUgNiA3IDggOSAxMCAxMSAxMiAxMyAxNCAxNTsgZG8gdz0kKGNhdCAvc3lzL2NsYXNzL2xlZHMvd2xlZC9icmlnaHRuZXNzKTsgWyAiJHciID0gMzIxMiBdICYmIHsgZWNobyAid2xlZD0zMjEyIGFmdGVyICQoYXdrIC12IGE9JHQwIC12IGI9JChjdXQgLWQnICcgLWYxIC9wcm9jL3VwdGltZSkgJ0JFR0lOe3ByaW50IGItYX0nKSBzIjsgYnJlYWs7IH07IHNsZWVwIDAuMTsgZG9uZQplY2hvICJhZnRlcjogd2xlZD0kKGNhdCAvc3lzL2NsYXNzL2xlZHMvd2xlZC9icmlnaHRuZXNzKSIKc2xlZXAgNApmYnRvdWNoIGJsIDk2OyBzbGVl' >> /tmp/rc-164319616047.b64
+PROBE_SHELL> printf '%s' 'cCAxLjU7IGVjaG8gInJlc3RvcmVkOiB3bGVkPSQoY2F0IC9zeXMvY2xhc3MvbGVkcy93bGVkL2JyaWdodG5lc3MpIgo=' >> /tmp/rc-164319616047.b64
+PROBE_SHELL> base64 -d /tmp/rc-164319616047.b64 > /tmp/rc-164319616047.sh; sha256sum /tmp/rc-164319616047.sh
+24a725b48336f894fb7d979ac347af088095ed0bd5e83b1d0fe8b583681bb65a  /tmp/rc-164319616047.sh
+PROBE_SHELL> sh /tmp/rc-164319616047.sh 2>&1; echo RC_DONE_$?
+before: wled=1542
+backlight: wrote 200, readback 200
+wled=3212 after 0.03 s
+after: wled=3212
+backlight: wrote 96, readback 96
+restored: wled=1542
+RC_DONE_0
+PROBE_SHELL> Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> rm -f /tmp/rc-164337368938.b64
+PROBE_SHELL> printf '%s' 'Y2QgL3RtcC9mYmxvZy1ldmlkZW5jZQpwMD0kKHBpZG9mIGZibG9nKTsgdG91Y2ggL3J1bi9mYmxvZy5vZmY7IGtpbGwgJHAwOyBzbGVlcCAyCmVjaG8gIm9sZCBwaWQgJHAwIC0+IG5ldyAkKHBpZG9mIGZibG9nKTsgcGFuZWw9JChjYXQgL3N5cy9jbGFzcy9ncmFwaGljcy9mYjAvbXNtX2ZiX3BhbmVsX3N0YXR1cykgd2xlZD0kKGNhdCAvc3lzL2NsYXNzL2xlZHMvd2xlZC9icmlnaHRuZXNzKSIKbHMgLWwgL3Byb2MvJChwaWRvZiBmYmxvZykvZmQgfCBncmVwIC1jIGZiMApzbGVlcCAzCnJtIC9ydW4vZmJsb2cub2ZmOyBraWxsICQocGlkb2YgZmJsb2cpOyBzbGVlcCAyCmVjaG8gImJhY2s6IHBpZCAkKHBpZG9mIGZibG9nKTsgcGFuZWw9JChjYXQgL3N5cy9jbGFzcy9ncmFwaGljcy9mYjAvbXNtX2ZiX3BhbmVsX3N0YXR1cykgd2xlZD0kKGNhdCAvc3lzL2NsYXNzL2xlZHMvd2xlZC9icmln' >> /tmp/rc-164337368938.b64
+PROBE_SHELL> printf '%s' 'aHRuZXNzKSIKZG1lc2cgfCBncmVwIC1FICdmYmxvZycgfCB0YWlsIC02Cg==' >> /tmp/rc-164337368938.b64
+PROBE_SHELL> base64 -d /tmp/rc-164337368938.b64 > /tmp/rc-164337368938.sh; sha256sum /tmp/rc-164337368938.sh
+98e6c20cbe615680337ef1e7c18c516bce498fa67d3a6f57b31686a6c1f03e45  /tmp/rc-164337368938.sh
+PROBE_SHELL> sh /tmp/rc-164337368938.sh 2>&1; echo RC_DONE_$?
+old pid 609 -> new 755; panel=panel_status=suspend wled=0
+0
+back: pid 765; panel=panel_status=alive wled=1542
+[   62.957188,5] fblog: paused: screen borrowed (/run/fb0.lock)
+[   83.711181,4] fblog: resumed
+[  126.856867,5] fblog: exiting: blanking before close
+[  128.917790,0] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+[  133.451135,0] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[  133.656998,4] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+RC_DONE_0
+PROBE_SHELL> Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> rm -f /tmp/rc-164355806882.b64
+PROBE_SHELL> printf '%s' 'Y2QgL3RtcC9mYmxvZy1ldmlkZW5jZQpkbWVzZyA+IGRtZXNnLWZpbmFsLnR4dDsgY2F0IC9wcm9jL3VwdGltZSA+IGZpbmFsLXVwdGltZS50eHQKZWNobyAicGFuZWxfZGVhZC9nb25lIGJhZDogJChncmVwIC1jIC1FICdnb25lIGJhZHxwYW5lbF9kZWFkJyBkbWVzZy1maW5hbC50eHQpIgplY2hvICJDVFAvSTJDL0ZXLWJyb2tlbjogJChncmVwIC1jIC1FICdDVFBfSTJDfEZXIGluZm8gaXMgYnJva2VufEJVUyBFUlJPUicgZG1lc2ctZmluYWwudHh0KSIKZWNobyAiTlZUIGVzZCByZWNvdmVyeTogJChncmVwIC1jIC1pICdlc2QnIGRtZXNnLWZpbmFsLnR4dCkiCmVjaG8gInBhbl9pZGxlL21tYXAvY29tbWl0IGZhaWw6ICQoZ3JlcCAtYyAtRSAncGFuX2lkbGV8ZmIgbW1hcCBmYWlsZWR8ZmFpbGVkOnxVbmFibGUgdG8gdW5zZXQgcGlwZScgZG1lc2ctZmluYWwudHh0KSIKZ3JlcCAtRSAnVW5h' >> /tmp/rc-164355806882.b64
+PROBE_SHELL> printf '%s' 'YmxlIHRvIHVuc2V0IHBpcGV8ZG1hX2NvbXAgdGltZWQgb3V0fGZiIG1tYXAgZmFpbGVkfHBhbl9pZGxlJyBkbWVzZy1maW5hbC50eHQKZWNobyAiaHVuZyB0YXNrczogJChncmVwIC1jICdibG9ja2VkIGZvciBtb3JlIHRoYW4nIGRtZXNnLWZpbmFsLnR4dCkiOyBncmVwICdibG9ja2VkIGZvciBtb3JlIHRoYW4nIGRtZXNnLWZpbmFsLnR4dCB8IHNlZCAncy8uKnRhc2sgLy8nIHwgc29ydCB8IHVuaXEgLWMKZWNobyAid2FybmluZ3M6ICQoZ3JlcCAtYyAtRSAnV0FSTklOR3xDYWxsIHRyYWNlJyBkbWVzZy1maW5hbC50eHQpIgpwcyAtbyBwaWQsYXJncyB8IGdyZXAgLUUgJ2ZibG9nfGZidG91Y2gnIHwgZ3JlcCAtdiBncmVwID4gcHJvY3MtZmluYWwudHh0OyBjYXQgcHJvY3MtZmluYWwudHh0CmdyZXAgTlZULXRzIC9wcm9jL2ludGVycnVwdHMgPiBpbnRlcnJ1cHRzLWZpbmFsLnR4dDsgY2F0' >> /tmp/rc-164355806882.b64
+PROBE_SHELL> printf '%s' 'IGludGVycnVwdHMtZmluYWwudHh0Cg==' >> /tmp/rc-164355806882.b64
+PROBE_SHELL> base64 -d /tmp/rc-164355806882.b64 > /tmp/rc-164355806882.sh; sha256sum /tmp/rc-164355806882.sh
+7a5b47ba21371e64c08a741f32d5e743e5ff9e51bc097a01ad0b900f236dba11  /tmp/rc-164355806882.sh
+PROBE_SHELL> sh /tmp/rc-164355806882.sh 2>&1; echo RC_DONE_$?
+panel_dead/gone bad: 0
+CTP/I2C/FW-broken: 0
+NVT esd recovery: 0
+pan_idle/mmap/commit fail: 2
+[  127.373465,0] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+hung tasks: 0
+warnings: 6
+  765 /usr/bin/fblog
+249:        117          0          1          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+RC_DONE_0
+PROBE_SHELL> Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> rm -f /tmp/rc-164413531228.b64
+PROBE_SHELL> printf '%s' 'c3luYzsgKHNsZWVwIDE7IHJlYm9vdCkgPi9kZXYvbnVsbCAyPiYxICYKZWNobyByZWJvb3QtaXNzdWVkCg==' >> /tmp/rc-164413531228.b64
+PROBE_SHELL> base64 -d /tmp/rc-164413531228.b64 > /tmp/rc-164413531228.sh; sha256sum /tmp/rc-164413531228.sh
+bc73398568db5810ef6960b8294a991a8dcdbfff41dcb24992806995e424afd1  /tmp/rc-164413531228.sh
+PROBE_SHELL> sh /tmp/rc-164413531228.sh 2>&1; echo RC_DONE_$?
+reboot-issued
+RC_DONE_0
+PROBE_SHELL> 
