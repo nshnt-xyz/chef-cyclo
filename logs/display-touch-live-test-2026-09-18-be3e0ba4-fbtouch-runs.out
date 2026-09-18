@@ -1,0 +1,76 @@
+===== fbtouch run 1 (Thu Jan  1 17:30:18 UTC 1970, uptime 70.06 s)
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 8/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.001 s
+fb: unblanked in 0.001 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.305 s
+backlight: wrote 128, readback 128
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+cycle: FBIOBLANK POWERDOWN at +60.029 s
+cycle: panel off (60.354 s), holding 3 s
+cycle: unblanked in 3.255 s
+cycle: frame recommitted at +63.693 s
+backlight: wrote 128, readback 128
+summary: frames=117 touch_reports=0 contacts=0
+fb: blanked before close
+
+===== fbtouch run 2 (Thu Jan  1 17:32:46 UTC 1970, uptime 218.25 s)
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 128/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.184 s
+fb: unblanked in 0.251 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.334 s
+backlight: wrote 160, readback 160
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+summary: frames=238 touch_reports=0 contacts=0
+fb: blanked before close
+
+===== fbtouch run 3 (Thu Jan  1 17:37:11 UTC 1970, uptime 483.16 s)
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 160/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.185 s
+fb: unblanked in 0.251 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.335 s
+backlight: wrote 128, readback 128
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+summary: frames=592 touch_reports=0 contacts=0
+fb: blanked before close
+
+===== run3 exit
+exit=2

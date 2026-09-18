@@ -1,0 +1,632 @@
+===== host: image verification and fastboot boot (third boot of be3e0ba4, operator present)
+2026-09-18T07:31:03Z
+be3e0ba427fbc8ee87e0d612d7bd5e4b37ba1d0f05ce5aabcf87916ae27adc71  out/boot.img
+hash OK
+stock adb present
+2
+adb reboot bootloader issued 07:31:07
+ZF6223WZGL	 fastboot
+be3e0ba427fbc8ee87e0d612d7bd5e4b37ba1d0f05ce5aabcf87916ae27adc71  out/boot.img
+2026-09-18T07:31:15Z
+Sending 'boot.img' (22680 KB)                      OKAY [  0.560s]
+Booting                                            OKAY [  5.081s]
+Finished. Total time: 5.658s
+fastboot exit=0
+2026-09-18T07:31:21Z
+172.16.42.1 up after 12s 07:31:44
+
+===== device: preflight and run start
+=== identity
+36.82 278.37
+4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty
+no probe processes
+5e2cd31a1a8e226c013f89c2fb100737f4b6ca86c32eb2072e0bac60a007a79b  /usr/bin/fbtouch
+0
+mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi
+[    8.667592,4] mdss_mdp_probe: mdss version = 0x30020000, bootloader display is on, num 1, intf_sel=0x00000100
+[    8.702572,4] mdss_panel_parse_panel_config_dt: BL: panel = mipi_mot_vid_tianma_nt_fhd_618, manufacture_id(0xDA) = 0x2 controller_ver(0xDB) = 0x61 controller_drv_ver(0XDC) = 0x21, full = 0x0000000000216102
+[    8.747304,4] mdss_fb_register: FrameBuffer[0] 1080x2246 registered successfully!
+[    9.877771,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1239: buf[1]=0x0B, buf[2]=0x00, buf[3]=0x00, buf[4]=0x25, buf[5]=0x65, buf[6]=0x03
+[    9.932731,0] [NVT-ts] nvt_read_pid 556: PID=3AD8
+[    9.935214,0] input: NVTCapacitiveTouchScreen as /devices/virtual/input/input1
+[    9.936604,0] [NVT-ts] nvt_ts_probe 1427: request irq 249 succeed
+fw_ver=226, x_num=18, y_num=32, button_num=0
+249:          0          0          0          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+buildid=e2-24017240
+ic_ver=[FW]e2,[IC]NT36525
+poweron=1
+flashprog=0
+backlight: 8/255
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+backlight: 8/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.001 s
+fb: unblanked in 0.001 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.310 s
+backlight: wrote 160, readback 160
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+wled: 2569 panel_status: panel_status=alive
+
+===== device: midway
+uptime 96.11 746.07
+contacts so far: 12  reports: 0
+249: 327 0 0 0 0 0 0 0 msmgpio 67 Edge NVT-ts
+touch: +8.262 slot=0 id=0 down raw=(673,51) screen=(1008,71)
+touch: +9.190 slot=0 id=1 down raw=(50,87) screen=(74,122)
+touch: +10.223 slot=0 id=2 down raw=(78,1599) screen=(116,2243)
+touch: +11.106 slot=0 id=3 down raw=(645,1598) screen=(966,2242)
+touch: +12.907 slot=0 id=4 down raw=(163,469) screen=(244,658)
+
+===== device: run end, coverage, multitouch, dmesg, counts
+=== uptime 159.58 1250.13
+fbtouch exited
+exit=0
+=== summary
+summary: frames=251 touch_reports=284 contacts=12
+summary: touched screen area x=[70..1008] y=[71..2243], first contact +8.262 s
+fb: blanked before close
+=== contacts
+12
+=== raw x/y extremes over all reports
+raw x=[47..673] y=[51..1599] n=425
+screen x=[70..1008] y=[71..2243] n=425
+=== all down lines
+touch: +8.262 slot=0 id=0 down raw=(673,51) screen=(1008,71)
+touch: +9.190 slot=0 id=1 down raw=(50,87) screen=(74,122)
+touch: +10.223 slot=0 id=2 down raw=(78,1599) screen=(116,2243)
+touch: +11.106 slot=0 id=3 down raw=(645,1598) screen=(966,2242)
+touch: +12.907 slot=0 id=4 down raw=(163,469) screen=(244,658)
+touch: +14.790 slot=0 id=5 down raw=(203,348) screen=(304,488)
+touch: +14.806 slot=1 id=6 down raw=(483,188) screen=(723,263)
+touch: +16.207 slot=0 id=7 down raw=(297,250) screen=(445,350)
+touch: +16.223 slot=1 id=8 down raw=(47,448) screen=(70,628)
+touch: +16.224 slot=2 id=9 down raw=(502,359) screen=(752,503)
+touch: +16.324 slot=1 id=10 down raw=(73,522) screen=(109,732)
+touch: +18.340 slot=0 id=11 down raw=(196,423) screen=(293,593)
+=== multitouch: down lines on slots other than 0
+touch: +14.806 slot=1 id=6 down raw=(483,188) screen=(723,263)
+touch: +16.223 slot=1 id=8 down raw=(47,448) screen=(70,628)
+touch: +16.224 slot=2 id=9 down raw=(502,359) screen=(752,503)
+touch: +16.324 slot=1 id=10 down raw=(73,522) screen=(109,732)
+=== multitouch: max simultaneous contacts logged
+=== lines mentioning slot=1 or slot=2 (first 12)
+touch: +14.806 slot=1 id=6 down raw=(483,188) screen=(723,263)
+touch: +14.873 slot=1 id=6 move raw=(484,193) screen=(725,270)
+touch: +14.890 slot=1 id=6 move raw=(485,209) screen=(726,293)
+touch: +14.907 slot=1 id=6 move raw=(485,236) screen=(726,331)
+touch: +14.923 slot=1 id=6 move raw=(486,267) screen=(728,374)
+touch: +14.940 slot=1 id=6 move raw=(484,291) screen=(725,408)
+touch: +14.957 slot=1 id=6 move raw=(482,315) screen=(722,441)
+touch: +14.973 slot=1 id=6 move raw=(479,340) screen=(717,477)
+touch: +14.990 slot=1 id=6 move raw=(476,365) screen=(713,512)
+touch: +15.007 slot=1 id=6 move raw=(475,389) screen=(711,545)
+touch: +15.023 slot=1 id=6 move raw=(474,413) screen=(710,579)
+touch: +15.040 slot=1 id=6 move raw=(474,436) screen=(710,611)
+=== line kinds
+    401 slot id move
+     12 slot id up
+     12 slot id down
+      1 summary: touched screen
+      1 summary: frames touch_reports
+      1 running for the
+      1 panel: virtual_size 
+      1 panel: stride 
+      1 panel: panel_ver 
+      1 panel: panel_supplier 
+      1 panel: panel_name 
+      1 panel: msm_fb_type dsi
+wled after close: 0 panel_status: panel_status=suspend
+249: 327 0 0 0 0 0 0 0 msmgpio 67 Edge NVT-ts
+=== dmesg since open
+[  136.579724,1] PMI: smblib_update_usb_type: APSD=SDP PD=0
+[  136.687688,1] SX9310 ps notification: event = 0
+[  136.687732,1] SX9310 usb is present
+[  136.687755,1] SX9310 ps present state not change
+[  157.613163,3] fbtouch: done: frames=251 contacts=12
+[  157.614231,3] fbtouch: blanking before close
+[  157.614368,3] [NVT-ts] nvt_ts_suspend 1591: start
+[  157.666813,3] [NVT-ts] nvt_ts_suspend 1643: end
+[  157.678390,3] mdss_dsi_panel_off[0]+.
+[  157.886819,3] mdss_dsi_off[0]+.
+[  157.930122,3] mdss_dsi_off[0]-.
+[  158.143461,1] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[  158.143728,1] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[  158.143753,1] mdss_dsi_cmds_tx: failed to call
+=== counts
+panel_dead: 0  ESD recovery: 0  CTP_I2C: 0  BUS ERROR: 0  pan/mmap fail: 0  0x51: 1  unset pipe: 0  already resume: 1
+
+===== device: dmesg open path
+[   37.148590,0] [NVT-ts] nvt_fw_version_open 431: ++
+[   37.150968,0] [NVT-ts] nvt_read_pid 556: PID=3AD8
+[   37.151001,0] [NVT-ts] nvt_fw_version_open 442: --
+[   37.293718,4] fbtouch: show: opening /dev/fb0
+[   37.294418,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   37.420488,3] mdss_dsi_on[0]+.
+[   37.420508,3] mdss_dsi_on[0]-.
+[   37.427046,3] mdss_dsi_post_panel_on[0]-.
+[   37.603888,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[   37.604861,4] fbtouch: backlight 160 (readback 160)
+[   45.555441,0] fbtouch: first touch contact at +8.262 s raw=(673,51)
+[  157.613163,3] fbtouch: done: frames=251 contacts=12
+[  157.614231,3] fbtouch: blanking before close
+[  157.614368,3] [NVT-ts] nvt_ts_suspend 1591: start
+[  157.666813,3] [NVT-ts] nvt_ts_suspend 1643: end
+[  157.678390,3] mdss_dsi_panel_off[0]+.
+[  157.886819,3] mdss_dsi_off[0]+.
+[  157.930122,3] mdss_dsi_off[0]-.
+[  158.143461,1] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[  158.143728,1] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[  158.143753,1] mdss_dsi_cmds_tx: failed to call
+
+===== device: full fbtouch transcript
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 8/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.001 s
+fb: unblanked in 0.001 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.310 s
+backlight: wrote 160, readback 160
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+touch: +8.262 slot=0 id=0 down raw=(673,51) screen=(1008,71)
+touch: +8.389 slot=0 id=-1 up raw=(673,51) screen=(1008,71)
+touch: +9.190 slot=0 id=1 down raw=(50,87) screen=(74,122)
+touch: +9.289 slot=0 id=-1 up raw=(50,87) screen=(74,122)
+touch: +10.223 slot=0 id=2 down raw=(78,1599) screen=(116,2243)
+touch: +10.339 slot=0 id=-1 up raw=(78,1599) screen=(116,2243)
+touch: +11.106 slot=0 id=3 down raw=(645,1598) screen=(966,2242)
+touch: +11.223 slot=0 id=-1 up raw=(645,1598) screen=(966,2242)
+touch: +12.907 slot=0 id=4 down raw=(163,469) screen=(244,658)
+touch: +12.990 slot=0 id=4 move raw=(167,469) screen=(250,658)
+touch: +13.006 slot=0 id=4 move raw=(185,469) screen=(277,658)
+touch: +13.023 slot=0 id=4 move raw=(223,470) screen=(334,659)
+touch: +13.040 slot=0 id=4 move raw=(276,471) screen=(413,660)
+touch: +13.056 slot=0 id=4 move raw=(321,473) screen=(481,663)
+touch: +13.073 slot=0 id=4 move raw=(368,475) screen=(551,666)
+touch: +13.090 slot=0 id=4 move raw=(416,480) screen=(623,673)
+touch: +13.106 slot=0 id=4 move raw=(460,485) screen=(689,680)
+touch: +13.123 slot=0 id=4 move raw=(495,492) screen=(741,690)
+touch: +13.140 slot=0 id=4 move raw=(519,499) screen=(777,700)
+touch: +13.156 slot=0 id=4 move raw=(536,506) screen=(803,709)
+touch: +13.173 slot=0 id=4 move raw=(543,511) screen=(813,716)
+touch: +13.190 slot=0 id=4 move raw=(546,518) screen=(818,726)
+touch: +13.206 slot=0 id=4 move raw=(542,533) screen=(812,747)
+touch: +13.223 slot=0 id=4 move raw=(524,555) screen=(785,778)
+touch: +13.240 slot=0 id=4 move raw=(492,581) screen=(737,815)
+touch: +13.256 slot=0 id=4 move raw=(456,609) screen=(683,854)
+touch: +13.273 slot=0 id=4 move raw=(419,636) screen=(627,892)
+touch: +13.290 slot=0 id=4 move raw=(384,662) screen=(575,928)
+touch: +13.306 slot=0 id=4 move raw=(352,686) screen=(527,962)
+touch: +13.323 slot=0 id=4 move raw=(326,709) screen=(488,994)
+touch: +13.340 slot=0 id=4 move raw=(304,731) screen=(455,1025)
+touch: +13.356 slot=0 id=4 move raw=(288,750) screen=(431,1052)
+touch: +13.373 slot=0 id=4 move raw=(278,768) screen=(416,1077)
+touch: +13.390 slot=0 id=4 move raw=(275,785) screen=(412,1101)
+touch: +13.406 slot=0 id=4 move raw=(280,801) screen=(419,1123)
+touch: +13.424 slot=0 id=4 move raw=(292,815) screen=(437,1143)
+touch: +13.440 slot=0 id=4 move raw=(314,826) screen=(470,1158)
+touch: +13.456 slot=0 id=4 move raw=(346,835) screen=(518,1171)
+touch: +13.473 slot=0 id=4 move raw=(384,842) screen=(575,1181)
+touch: +13.490 slot=0 id=4 move raw=(423,848) screen=(633,1189)
+touch: +13.506 slot=0 id=4 move raw=(459,854) screen=(687,1198)
+touch: +13.525 slot=0 id=4 move raw=(490,861) screen=(734,1208)
+touch: +13.540 slot=0 id=4 move raw=(513,869) screen=(768,1219)
+touch: +13.557 slot=0 id=4 move raw=(530,878) screen=(794,1231)
+touch: +13.573 slot=0 id=4 move raw=(539,885) screen=(807,1241)
+touch: +13.590 slot=0 id=4 move raw=(541,897) screen=(810,1258)
+touch: +13.614 slot=0 id=4 move raw=(531,915) screen=(795,1283)
+touch: +13.623 slot=0 id=4 move raw=(508,938) screen=(761,1316)
+touch: +13.640 slot=0 id=4 move raw=(477,965) screen=(714,1354)
+touch: +13.656 slot=0 id=4 move raw=(442,992) screen=(662,1391)
+touch: +13.673 slot=0 id=4 move raw=(406,1020) screen=(608,1431)
+touch: +13.690 slot=0 id=4 move raw=(374,1045) screen=(560,1466)
+touch: +13.706 slot=0 id=4 move raw=(347,1067) screen=(520,1497)
+touch: +13.723 slot=0 id=4 move raw=(326,1086) screen=(488,1523)
+touch: +13.740 slot=0 id=4 move raw=(311,1103) screen=(466,1547)
+touch: +13.756 slot=0 id=4 move raw=(301,1119) screen=(451,1570)
+touch: +13.773 slot=0 id=4 move raw=(298,1131) screen=(446,1586)
+touch: +13.790 slot=0 id=4 move raw=(301,1145) screen=(451,1606)
+touch: +13.807 slot=0 id=4 move raw=(310,1157) screen=(464,1623)
+touch: +13.823 slot=0 id=4 move raw=(327,1166) screen=(490,1636)
+touch: +13.840 slot=0 id=4 move raw=(349,1173) screen=(523,1645)
+touch: +13.856 slot=0 id=4 move raw=(375,1178) screen=(561,1652)
+touch: +13.873 slot=0 id=4 move raw=(402,1182) screen=(602,1658)
+touch: +13.890 slot=0 id=4 move raw=(428,1186) screen=(641,1664)
+touch: +13.906 slot=0 id=4 move raw=(451,1192) screen=(675,1672)
+touch: +13.923 slot=0 id=4 move raw=(468,1199) screen=(701,1682)
+touch: +13.940 slot=0 id=4 move raw=(478,1206) screen=(716,1692)
+touch: +13.956 slot=0 id=4 move raw=(483,1214) screen=(723,1703)
+touch: +13.973 slot=0 id=4 move raw=(481,1229) screen=(720,1724)
+touch: +13.990 slot=0 id=4 move raw=(470,1247) screen=(704,1749)
+touch: +14.006 slot=0 id=4 move raw=(453,1269) screen=(678,1780)
+touch: +14.023 slot=0 id=4 move raw=(432,1291) screen=(647,1811)
+touch: +14.040 slot=0 id=4 move raw=(412,1312) screen=(617,1840)
+touch: +14.056 slot=0 id=4 move raw=(394,1332) screen=(590,1868)
+touch: +14.073 slot=0 id=4 move raw=(382,1348) screen=(572,1891)
+touch: +14.090 slot=0 id=4 move raw=(375,1361) screen=(561,1909)
+touch: +14.106 slot=0 id=4 move raw=(374,1371) screen=(560,1923)
+touch: +14.123 slot=0 id=4 move raw=(382,1382) screen=(572,1939)
+touch: +14.140 slot=0 id=4 move raw=(398,1391) screen=(596,1951)
+touch: +14.156 slot=0 id=4 move raw=(419,1397) screen=(627,1960)
+touch: +14.173 slot=0 id=4 move raw=(440,1401) screen=(659,1965)
+touch: +14.190 slot=0 id=4 move raw=(457,1405) screen=(684,1971)
+touch: +14.206 slot=0 id=4 move raw=(468,1407) screen=(701,1974)
+touch: +14.223 slot=0 id=4 move raw=(474,1409) screen=(710,1977)
+touch: +14.240 slot=0 id=4 move raw=(478,1411) screen=(716,1979)
+touch: +14.273 slot=0 id=4 move raw=(471,1430) screen=(705,2006)
+touch: +14.306 slot=0 id=-1 up raw=(471,1430) screen=(705,2006)
+touch: +14.790 slot=0 id=5 down raw=(203,348) screen=(304,488)
+touch: +14.806 slot=1 id=6 down raw=(483,188) screen=(723,263)
+touch: +14.873 slot=0 id=5 move raw=(203,354) screen=(304,496)
+touch: +14.873 slot=1 id=6 move raw=(484,193) screen=(725,270)
+touch: +14.890 slot=0 id=5 move raw=(204,371) screen=(305,520)
+touch: +14.890 slot=1 id=6 move raw=(485,209) screen=(726,293)
+touch: +14.907 slot=0 id=5 move raw=(205,400) screen=(307,561)
+touch: +14.907 slot=1 id=6 move raw=(485,236) screen=(726,331)
+touch: +14.923 slot=0 id=5 move raw=(205,433) screen=(307,607)
+touch: +14.923 slot=1 id=6 move raw=(486,267) screen=(728,374)
+touch: +14.940 slot=0 id=5 move raw=(204,458) screen=(305,642)
+touch: +14.940 slot=1 id=6 move raw=(484,291) screen=(725,408)
+touch: +14.956 slot=0 id=5 move raw=(203,485) screen=(304,680)
+touch: +14.957 slot=1 id=6 move raw=(482,315) screen=(722,441)
+touch: +14.973 slot=0 id=5 move raw=(203,511) screen=(304,716)
+touch: +14.973 slot=1 id=6 move raw=(479,340) screen=(717,477)
+touch: +14.990 slot=0 id=5 move raw=(203,537) screen=(304,753)
+touch: +14.990 slot=1 id=6 move raw=(476,365) screen=(713,512)
+touch: +15.007 slot=0 id=5 move raw=(203,562) screen=(304,788)
+touch: +15.007 slot=1 id=6 move raw=(475,389) screen=(711,545)
+touch: +15.023 slot=0 id=5 move raw=(204,586) screen=(305,822)
+touch: +15.023 slot=1 id=6 move raw=(474,413) screen=(710,579)
+touch: +15.040 slot=0 id=5 move raw=(205,610) screen=(307,855)
+touch: +15.040 slot=1 id=6 move raw=(474,436) screen=(710,611)
+touch: +15.057 slot=0 id=5 move raw=(207,633) screen=(310,888)
+touch: +15.057 slot=1 id=6 move raw=(475,458) screen=(711,642)
+touch: +15.073 slot=0 id=5 move raw=(210,656) screen=(314,920)
+touch: +15.073 slot=1 id=6 move raw=(476,480) screen=(713,673)
+touch: +15.090 slot=0 id=5 move raw=(213,678) screen=(319,951)
+touch: +15.090 slot=1 id=6 move raw=(480,501) screen=(719,702)
+touch: +15.107 slot=0 id=5 move raw=(217,699) screen=(325,980)
+touch: +15.107 slot=1 id=6 move raw=(483,521) screen=(723,731)
+touch: +15.123 slot=0 id=5 move raw=(222,721) screen=(332,1011)
+touch: +15.123 slot=1 id=6 move raw=(488,542) screen=(731,760)
+touch: +15.140 slot=0 id=5 move raw=(227,742) screen=(340,1041)
+touch: +15.140 slot=1 id=6 move raw=(493,562) screen=(738,788)
+touch: +15.157 slot=0 id=5 move raw=(232,763) screen=(347,1070)
+touch: +15.157 slot=1 id=6 move raw=(499,583) screen=(747,818)
+touch: +15.173 slot=0 id=5 move raw=(237,785) screen=(355,1101)
+touch: +15.173 slot=1 id=6 move raw=(504,603) screen=(755,846)
+touch: +15.190 slot=0 id=5 move raw=(241,807) screen=(361,1132)
+touch: +15.190 slot=1 id=6 move raw=(509,624) screen=(762,875)
+touch: +15.207 slot=0 id=5 move raw=(246,830) screen=(368,1164)
+touch: +15.207 slot=1 id=6 move raw=(513,645) screen=(768,905)
+touch: +15.223 slot=0 id=5 move raw=(249,853) screen=(373,1196)
+touch: +15.223 slot=1 id=6 move raw=(517,666) screen=(774,934)
+touch: +15.240 slot=0 id=5 move raw=(252,875) screen=(377,1227)
+touch: +15.240 slot=1 id=6 move raw=(520,687) screen=(779,963)
+touch: +15.256 slot=0 id=5 move raw=(255,896) screen=(382,1257)
+touch: +15.257 slot=1 id=6 move raw=(523,708) screen=(783,993)
+touch: +15.273 slot=0 id=5 move raw=(257,917) screen=(385,1286)
+touch: +15.273 slot=1 id=6 move raw=(527,729) screen=(789,1022)
+touch: +15.290 slot=0 id=5 move raw=(259,938) screen=(388,1316)
+touch: +15.290 slot=1 id=6 move raw=(529,749) screen=(792,1050)
+touch: +15.306 slot=0 id=5 move raw=(261,958) screen=(391,1344)
+touch: +15.307 slot=1 id=6 move raw=(531,768) screen=(795,1077)
+touch: +15.323 slot=0 id=5 move raw=(263,978) screen=(394,1372)
+touch: +15.323 slot=1 id=6 move raw=(533,788) screen=(798,1105)
+touch: +15.340 slot=0 id=5 move raw=(264,998) screen=(395,1400)
+touch: +15.340 slot=1 id=6 move raw=(534,807) screen=(800,1132)
+touch: +15.357 slot=0 id=5 move raw=(266,1018) screen=(398,1428)
+touch: +15.357 slot=1 id=6 move raw=(535,826) screen=(801,1158)
+touch: +15.373 slot=0 id=5 move raw=(268,1038) screen=(401,1456)
+touch: +15.373 slot=1 id=6 move raw=(536,845) screen=(803,1185)
+touch: +15.390 slot=0 id=5 move raw=(269,1059) screen=(403,1485)
+touch: +15.390 slot=1 id=6 move raw=(537,864) screen=(804,1212)
+touch: +15.407 slot=0 id=5 move raw=(270,1079) screen=(404,1513)
+touch: +15.407 slot=1 id=6 move raw=(538,884) screen=(806,1240)
+touch: +15.423 slot=0 id=5 move raw=(271,1099) screen=(406,1542)
+touch: +15.423 slot=1 id=6 move raw=(539,903) screen=(807,1267)
+touch: +15.440 slot=0 id=5 move raw=(271,1119) screen=(406,1570)
+touch: +15.440 slot=1 id=6 move raw=(540,922) screen=(809,1293)
+touch: +15.457 slot=0 id=5 move raw=(271,1138) screen=(406,1596)
+touch: +15.457 slot=1 id=6 move raw=(540,940) screen=(809,1318)
+touch: +15.473 slot=0 id=5 move raw=(271,1157) screen=(406,1623)
+touch: +15.473 slot=1 id=6 move raw=(540,958) screen=(809,1344)
+touch: +15.490 slot=0 id=5 move raw=(270,1175) screen=(404,1648)
+touch: +15.490 slot=1 id=6 move raw=(540,976) screen=(809,1369)
+touch: +15.506 slot=0 id=5 move raw=(269,1193) screen=(403,1673)
+touch: +15.507 slot=1 id=6 move raw=(540,993) screen=(809,1393)
+touch: +15.523 slot=0 id=5 move raw=(267,1211) screen=(400,1699)
+touch: +15.523 slot=1 id=6 move raw=(539,1010) screen=(807,1417)
+touch: +15.540 slot=0 id=5 move raw=(265,1229) screen=(397,1724)
+touch: +15.540 slot=1 id=6 move raw=(539,1026) screen=(807,1439)
+touch: +15.556 slot=0 id=5 move raw=(263,1247) screen=(394,1749)
+touch: +15.557 slot=1 id=6 move raw=(538,1042) screen=(806,1462)
+touch: +15.573 slot=0 id=5 move raw=(261,1263) screen=(391,1772)
+touch: +15.573 slot=1 id=6 move raw=(537,1056) screen=(804,1481)
+touch: +15.590 slot=0 id=5 move raw=(260,1279) screen=(389,1794)
+touch: +15.590 slot=1 id=6 move raw=(534,1072) screen=(800,1504)
+touch: +15.606 slot=0 id=5 move raw=(258,1293) screen=(386,1814)
+touch: +15.607 slot=1 id=6 move raw=(532,1086) screen=(797,1523)
+touch: +15.623 slot=0 id=5 move raw=(257,1305) screen=(385,1831)
+touch: +15.623 slot=1 id=6 move raw=(530,1099) screen=(794,1542)
+touch: +15.640 slot=0 id=5 move raw=(256,1316) screen=(383,1846)
+touch: +15.640 slot=1 id=6 move raw=(528,1111) screen=(791,1558)
+touch: +15.657 slot=0 id=5 move raw=(255,1327) screen=(382,1861)
+touch: +15.657 slot=1 id=6 move raw=(527,1121) screen=(789,1572)
+touch: +15.673 slot=0 id=5 move raw=(254,1337) screen=(380,1875)
+touch: +15.673 slot=1 id=6 move raw=(526,1129) screen=(788,1584)
+touch: +15.690 slot=0 id=5 move raw=(253,1347) screen=(379,1890)
+touch: +15.690 slot=1 id=6 move raw=(526,1137) screen=(788,1595)
+touch: +15.706 slot=0 id=5 move raw=(252,1375) screen=(377,1929)
+touch: +15.706 slot=1 id=6 move raw=(527,1145) screen=(789,1606)
+touch: +15.723 slot=1 id=6 move raw=(527,1170) screen=(789,1641)
+touch: +15.739 slot=0 id=-1 up raw=(252,1375) screen=(377,1929)
+touch: +15.756 slot=1 id=-1 up raw=(527,1170) screen=(789,1641)
+touch: +16.207 slot=0 id=7 down raw=(297,250) screen=(445,350)
+touch: +16.223 slot=1 id=8 down raw=(47,448) screen=(70,628)
+touch: +16.224 slot=2 id=9 down raw=(502,359) screen=(752,503)
+touch: +16.290 slot=0 id=7 move raw=(297,255) screen=(445,357)
+touch: +16.290 slot=1 id=-1 up raw=(47,448) screen=(70,628)
+touch: +16.290 slot=2 id=9 move raw=(503,364) screen=(753,510)
+touch: +16.307 slot=0 id=7 move raw=(298,270) screen=(446,378)
+touch: +16.307 slot=2 id=9 move raw=(504,378) screen=(755,530)
+touch: +16.323 slot=0 id=7 move raw=(300,297) screen=(449,416)
+touch: +16.324 slot=1 id=10 down raw=(73,522) screen=(109,732)
+touch: +16.324 slot=2 id=9 move raw=(507,402) screen=(759,564)
+touch: +16.340 slot=0 id=7 move raw=(304,328) screen=(455,460)
+touch: +16.340 slot=1 id=10 move raw=(73,525) screen=(109,736)
+touch: +16.340 slot=2 id=9 move raw=(511,431) screen=(765,604)
+touch: +16.357 slot=0 id=7 move raw=(307,353) screen=(460,495)
+touch: +16.357 slot=1 id=10 move raw=(75,538) screen=(112,754)
+touch: +16.357 slot=2 id=9 move raw=(513,455) screen=(768,638)
+touch: +16.373 slot=0 id=7 move raw=(310,380) screen=(464,533)
+touch: +16.374 slot=1 id=10 move raw=(82,570) screen=(122,799)
+touch: +16.374 slot=2 id=9 move raw=(515,481) screen=(771,674)
+touch: +16.390 slot=0 id=7 move raw=(313,407) screen=(469,571)
+touch: +16.390 slot=1 id=10 move raw=(93,603) screen=(139,846)
+touch: +16.390 slot=2 id=9 move raw=(518,507) screen=(776,711)
+touch: +16.407 slot=0 id=7 move raw=(316,436) screen=(473,611)
+touch: +16.407 slot=1 id=10 move raw=(101,629) screen=(151,882)
+touch: +16.407 slot=2 id=9 move raw=(521,535) screen=(780,750)
+touch: +16.423 slot=0 id=7 move raw=(320,466) screen=(479,653)
+touch: +16.424 slot=1 id=10 move raw=(109,656) screen=(163,920)
+touch: +16.424 slot=2 id=9 move raw=(524,563) screen=(785,789)
+touch: +16.440 slot=0 id=7 move raw=(323,495) screen=(484,694)
+touch: +16.440 slot=1 id=10 move raw=(116,685) screen=(173,961)
+touch: +16.440 slot=2 id=9 move raw=(528,591) screen=(791,829)
+touch: +16.457 slot=0 id=7 move raw=(327,524) screen=(490,735)
+touch: +16.457 slot=1 id=10 move raw=(122,714) screen=(182,1001)
+touch: +16.457 slot=2 id=9 move raw=(533,620) screen=(798,869)
+touch: +16.473 slot=0 id=7 move raw=(332,553) screen=(497,775)
+touch: +16.474 slot=1 id=10 move raw=(129,743) screen=(193,1042)
+touch: +16.474 slot=2 id=9 move raw=(538,648) screen=(806,909)
+touch: +16.490 slot=0 id=7 move raw=(337,582) screen=(505,816)
+touch: +16.490 slot=1 id=10 move raw=(137,772) screen=(205,1083)
+touch: +16.490 slot=2 id=9 move raw=(543,677) screen=(813,949)
+touch: +16.507 slot=0 id=7 move raw=(343,611) screen=(514,857)
+touch: +16.507 slot=1 id=10 move raw=(146,800) screen=(218,1122)
+touch: +16.507 slot=2 id=9 move raw=(549,705) screen=(822,989)
+touch: +16.523 slot=0 id=7 move raw=(348,639) screen=(521,896)
+touch: +16.524 slot=1 id=10 move raw=(155,828) screen=(232,1161)
+touch: +16.524 slot=2 id=9 move raw=(554,733) screen=(830,1028)
+touch: +16.540 slot=0 id=7 move raw=(355,667) screen=(532,935)
+touch: +16.540 slot=1 id=10 move raw=(163,856) screen=(244,1201)
+touch: +16.540 slot=2 id=9 move raw=(560,761) screen=(839,1067)
+touch: +16.557 slot=0 id=7 move raw=(360,695) screen=(539,975)
+touch: +16.557 slot=1 id=10 move raw=(171,884) screen=(256,1240)
+touch: +16.557 slot=2 id=9 move raw=(566,789) screen=(848,1107)
+touch: +16.573 slot=0 id=7 move raw=(366,722) screen=(548,1013)
+touch: +16.574 slot=1 id=10 move raw=(177,913) screen=(265,1281)
+touch: +16.574 slot=2 id=9 move raw=(572,815) screen=(857,1143)
+touch: +16.590 slot=0 id=7 move raw=(371,748) screen=(555,1049)
+touch: +16.590 slot=1 id=10 move raw=(181,942) screen=(271,1321)
+touch: +16.590 slot=2 id=9 move raw=(578,841) screen=(866,1180)
+touch: +16.607 slot=0 id=7 move raw=(377,774) screen=(564,1086)
+touch: +16.607 slot=1 id=10 move raw=(184,970) screen=(275,1361)
+touch: +16.607 slot=2 id=9 move raw=(585,868) screen=(876,1217)
+touch: +16.623 slot=0 id=7 move raw=(383,800) screen=(573,1122)
+touch: +16.624 slot=1 id=10 move raw=(188,998) screen=(281,1400)
+touch: +16.624 slot=2 id=9 move raw=(590,894) screen=(884,1254)
+touch: +16.640 slot=0 id=7 move raw=(389,826) screen=(582,1158)
+touch: +16.640 slot=1 id=10 move raw=(192,1026) screen=(287,1439)
+touch: +16.640 slot=2 id=9 move raw=(596,920) screen=(893,1290)
+touch: +16.657 slot=0 id=7 move raw=(394,852) screen=(590,1195)
+touch: +16.657 slot=1 id=10 move raw=(196,1053) screen=(293,1477)
+touch: +16.657 slot=2 id=9 move raw=(602,945) screen=(902,1325)
+touch: +16.673 slot=0 id=7 move raw=(399,876) screen=(597,1229)
+touch: +16.674 slot=1 id=10 move raw=(200,1079) screen=(299,1513)
+touch: +16.674 slot=2 id=9 move raw=(607,969) screen=(909,1359)
+touch: +16.690 slot=0 id=7 move raw=(403,900) screen=(603,1262)
+touch: +16.690 slot=1 id=10 move raw=(204,1104) screen=(305,1549)
+touch: +16.690 slot=2 id=9 move raw=(611,993) screen=(915,1393)
+touch: +16.707 slot=0 id=7 move raw=(408,922) screen=(611,1293)
+touch: +16.707 slot=1 id=10 move raw=(208,1128) screen=(311,1582)
+touch: +16.707 slot=2 id=9 move raw=(616,1015) screen=(923,1424)
+touch: +16.723 slot=0 id=7 move raw=(412,944) screen=(617,1324)
+touch: +16.724 slot=1 id=10 move raw=(211,1151) screen=(316,1614)
+touch: +16.724 slot=2 id=9 move raw=(621,1037) screen=(930,1455)
+touch: +16.740 slot=0 id=7 move raw=(415,964) screen=(621,1352)
+touch: +16.740 slot=1 id=10 move raw=(214,1174) screen=(320,1647)
+touch: +16.740 slot=2 id=9 move raw=(625,1058) screen=(936,1484)
+touch: +16.757 slot=0 id=7 move raw=(418,984) screen=(626,1380)
+touch: +16.757 slot=1 id=10 move raw=(217,1195) screen=(325,1676)
+touch: +16.757 slot=2 id=9 move raw=(628,1080) screen=(941,1515)
+touch: +16.773 slot=0 id=7 move raw=(421,1003) screen=(630,1407)
+touch: +16.774 slot=1 id=10 move raw=(220,1215) screen=(329,1704)
+touch: +16.774 slot=2 id=9 move raw=(631,1100) screen=(945,1543)
+touch: +16.790 slot=0 id=7 move raw=(424,1020) screen=(635,1431)
+touch: +16.790 slot=1 id=10 move raw=(222,1234) screen=(332,1731)
+touch: +16.790 slot=2 id=9 move raw=(633,1119) screen=(948,1570)
+touch: +16.807 slot=0 id=7 move raw=(426,1037) screen=(638,1455)
+touch: +16.807 slot=1 id=10 move raw=(224,1251) screen=(335,1755)
+touch: +16.807 slot=2 id=9 move raw=(634,1137) screen=(950,1595)
+touch: +16.823 slot=0 id=7 move raw=(428,1050) screen=(641,1473)
+touch: +16.824 slot=1 id=10 move raw=(225,1264) screen=(337,1773)
+touch: +16.824 slot=2 id=9 move raw=(636,1153) screen=(953,1617)
+touch: +16.840 slot=0 id=7 move raw=(429,1061) screen=(642,1488)
+touch: +16.840 slot=1 id=10 move raw=(226,1276) screen=(338,1790)
+touch: +16.840 slot=2 id=9 move raw=(636,1165) screen=(953,1634)
+touch: +16.857 slot=0 id=7 move raw=(429,1071) screen=(642,1502)
+touch: +16.857 slot=1 id=10 move raw=(226,1285) screen=(338,1803)
+touch: +16.857 slot=2 id=9 move raw=(637,1175) screen=(954,1648)
+touch: +16.873 slot=0 id=7 move raw=(429,1079) screen=(642,1513)
+touch: +16.874 slot=1 id=10 move raw=(226,1294) screen=(338,1815)
+touch: +16.874 slot=2 id=9 move raw=(637,1183) screen=(954,1659)
+touch: +16.890 slot=0 id=7 move raw=(430,1086) screen=(644,1523)
+touch: +16.890 slot=1 id=10 move raw=(226,1301) screen=(338,1825)
+touch: +16.890 slot=2 id=9 move raw=(638,1190) screen=(956,1669)
+touch: +16.907 slot=0 id=7 move raw=(430,1091) screen=(644,1530)
+touch: +16.907 slot=1 id=10 move raw=(226,1307) screen=(338,1833)
+touch: +16.907 slot=2 id=9 move raw=(638,1196) screen=(956,1678)
+touch: +16.923 slot=1 id=10 move raw=(226,1312) screen=(338,1840)
+touch: +16.940 slot=0 id=7 move raw=(430,1094) screen=(644,1535)
+touch: +16.940 slot=2 id=9 move raw=(638,1198) screen=(956,1680)
+touch: +16.957 slot=0 id=7 move raw=(430,1099) screen=(644,1542)
+touch: +16.957 slot=1 id=10 move raw=(225,1314) screen=(337,1843)
+touch: +16.957 slot=2 id=9 move raw=(638,1203) screen=(956,1687)
+touch: +16.973 slot=0 id=7 move raw=(429,1105) screen=(642,1550)
+touch: +16.974 slot=1 id=10 move raw=(224,1319) screen=(335,1850)
+touch: +16.974 slot=2 id=9 move raw=(637,1209) screen=(954,1696)
+touch: +16.990 slot=1 id=10 move raw=(223,1324) screen=(334,1857)
+touch: +17.007 slot=0 id=7 move raw=(429,1106) screen=(642,1551)
+touch: +17.007 slot=2 id=9 move raw=(637,1211) screen=(954,1699)
+touch: +17.023 slot=0 id=7 move raw=(428,1109) screen=(641,1556)
+touch: +17.024 slot=1 id=10 move raw=(223,1325) screen=(334,1859)
+touch: +17.024 slot=2 id=9 move raw=(637,1214) screen=(954,1703)
+touch: +17.040 slot=1 id=10 move raw=(222,1328) screen=(332,1863)
+touch: +17.057 slot=0 id=7 move raw=(428,1111) screen=(641,1558)
+touch: +17.057 slot=2 id=9 move raw=(637,1215) screen=(954,1704)
+touch: +17.073 slot=0 id=7 move raw=(428,1113) screen=(641,1561)
+touch: +17.074 slot=1 id=10 move raw=(221,1329) screen=(331,1864)
+touch: +17.074 slot=2 id=9 move raw=(637,1217) screen=(954,1707)
+touch: +17.090 slot=1 id=10 move raw=(221,1331) screen=(331,1867)
+touch: +17.173 slot=1 id=10 move raw=(220,1332) screen=(329,1868)
+touch: +17.190 slot=1 id=10 move raw=(219,1334) screen=(328,1871)
+touch: +17.190 slot=2 id=9 move raw=(637,1218) screen=(954,1709)
+touch: +17.206 slot=0 id=7 move raw=(428,1114) screen=(641,1563)
+touch: +17.206 slot=2 id=9 move raw=(637,1220) screen=(954,1711)
+touch: +17.223 slot=1 id=-1 up raw=(219,1334) screen=(328,1871)
+touch: +17.239 slot=0 id=-1 up raw=(428,1114) screen=(641,1563)
+touch: +17.240 slot=2 id=-1 up raw=(637,1220) screen=(954,1711)
+touch: +18.340 slot=0 id=11 down raw=(196,423) screen=(293,593)
+touch: +18.490 slot=0 id=11 move raw=(197,421) screen=(295,590)
+touch: +18.506 slot=0 id=11 move raw=(205,416) screen=(307,583)
+touch: +18.523 slot=0 id=11 move raw=(221,410) screen=(331,575)
+touch: +18.540 slot=0 id=11 move raw=(243,405) screen=(364,568)
+touch: +18.556 slot=0 id=11 move raw=(260,403) screen=(389,565)
+touch: +18.573 slot=0 id=11 move raw=(278,403) screen=(416,565)
+touch: +18.590 slot=0 id=11 move raw=(295,404) screen=(442,566)
+touch: +18.606 slot=0 id=11 move raw=(309,406) screen=(463,569)
+touch: +18.623 slot=0 id=11 move raw=(320,410) screen=(479,575)
+touch: +18.640 slot=0 id=11 move raw=(330,416) screen=(494,583)
+touch: +18.656 slot=0 id=11 move raw=(337,422) screen=(505,592)
+touch: +18.673 slot=0 id=11 move raw=(342,430) screen=(512,603)
+touch: +18.690 slot=0 id=11 move raw=(347,440) screen=(520,617)
+touch: +18.706 slot=0 id=11 move raw=(348,454) screen=(521,637)
+touch: +18.723 slot=0 id=11 move raw=(345,471) screen=(517,660)
+touch: +18.740 slot=0 id=11 move raw=(339,490) screen=(508,687)
+touch: +18.756 slot=0 id=11 move raw=(331,510) screen=(496,715)
+touch: +18.773 slot=0 id=11 move raw=(323,531) screen=(484,745)
+touch: +18.790 slot=0 id=11 move raw=(316,551) screen=(473,773)
+touch: +18.806 slot=0 id=11 move raw=(308,571) screen=(461,801)
+touch: +18.823 slot=0 id=11 move raw=(301,590) screen=(451,827)
+touch: +18.840 slot=0 id=11 move raw=(294,610) screen=(440,855)
+touch: +18.856 slot=0 id=11 move raw=(287,629) screen=(430,882)
+touch: +18.873 slot=0 id=11 move raw=(281,647) screen=(421,907)
+touch: +18.890 slot=0 id=11 move raw=(275,666) screen=(412,934)
+touch: +18.906 slot=0 id=11 move raw=(270,684) screen=(404,959)
+touch: +18.923 slot=0 id=11 move raw=(266,701) screen=(398,983)
+touch: +18.940 slot=0 id=11 move raw=(263,718) screen=(394,1007)
+touch: +18.956 slot=0 id=11 move raw=(260,735) screen=(389,1031)
+touch: +18.973 slot=0 id=11 move raw=(257,753) screen=(385,1056)
+touch: +18.990 slot=0 id=11 move raw=(255,771) screen=(382,1081)
+touch: +19.006 slot=0 id=11 move raw=(254,789) screen=(380,1107)
+touch: +19.023 slot=0 id=11 move raw=(253,808) screen=(379,1133)
+touch: +19.040 slot=0 id=11 move raw=(252,827) screen=(377,1160)
+touch: +19.056 slot=0 id=11 move raw=(252,846) screen=(377,1187)
+touch: +19.073 slot=0 id=11 move raw=(253,864) screen=(379,1212)
+touch: +19.090 slot=0 id=11 move raw=(254,883) screen=(380,1238)
+touch: +19.106 slot=0 id=11 move raw=(255,901) screen=(382,1264)
+touch: +19.123 slot=0 id=11 move raw=(257,919) screen=(385,1289)
+touch: +19.140 slot=0 id=11 move raw=(260,936) screen=(389,1313)
+touch: +19.156 slot=0 id=11 move raw=(263,953) screen=(394,1337)
+touch: +19.173 slot=0 id=11 move raw=(266,969) screen=(398,1359)
+touch: +19.190 slot=0 id=11 move raw=(268,985) screen=(401,1382)
+touch: +19.206 slot=0 id=11 move raw=(271,1001) screen=(406,1404)
+touch: +19.223 slot=0 id=11 move raw=(274,1017) screen=(410,1426)
+touch: +19.240 slot=0 id=11 move raw=(276,1033) screen=(413,1449)
+touch: +19.256 slot=0 id=11 move raw=(279,1049) screen=(418,1471)
+touch: +19.273 slot=0 id=11 move raw=(281,1064) screen=(421,1492)
+touch: +19.290 slot=0 id=11 move raw=(284,1081) screen=(425,1516)
+touch: +19.306 slot=0 id=11 move raw=(288,1097) screen=(431,1539)
+touch: +19.323 slot=0 id=11 move raw=(291,1112) screen=(436,1560)
+touch: +19.340 slot=0 id=11 move raw=(294,1127) screen=(440,1581)
+touch: +19.356 slot=0 id=11 move raw=(299,1142) screen=(448,1602)
+touch: +19.373 slot=0 id=11 move raw=(304,1156) screen=(455,1622)
+touch: +19.390 slot=0 id=11 move raw=(309,1169) screen=(463,1640)
+touch: +19.406 slot=0 id=11 move raw=(313,1181) screen=(469,1657)
+touch: +19.423 slot=0 id=11 move raw=(318,1194) screen=(476,1675)
+touch: +19.440 slot=0 id=11 move raw=(323,1205) screen=(484,1690)
+touch: +19.456 slot=0 id=11 move raw=(329,1215) screen=(493,1704)
+touch: +19.473 slot=0 id=11 move raw=(334,1225) screen=(500,1718)
+touch: +19.490 slot=0 id=11 move raw=(340,1234) screen=(509,1731)
+touch: +19.506 slot=0 id=11 move raw=(345,1243) screen=(517,1744)
+touch: +19.523 slot=0 id=11 move raw=(350,1252) screen=(524,1756)
+touch: +19.540 slot=0 id=11 move raw=(356,1260) screen=(533,1767)
+touch: +19.556 slot=0 id=11 move raw=(361,1268) screen=(540,1779)
+touch: +19.573 slot=0 id=11 move raw=(366,1276) screen=(548,1790)
+touch: +19.590 slot=0 id=11 move raw=(370,1284) screen=(554,1801)
+touch: +19.606 slot=0 id=11 move raw=(375,1291) screen=(561,1811)
+touch: +19.623 slot=0 id=11 move raw=(379,1299) screen=(567,1822)
+touch: +19.640 slot=0 id=11 move raw=(384,1306) screen=(575,1832)
+touch: +19.656 slot=0 id=11 move raw=(389,1313) screen=(582,1842)
+touch: +19.673 slot=0 id=11 move raw=(394,1320) screen=(590,1852)
+touch: +19.690 slot=0 id=11 move raw=(400,1326) screen=(599,1860)
+touch: +19.706 slot=0 id=11 move raw=(408,1332) screen=(611,1868)
+touch: +19.723 slot=0 id=11 move raw=(415,1338) screen=(621,1877)
+touch: +19.740 slot=0 id=11 move raw=(425,1342) screen=(636,1882)
+touch: +19.756 slot=0 id=11 move raw=(437,1347) screen=(654,1890)
+touch: +19.773 slot=0 id=11 move raw=(450,1349) screen=(674,1892)
+touch: +19.790 slot=0 id=11 move raw=(463,1350) screen=(693,1894)
+touch: +19.806 slot=0 id=11 move raw=(477,1350) screen=(714,1894)
+touch: +19.823 slot=0 id=11 move raw=(491,1348) screen=(735,1891)
+touch: +19.840 slot=0 id=11 move raw=(511,1343) screen=(765,1884)
+touch: +19.856 slot=0 id=11 move raw=(565,1338) screen=(846,1877)
+touch: +19.889 slot=0 id=-1 up raw=(565,1338) screen=(846,1877)
+summary: frames=251 touch_reports=284 contacts=12
+summary: touched screen area x=[70..1008] y=[71..2243], first contact +8.262 s
+fb: blanked before close
+
+===== host: reboot to stock
+2026-09-18T07:34:32Z
+[6npgrep -l fbtouch || echo no-fbtouch; mount | grep -c mmcblk; cat /proc/uptim
+e; sync; reboot
+no-fbtouch
+0
+186.86 1466.24
+~ # [6nConnection closed by foreign host.
+
+reboot-issued 07:34:32
+stock adb back after 39s 2026-09-18T07:35:11Z
+List of devices attached
+ZF6223WZGL             device usb:1-1.2 product:chef model:motorola_one_power device:chef_sprout transport_id:14
+
+motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0:user/release-keys
+_a
+27.92 141.03
+radio         1176     1  110844   1988 0                   0 S rmt_storage
+vendor_rfs    1178     1   37836   1980 0                   0 S tftp_server
+2

@@ -1,0 +1,435 @@
+===== host: image verification and fastboot boot
+2026-09-18T06:19:40Z
+be3e0ba427fbc8ee87e0d612d7bd5e4b37ba1d0f05ce5aabcf87916ae27adc71  out/boot.img
+hash OK
+adb reboot bootloader issued 06:19:44
+ZF6223WZGL	 fastboot
+current-slot: a
+be3e0ba427fbc8ee87e0d612d7bd5e4b37ba1d0f05ce5aabcf87916ae27adc71  out/boot.img (re-hashed immediately before boot)
+2026-09-18T06:19:51Z
+Sending 'boot.img' (22680 KB)                      OKAY [  0.560s]
+Booting                                            OKAY [  5.078s]
+Finished. Total time: 5.656s
+fastboot exit=0
+2026-09-18T06:19:56Z
+172.16.42.1 up after 12s 06:20:19
+enxf236e0d6e730  UP             172.16.42.2/24
+
+===== host: unpack_bootimg ramdisk / packed fbtouch
+ramdisk from boot.img: 2841ada558253fa5e9193ed82c75d88a54dfb1f3922ed1735d9514d0187917c2 (== out/initramfs.cpio.gz)
+usr/bin/fbtouch in ramdisk: 5e2cd31a1a8e226c013f89c2fb100737f4b6ca86c32eb2072e0bac60a007a79b
+
+===== device: preflight (fresh boot identity, B1-B3)
+=== identity
+Thu Jan  1 17:29:54 UTC 1970
+45.98 346.55
+Linux (none) 4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14 SMP PREEMPT Wed Sep 16 23:59:23 IST 2026 aarch64 Linux
+Linux version 4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty (chef-cyclo@build) (gcc version 4.9.x 20150123 (prerelease) (GCC) ) #14 SMP PREEMPT Wed Sep 16 23:59:23 IST 2026
+=== processes (fbtouch/gps-up must be absent)
+none
+=== packed fbtouch
+5e2cd31a1a8e226c013f89c2fb100737f4b6ca86c32eb2072e0bac60a007a79b  /usr/bin/fbtouch
+0
+=== rw mounts
+no block-device mounts
+no rw block mounts
+mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi
+androidboot.slot_suffix=_a
+androidboot.bootreason=reboot
+1442 dmesg-boot.txt
+=== panel boot lines
+[    8.653017,6] mdss_mdp_probe: mdss version = 0x30020000, bootloader display is on, num 1, intf_sel=0x00000100
+[    8.686721,6] mdss_panel_parse_panel_config_dt: BL: panel = mipi_mot_vid_tianma_nt_fhd_618, manufacture_id(0xDA) = 0x2 controller_ver(0xDB) = 0x61 controller_drv_ver(0XDC) = 0x21, full = 0x0000000000216102
+[    8.686741,6] mdss_dsi_find_panel_of_node: cmdline:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi panel_name:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0
+[    8.701869,5] mdss_dsi_ctrl_probe: Dsi Ctrl->0 initialized, DSI rev:0x20010000, PHY rev:0x2
+[    8.732180,5] mdss_fb_register: FrameBuffer[0] 1080x2246 registered successfully!
+=== NVT boot
+[    9.864448,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1239: buf[1]=0x0B, buf[2]=0x00, buf[3]=0x00, buf[4]=0x25, buf[5]=0x65, buf[6]=0x03
+[    9.919398,0] [NVT-ts] nvt_read_pid 556: PID=32D8
+[    9.923233,0] [NVT-ts] nvt_ts_probe 1427: request irq 249 succeed
+[    9.926155,0] [NVT-ts] nvt_ts_probe 1504: end
+[    9.921851,0] input: NVTCapacitiveTouchScreen as /devices/virtual/input/input1
+[    9.549023,6] focaltech_ts 3-0038: processing modifier config_modifier-fps[1]
+[    9.777261,6] focaltech_ts 3-0038: ft_i2c_read: i2c read error.
+=== fb0 sysfs
+panel_name=mipi_mot_vid_tianma_nt_fhd_618 
+panel_supplier=tianma 
+panel_ver=0x00216102 
+msm_fb_panel_status=panel_status=suspend 
+bits_per_pixel=32 
+virtual_size=1080,4492 
+stride=4352 
+modes=U:1080x2246p-60 
+msm_fb_type=mipi dsi video panel 
+=== backlight
+lcd-backlight=8/255 wled=0
+=== interrupts
+249:          0          0          0          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+=== input
+N: Name="qpnp_pon"
+H: Handlers=event0 
+N: Name="NVTCapacitiveTouchScreen"
+H: Handlers=mdss_fb kgsl event1 
+N: Name="hbtp_vm"
+H: Handlers=mouse0 event2 
+N: Name="SX9310 Cap Touch top"
+H: Handlers=event3 
+N: Name="SX9310 Cap Touch bottom"
+H: Handlers=event4 
+N: Name="uinput-egis"
+H: Handlers=event5 
+N: Name="gpio-keys"
+H: Handlers=event6 
+=== nvt_fw_version
+fw_ver=226, x_num=18, y_num=32, button_num=0
+=== touch sysfs
+buildid=e2-24019240
+ic_ver=[FW]e2,[IC]NT36525
+productinfo=NT36870
+poweron=1
+flashprog=0
+=== fbtouch info
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 8/255
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+=== early counts
+0
+0
+
+===== device: run1 cycle window
+=== uptime 134.66 1054.32
+734 fbtouch
+=== run1 output so far (non-touch lines)
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 8/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.001 s
+fb: unblanked in 0.001 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.305 s
+backlight: wrote 128, readback 128
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+cycle: FBIOBLANK POWERDOWN at +60.029 s
+cycle: panel off (60.354 s), holding 3 s
+cycle: unblanked in 3.255 s
+cycle: frame recommitted at +63.693 s
+backlight: wrote 128, readback 128
+=== contact lines so far
+0
+wled now: 2056  lcd-backlight: 128  panel_status: panel_status=alive
+=== dmesg since open (filtered)
+[   70.082170,4] fbtouch: show: opening /dev/fb0
+[   70.082998,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   70.208681,3] mdss_mdp_cxipeak_vote: cxipeak api fail ret:-22 set_vote :0 new_rate:171428571 prev_rate:412500000
+[   70.209052,3] mdss_dsi_on[0]+.
+[   70.209071,3] mdss_dsi_on[0]-.
+[   70.210344,3] mdss_dsi_post_panel_on[0]-.
+[   70.387338,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[   70.388262,4] fbtouch: backlight 128 (readback 128)
+[   91.110553,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[   91.110590,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[   91.110672,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  130.111324,0] fbtouch: blank cycle: powerdown
+[  130.111466,0] [NVT-ts] nvt_ts_suspend 1591: start
+[  130.163489,0] [NVT-ts] nvt_ts_suspend 1643: end
+[  130.177935,0] mdss_dsi_panel_off[0]+.
+[  130.386833,0] mdss_dsi_off[0]+.
+[  130.430546,0] mdss_dsi_off[0]-.
+[  133.436345,0] fbtouch: blank cycle: unblank
+[  133.439625,0] is_mdp_prefetch_needed: low vbp+vfp may lead to perf issues in some cases
+[  133.443697,0] mdss_dsi_on[0]+.
+[  133.480361,0] mdss_dsi_on[0]-.
+[  133.480465,0] mdss_dsi_panel_on[0]+.
+[  133.624437,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  133.625152,4] mdss_dsi_post_panel_on[0]-.
+[  133.636786,1] [NVT-ts] nvt_ts_resume 1668: start
+[  133.636802,1] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  133.676806,1] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[  133.690644,1] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[  133.690713,1] [NVT-ts] nvt_ts_resume 1690: end
+[  133.701892,1] sps: BAM device 0x000000000c144000 is not registered yet.
+[  133.704134,1] sps:BAM 0x000000000c144000 is registered.
+[  133.705110,1] sps:BAM 0x000000000c144000 (va:0xffffff800d0a0000) enabled: ver:0x19, number of pipes:12
+[  133.775627,5] fbtouch: blank cycle: frame recommitted
+[  133.776544,5] fbtouch: backlight 128 (readback 128)
+=== nvt_fw_version
+fw_ver=226, x_num=18, y_num=32, button_num=0
+
+===== device: run1 end
+=== uptime 192.30 1508.70
+fbtouch exited
+=== run1 tail
+running for the requested window; touch the screen now
+cycle: FBIOBLANK POWERDOWN at +60.029 s
+cycle: panel off (60.354 s), holding 3 s
+cycle: unblanked in 3.255 s
+cycle: frame recommitted at +63.693 s
+backlight: wrote 128, readback 128
+summary: frames=117 touch_reports=0 contacts=0
+fb: blanked before close
+=== contacts
+0
+wled after close: 0  lcd-backlight: 128  panel_status: panel_status=suspend
+=== dmesg close window
+[  190.396228,0] fbtouch: done: frames=117 contacts=0
+[  190.397206,0] fbtouch: blanking before close
+[  190.397325,0] [NVT-ts] nvt_ts_suspend 1591: start
+[  190.450143,0] [NVT-ts] nvt_ts_suspend 1643: end
+[  190.460110,0] mdss_dsi_panel_off[0]+.
+[  190.666815,0] mdss_dsi_off[0]+.
+[  190.710262,0] mdss_dsi_off[0]-.
+[  190.920239,1] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[  190.920504,1] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[  190.920529,1] mdss_dsi_cmds_tx: failed to call
+=== nvt_fw_version after close
+cat: can't open '/proc/nvt_fw_version': Resource temporarily unavailable
+=== counts so far
+panel_dead/gone bad: 0
+ESD recovery: 0
+CTP_I2C err: 10
+pan/mmap fail: 0
+dma_comp 0x51: 1
+unset pipe: 0
+
+===== device: run2 start (incl. the CTP_I2C burst from reading /proc/nvt_fw_version while suspended)
+=== CTP_I2C error lines (all so far)
+1584:[  192.700398,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+--
+1590:[  192.701821,1] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+--
+1598:[  192.703282,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+--
+1604:[  192.704750,1] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+--
+1612:[  192.706208,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+--
+1618:[  192.707673,1] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+--
+1626:[  192.709127,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+--
+1632:[  192.710589,1] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+--
+1640:[  192.712050,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+--
+1646:[  192.713582,4] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+866 fbtouch
+backlight: 128/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.184 s
+fb: unblanked in 0.251 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.334 s
+backlight: wrote 160, readback 160
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+wled after reopen: 2569  lcd-backlight: 160  panel_status: panel_status=alive
+=== dmesg reopen
+[  192.599793,0] [NVT-ts] nvt_fw_version_open 431: ++
+[  192.624994,0] i2c-msm-v2 c177000.i2c: error timeout on polling for valid state. check core_clk
+[  192.649943,0] i2c-msm-v2 c177000.i2c: error timeout on polling for valid state. check core_clk
+[  192.674961,0] i2c-msm-v2 c177000.i2c: error timeout on polling for valid state. check core_clk
+[  192.699934,1] i2c-msm-v2 c177000.i2c: error timeout on polling for valid state. check core_clk
+[  192.700398,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  192.701821,1] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  192.701848,1] [NVT-ts] nvt_get_fw_info 591: FW info is broken! fw_ver=0x01, ~fw_ver=0x1A
+[  192.701872,1] [NVT-ts] nvt_get_fw_info 601: retry_count=1
+[  192.703282,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  192.704750,1] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  192.704775,1] [NVT-ts] nvt_get_fw_info 591: FW info is broken! fw_ver=0x01, ~fw_ver=0x1A
+[  192.704800,1] [NVT-ts] nvt_get_fw_info 601: retry_count=2
+[  192.706208,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  192.707673,1] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  192.707697,1] [NVT-ts] nvt_get_fw_info 591: FW info is broken! fw_ver=0x01, ~fw_ver=0x1A
+[  192.707722,1] [NVT-ts] nvt_get_fw_info 601: retry_count=3
+[  192.709127,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  192.710589,1] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  192.710614,1] [NVT-ts] nvt_get_fw_info 591: FW info is broken! fw_ver=0x01, ~fw_ver=0x1A
+[  192.710640,1] [NVT-ts] nvt_get_fw_info 607: Set default fw_ver=0, x_num=18, y_num=32,                                        abs_x_max=1080, abs_y_max=2246, max_button_num=0!
+[  192.712050,1] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  192.713582,4] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  192.713599,4] [NVT-ts] nvt_read_pid 556: PID=0000
+[  218.280942,7] fbtouch: show: opening /dev/fb0
+[  218.285871,7] mdss_dsi_on[0]+.
+[  218.320137,7] mdss_dsi_on[0]-.
+[  218.320214,7] mdss_dsi_panel_on[0]+.
+[  218.464004,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  218.464722,4] mdss_dsi_post_panel_on[0]-.
+[  218.477010,0] [NVT-ts] nvt_ts_resume 1668: start
+[  218.477027,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  218.516917,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[  218.530618,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[  218.531652,0] [NVT-ts] nvt_ts_resume 1690: end
+[  218.615112,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[  218.616052,4] fbtouch: backlight 160 (readback 160)
+=== nvt_fw_version after reopen
+fw_ver=226, x_num=18, y_num=32, button_num=0
+(46 'i2c-msm-v2 … BUS ERROR' lines elided here; all in the dmesg-full file between 192.700 and 192.714 s)
+
+===== device: run2 backlight test
+before: lcd-backlight=160 wled=2569
+backlight: wrote 0, readback 0
+after bl 0 (+1.5 s, heartbeat commit): lcd-backlight=0 wled=0
+backlight: wrote 255, readback 255
+after bl 255: lcd-backlight=255 wled=4095
+backlight: wrote 160, readback 160
+after bl 160: lcd-backlight=160 wled=2569
+contacts so far: 0
+866 fbtouch
+[  245.375875,0] [<ffffff9cf228675c>] __switch_to+0xc4/0xd0
+[  245.375899,0] [<ffffff9cf33a5250>] __schedule+0x5e8/0x834
+[  245.375922,0] [<ffffff9cf33a5688>] schedule+0x78/0x94
+[  245.375946,0] [<ffffff9cf33a95b4>] schedule_timeout+0x40/0x284
+[  245.375969,0] [<ffffff9cf33a6174>] wait_for_common+0x188/0x1c0
+[  245.375993,0] [<ffffff9cf33a61d4>] wait_for_completion+0x28/0x34
+[  245.376016,0] [<ffffff9cf33a2bd4>] do_sampling+0x50/0x214
+[  245.376040,0] [<ffffff9cf22cdc2c>] kthread+0xfc/0x104
+[  245.376063,0] [<ffffff9cf2283ac0>] ret_from_fork+0x10/0x50
+[  276.658984,6] fbtouch: backlight 0 (readback 0)
+[  278.200850,0] fbtouch: backlight 255 (readback 255)
+[  279.740087,6] fbtouch: backlight 160 (readback 160)
+
+===== device: run2 end
+=== uptime 460.39 3627.57
+fbtouch exited
+=== run2 tail
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+summary: frames=238 touch_reports=0 contacts=0
+fb: blanked before close
+contacts: 0
+wled after close: 0  lcd-backlight: 160  panel_status: panel_status=suspend
+=== dmesg run2 close
+[  458.635141,0] fbtouch: done: frames=238 contacts=0
+[  458.636038,0] fbtouch: blanking before close
+[  458.636152,0] [NVT-ts] nvt_ts_suspend 1591: start
+[  458.690083,0] [NVT-ts] nvt_ts_suspend 1643: end
+[  458.700149,0] mdss_dsi_panel_off[0]+.
+[  458.906773,0] mdss_dsi_off[0]+.
+[  458.950241,0] mdss_dsi_off[0]-.
+[  459.163408,0] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[  459.163735,0] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[  459.163761,0] mdss_dsi_cmds_tx: failed to call
+=== hung task headers
+      1 [  245.373502,0] INFO: task kworker/5:1:99 blocked for more than 120 seconds.
+      1 [  245.373989,0] INFO: task kworker/u16:1:101 blocked for more than 120 seconds.
+      1 [  245.374434,0] INFO: task kworker/4:1:105 blocked for more than 120 seconds.
+      1 [  245.374913,0] INFO: task mdss_dsi_event:208 blocked for more than 120 seconds.
+      1 [  245.375372,0] INFO: task mmc-cmdqd/0:470 blocked for more than 120 seconds.
+      1 [  245.375719,0] INFO: task msm-core:sampli:556 blocked for more than 120 seconds.
+      1 [  365.373494,0] INFO: task kworker/5:1:99 blocked for more than 120 seconds.
+      1 [  365.373997,0] INFO: task kworker/u16:1:101 blocked for more than 120 seconds.
+      1 [  365.374440,0] INFO: task kworker/4:1:105 blocked for more than 120 seconds.
+      1 [  365.374920,0] INFO: task mdss_dsi_event:208 blocked for more than 120 seconds.
+
+===== device: run3 start
+1210 fbtouch
+backlight: 160/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.185 s
+fb: unblanked in 0.251 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.335 s
+backlight: wrote 128, readback 128
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+wled after reopen: 2056  lcd-backlight: 128  panel_status: panel_status=alive
+[  483.201045,7] fbtouch: show: opening /dev/fb0
+[  483.206010,7] mdss_dsi_on[0]+.
+[  483.240611,0] mdss_dsi_on[0]-.
+[  483.240731,0] mdss_dsi_panel_on[0]+.
+[  483.384826,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  483.385547,4] mdss_dsi_post_panel_on[0]-.
+[  483.396942,0] [NVT-ts] nvt_ts_resume 1668: start
+[  483.396959,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  483.436849,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[  483.450567,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[  483.451599,0] [NVT-ts] nvt_ts_resume 1690: end
+[  483.535940,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[  483.536942,4] fbtouch: backlight 128 (readback 128)
+
+===== device: run3 end and final capture
+=== uptime 1085.11 8554.80
+fbtouch exited
+=== run3 tail
+running for the requested window; touch the screen now
+summary: frames=592 touch_reports=0 contacts=0
+fb: blanked before close
+exit=2
+contacts: 0
+wled after close: 0  lcd-backlight: 128  panel_status: panel_status=suspend
+=== dmesg run3 close
+[ 1083.555074,1] fbtouch: done: frames=592 contacts=0
+[ 1083.555977,1] fbtouch: blanking before close
+[ 1083.556095,1] [NVT-ts] nvt_ts_suspend 1591: start
+[ 1083.609976,1] [NVT-ts] nvt_ts_suspend 1643: end
+[ 1083.621983,1] mdss_dsi_panel_off[0]+.
+[ 1083.833307,0] mdss_dsi_off[0]+.
+[ 1083.878849,1] mdss_dsi_off[0]-.
+[ 1084.089942,7] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[ 1084.090128,7] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[ 1084.090144,7] mdss_dsi_cmds_tx: failed to call
+2345 dmesg-final.txt
+=== final counts
+panel_dead/gone bad: 0
+NVT ESD recovery: 0
+CTP_I2C err: 10
+pan/mmap fail: 0
+dma_comp 0x51: 3
+unset pipe: 0
+fbtouch opens: 3
+blanking before close: 3
+nvt_ts_resume res=0: 3
+nvt_ts_suspend end: 4
+Pwr_mode 0x9c: 3
+already resume: 1
+hung-task reports: 10
+BUS ERROR: 46
+=== mounts/procs final
+0
+no probe processes
+5e2cd31a1a8e226c013f89c2fb100737f4b6ca86c32eb2072e0bac60a007a79b  /usr/bin/fbtouch
+
+===== device: fb0 sysfs final
+panel_name=mipi_mot_vid_tianma_nt_fhd_618 
+panel_supplier=tianma 
+panel_ver=0x00216102 
+msm_fb_panel_status=panel_status=suspend 
+bits_per_pixel=32 
+virtual_size=1080,4492 
+stride=4352 
+modes=U:1080x2246p-60 
+msm_fb_type=mipi dsi video panel 
+
+===== host: reboot to stock
+2026-09-18T06:38:31Z
+[6ncat /proc/uptime; sync; reboot
+1110.04 8750.93
+~ # [6nConnection closed by foreign host.
+
+reboot-issued 06:38:31
+stock adb back after 39s 2026-09-18T06:39:10Z
+List of devices attached
+ZF6223WZGL             device usb:1-1.2 product:chef model:motorola_one_power device:chef_sprout transport_id:13
+
+motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0:user/release-keys
+_a
+28.94 143.63
+radio         1176     1  110844   2028 0                   0 S rmt_storage
+vendor_rfs    1178     1   37836   1812 0                   0 S tftp_server
+2
