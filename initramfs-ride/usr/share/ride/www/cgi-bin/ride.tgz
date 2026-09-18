@@ -1,0 +1,11 @@
+#!/bin/sh
+# Streams /run/ride as a gzip'd tar (RAM only, so fetch before rebooting).
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+D=${RIDE_DIR:-/run/ride}
+if [ ! -d "$D" ]; then
+	printf 'Status: 404 Not Found\r\nContent-Type: text/plain\r\n\r\nno ride log dir\n'
+	exit 0
+fi
+printf 'Content-Type: application/gzip\r\nContent-Disposition: attachment; filename="ride-%s.tar.gz"\r\n\r\n' \
+	"$(cut -d' ' -f1 /proc/uptime | tr -d .)"
+tar -cf - -C "$(dirname "$D")" "$(basename "$D")" 2>/dev/null | gzip

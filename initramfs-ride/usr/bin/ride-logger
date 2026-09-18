@@ -1,0 +1,446 @@
+#!/bin/sh
+# ride-logger: unattended GPS logging for the temporary "ride" boot image.
+#
+# Started once from the ride image's inittab (`::once:`, never respawn: it
+# starts exactly one gps-up, and gps-up owns the modem's lifetime). It brings
+# the modem up through gps-up, waits for the QMUX bridge socket, enables the
+# standard NMEA sentences, starts one LOC session and keeps a single
+# `qmicli --loc-follow-nmea --loc-follow-position-report` follower running,
+# restarting the follower (never gps-up) if it dies or stalls. Everything
+# lands under /run/ride (RAM only -- gone at power-off, see README):
+#
+#   meta.txt        boot/image/battery facts, start uptime + wallclock
+#   events.log      "<uptime> <utc> <event>": milestones for time-to-first-fix
+#                   (gps-up-start, qmux-socket, loc-start, first-nmea,
+#                   first-gga-fix, first-rmc-valid, first-position-fix), a
+#                   heartbeat with counters every 60 s, follower restarts,
+#                   stop/failure reasons
+#   nmea.log        "<uptime> <sentence>" for every NMEA line (cut -d' ' -f2-
+#                   gives the pristine sentence stream)
+#   positions.log   one line per qmicli position report (status, lat, lon,
+#                   altitude, speed, heading, uncertainty, technology, UTC ms)
+#   follow.raw      the follower's stdout, byte for byte (raw qmicli output)
+#   follow.err      the follower's stderr (all runs appended)
+#   qmicli-*.txt    raw verbose output of every setup/teardown qmicli step
+#   gps-up.log      gps-up's own output
+#   supervisor.log  this script's log (also written to /dev/kmsg as "ride:"
+#                   lines, so fblog shows them on the panel)
+#   status          one line: STARTING / GPS-UP / LOGGING… / STOPPED / FAILED…
+#
+# Feedback: every step is a "ride:" line on /dev/kmsg (visible on the fblog
+# screen); logging start buzzes twice, a failure buzzes three long times and
+# turns the screen back on if the logger had idled it. After
+# RIDE_SCREEN_OFF_AFTER_S seconds of successful logging the panel is idled the
+# documented way (/run/fblog.off + kill fblog); `rm /run/fblog.off; kill
+# $(pidof fblog)` or `curl 'http://172.16.42.1/cgi-bin/screen?on'` wakes it.
+#
+# Stop: `touch /run/ride/stop` (or `curl http://172.16.42.1/cgi-bin/stop`) or
+# a TERM: the follower is interrupted, the LOC session stopped, the CID
+# released and gps-up terminated (it shuts the modem down cleanly).
+#
+# Safety model unchanged: nothing here touches a block device or mounts
+# anything; the only writes are to /run and sysfs (vibrator, fblog flag).
+# gps-up keeps its RAM-shadow EFS behaviour.
+#
+# Every path/command below is overridable for tools/tests/test_ride-logger.sh
+# (stub gps-up/qmicli, fake kmsg/vibrator/uptime); unset in production.
+set -u
+
+D=${RIDE_DIR:-/run/ride}
+QMICLI=${RIDE_QMICLI:-qmicli}
+GPS_UP=${RIDE_GPS_UP:-gps-up}
+SOCK=${RIDE_QMUX_SOCKET:-/run/qmux_socket}
+KMSG=${RIDE_KMSG:-/dev/kmsg}
+VIB=${RIDE_VIBRATOR:-/sys/class/timed_output/vibrator/enable}
+FBLOG_OFF=${RIDE_FBLOG_OFF:-/run/fblog.off}
+UPTIME=${RIDE_UPTIME:-/proc/uptime}
+BATT=${RIDE_BATTERY:-/sys/class/power_supply/battery}
+NMEA_TYPES=${RIDE_NMEA_TYPES:-gga|rmc|gsv|gsa|vtg}
+SETTLE_S=${RIDE_SETTLE_S:-3}
+SOCKET_WAIT_S=${RIDE_SOCKET_WAIT_S:-240}
+READY_TRIES=${RIDE_READY_TRIES:-15}
+QMI_TIMEOUT_S=${RIDE_QMI_TIMEOUT_S:-30}
+STALL_S=${RIDE_STALL_S:-60}
+SCREEN_OFF_AFTER_S=${RIDE_SCREEN_OFF_AFTER_S:-45}
+FOLLOW_MAX_FAST_FAILS=${RIDE_FOLLOW_MAX_FAST_FAILS:-5}
+FOLLOW_FAST_S=${RIDE_FOLLOW_FAST_S:-30}
+HEARTBEAT_S=${RIDE_HEARTBEAT_S:-60}
+
+GPS_PID=
+FOLLOW_PID=
+READER_PID=
+CID=
+SESSION_STARTED=0
+FOLLOW_STARTS=0
+FOLLOW_START_UP=0
+FAST_FAILS=0
+STOP_REQ=0
+SCREEN_IDLED=0
+FINISHED=0
+
+up() { cut -d' ' -f1 "$UPTIME"; }
+up_int() { cut -d. -f1 "$UPTIME"; }
+now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
+batt() { cat "$BATT/capacity" 2>/dev/null || echo '?'; }
+log() {
+	echo "ride: $*" > "$KMSG" 2>/dev/null
+	echo "$(up) $*"
+}
+event() { echo "$(up) $(now) $*" >> "$D/events.log"; }
+set_status() {
+	echo "$1" > "$D/status.tmp" && mv "$D/status.tmp" "$D/status"
+	log "status: $1"
+}
+buzz() {
+	# $1 = pulse ms, $2 = count. timed_output takes a duration and stops itself.
+	i=0
+	while [ "$i" -lt "$2" ]; do
+		echo "$1" > "$VIB" 2>/dev/null
+		sleep "$3"
+		i=$((i + 1))
+	done
+}
+buzz_ok()   { buzz 150 2 0.35; }
+buzz_fail() { buzz 600 3 0.9; }
+buzz_stop() { buzz 300 1 0.4; }
+
+screen_off() {
+	# The documented fblog idle protocol (README, 2026-09-18 fblog live entry):
+	# the respawned fblog sees the flag and does not touch /dev/fb0.
+	touch "$FBLOG_OFF"
+	p=$(pidof fblog 2>/dev/null) && [ -n "$p" ] && kill $p 2>/dev/null
+	SCREEN_IDLED=1
+	event "screen-off"
+}
+screen_on() {
+	rm -f "$FBLOG_OFF"
+	p=$(pidof fblog 2>/dev/null) && [ -n "$p" ] && kill $p 2>/dev/null
+	SCREEN_IDLED=0
+	event "screen-on"
+}
+
+child_alive() {
+	# Same rule as gps-up: an unreaped zombie is not alive.
+	[ -n "$1" ] || return 1
+	[ -r "/proc/$1/stat" ] || return 1
+	awk '{ exit ($3 == "Z") }' "/proc/$1/stat"
+}
+
+# Bounded qmicli step: $1 = evidence name, rest = qmicli args. Verbose output
+# (raw QMUX frames both ways) to $D/qmicli-<name>.txt, exit code alongside.
+qstep() {
+	n=$1; shift
+	timeout "$QMI_TIMEOUT_S" "$QMICLI" -d "$SOCK" -v "$@" > "$D/qmicli-$n.txt" 2>&1
+	rc=$?
+	echo "$rc" > "$D/qmicli-$n.exit"
+	event "qmicli-$n exit=$rc"
+	return $rc
+}
+
+# ---------------------------------------------------------------------------
+# Follower reader: runs in the background reading the follower's stdout from a
+# FIFO, splits it into follow.raw / nmea.log / positions.log, detects the
+# first-fix milestones and writes the heartbeat.
+follow_reader() {
+	exec 5>> "$D/follow.raw" 6>> "$D/nmea.log" 7>> "$D/positions.log"
+	n_nmea=0; n_pos=0; n_gga_fix=0; n_pos_ok=0
+	first_nmea=0; gga_fix=0; rmc_valid=0; pos_ok=0
+	last_hb=$(up_int)
+	p_status=; p_lat=; p_lon=; p_alt=; p_spd=; p_hdg=; p_unc=; p_tech=; p_utc=; p_sats=
+	while IFS= read -r line; do
+		t=$(up)
+		printf '%s\n' "$line" >&5
+		case "$line" in
+		'$'*)
+			n_nmea=$((n_nmea + 1))
+			printf '%s %s\n' "$t" "$line" >&6
+			if [ "$first_nmea" -eq 0 ]; then
+				first_nmea=1
+				event "first-nmea ${line%%,*}"
+			fi
+			case "$line" in
+			'$G'?'GGA,'*)
+				# $GxGGA,time,lat,N,lon,E,quality,sats,hdop,alt,M,...
+				oifs=$IFS; IFS=,; set -- $line; IFS=$oifs
+				q=${7:-0}
+				case "$q" in '' | *[!0-9]*) q=0 ;; esac
+				if [ "$q" -gt 0 ]; then
+					n_gga_fix=$((n_gga_fix + 1))
+					if [ "$gga_fix" -eq 0 ]; then
+						gga_fix=1
+						event "first-gga-fix quality=$q sats=${8:-?} utc=${2:-?} lat=${3:-?}${4:-} lon=${5:-?}${6:-} alt=${10:-?}"
+						log "GPS FIX (GGA quality $q, ${8:-?} sats) at uptime $t"
+					fi
+				fi
+				;;
+			'$G'?'RMC,'*)
+				# $GxRMC,time,status(A/V),lat,N,lon,E,speed,course,date,...
+				oifs=$IFS; IFS=,; set -- $line; IFS=$oifs
+				if [ "${3:-V}" = A ] && [ "$rmc_valid" -eq 0 ]; then
+					rmc_valid=1
+					event "first-rmc-valid utc=${2:-?} date=${10:-?} lat=${4:-?}${5:-} lon=${6:-?}${7:-}"
+				fi
+				;;
+			esac
+			;;
+		'[position report]'*)
+			n_pos=$((n_pos + 1))
+			p_status=${line#*status: }
+			p_lat=; p_lon=; p_alt=; p_spd=; p_hdg=; p_unc=; p_tech=; p_utc=; p_sats=
+			;;
+		*'latitude:'*)   set -- ${line#*:}; p_lat=${1:-} ;;
+		*'longitude:'*)  set -- ${line#*:}; p_lon=${1:-} ;;
+		*'altitude w.r.t. mean sea level:'*) set -- ${line#*:}; p_alt=${1:-} ;;
+		*'horizontal speed:'*) set -- ${line#*:}; p_spd=${1:-} ;;
+		*'heading:'*)    set -- ${line#*:}; p_hdg=${1:-} ;;
+		*'(semi-major axis):'*) set -- ${line#*:}; p_unc=${1:-} ;;
+		*'technology:'*) set -- ${line#*:}; p_tech=${1:-} ;;
+		*'UTC timestamp:'*) set -- ${line#*:}; p_utc=${1:-} ;;
+		*'Satellites used:'*) set -- ${line#*:}; p_sats=${1:-} ;;
+		*'Altitude assumed:'*)
+			# Last line of a report block (qmicli prints the fields in a
+			# fixed order, "n/a" when a TLV is absent).
+			printf '%s status=%s lat=%s lon=%s alt_msl=%s speed=%s heading=%s unc_m=%s tech=%s utc_ms=%s sats=%s\n' \
+				"$t" "$p_status" "$p_lat" "$p_lon" "$p_alt" "$p_spd" "$p_hdg" "$p_unc" "$p_tech" "$p_utc" "$p_sats" >&7
+			if [ "$p_status" = success ]; then
+				n_pos_ok=$((n_pos_ok + 1))
+				if [ "$pos_ok" -eq 0 ]; then
+					pos_ok=1
+					event "first-position-fix lat=$p_lat lon=$p_lon alt_msl=$p_alt unc_m=$p_unc tech=$p_tech utc_ms=$p_utc"
+					log "POSITION FIX lat=$p_lat lon=$p_lon (unc ${p_unc} m) at uptime $t"
+				fi
+			fi
+			;;
+		esac
+		ti=${t%.*}
+		if [ $((ti - last_hb)) -ge "$HEARTBEAT_S" ]; then
+			last_hb=$ti
+			echo "nmea=$n_nmea pos=$n_pos gga_fix=$n_gga_fix pos_ok=$n_pos_ok" > "$D/counters.tmp" && mv "$D/counters.tmp" "$D/counters"
+			event "heartbeat nmea=$n_nmea pos=$n_pos gga_fix=$n_gga_fix pos_ok=$n_pos_ok batt=$(batt)%"
+		fi
+	done
+	echo "nmea=$n_nmea pos=$n_pos gga_fix=$n_gga_fix pos_ok=$n_pos_ok" > "$D/counters.tmp" && mv "$D/counters.tmp" "$D/counters"
+	event "follow-reader-eof nmea=$n_nmea pos=$n_pos gga_fix=$n_gga_fix pos_ok=$n_pos_ok"
+}
+
+start_follow() {
+	rm -f "$D/follow.fifo"
+	mkfifo "$D/follow.fifo" || return 1
+	follow_reader < "$D/follow.fifo" &
+	READER_PID=$!
+	# One client (the CID allocated below), one process, both event kinds:
+	# host-verified 2026-09-18 that qmicli registers position-report + nmea
+	# in a single Register Events request for this combination.
+	"$QMICLI" -d "$SOCK" --client-cid="$CID" --client-no-release-cid \
+		--loc-follow-nmea --loc-follow-position-report > "$D/follow.fifo" 2>> "$D/follow.err" &
+	FOLLOW_PID=$!
+	FOLLOW_START_UP=$(up_int)
+	FOLLOW_STARTS=$((FOLLOW_STARTS + 1))
+	FOLLOW_SIZE=$(wc -c < "$D/follow.raw" 2>/dev/null || echo 0)
+	FOLLOW_LAST_GROWTH=$(up_int)
+	event "follow-start n=$FOLLOW_STARTS pid=$FOLLOW_PID"
+	log "follower started (run $FOLLOW_STARTS)"
+}
+
+stop_follow() {
+	# INT first: qmicli's own handler quits the main loop and exits normally
+	# (stdout is flushed per g_print anyway). TERM after 5 s if it ignores it.
+	if child_alive "$FOLLOW_PID"; then
+		kill -INT "$FOLLOW_PID" 2>/dev/null
+		i=0
+		while child_alive "$FOLLOW_PID" && [ "$i" -lt 10 ]; do sleep 0.5; i=$((i + 1)); done
+		child_alive "$FOLLOW_PID" && kill -TERM "$FOLLOW_PID" 2>/dev/null
+	fi
+	[ -n "$FOLLOW_PID" ] && wait "$FOLLOW_PID" 2>/dev/null
+	[ -n "$READER_PID" ] && wait "$READER_PID" 2>/dev/null
+	FOLLOW_PID=; READER_PID=
+	rm -f "$D/follow.fifo"
+}
+
+stop_modem() {
+	# Bounded LOC teardown, then gps-up (whose cleanup shuts the modem down).
+	if [ -n "$CID" ] && [ -S "$SOCK" ] && child_alive "$GPS_PID"; then
+		[ "$SESSION_STARTED" -eq 1 ] && qstep loc-stop --client-cid="$CID" --client-no-release-cid --loc-stop --loc-session-id=1
+		qstep loc-release --client-cid="$CID" --loc-noop
+	fi
+	if child_alive "$GPS_PID"; then
+		log "stopping gps-up (modem shutdown)"
+		kill -TERM "$GPS_PID" 2>/dev/null
+		i=0
+		while child_alive "$GPS_PID" && [ "$i" -lt 120 ]; do sleep 0.5; i=$((i + 1)); done
+		child_alive "$GPS_PID" && { log "gps-up did not exit in 60 s"; kill -KILL "$GPS_PID" 2>/dev/null; }
+	fi
+	[ -n "$GPS_PID" ] && wait "$GPS_PID" 2>/dev/null
+	GPS_PID=
+}
+
+fail() {
+	[ "$FINISHED" -eq 1 ] && return
+	FINISHED=1
+	trap - EXIT HUP INT TERM
+	set_status "FAILED: $*"
+	event "failed $*"
+	log "FAILED: $*"
+	log "evidence stays in $D; telnet 172.16.42.1 or curl http://172.16.42.1/"
+	[ "$SCREEN_IDLED" -eq 1 ] && screen_on
+	buzz_fail
+	stop_follow
+	stop_modem
+	event "exit rc=1"
+	exit 1
+}
+
+finish() {
+	# Normal end (stop file or signal): stop cleanly, keep the evidence.
+	[ "$FINISHED" -eq 1 ] && return
+	FINISHED=1
+	trap - EXIT HUP INT TERM
+	log "stopping ($1)"
+	event "stop-requested $1"
+	stop_follow
+	stop_modem
+	set_status "STOPPED ($1)"
+	[ "$SCREEN_IDLED" -eq 1 ] && screen_on
+	buzz_stop
+	log "stopped; logs in $D until power-off (RAM only)"
+	event "exit rc=0"
+	exit 0
+}
+
+# ---------------------------------------------------------------------------
+if ! mkdir "$D" 2>/dev/null; then
+	echo "ride: $D exists: already running or stale (rm -rf $D to rerun)" > "$KMSG" 2>/dev/null
+	echo "ride-logger: $D exists: already running or stale (rm -rf $D to rerun)" >&2
+	exit 1
+fi
+exec >> "$D/supervisor.log" 2>&1
+trap 'STOP_REQ=1' HUP INT TERM
+trap 'fail "unexpected exit"' EXIT
+
+set_status STARTING
+: > "$D/events.log"
+event "logger-start"
+{
+	echo "ride-logger start: uptime $(up) s, wallclock $(now) (no RTC sync; the clock may be 1970)"
+	echo "kernel: $(uname -r)"
+	echo "version: $(cat /proc/version 2>/dev/null)"
+	echo "cmdline: $(cat /proc/cmdline 2>/dev/null)"
+	echo "hostname: $(cat /etc/hostname 2>/dev/null)"
+	echo "battery: capacity=$(batt)% status=$(cat "$BATT/status" 2>/dev/null)"
+	echo "qmicli: $("$QMICLI" --version 2>/dev/null | head -n1)"
+	echo "qmux socket: $SOCK"
+	echo "nmea types requested: $NMEA_TYPES"
+	echo "screen off after: ${SCREEN_OFF_AFTER_S}s (0 = never)"
+	echo "log dir: $D (tmpfs, lost at power-off)"
+} > "$D/meta.txt"
+log "ride logger starting; logs in $D"
+
+sleep "$SETTLE_S"
+
+# --- modem: exactly one gps-up, never respawned ------------------------------
+set_status GPS-UP
+"$GPS_UP" > "$D/gps-up.log" 2>&1 &
+GPS_PID=$!
+event "gps-up-start pid=$GPS_PID"
+log "gps-up started (pid $GPS_PID), waiting for the qmux socket (up to ${SOCKET_WAIT_S}s)"
+
+i=0
+while [ ! -S "$SOCK" ]; do
+	[ "$STOP_REQ" -eq 0 ] || finish signal
+	child_alive "$GPS_PID" || { wait "$GPS_PID" 2>/dev/null; fail "gps-up exited (rc $?) before the qmux socket appeared; see gps-up.log"; }
+	[ "$i" -lt $((SOCKET_WAIT_S * 2)) ] || fail "no $SOCK after ${SOCKET_WAIT_S}s (modem did not come up)"
+	sleep 0.5
+	i=$((i + 1))
+done
+event "qmux-socket"
+log "qmux socket up at uptime $(up)"
+
+# --- bridge readiness: the CTL version query, bounded retries ----------------
+i=0
+while ! qstep version-info --get-service-version-info; do
+	[ "$STOP_REQ" -eq 0 ] || finish signal
+	child_alive "$GPS_PID" || fail "gps-up exited while waiting for the bridge"
+	i=$((i + 1))
+	[ "$i" -lt "$READY_TRIES" ] || fail "bridge not answering the version query after $READY_TRIES tries"
+	sleep 2
+done
+event "bridge-ready services=$(grep -c "^[[:space:]]*[a-z0-9-]* (" "$D/qmicli-version-info.txt" 2>/dev/null)"
+
+# --- LOC client + session ---------------------------------------------------
+qstep loc-alloc --loc-noop --client-no-release-cid || fail "LOC client allocation failed; see qmicli-loc-alloc.txt"
+CID=$(sed -n "s/.*CID: '\([0-9]*\)'.*/\1/p" "$D/qmicli-loc-alloc.txt" | head -n1)
+[ -n "$CID" ] || fail "no CID in the LOC allocation reply"
+event "loc-cid $CID"
+
+NMEA_WARN=
+if qstep set-nmea-types --client-cid="$CID" --client-no-release-cid --loc-set-nmea-types="$NMEA_TYPES"; then
+	event "nmea-types-set $NMEA_TYPES"
+else
+	NMEA_WARN=" (nmea-types failed: only \$PQW* sentences)"
+	log "WARNING: --loc-set-nmea-types=$NMEA_TYPES failed; continuing with position reports"
+fi
+qstep get-nmea-types --client-cid="$CID" --client-no-release-cid --loc-get-nmea-types
+event "nmea-types-now $(sed -n 's/.*retrieved NMEA types: //p' "$D/qmicli-get-nmea-types.txt" | head -n1)"
+
+qstep loc-start --client-cid="$CID" --client-no-release-cid --loc-start --loc-session-id=1 || fail "LOC start failed; see qmicli-loc-start.txt"
+SESSION_STARTED=1
+event "loc-start session=1"
+log "LOC session started at uptime $(up) (time-to-first-fix counts from here)"
+
+start_follow || fail "could not start the follower"
+sleep 2
+child_alive "$FOLLOW_PID" || fail "follower exited immediately; see follow.err"
+
+set_status "LOGGING$NMEA_WARN"
+log "OK: logging NMEA + position reports to $D"
+log "unplug when ready; later: curl http://172.16.42.1/ (status), /cgi-bin/ride.tgz (all logs)"
+buzz_ok
+if [ "$SCREEN_OFF_AFTER_S" -gt 0 ]; then
+	log "screen idles in ${SCREEN_OFF_AFTER_S}s; wake: curl 'http://172.16.42.1/cgi-bin/screen?on'"
+	SCREEN_OFF_AT=$(( $(up_int) + SCREEN_OFF_AFTER_S ))
+else
+	SCREEN_OFF_AT=0
+fi
+
+# --- supervise ---------------------------------------------------------------
+while :; do
+	[ "$STOP_REQ" -eq 0 ] || finish signal
+	[ ! -e "$D/stop" ] || finish stop-file
+	child_alive "$GPS_PID" || { wait "$GPS_PID" 2>/dev/null; fail "gps-up exited (rc $?): modem lifetime ended; see gps-up.log"; }
+	t=$(up_int)
+	if ! child_alive "$FOLLOW_PID"; then
+		wait "$FOLLOW_PID" 2>/dev/null; rc=$?
+		[ -n "$READER_PID" ] && wait "$READER_PID" 2>/dev/null
+		FOLLOW_PID=; READER_PID=
+		ran=$((t - FOLLOW_START_UP))
+		event "follow-exit rc=$rc ran=${ran}s"
+		log "follower exited (rc $rc after ${ran}s)"
+		if [ "$ran" -lt "$FOLLOW_FAST_S" ]; then
+			FAST_FAILS=$((FAST_FAILS + 1))
+			[ "$FAST_FAILS" -lt "$FOLLOW_MAX_FAST_FAILS" ] || fail "follower died $FAST_FAILS times in a row within ${FOLLOW_FAST_S}s"
+		else
+			FAST_FAILS=0
+		fi
+		sleep 2
+		start_follow || fail "could not restart the follower"
+	else
+		sz=$(wc -c < "$D/follow.raw" 2>/dev/null || echo 0)
+		if [ "$sz" -ne "$FOLLOW_SIZE" ]; then
+			FOLLOW_SIZE=$sz
+			FOLLOW_LAST_GROWTH=$t
+		elif [ $((t - FOLLOW_LAST_GROWTH)) -ge "$STALL_S" ]; then
+			event "follow-stall ${STALL_S}s without output; restarting the follower"
+			log "no follower output for ${STALL_S}s; restarting it"
+			stop_follow
+			sleep 1
+			start_follow || fail "could not restart the follower"
+			continue
+		fi
+	fi
+	if [ "$SCREEN_OFF_AT" -gt 0 ] && [ "$t" -ge "$SCREEN_OFF_AT" ] && [ "$SCREEN_IDLED" -eq 0 ]; then
+		log "idling the screen now (wake: rm $FBLOG_OFF; kill \$(pidof fblog))"
+		screen_off
+		SCREEN_OFF_AT=0
+	fi
+	sleep 1
+done

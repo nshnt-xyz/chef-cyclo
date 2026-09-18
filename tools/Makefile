@@ -86,11 +86,15 @@ test: $(TEST_BIN) test-shell
 	./tests/test-fbtouch
 	./tests/test-fblog
 
-# gps-up (initramfs/) selection-logic regression; not a build product of
-# this directory, but the natural place to run it alongside the rest of the
-# GPS test suite. See tests/test_gps-up.sh.
+# gps-up (initramfs/) selection-logic regression and the ride image's
+# ride-logger (initramfs-ride/) supervision/failure/HTTP-extraction
+# regression (stub gps-up/qmicli, real busybox httpd); neither is a build
+# product of this directory, but this is the natural place to run them
+# alongside the rest of the GPS test suite. See tests/test_gps-up.sh and
+# tests/test_ride-logger.sh.
 test-shell:
 	sh tests/test_gps-up.sh
+	sh tests/test_ride-logger.sh
 
 clean:
 	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog $(TEST_BIN)

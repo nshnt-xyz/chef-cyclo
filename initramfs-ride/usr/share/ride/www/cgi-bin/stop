@@ -1,0 +1,16 @@
+#!/bin/sh
+# Asks the ride logger to stop cleanly (LOC stop, CID release, gps-up TERM)
+# and waits up to 60 s for it. Logs stay in /run/ride.
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+D=${RIDE_DIR:-/run/ride}
+printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
+[ -d "$D" ] || { echo "no /run/ride"; exit 0; }
+touch "$D/stop"
+i=0
+while [ "$i" -lt 120 ]; do
+	case "$(cat "$D/status" 2>/dev/null)" in STOPPED*|FAILED*) break ;; esac
+	sleep 0.5
+	i=$((i + 1))
+done
+echo "status: $(cat "$D/status" 2>/dev/null)"
+echo "gps-up pid: $(pidof gps-up || echo none)   qmicli pid: $(pidof qmicli || echo none)"

@@ -3,12 +3,24 @@
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
 # the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
 # display/touch probe fbtouch and the on-device log screen fblog on top.
+#
+# VARIANT=ride additionally lays the initramfs-ride/ overlay on top (the
+# unattended GPS ride logger, its inittab entries and the HTTP extraction
+# CGIs -- see README "Temporary bike-ride GPS logging image") and writes
+# out/initramfs-ride.cpio.gz from out/initramfs-root-ride, leaving the
+# baseline out/initramfs.cpio.gz and out/initramfs-root untouched. Everything
+# else (helpers, firmware, seeds) is identical between the two.
 set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
 
-ROOT=out/initramfs-root
-rm -f out/initramfs.cpio.gz
+VARIANT=${VARIANT:-}
+case "$VARIANT" in
+"")   ROOT=out/initramfs-root;      OUTCPIO=out/initramfs.cpio.gz ;;
+ride) ROOT=out/initramfs-root-ride; OUTCPIO=out/initramfs-ride.cpio.gz ;;
+*)    echo "unknown VARIANT '$VARIANT' (empty or ride)" >&2; exit 1 ;;
+esac
+rm -f "$OUTCPIO"
 rm -rf "$ROOT"
 mkdir -p "$ROOT"
 cp -a out/rootfs/. "$ROOT"/
@@ -16,6 +28,18 @@ mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
          "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus
 cp -a initramfs/. "$ROOT"/
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up
+if [ "$VARIANT" = ride ]; then
+    for f in initramfs-ride/etc/inittab initramfs-ride/usr/bin/ride-logger \
+             initramfs-ride/usr/share/ride/www/cgi-bin/index.cgi \
+             initramfs-ride/usr/share/ride/www/cgi-bin/ride.tgz \
+             initramfs-ride/usr/share/ride/www/cgi-bin/stop \
+             initramfs-ride/usr/share/ride/www/cgi-bin/screen; do
+        [ -f "$f" ] || { echo "missing required ride overlay file: $f" >&2; exit 1; }
+    done
+    cp -a initramfs-ride/. "$ROOT"/
+    chmod 755 "$ROOT"/usr/bin/ride-logger "$ROOT"/usr/share/ride/www/cgi-bin/*
+    echo "applied initramfs-ride/ overlay (ride logger + httpd in inittab)"
+fi
 
 # Small libc-free helper used by bt-up to exercise /dev/btpower and the
 # WCN3990 UART; also a raw H4/QCA attach and LE scan for debugging without
@@ -156,5 +180,5 @@ echo "built $ROOT/usr/bin/fblog"
 
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \
-    | cpio -0 -o -H newc --owner=+0:+0 --quiet ) | gzip -9n > out/initramfs.cpio.gz
-ls -l out/initramfs.cpio.gz
+    | cpio -0 -o -H newc --owner=+0:+0 --quiet ) | gzip -9n > "$OUTCPIO"
+ls -l "$OUTCPIO"

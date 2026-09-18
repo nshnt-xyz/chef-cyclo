@@ -1,0 +1,13 @@
+#!/bin/sh
+# ?on / ?off: the documented fblog idle protocol (flag file + kill; the
+# respawned fblog honours the flag).
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+F=${RIDE_FBLOG_OFF:-/run/fblog.off}
+printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
+case "${QUERY_STRING:-}" in
+on)  rm -f "$F" ;;
+off) touch "$F" ;;
+*)   echo "usage: /cgi-bin/screen?on or ?off"; exit 0 ;;
+esac
+p=$(pidof fblog) && [ -n "$p" ] && kill $p
+echo "screen ${QUERY_STRING}: fblog.off=$([ -e "$F" ] && echo present || echo absent), fblog restarted by init"

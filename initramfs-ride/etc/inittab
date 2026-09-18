@@ -1,0 +1,22 @@
+# busybox init. /init has already done the mounts and USB gadget setup.
+::respawn:/usr/sbin/telnetd -F -l /bin/sh
+::respawn:/usr/sbin/udhcpd -f /etc/udhcpd.conf
+::respawn:/usr/bin/dbus-daemon --system --nofork --nopidfile
+::respawn:/bin/sh -c 'while [ ! -S /run/dbus/system_bus_socket ]; do sleep 1; done; exec /usr/lib/bluetooth/bluetoothd -n'
+::respawn:/usr/bin/bt-up
+# On-device boot/probe output: paints /dev/kmsg on the panel, read-only, no
+# touch. Holds /dev/fb0 for the life of the boot (the panel is off otherwise);
+# `touch /run/fblog.off; kill $(pidof fblog)` idles it, rm + kill brings it back.
+::respawn:/usr/bin/fblog
+::ctrlaltdel:/sbin/reboot
+::shutdown:/bin/umount -a -r
+::restart:/sbin/init
+# --- ride image only ---------------------------------------------------------
+# Log extraction over the USB network: busybox httpd on 172.16.42.1:80 serving
+# /usr/share/ride/www (status page, /log/<file> = /run/ride, cgi-bin/ride.tgz,
+# stop, screen). Respawned so evidence stays reachable even if the logger fails.
+::respawn:/bin/busybox-extras httpd -f -p 80 -h /usr/share/ride/www
+# The ride logger itself: `once`, never respawn -- it starts the one gps-up of
+# this boot (gps-up owns the modem lifetime) and reports failure on the panel
+# and the vibrator instead of retrying the modem.
+::once:/usr/bin/ride-logger

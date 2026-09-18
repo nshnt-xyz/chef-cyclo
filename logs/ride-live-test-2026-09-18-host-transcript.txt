@@ -1,0 +1,411 @@
+# ride image live test 2026-09-18, out/boot-ride.img 84ef9f5ab1cf96046c9c8883e4b621560fd1a400b29b45af5b12448c80e6974a, evidence dir /home/nishant/chef-cyclo-evidence/ride-probe-20260918T134935Z
+
+=== preflight.txt
+2026-09-18T13:49:35Z
+84ef9f5ab1cf96046c9c8883e4b621560fd1a400b29b45af5b12448c80e6974a  out/boot-ride.img
+8b59a393789b0bf2f4af6a7206d2a0cebeabe5a1af1f45e43cff3c992e52ad40  out/initramfs-ride.cpio.gz
+c9247ec3209d3bf76ec3d7e63fac8857b2577b638eaffcf075a3e59a1fcc6d51  out/boot.img
+ M README.md
+ M scripts/mkinitramfs.sh
+ M tools/Makefile
+?? initramfs-ride/
+?? scripts/mkride.sh
+?? tools/rmtfs/tests/test-sharedmem
+?? tools/tests/test_ride-logger.sh
+bc14293d89e078dc768990e74f772a28cef21c09
+List of devices attached
+ZF6223WZGL             device usb:1-1.2 product:chef model:motorola_one_power device:chef_sprout transport_id:17
+
+motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0:user/release-keys
+_a
+fastboot version 37.0.1-15733141
+172.16.42.1 not reachable (expected on stock)
+
+=== fastboot-boot.txt
+2026-09-18T13:49:49Z
+ZF6223WZGL	 fastboot
+current-slot: a
+Finished. Total time: 0.000s
+hash immediately before send:
+84ef9f5ab1cf96046c9c8883e4b621560fd1a400b29b45af5b12448c80e6974a  out/boot-ride.img
+2026-09-18T13:49:56Z
+Sending 'boot.img' (22748 KB)                      OKAY [  0.562s]
+Booting                                            OKAY [  5.076s]
+Finished. Total time: 5.655s
+fastboot boot exit=0
+2026-09-18T13:50:02Z
+
+=== network-up.txt
+network up=1 after ~14s at 2026-09-18T13:50:24Z
+
+=== poll-log.txt
+--- poll 1 13:50:26
+chef-cyclo ride logger
+uptime: 20.35 s   wallclock: 1970-01-02T00:59:34Z
+battery: 92% Charging
+status: GPS-UP
+counters: none yet
+processes: gps-up=677 qmicli=- ride-logger=597 fblog=604 fblog.off=no
+
+events.log (last 15):
+  14.62 1970-01-02T00:59:28Z logger-start
+  17.84 1970-01-02T00:59:31Z gps-up-start pid=677
+
+last NMEA lines:
+--- poll 2 13:50:33
+chef-cyclo ride logger
+uptime: 27.16 s   wallclock: 1970-01-02T00:59:41Z
+battery: 92% Charging
+status: GPS-UP
+counters: none yet
+processes: gps-up=677 qmicli=1073 ride-logger=1207 1072 597 fblog=604 fblog.off=no
+
+events.log (last 15):
+  14.62 1970-01-02T00:59:28Z logger-start
+  17.84 1970-01-02T00:59:31Z gps-up-start pid=677
+  25.17 1970-01-02T00:59:39Z qmux-socket
+  25.29 1970-01-02T00:59:39Z qmicli-version-info exit=0
+
+=== status-1.txt
+chef-cyclo ride logger
+uptime: 36.45 s   wallclock: 1970-01-02T00:59:50Z
+battery: 92% Charging
+status: LOGGING
+counters: none yet
+processes: gps-up=677 qmicli=1073 ride-logger=1072 597 fblog=604 fblog.off=no
+
+events.log (last 15):
+  14.62 1970-01-02T00:59:28Z logger-start
+  17.84 1970-01-02T00:59:31Z gps-up-start pid=677
+  25.17 1970-01-02T00:59:39Z qmux-socket
+  25.29 1970-01-02T00:59:39Z qmicli-version-info exit=0
+  25.33 1970-01-02T00:59:39Z bridge-ready services=30
+  25.41 1970-01-02T00:59:39Z qmicli-loc-alloc exit=0
+  25.46 1970-01-02T00:59:39Z loc-cid 1
+  25.53 1970-01-02T00:59:39Z qmicli-set-nmea-types exit=0
+  25.57 1970-01-02T00:59:39Z nmea-types-set gga|rmc|gsv|gsa|vtg
+  25.64 1970-01-02T00:59:39Z qmicli-get-nmea-types exit=0
+  25.69 1970-01-02T00:59:39Z nmea-types-now gga, rmc, gsv, gsa, vtg
+  25.76 1970-01-02T00:59:39Z qmicli-loc-start exit=0
+  25.79 1970-01-02T00:59:39Z loc-start session=1
+  25.91 1970-01-02T00:59:39Z follow-start n=1 pid=1073
+  26.66 1970-01-02T00:59:40Z first-nmea $GPGGA
+
+last NMEA lines:
+  36.75 $GPVTG,,T,,M,,N,,K,N*2C
+  36.77 $GPGSA,A,1,,,,,,,,,,,,,,,*1E
+  36.79 $GPRMC,,V,,,,,,,,,,N*53
+last position:
+  36.32 status=in-progress lat=n/a lon=n/a alt_msl=n/a speed=n/a heading=n/a unc_m=7070360.000000 tech=n/a utc_ms=n/a sats=n/a
+
+files:
+  total 116
+  -rw-r--r--    1 root     root           757 Jan  2 00:59 events.log
+  -rw-r--r--    1 root     root             0 Jan  2 00:59 follow.err
+  prw-r--r--    1 root     root             0 Jan  2 00:59 follow.fifo
+  -rw-r--r--    1 root     root         14465 Jan  2 00:59 follow.raw
+  -rw-r--r--    1 root     root         30012 Jan  2 00:59 gps-up.log
+  -rw-r--r--    1 root     root          1922 Jan  2 00:59 meta.txt
+  -rw-r--r--    1 root     root          3820 Jan  2 00:59 nmea.log
+  -rw-r--r--    1 root     root          1250 Jan  2 00:59 positions.log
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-get-nmea-types.exit
+  -rw-r--r--    1 root     root          3008 Jan  2 00:59 qmicli-get-nmea-types.txt
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-loc-alloc.exit
+  -rw-r--r--    1 root     root          2351 Jan  2 00:59 qmicli-loc-alloc.txt
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-loc-start.exit
+  -rw-r--r--    1 root     root          2778 Jan  2 00:59 qmicli-loc-start.txt
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-set-nmea-types.exit
+  -rw-r--r--    1 root     root          3043 Jan  2 00:59 qmicli-set-nmea-types.txt
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-version-info.exit
+  -rw-r--r--    1 root     root          5991 Jan  2 00:59 qmicli-version-info.txt
+  -rw-r--r--    1 root     root             8 Jan  2 00:59 status
+  -rw-r--r--    1 root     root           560 Jan  2 00:59 supervisor.log
+
+fetch everything:  curl -o ride.tgz http://172.16.42.1/cgi-bin/ride.tgz
+single file:       curl -O http://172.16.42.1/log/nmea.log
+stop logging:      curl http://172.16.42.1/cgi-bin/stop
+screen:            curl 'http://172.16.42.1/cgi-bin/screen?on'   (or ?off)
+shell:             telnet 172.16.42.1   (then: reboot)
+
+=== remote-1-screen-idle.txt
+98
+LOGGING
+-rw-r--r--    1 root     root             0 Jan  2 01:00 [0;0m/run/fblog.off[m
+panel_status=suspend
+wled=0
+lcdbl=96
+  597 root      0:01 {ride-logger} /bin/sh /usr/bin/ride-logger
+  606 root      0:00 /bin/busybox-extras httpd -f -p 80 -h /usr/share/ride/www
+  677 root      0:01 {gps-up} /bin/sh /usr/bin/gps-up
+  864 root      0:00 rmtfs -P -r -S a -v
+  866 root      0:00 servreg-locator -v
+  877 root      0:00 tftp-server -v
+  976 root      0:00 qmuxd-lite
+ 1072 root      0:13 {ride-logger} /bin/sh /usr/bin/ride-logger
+ 1073 root      0:00 qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-follow-nmea --loc-follow-position-report
+ 5754 root      0:00 /usr/bin/fblog
+0
+[   14.593198,0] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[   14.595385,4] ride: status: STARTING
+[   14.614799,6] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[   14.783017,2] ride: ride logger starting; logs in /run/ride
+[   17.819642,3] ride: status: GPS-UP
+[   17.864048,0] ride: gps-up started (pid 677), waiting for the qmux socket (up to 240s)
+[   25.205582,0] ride: qmux socket up at uptime 25.19
+[   25.827102,7] ride: LOC session started at uptime 25.82 (time-to-first-fix counts from here)
+[   25.937599,7] ride: follower started (run 1)
+[   27.983597,6] ride: status: LOGGING
+[   27.999823,5] ride: OK: logging NMEA + position reports to /run/ride
+[   28.016203,3] ride: unplug when ready; later: curl http://172.16.42.1/ (status), /cgi-bin/ride.tgz (all logs)
+[   28.753248,3] ride: screen idles in 45s; wake: curl 'http://172.16.42.1/cgi-bin/screen?on'
+[   73.229685,2] ride: idling the screen now (wake: rm /run/fblog.off; kill $(pidof fblog))
+[   73.429243,4] fblog: exiting: blanking before close
+[   75.490868,1] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+modem state=ONLINE crash_count=0
+580
+97.35 status=in-progress lat=n/a lon=n/a alt_msl=n/a speed=n/a heading=n/a unc_m=7070360.000000 tech=n/a utc_ms=n/a sats=n/a
+98.36 status=in-progress lat=n/a lon=n/a alt_msl=n/a speed=n/a heading=n/a unc_m=7070360.000000 tech=n/a utc_ms=n/a sats=n/a
+
+
+=== extraction-mid.txt
+13:51:57
+tgz: http=200 bytes=12137 time=0.082559s
+HTTP/1.1 200 OK
+Content-Type: application/gzip
+Content-Disposition: attachment; filename="ride-11082.tar.gz"
+
+total 252
+-rw-r--r-- 1 nishant nishant     35 Jan  2  1970 counters
+-rw-r--r-- 1 nishant nishant    876 Jan  2  1970 events.log
+-rw-r--r-- 1 nishant nishant      0 Jan  2  1970 follow.err
+prw-r--r-- 1 nishant nishant      0 Jan  2  1970 follow.fifo
+-rw-r--r-- 1 nishant nishant 113295 Jan  2  1970 follow.raw
+-rw-r--r-- 1 nishant nishant  30260 Jan  2  1970 gps-up.log
+-rw-r--r-- 1 nishant nishant   1922 Jan  2  1970 meta.txt
+-rw-r--r-- 1 nishant nishant  31214 Jan  2  1970 nmea.log
+-rw-r--r-- 1 nishant nishant  10511 Jan  2  1970 positions.log
+-rw-r--r-- 1 nishant nishant      2 Jan  2  1970 qmicli-get-nmea-types.exit
+-rw-r--r-- 1 nishant nishant   3008 Jan  2  1970 qmicli-get-nmea-types.txt
+-rw-r--r-- 1 nishant nishant      2 Jan  2  1970 qmicli-loc-alloc.exit
+-rw-r--r-- 1 nishant nishant   2351 Jan  2  1970 qmicli-loc-alloc.txt
+-rw-r--r-- 1 nishant nishant      2 Jan  2  1970 qmicli-loc-start.exit
+-rw-r--r-- 1 nishant nishant   2778 Jan  2  1970 qmicli-loc-start.txt
+-rw-r--r-- 1 nishant nishant      2 Jan  2  1970 qmicli-set-nmea-types.exit
+-rw-r--r-- 1 nishant nishant   3043 Jan  2  1970 qmicli-set-nmea-types.txt
+-rw-r--r-- 1 nishant nishant      2 Jan  2  1970 qmicli-version-info.exit
+-rw-r--r-- 1 nishant nishant   5991 Jan  2  1970 qmicli-version-info.txt
+-rw-r--r-- 1 nishant nishant      8 Jan  2  1970 status
+-rw-r--r-- 1 nishant nishant    635 Jan  2  1970 supervisor.log
+nmea.log: http=200 bytes=31214
+range: http=206 bytes=100
+range bytes match
+26.65 $GPGGA,,,,,,0,,,,,,,,*66
+26.69 $GPVTG,,T,,M,,N,,K,N*2C
+26.71 $GPGSA,A,1,,,,,,,,,,,,,,,*1E
+
+ride-logger start: uptime 14.64 s, wallclock 1970-01-02T00:59:28Z (no RTC sync; the clock may be 1970)
+kernel: 4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty
+version: Linux version 4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty (chef-cyclo@build) (gcc version 4.9.x 20150123 (prerelease) (GCC) ) #14 SMP PREEMPT Wed Sep 16 23:59:23 IST 2026
+cmdline: rcupdate.rcu_expedited=1 console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 sched_enable_hmp=1 sched_enable_power_aware=1 service_locator.enable=1 swiotlb=1 loop.max_part=7 androidboot.hab.csv=39 androidboot.hab.product=chef androidboot.hab.cid=50 buildvariant=user quiet root=/dev/mmcblk0p67 androidboot.verifiedbootstate=orange androidboot.keymaster=1 androidboot.bootdevice=c0c4000.sdhci androidboot.serialno=ZF6223WZGL androidboot.device=chef androidboot.revision=pvt androidboot.hwrev=0xC000 androidboot.radio=APAC androidboot.powerup_reason=0x00004000 androidboot.bootreason=reboot msm_poweroff.download_mode=0 androidboot.wifimacaddr=30:4B:07:6F:0D:76,30:4B:07:6F:0D:77 androidboot.btmacaddr=30:4B:07:6F:0D:75 androidboot.bootloader=MBM-3.0-chef_retail-06369b83c90-210922 androidboot.carrier=retin androidboot.build_vars=black androidboot.hardware.sku=XT1942-2 androidboot.secure_hardware=1 androidboot.cid=0x0032 androidboot.write_protect=0 androidboot.veritymode=disabled androidboot.bl_state=2 androidboot.mode=normal androidboot.baseband=msm mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi androidboot.slot_suffix=_a skip_initramfs rootwait ro init=/init androidboot.dtb_idx=-1347440721 androidboot.dualsim=true
+hostname: chef-cyclo
+battery: capacity=92% status=Charging
+qmicli: qmicli 1.39.0
+qmux socket: /run/qmux_socket
+nmea types requested: gga|rmc|gsv|gsa|vtg
+screen off after: 45s (0 = never)
+log dir: /run/ride (tmpfs, lost at power-off)
+
+14.60 status: STARTING
+14.79 ride logger starting; logs in /run/ride
+17.82 status: GPS-UP
+17.87 gps-up started (pid 677), waiting for the qmux socket (up to 240s)
+25.21 qmux socket up at uptime 25.19
+25.83 LOC session started at uptime 25.82 (time-to-first-fix counts from here)
+25.94 follower started (run 1)
+27.98 status: LOGGING
+28.00 OK: logging NMEA + position reports to /run/ride
+28.02 unplug when ready; later: curl http://172.16.42.1/ (status), /cgi-bin/ride.tgz (all logs)
+28.76 screen idles in 45s; wake: curl 'http://172.16.42.1/cgi-bin/screen?on'
+73.23 idling the screen now (wake: rm /run/fblog.off; kill $(pidof fblog))
+
+screen?on:
+screen on: fblog.off=absent, fblog restarted by init
+
+=== remote-2-screen-on.txt
+126
+ls: /run/fblog.off: No such file or directory
+panel_status=alive
+wled=1542
+[   73.429243,4] fblog: exiting: blanking before close
+[   75.490868,1] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+[  112.154856,1] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[  112.366633,7] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+804
+nmea=468 pos=59 gga_fix=0 pos_ok=0
+26.66 1970-01-02T00:59:40Z first-nmea $GPGGA
+73.43 1970-01-02T01:00:27Z screen-off
+85.04 1970-01-02T01:00:38Z heartbeat nmea=468 pos=59 gga_fix=0 pos_ok=0 batt=92%
+
+
+=== stop-http.txt
+status: STOPPED (stop-file)
+gps-up pid: none   qmicli pid: none
+
+=== final-check.txt
+280709395d2fcabba49eec0cdd49d5e0c48dd4017ebc74bf973e36c4d225a339  /tmp/fc.sh
+175
+--- status
+STOPPED (stop-file)
+--- events tail
+25.76 1970-01-02T00:59:39Z qmicli-loc-start exit=0
+25.79 1970-01-02T00:59:39Z loc-start session=1
+25.91 1970-01-02T00:59:39Z follow-start n=1 pid=1073
+26.66 1970-01-02T00:59:40Z first-nmea $GPGGA
+73.43 1970-01-02T01:00:27Z screen-off
+85.04 1970-01-02T01:00:38Z heartbeat nmea=468 pos=59 gga_fix=0 pos_ok=0 batt=92%
+127.47 1970-01-02T01:01:21Z stop-requested stop-file
+127.57 1970-01-02T01:01:21Z follow-reader-eof nmea=804 pos=101 gga_fix=0 pos_ok=0
+127.66 1970-01-02T01:01:21Z qmicli-loc-stop exit=0
+127.73 1970-01-02T01:01:21Z qmicli-loc-release exit=0
+139.37 1970-01-02T01:01:33Z screen-on
+139.83 1970-01-02T01:01:33Z exit rc=0
+--- supervisor tail
+28.00 OK: logging NMEA + position reports to /run/ride
+28.02 unplug when ready; later: curl http://172.16.42.1/ (status), /cgi-bin/ride.tgz (all logs)
+28.76 screen idles in 45s; wake: curl 'http://172.16.42.1/cgi-bin/screen?on'
+73.23 idling the screen now (wake: rm /run/fblog.off; kill $(pidof fblog))
+127.45 stopping (stop-file)
+127.76 stopping gps-up (modem shutdown)
+139.18 status: STOPPED (stop-file)
+139.81 stopped; logs in /run/ride until power-off (RAM only)
+--- processes
+  606 root      0:00 /bin/busybox-extras httpd -f -p 80 -h /usr/share/ride/www
+10837 root      0:02 /usr/bin/fblog
+--- lingering
+ls: /run/qmux_socket: No such file or directory
+ls: /run/gps-up.lock: No such file or directory
+firmware unmounted
+--- mounts of block devices
+none
+--- modem
+modem state=OFFLINE crash_count=0
+--- crash grep
+0
+--- gps-up tail
+[RMTFS] iovec 0, not forced => (0:0)
+[RMTFS]       read 2:4094 0x400
+[RMTFS] packet; from: 0:115
+[RMTFS] iovec 1, not forced => (0:0)
+[RMTFS]       write 0:4096 0x0
+--- qmicli teardown
+0
+0
+        Service: 'loc'
+            CID: '1'
+--- efs hashes
+modemst1 /dev/mmcblk0p34 4096 f27d9d4eefbc29c33050dc14ed753b960cf86c2c5a5877dceb4503d6f1b687f0
+modemst2 /dev/mmcblk0p35 4096 de0f619bc240b21570fb1a126882d64e16f65438a95519b03ea1c03d5a0e7d21
+fsc /dev/mmcblk0p27 8 ad7facb2586fc6e966c004d7d1d16b024f5805ff7cb47c7a85dabd8b48892ca7
+fsg_a /dev/mmcblk0p36 20480 d4430abc2d7492206e40ceda92b5853c1b134ef18f8e7cda30bcca584e4a73b9
+fsg_b /dev/mmcblk0p37 20480 d4430abc2d7492206e40ceda92b5853c1b134ef18f8e7cda30bcca584e4a73b9
+--- fblog after stop
+ls: /run/fblog.off: No such file or directory
+panel_status=alive
+FINAL_CHECK_DONE
+
+
+=== efs-hash-comparison.txt
+
+=== diskstats-after.txt
+206
+--- diskstats (major minor name reads_completed reads_merged sectors_read ms_read writes_completed writes_merged sectors_written ...)
+ 179       0 mmcblk0 245 4 181966 1147 0 0 0 0 0 1054 1147
+ 179      27 mmcblk0p27 2 0 16 7 0 0 0 0 0 7 7
+ 259       2 mmcblk0p34 10 0 8192 107 0 0 0 0 0 107 107
+ 259       3 mmcblk0p35 10 0 8192 60 0 0 0 0 0 57 60
+ 259       4 mmcblk0p36 42 0 40960 247 0 0 0 0 0 230 247
+ 259       5 mmcblk0p37 22 0 20480 127 0 0 0 0 0 124 127
+--- any partition with nonzero sectors_written:
+--- total written on all block devices:
+0 sectors
+
+
+=== status-final.txt
+chef-cyclo ride logger
+uptime: 221.63 s   wallclock: 1970-01-02T01:02:55Z
+battery: 92% Charging
+status: STOPPED (stop-file)
+counters: nmea=804 pos=101 gga_fix=0 pos_ok=0
+processes: gps-up=- qmicli=- ride-logger=- fblog=10837 fblog.off=no
+
+events.log (last 15):
+  25.57 1970-01-02T00:59:39Z nmea-types-set gga|rmc|gsv|gsa|vtg
+  25.64 1970-01-02T00:59:39Z qmicli-get-nmea-types exit=0
+  25.69 1970-01-02T00:59:39Z nmea-types-now gga, rmc, gsv, gsa, vtg
+  25.76 1970-01-02T00:59:39Z qmicli-loc-start exit=0
+  25.79 1970-01-02T00:59:39Z loc-start session=1
+  25.91 1970-01-02T00:59:39Z follow-start n=1 pid=1073
+  26.66 1970-01-02T00:59:40Z first-nmea $GPGGA
+  73.43 1970-01-02T01:00:27Z screen-off
+  85.04 1970-01-02T01:00:38Z heartbeat nmea=468 pos=59 gga_fix=0 pos_ok=0 batt=92%
+  127.47 1970-01-02T01:01:21Z stop-requested stop-file
+  127.57 1970-01-02T01:01:21Z follow-reader-eof nmea=804 pos=101 gga_fix=0 pos_ok=0
+  127.66 1970-01-02T01:01:21Z qmicli-loc-stop exit=0
+  127.73 1970-01-02T01:01:21Z qmicli-loc-release exit=0
+  139.37 1970-01-02T01:01:33Z screen-on
+  139.83 1970-01-02T01:01:33Z exit rc=0
+
+last NMEA lines:
+  126.74 $GPVTG,,T,,M,,N,,K,N*2C
+  126.76 $GPGSA,A,1,,,,,,,,,,,,,,,*1E
+  126.78 $GPRMC,,V,,,,,,,,,,N*53
+last position:
+  127.35 status=in-progress lat=n/a lon=n/a alt_msl=n/a speed=n/a heading=n/a unc_m=7070360.000000 tech=n/a utc_ms=n/a sats=n/a
+
+files:
+  total 308
+  -rw-r--r--    1 root     root            36 Jan  2 01:01 counters
+  -rw-r--r--    1 root     root          1192 Jan  2 01:01 events.log
+  -rw-r--r--    1 root     root            28 Jan  2 01:01 follow.err
+  -rw-r--r--    1 root     root        135797 Jan  2 01:01 follow.raw
+  -rw-r--r--    1 root     root         31159 Jan  2 01:01 gps-up.log
+  -rw-r--r--    1 root     root          1922 Jan  2 00:59 meta.txt
+  -rw-r--r--    1 root     root         37246 Jan  2 01:01 nmea.log
+  -rw-r--r--    1 root     root         12653 Jan  2 01:01 positions.log
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-get-nmea-types.exit
+  -rw-r--r--    1 root     root          3008 Jan  2 00:59 qmicli-get-nmea-types.txt
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-loc-alloc.exit
+  -rw-r--r--    1 root     root          2351 Jan  2 00:59 qmicli-loc-alloc.txt
+  -rw-r--r--    1 root     root             2 Jan  2 01:01 qmicli-loc-release.exit
+  -rw-r--r--    1 root     root          2360 Jan  2 01:01 qmicli-loc-release.txt
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-loc-start.exit
+  -rw-r--r--    1 root     root          2778 Jan  2 00:59 qmicli-loc-start.txt
+  -rw-r--r--    1 root     root             2 Jan  2 01:01 qmicli-loc-stop.exit
+  -rw-r--r--    1 root     root          2291 Jan  2 01:01 qmicli-loc-stop.txt
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-set-nmea-types.exit
+  -rw-r--r--    1 root     root          3043 Jan  2 00:59 qmicli-set-nmea-types.txt
+  -rw-r--r--    1 root     root             2 Jan  2 00:59 qmicli-version-info.exit
+  -rw-r--r--    1 root     root          5991 Jan  2 00:59 qmicli-version-info.txt
+  -rw-r--r--    1 root     root            20 Jan  2 01:01 status
+  -rw-r--r--    1 root     root             0 Jan  2 01:01 stop
+  -rw-r--r--    1 root     root           799 Jan  2 01:01 supervisor.log
+
+fetch everything:  curl -o ride.tgz http://172.16.42.1/cgi-bin/ride.tgz
+single file:       curl -O http://172.16.42.1/log/nmea.log
+stop logging:      curl http://172.16.42.1/cgi-bin/stop
+screen:            curl 'http://172.16.42.1/cgi-bin/screen?on'   (or ?off)
+shell:             telnet 172.16.42.1   (then: reboot)
+
+=== stock-after.txt
+2026-09-18T13:54:42Z
+motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0:user/release-keys
+_a
+28.76 142.19
+
+=== efs hashes: this boot (after) vs 2026-09-18T10:24Z probe's before-hashes (stock Android booted in between; kernel diskstats above prove 0 sectors written in this boot)
+1,2c1,2
+< modemst1 /dev/mmcblk0p34 4096 f1dfa95bbc65544e70c7f279cc335611de9f6c6471deda642f99d2b952cb56c0
+< modemst2 /dev/mmcblk0p35 4096 e2429491dac88ae88b1c9ecb196d76385c34b6f2d37e238905235057c6ae422c
+---
+> modemst1 /dev/mmcblk0p34 4096 f27d9d4eefbc29c33050dc14ed753b960cf86c2c5a5877dceb4503d6f1b687f0
+> modemst2 /dev/mmcblk0p35 4096 de0f619bc240b21570fb1a126882d64e16f65438a95519b03ea1c03d5a0e7d21
