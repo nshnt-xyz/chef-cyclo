@@ -245,7 +245,7 @@ static void test_ctl_allocate_cid_success_wire_roundtrip(void)
 		CHECK(rf.flags == QMUX_FLAG_S2C);
 
 		CHECK(qmi_sdu_parse_header(rf.sdu, rf.sdu_len, QMI_SERVICE_CTL, &rhdr) == 6);
-		CHECK(rhdr.ctl_flag == QMI_RESPONSE);
+		CHECK(rhdr.ctl_flag == QMI_CTL_FLAG_RESPONSE); /* 1, not the service-style 2 */
 		CHECK(rhdr.txn == 1);
 		CHECK(rhdr.msg_id == QMI_CTL_MSG_ALLOCATE_CID);
 

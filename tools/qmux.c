@@ -229,7 +229,7 @@ static ssize_t ctl_build_response(uint16_t msg_id, uint16_t txn, uint16_t result
 		tlen += extra_len;
 	}
 
-	return qmi_sdu_build(out, cap, QMI_SERVICE_CTL, QMI_RESPONSE, txn, msg_id, tlvbuf, tlen);
+	return qmi_sdu_build(out, cap, QMI_SERVICE_CTL, QMI_CTL_FLAG_RESPONSE, txn, msg_id, tlvbuf, tlen);
 }
 
 ssize_t ctl_build_set_instance_id_resp(uint16_t txn, uint8_t *out, size_t cap)

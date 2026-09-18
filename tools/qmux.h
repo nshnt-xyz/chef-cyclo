@@ -22,7 +22,11 @@
  *
  *   QMI SDU (== the IPC-router payload once the QMUX header above is
  *   stripped; identical to a QRTR packet's payload):
- *     u8  ctl_flag             0 request / 2 response / 4 indication
+ *     u8  ctl_flag             services: 0 request / 2 response / 4 indication
+ *                              CTL (service 0): 0 request / 1 response / 2 indication
+ *                              (libqmi QmiCtlFlag vs QmiServiceFlag -- they
+ *                              differ, and libqmi drops a CTL reply carrying
+ *                              the service-style 0x02 as an indication)
  *     u8|u16 txn      (LE)     1 byte for service 0 (CTL), 2 bytes otherwise
  *     u16 msg_id      (LE)
  *     u16 tlv_len     (LE)     byte count of the TLVs that follow
@@ -35,7 +39,16 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-#include "qrtr/libqrtr.h" /* QMI_REQUEST/QMI_RESPONSE/QMI_INDICATION */
+#include "qrtr/libqrtr.h" /* QMI_REQUEST/QMI_RESPONSE/QMI_INDICATION (service SDUs) */
+
+/* CTL (service 0) SDU flag byte. Not the same encoding as the service
+ * ones above: libqmi's QmiCtlFlag is RESPONSE = 1<<0, INDICATION = 1<<1,
+ * whereas QmiServiceFlag is RESPONSE = 1<<1, INDICATION = 1<<2. A CTL
+ * reply sent with QMI_RESPONSE (2) is parsed by libqmi as a CTL
+ * *indication* and never matched to the waiting transaction (seen live
+ * 2026-09-17 as qmicli "Transaction timed out" on Get Version Info). */
+#define QMI_CTL_FLAG_RESPONSE   1
+#define QMI_CTL_FLAG_INDICATION 2
 
 #ifdef __cplusplus
 extern "C" {
@@ -136,13 +149,16 @@ int tlv_find(const uint8_t *tlvs, size_t len, uint8_t type,
  * the QMI_ERR_*_V01 constants in qrtr/libqrtr.h -- those belong to a
  * different, service-internal ("V01") error table used by things like
  * rmtfs's own QMI service, and mixing the two up would send a wire-invalid
- * error code to a real client. QMI_CTL_ERR_NOT_SUPPORTED is the one value
- * the handoff doc explicitly verified (2.5); it is reused here as the
- * generic "bridge could not do this" code (CID exhaustion, lookup failure)
- * since this is an adapter of convenience, not a real modem-side service --
- * qmicli treats any non-zero result as a formatted failure either way. */
+ * error code to a real client. QMI_CTL_ERR_NOT_SUPPORTED is libqmi's
+ * QMI_PROTOCOL_ERROR_NOT_SUPPORTED (94 = 0x5E; the handoff doc's 0x11 is
+ * QMI_PROTOCOL_ERROR_MISSING_ARGUMENT, which is what qmicli printed for a
+ * failed Allocate CID until this was corrected 2026-09-18). It is reused
+ * here as the generic "bridge could not do this" code (CID exhaustion,
+ * lookup failure) since this is an adapter of convenience, not a real
+ * modem-side service -- qmicli treats any non-zero result as a formatted
+ * failure either way. */
 #define QMI_CTL_ERR_NONE              0
-#define QMI_CTL_ERR_NOT_SUPPORTED     0x0011
+#define QMI_CTL_ERR_NOT_SUPPORTED     0x005e
 
 struct qmi_svc_version {
 	uint8_t service;
