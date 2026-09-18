@@ -1,0 +1,2449 @@
+[    0.000000,0] Booting Linux on physical CPU 0x0
+[    0.000000,0] Initializing cgroup subsys cpuset
+[    0.000000,0] Initializing cgroup subsys cpu
+[    0.000000,0] Initializing cgroup subsys cpuacct
+[    0.000000,0] Initializing cgroup subsys schedtune
+[    0.000000,0] Linux version 4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty (chef-cyclo@build) (gcc version 4.9.x 20150123 (prerelease) (GCC) ) #14 SMP PREEMPT Wed Sep 16 23:59:23 IST 2026
+[    0.000000,0] Boot CPU: AArch64 Processor [51af8014]
+[    0.000000,0] Machine: chef
+[    0.000000,0] efi: Getting EFI parameters from FDT:
+[    0.000000,0] efi: UEFI not found.
+[    0.000000,0] Reserved memory: reserved region for node 'wlan_msa_guard@85600000': base 0x0000000085600000, size 1 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'wlan_msa_mem@85700000': base 0x0000000085700000, size 1 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'removed_regions@85800000': base 0x0000000085800000, size 55 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'modem_fw_region@8ac00000': base 0x000000008ac00000, size 126 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'adsp_fw_region@92a00000': base 0x0000000092a00000, size 30 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'pil_mba_region@94800000': base 0x0000000094800000, size 2 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'splash_region@9d400000': base 0x000000009d400000, size 35 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'dfps_data_mem@0x9f7ff000': base 0x000000009f7ff000, size 0 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'buffer_region@94a00000': base 0x0000000094a00000, size 1 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'ramoops_mem_region': base 0x00000000af000000, size 0 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'tzlog_bck_region': base 0x00000000aefcf000, size 0 MiB
+[    0.000000,0] Reserved memory: reserved region for node 'wdog_cpuctx_region': base 0x00000000aefd2000, size 0 MiB
+[    0.000000,0] Reserved memory: allocated memory for 'linux,cma' node: base 0x00000000fd000000, size 44 MiB
+[    0.000000,0] Reserved memory: created CMA memory pool at 0x00000000fd000000, size 44 MiB
+[    0.000000,0] Reserved memory: initialized node linux,cma, compatible id shared-dma-pool
+[    0.000000,0] Reserved memory: allocated memory for 'venus_fw_region' node: base 0x000000009f800000, size 8 MiB
+[    0.000000,0] Reserved memory: created CMA memory pool at 0x000000009f800000, size 8 MiB
+[    0.000000,0] Reserved memory: initialized node venus_fw_region, compatible id shared-dma-pool
+[    0.000000,0] Reserved memory: allocated memory for 'secure_region' node: base 0x00000000f7400000, size 92 MiB
+[    0.000000,0] Reserved memory: created CMA memory pool at 0x00000000f7400000, size 92 MiB
+[    0.000000,0] Reserved memory: initialized node secure_region, compatible id shared-dma-pool
+[    0.000000,0] Reserved memory: allocated memory for 'adsp_region' node: base 0x00000000f6c00000, size 8 MiB
+[    0.000000,0] Reserved memory: created CMA memory pool at 0x00000000f6c00000, size 8 MiB
+[    0.000000,0] Reserved memory: initialized node adsp_region, compatible id shared-dma-pool
+[    0.000000,0] Reserved memory: allocated memory for 'qseecom_region' node: base 0x00000000f5800000, size 20 MiB
+[    0.000000,0] Reserved memory: created CMA memory pool at 0x00000000f5800000, size 20 MiB
+[    0.000000,0] Reserved memory: initialized node qseecom_region, compatible id shared-dma-pool
+[    0.000000,0] Removed memory: created DMA memory pool at 0x0000000085600000, size 1 MiB
+[    0.000000,0] Reserved memory: initialized node wlan_msa_guard@85600000, compatible id removed-dma-pool
+[    0.000000,0] Removed memory: created DMA memory pool at 0x0000000085700000, size 1 MiB
+[    0.000000,0] Reserved memory: initialized node wlan_msa_mem@85700000, compatible id removed-dma-pool
+[    0.000000,0] Removed memory: created DMA memory pool at 0x0000000085800000, size 55 MiB
+[    0.000000,0] Reserved memory: initialized node removed_regions@85800000, compatible id removed-dma-pool
+[    0.000000,0] Removed memory: created DMA memory pool at 0x000000008ac00000, size 126 MiB
+[    0.000000,0] Reserved memory: initialized node modem_fw_region@8ac00000, compatible id removed-dma-pool
+[    0.000000,0] Removed memory: created DMA memory pool at 0x0000000092a00000, size 30 MiB
+[    0.000000,0] Reserved memory: initialized node adsp_fw_region@92a00000, compatible id removed-dma-pool
+[    0.000000,0] Removed memory: created DMA memory pool at 0x0000000094800000, size 2 MiB
+[    0.000000,0] Reserved memory: initialized node pil_mba_region@94800000, compatible id removed-dma-pool
+[    0.000000,0] Removed memory: created DMA memory pool at 0x0000000094a00000, size 1 MiB
+[    0.000000,0] Reserved memory: initialized node buffer_region@94a00000, compatible id removed-dma-pool
+[    0.000000,0] On node 0 totalpages: 986063
+[    0.000000,0]   DMA zone: 7325 pages used for memmap
+[    0.000000,0]   DMA zone: 0 pages reserved
+[    0.000000,0]   DMA zone: 468751 pages, LIFO batch:31
+[    0.000000,0]   Normal zone: 8083 pages used for memmap
+[    0.000000,0]   Normal zone: 517312 pages, LIFO batch:31
+[    0.000000,0] psci: probing for conduit method from DT.
+[    0.000000,0] psci: PSCIv1.0 detected in firmware.
+[    0.000000,0] psci: Using standard PSCI v0.2 function IDs
+[    0.000000,0] psci: MIGRATE_INFO_TYPE not supported.
+[    0.000000,0] psci: Initializing psci_cpu_init
+[    0.000000,0] psci: Initializing psci_cpu_init
+[    0.000000,0] psci: Initializing psci_cpu_init
+[    0.000000,0] psci: Initializing psci_cpu_init
+[    0.000000,0] psci: Initializing psci_cpu_init
+[    0.000000,0] psci: Initializing psci_cpu_init
+[    0.000000,0] psci: Initializing psci_cpu_init
+[    0.000000,0] PERCPU: Embedded 21 pages/cpu @ffffffe1bda6e000 s49064 r8192 d28760 u86016
+[    0.000000,0] pcpu-alloc: s49064 r8192 d28760 u86016 alloc=21*4096
+[    0.000000,0] pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 [0] 4 [0] 5 [0] 6 [0] 7 
+[    0.000000,0] CPU features: enabling workaround for Kryo2xx Silver erratum 845719
+[    0.000000,0] Built 1 zonelists in Zone order, mobility grouping on.  Total pages: 970655
+[    0.000000,0] Kernel command line: rcupdate.rcu_expedited=1 console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 sched_enable_hmp=1 sched_enable_power_aware=1 service_locator.enable=1 swiotlb=1 loop.max_part=7 androidboot.hab.csv=39 androidboot.hab.product=chef androidboot.hab.cid=50 buildvariant=user quiet root=/dev/mmcblk0p67 androidboot.verifiedbootstate=orange androidboot.keymaster=1 androidboot.bootdevice=c0c4000.sdhci androidboot.serialno=ZF6223WZGL androidboot.device=chef androidboot.revision=pvt androidboot.hwrev=0xC000 androidboot.radio=APAC androidboot.powerup_reason=0x00004000 androidboot.bootreason=reboot msm_poweroff.download_mode=0 androidboot.wifimacaddr=30:4B:07:6F:0D:76,30:4B:07:6F:0D:77 androidboot.btmacaddr=30:4B:07:6F:0D:75 androidboot.bootloader=MBM-3.0-chef_retail-06369b83c90-210922 androidboot.carrier=retin androidboot.build_vars=black androidboot.hardware.sku=XT1942-2 androidboot.secure_hardware=1 androidboot.cid=0x0032 androidboot.write_protect=0 androidboot.veritymode=disabled androidboot.bl_state=2 androidboot.mode=normal androidboot.baseband=msm mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi androidboot.slot_suffix=_a skip_initramfs rootwait ro init=/init androidboot.dtb_idx=-1347440721 androidboot.dualsim=true
+[    0.000000,0] initramfs: ignoring skip_initramfs
+[    0.000000,0] log_buf_len individual max cpu contribution: 131072 bytes
+[    0.000000,0] log_buf_len total cpu_extra contributions: 917504 bytes
+[    0.000000,0] log_buf_len min size: 131072 bytes
+[    0.000000,0] log_buf_len: 1048576 bytes
+[    0.000000,0] early log buf free: 122876(93%)
+[    0.000000,0] PID hash table entries: 4096 (order: 3, 32768 bytes)
+[    0.000000,0] Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes)
+[    0.000000,0] Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes)
+[    0.000000,0] software IO TLB: mapped [mem 0xfffbf000-0xfffff000] (0MB)
+[    0.000000,0] Memory: 3589008K/3944252K available (17660K kernel code, 3988K rwdata, 9732K rodata, 13440K init, 6010K bss, 179116K reserved, 176128K cma-reserved)
+[    0.000000,0] Virtual kernel memory layout:
+[    0.000000,0]     modules : 0xffffff8000000000 - 0xffffff8008000000   (   128 MB)
+[    0.000000,0]     vmalloc : 0xffffff8008000000 - 0xffffffbdbfff0000   (   246 GB)
+[    0.000000,0]       .init : 0xffffff8f98f50000 - 0xffffff8f99c70000   ( 13440 KB)
+[    0.000000,0]       .text : 0xffffff8f97480000 - 0xffffff8f985c0000   ( 17664 KB)
+[    0.000000,0]     .rodata : 0xffffff8f985c0000 - 0xffffff8f98f50000   (  9792 KB)
+[    0.000000,0]       .data : 0xffffff8f99c70000 - 0xffffff8f9a055200   (  3989 KB)
+[    0.000000,0]     vmemmap : 0xffffffbdc0000000 - 0xffffffbfc0000000   (     8 GB maximum)
+[    0.000000,0]               0xffffffbe43000000 - 0xffffffbe46f93000   (    63 MB actual)
+[    0.000000,0]     fixed   : 0xffffffbffe7fb000 - 0xffffffbffec00000   (  4116 KB)
+[    0.000000,0]     PCI I/O : 0xffffffbffee00000 - 0xffffffbfffe00000   (    16 MB)
+[    0.000000,0]     memory  : 0xffffffe0c0000000 - 0xffffffe1be4c0000   (  4068 MB)
+[    0.000000,0] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=8, Nodes=1
+[    0.000000,0] HMP scheduling enabled.
+[    0.000000,0] Preemptible hierarchical RCU implementation.
+[    0.000000,0] 	RCU dyntick-idle grace-period acceleration is enabled.
+[    0.000000,0] 	RCU kthread priority: 1.
+[    0.000000,0] 
+[    0.000000,0] **********************************************************
+[    0.000000,0] **   NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE   **
+[    0.000000,0] **                                                      **
+[    0.000000,0] ** trace_printk() being used. Allocating extra memory.  **
+[    0.000000,0] **                                                      **
+[    0.000000,0] ** This means that this is a DEBUG kernel and it is     **
+[    0.000000,0] ** unsafe for production use.                           **
+[    0.000000,0] **                                                      **
+[    0.000000,0] ** If you see this message and you are not debugging    **
+[    0.000000,0] ** the kernel, report this immediately to your vendor!  **
+[    0.000000,0] **                                                      **
+[    0.000000,0] **   NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE   **
+[    0.000000,0] **********************************************************
+[    0.000000,0] NR_IRQS:64 nr_irqs:64 0
+[    0.000000,0] mpm_init_irq_domain(): Cannot find irq controller for qcom,gpio-parent
+[    0.000000,0] MPM 1 irq mapping errored -517
+[    0.000000,0] 	Offload RCU callbacks from all CPUs
+[    0.000000,0] 	Offload RCU callbacks from CPUs: 0-7.
+[    0.000000,0] Architected cp15 and mmio timer(s) running at 19.20MHz (virt/virt).
+[    0.000000,0] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x46d987e47, max_idle_ns: 440795202767 ns
+[    0.000004,0] sched_clock: 56 bits at 19MHz, resolution 52ns, wraps every 4398046511078ns
+[    0.000022,0] clocksource: Switched to clocksource arch_sys_counter
+[    0.049337,0] allocated 25165824 bytes of page_ext
+[    0.052430,0] Node 0, zone      DMA: page owner found early allocated 561 pages
+[    0.059791,0] Node 0, zone   Normal: page owner found early allocated 6679 pages
+[    0.060557,0] kmemleak: Kernel memory leak detector disabled
+[    0.060605,0] Calibrating delay loop (skipped), value calculated using timer frequency.. 38.00 BogoMIPS (lpj=64000)
+[    0.060632,0] pid_max: default: 32768 minimum: 301
+[    0.060970,0] Security Framework initialized
+[    0.060990,0] SELinux:  Initializing.
+[    0.061176,0] SELinux:  Starting in permissive mode
+[    0.061405,0] Mount-cache hash table entries: 8192 (order: 4, 65536 bytes)
+[    0.061484,0] Mountpoint-cache hash table entries: 8192 (order: 4, 65536 bytes)
+[    0.063044,0] Initializing cgroup subsys freezer
+[    0.063140,0] ftrace: allocating 51049 entries in 200 pages
+[    0.189427,0] /cpus/cpu@0: Missing clock-frequency property
+[    0.189532,0] /cpus/cpu@1: Missing clock-frequency property
+[    0.189656,0] /cpus/cpu@2: Missing clock-frequency property
+[    0.189805,0] /cpus/cpu@3: Missing clock-frequency property
+[    0.189982,0] /cpus/cpu@100: Missing clock-frequency property
+[    0.190207,0] /cpus/cpu@101: Missing clock-frequency property
+[    0.190437,0] /cpus/cpu@102: Missing clock-frequency property
+[    0.190693,0] /cpus/cpu@103: Missing clock-frequency property
+[    0.190719,0] CPU0: update cpu_capacity 1024
+[    0.190852,0] ASID allocator initialised with 32768 entries
+[    0.191384,0] NOHZ: local_softirq_pending 02
+[    0.226508,0] MSM Memory Dump base table set up
+[    0.226638,0] MSM Memory Dump apps data table set up
+[    0.228088,0] EFI services will not be available.
+[    0.248235,1] CPU1: update cpu_capacity 1024
+[    0.248305,1] CPU1: Booted secondary processor [51af8014]
+[    0.265657,2] CPU2: update cpu_capacity 1024
+[    0.265726,2] CPU2: Booted secondary processor [51af8014]
+[    0.283299,3] CPU3: update cpu_capacity 1024
+[    0.283369,3] CPU3: Booted secondary processor [51af8014]
+[    0.301112,4] CPU4: update cpu_capacity 1024
+[    0.301196,4] CPU4: Booted secondary processor [51af8002]
+[    0.318741,5] CPU5: update cpu_capacity 1024
+[    0.318806,5] CPU5: Booted secondary processor [51af8002]
+[    0.336376,6] CPU6: update cpu_capacity 1024
+[    0.336443,6] CPU6: Booted secondary processor [51af8002]
+[    0.353890,7] CPU7: update cpu_capacity 1024
+[    0.353958,7] CPU7: Booted secondary processor [51af8002]
+[    0.354679,0] Brought up 8 CPUs
+[    0.354772,0] SMP: Total of 8 processors activated.
+[    0.354801,0] CPU features: detected feature: GIC system register CPU interface
+[    0.354827,0] CPU features: detected feature: 32-bit EL0 Support
+[    0.355810,0] CPU: All CPU(s) started at EL1
+[    0.355943,0] alternatives: patching kernel code
+[    0.356569,0] CPU7: update max cpu_capacity 1024
+[    0.373467,1] CPU1: update max cpu_capacity 1024
+[    0.445232,5] devtmpfs: initialized
+[    2.071442,5] DMI not present or invalid.
+[    2.075808,5] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 6370867519511994 ns
+[    2.076153,5] futex hash table entries: 2048 (order: 5, 131072 bytes)
+[    2.802565,5] pinctrl core: initialized pinctrl subsystem
+[    2.815552,5] NET: Registered protocol family 16
+[    2.833052,5] schedtune: init normalization constants...
+[    2.833091,5] schedtune: disabled!
+[    2.843254,5] cpuidle: using governor ladder
+[    2.843441,5] cpuidle: using governor menu
+[    2.843587,5] cpuidle: using governor qcom
+[    2.846051,5] vdso: 2 pages (1 code @ ffffff8f985c6000, 1 data @ ffffff8f99c74000)
+[    2.846199,5] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    2.883155,5] DMA: preallocated 256 KiB pool for atomic allocations
+[    2.918433,5] exit: IPA_USB init success!
+[    3.251715,5] unable to find DT imem DLOAD mode node
+[    3.253080,5] unable to find DT imem EDLOAD mode node
+[    3.261892,5] spmi spmi-0: PMIC arbiter version v3 (0x30000000)
+[    3.371719,5] LCDB: qpnp_lcdb_regulator_probe: Failed to parse dt rc=-517
+[    3.389940,5] msm_watchdog 17817000.qcom,wdt: wdog absent resource not present
+[    3.393851,5] msm_watchdog 17817000.qcom,wdt: MSM Watchdog Initialized
+[    3.398956,5] sps:sps is ready.
+[    3.421371,5] msm-thermal soc:qcom,msm-thermal: probe_psm:Failed reading node=/soc/qcom,msm-thermal, key=qcom,pmic-sw-mode-temp. err=-22. KTM continues
+[    3.422028,5] msm_thermal:vdd_restriction_reg_init Defer regulator vdd-dig probe
+[    3.422066,5] msm_thermal:probe_vdd_rstr Err regulator init. err:-517. KTM continues.
+[    3.422105,5] msm-thermal soc:qcom,msm-thermal: probe_vdd_rstr:Failed reading node=/soc/qcom,msm-thermal, key=qcom,max-freq-level. err=-517. KTM continues
+[    3.472868,5] gpu-sdm660 5065000.clock-controller: Registered GPU RBCPR clocks
+[    3.530533,5] irq: no irq domain found for /soc/pinctrl@03000000 !
+[    3.552579,5] platform soc:qcom,msm-adsprpc-mem: assigned reserved memory node adsp_region
+[    3.608983,5] msm_rpm_dev_probe: APSS-RPM communication over GLINK
+[    3.609733,1] msm_rpm_trans_notify_state: glink config params: transport=(null), edge=rpm, name=rpm_requests
+[    3.983719,6] pm660l_l7: supplied by pm660_l10
+[    4.092542,6] platform cce0000.qcom,venus: assigned reserved memory node venus_fw_region
+[    4.109224,6] platform 15700000.qcom,lpass: assigned reserved memory node adsp_fw_region@92a00000
+[    4.115557,6] platform 4080000.qcom,mss: assigned reserved memory node modem_fw_region@8ac00000
+[    4.368376,6] msm_mpm_dev_probe(): Cannot get clk resource for XO: -517
+[    4.378652,6] genirq: Setting trigger mode 8 for irq 101 failed (gic_set_type+0x0/0xc8)
+[    4.379094,6] genirq: Setting trigger mode 8 for irq 102 failed (gic_set_type+0x0/0xc8)
+[    4.379532,6] genirq: Setting trigger mode 8 for irq 103 failed (gic_set_type+0x0/0xc8)
+[    4.379969,6] genirq: Setting trigger mode 8 for irq 104 failed (gic_set_type+0x0/0xc8)
+[    4.380446,6] genirq: Setting trigger mode 8 for irq 105 failed (gic_set_type+0x0/0xc8)
+[    4.498224,6] __of_mpm_init(): MPM driver mapping exists
+[    4.761727,6] irq: no irq domain found for /soc/qcom,mdss_mdp@c900000 !
+[    4.800637,6] persistent_ram: persistent_ram: paddr: 00000000af000000, vaddr: ffffff80081c0000, buf size = 0x1fff4
+[    4.800721,6] persistent_ram: persistent_ram: paddr: 00000000af020000, vaddr: ffffff8009e80000, buf size = 0x3fff4
+[    4.800800,6] persistent_ram: persistent_ram: paddr: 00000000af060000, vaddr: ffffff8009f00000, buf size = 0x3fff4
+[    4.800871,6] persistent_ram: persistent_ram: paddr: 00000000af0a0000, vaddr: ffffff800819a000, buf size = 0x7f4
+[    4.805477,6] console [pstore-1] enabled
+[    4.807327,6] pstore: Registered ramoops as persistent store backend
+[    4.807366,6] ramoops: attached 0xc0000@0xaf000000, ecc: 0/0
+[    4.856452,1] LCDB: qpnp_lcdb_regulator_probe: Failed to parse dt rc=-517
+[    4.859861,1] msm-thermal soc:qcom,msm-thermal: probe_psm:Failed reading node=/soc/qcom,msm-thermal, key=qcom,pmic-sw-mode-temp. err=-22. KTM continues
+[    4.861420,1] msm_thermal:vdd_restriction_reg_init Defer regulator vdd-gfx probe
+[    4.861446,1] msm_thermal:probe_vdd_rstr Err regulator init. err:-517. KTM continues.
+[    4.861475,1] msm-thermal soc:qcom,msm-thermal: probe_vdd_rstr:Failed reading node=/soc/qcom,msm-thermal, key=qcom,max-freq-level. err=-517. KTM continues
+[    4.885022,4] qcom-clk-smd-rpm soc:qcom,rpmcc: Registered RPM clocks
+[    4.912020,4] gcc-sdm660 100000.clock-controller: Registered GCC clocks
+[    4.982624,4] mmcc-sdm660 c8c0000.clock-controller: Registered MMSS clocks
+[    5.033684,4] cpr4_sdm660_mmss_read_fuse_data: gfx_corner: CPR fusing revision = 0
+[    5.038249,4] cpr4_sdm660_mmss_calculate_open_loop_voltages: gfx_corner: fuse_corner[0] open-loop= 585000 uV
+[    5.038327,4] cpr4_sdm660_mmss_calculate_open_loop_voltages: gfx_corner: fuse_corner[1] open-loop= 645000 uV
+[    5.038401,4] cpr4_sdm660_mmss_calculate_open_loop_voltages: gfx_corner: fuse_corner[2] open-loop= 725000 uV
+[    5.038472,4] cpr4_sdm660_mmss_calculate_open_loop_voltages: gfx_corner: fuse_corner[3] open-loop= 790000 uV
+[    5.038542,4] cpr4_sdm660_mmss_calculate_open_loop_voltages: gfx_corner: fuse_corner[4] open-loop= 870000 uV
+[    5.038611,4] cpr4_sdm660_mmss_calculate_open_loop_voltages: gfx_corner: fuse_corner[5] open-loop= 925000 uV
+[    5.040932,4] cpr3_regulator_init_ctrl: gfx: Default CPR mode = open-loop
+[    5.063077,4] cprh_kbss_read_fuse_data: apc0_pwrcl_corner: speed bin = 3
+[    5.063159,4] cprh_sdm660_kbss_read_fuse_data: apc0_pwrcl_corner: CPR fusing revision = 2
+[    5.064714,4] cprh_kbss_calculate_open_loop_voltages: apc0_pwrcl_corner: fused   LowSVS: open-loop= 614000 uV
+[    5.064791,4] cprh_kbss_calculate_open_loop_voltages: apc0_pwrcl_corner: fused      SVS: open-loop= 644000 uV
+[    5.064864,4] cprh_kbss_calculate_open_loop_voltages: apc0_pwrcl_corner: fused  SVSPLUS: open-loop= 688000 uV
+[    5.064936,4] cprh_kbss_calculate_open_loop_voltages: apc0_pwrcl_corner: fused      NOM: open-loop= 768000 uV
+[    5.065006,4] cprh_kbss_calculate_open_loop_voltages: apc0_pwrcl_corner: fused TURBO_L1: open-loop= 928000 uV
+[    5.065771,4] cprh_kbss_calculate_target_quotients: apc0_pwrcl_corner: fused   LowSVS: quot[ 7]= 349
+[    5.065845,4] cprh_kbss_calculate_target_quotients: apc0_pwrcl_corner: fused      SVS: quot[ 7]= 401, quot_offset[ 7]=  50
+[    5.065917,4] cprh_kbss_calculate_target_quotients: apc0_pwrcl_corner: fused  SVSPLUS: quot[ 7]= 470, quot_offset[ 7]=  65
+[    5.065989,4] cprh_kbss_calculate_target_quotients: apc0_pwrcl_corner: fused      NOM: quot[ 7]= 608, quot_offset[ 7]= 135
+[    5.066060,4] cprh_kbss_calculate_target_quotients: apc0_pwrcl_corner: fused TURBO_L1: quot[ 7]= 850, quot_offset[ 7]= 240
+[    5.085973,4] cpr3_regulator_init_ctrl: apc0: Default CPR mode = full HW closed-loop
+[    5.106150,4] cprh_kbss_read_fuse_data: apc1_perfcl_corner: speed bin = 3
+[    5.106233,4] cprh_sdm660_kbss_read_fuse_data: apc1_perfcl_corner: CPR fusing revision = 2
+[    5.107641,4] cprh_kbss_calculate_open_loop_voltages: apc1_perfcl_corner: fused      SVS: open-loop= 674000 uV
+[    5.107717,4] cprh_kbss_calculate_open_loop_voltages: apc1_perfcl_corner: fused  SVSPLUS: open-loop= 718000 uV
+[    5.107789,4] cprh_kbss_calculate_open_loop_voltages: apc1_perfcl_corner: fused      NOM: open-loop= 788000 uV
+[    5.107858,4] cprh_kbss_calculate_open_loop_voltages: apc1_perfcl_corner: fused    TURBO: open-loop= 908000 uV
+[    5.108595,4] cprh_kbss_calculate_target_quotients: apc1_perfcl_corner: fused      SVS: quot[ 7]= 531
+[    5.108670,4] cprh_kbss_calculate_target_quotients: apc1_perfcl_corner: fused  SVSPLUS: quot[ 7]= 615, quot_offset[ 7]=  80
+[    5.108742,4] cprh_kbss_calculate_target_quotients: apc1_perfcl_corner: fused      NOM: quot[ 7]= 757, quot_offset[ 7]= 140
+[    5.108814,4] cprh_kbss_calculate_target_quotients: apc1_perfcl_corner: fused    TURBO: quot[ 7]= 965, quot_offset[ 7]= 205
+[    5.126262,4] cpr3_regulator_init_ctrl: apc1: Default CPR mode = full HW closed-loop
+[    5.149440,4] LCDB: qpnp_lcdb_regulator_probe: Failed to parse dt rc=-517
+[    5.158387,4] msm-thermal soc:qcom,msm-thermal: probe_psm:Failed reading node=/soc/qcom,msm-thermal, key=qcom,pmic-sw-mode-temp. err=-22. KTM continues
+[    5.163657,4] msm-thermal soc:qcom,msm-thermal: probe_ocr:Failed reading node=/soc/qcom,msm-thermal, key=qcom,pmic-opt-curr-temp err:-22. KTM continues
+[    5.163803,4] msm-thermal soc:qcom,msm-thermal: probe_vdd_mx:Failed reading node=/soc/qcom,msm-thermal, key=qcom,mx-restriction-temp. KTM continues
+[    5.164063,4] msm-thermal soc:qcom,msm-thermal: probe_freq_mitigation:Failed reading node=/soc/qcom,msm-thermal, key=qcom,limit-temp. err=-22. KTM continues
+[    5.164194,4] msm-thermal soc:qcom,msm-thermal: msm_thermal:Failed reading node=/soc/qcom,msm-thermal, key=qcom,rpm-phase-resource-type err=-22. KTM continues
+[    5.164322,4] msm-thermal soc:qcom,msm-thermal: msm_thermal:Failed reading node=/soc/qcom,msm-thermal, key=qcom,gfx-sensor-id. err=-22. KTM continues
+[    5.178089,4] cpu cpu0: dev_pm_opp_get_opp_count: OPP table not found (-19)
+[    5.178178,4] msm_thermal:get_cpu_freq_plan_len Error reading CPU0 freq table len. error:-19
+[    5.178262,4] cpu cpu4: dev_pm_opp_get_opp_count: OPP table not found (-19)
+[    5.178341,4] msm_thermal:get_cpu_freq_plan_len Error reading CPU4 freq table len. error:-19
+[    5.178419,4] cpu cpu0: dev_pm_opp_get_opp_count: OPP table not found (-19)
+[    5.178495,4] msm_thermal:get_cpu_freq_plan_len Error reading CPU0 freq table len. error:-19
+[    5.178570,4] cpu cpu4: dev_pm_opp_get_opp_count: OPP table not found (-19)
+[    5.178645,4] msm_thermal:get_cpu_freq_plan_len Error reading CPU4 freq table len. error:-19
+[    5.193967,6] gpucc-sdm660 5065000.gfx: Registered GPUCC clocks
+[    5.221291,6] clk-cpu-osm 179c0000.qcom,clk-cpu-660: using pwrcl speed bin 3 and pvs_ver 0
+[    5.221936,6] clk-cpu-osm 179c0000.qcom,clk-cpu-660: using perfcl speed bin 3 and pvs_ver 0
+[    5.238024,6] add_opp: Set OPP pair (300000000 Hz, 612000 uv) on cpu0
+[    5.240008,6] add_opp: Set OPP pair (1612800000 Hz, 852000 uv) on cpu0
+[    5.240440,6] add_opp: Set OPP pair (300000000 Hz, 612000 uv) on cpu1
+[    5.242435,6] add_opp: Set OPP pair (1612800000 Hz, 852000 uv) on cpu1
+[    5.242847,6] add_opp: Set OPP pair (300000000 Hz, 612000 uv) on cpu2
+[    5.244858,6] add_opp: Set OPP pair (1612800000 Hz, 852000 uv) on cpu2
+[    5.245284,6] add_opp: Set OPP pair (300000000 Hz, 612000 uv) on cpu3
+[    5.247244,6] add_opp: Set OPP pair (1612800000 Hz, 852000 uv) on cpu3
+[    5.247666,6] add_opp: Set OPP pair (300000000 Hz, 692000 uv) on cpu4
+[    5.248967,6] add_opp: Set OPP pair (1804800000 Hz, 848000 uv) on cpu4
+[    5.249400,6] add_opp: Set OPP pair (300000000 Hz, 692000 uv) on cpu5
+[    5.250724,6] add_opp: Set OPP pair (1804800000 Hz, 848000 uv) on cpu5
+[    5.251152,6] add_opp: Set OPP pair (300000000 Hz, 692000 uv) on cpu6
+[    5.252452,6] add_opp: Set OPP pair (1804800000 Hz, 848000 uv) on cpu6
+[    5.252927,6] add_opp: Set OPP pair (300000000 Hz, 692000 uv) on cpu7
+[    5.254258,6] add_opp: Set OPP pair (1804800000 Hz, 848000 uv) on cpu7
+[    5.257776,6] clk_cpu_osm_driver_probe: OSM driver inited
+[    5.258322,6] LCDB: qpnp_lcdb_regulator_probe: Failed to parse dt rc=-517
+[    5.399618,4] ACPI: Interpreter disabled.
+[    5.419182,4] Minidump: Enabled, region base:160, region 0xffffff800b402718
+[    5.419883,4] KPI: Bootloader start count = 68459
+[    5.419897,4] KPI: Bootloader end count = 430116
+[    5.419910,4] KPI: Bootloader display count = 3837698902
+[    5.419923,4] KPI: Bootloader load kernel count = 4157255238
+[    5.419938,4] KPI: Kernel MPM timestamp = 655962
+[    5.419950,4] KPI: Kernel MPM Clock frequency = 32768
+[    5.420001,4] socinfo_print: v0.11, id=345, ver=1.0, raw_id=204, raw_ver=0, hw_plat=8, hw_plat_ver=65536
+[    5.420001,4]  accessory_chip=0, hw_plat_subtype=0, pmic_model=65563, pmic_die_revision=131072 foundry_id=3 serial_number=1623329555 num_pmics=2
+[    5.420066,4] msm_bus_fabric_init_driver
+[    5.550016,4] msm_bus_dev_init_qos: Skipping QOS init for 1
+[    5.550575,4] msm_bus_dev_init_qos: Skipping QOS init for 727msm_bus_dev_init_qos: Skipping QOS init for 728
+[    5.564471,4] cam_avdd_gpio_regulator: supplied by pm660l_bob
+[    5.566523,4] cam_actuator_regulator: supplied by pm660l_bob
+[    5.568395,4] cam_dvdd_gpio_regulator: supplied by pm660_s5
+[    5.570236,4] cam_rear_dvdd_gpio_regulator: supplied by pm660_s5
+[    5.572354,4] cam_front_avdd_gpio_regulator: supplied by pm660l_bob
+[    5.574227,4] cam_front_dvdd_gpio_regulator: supplied by pm660_s5
+[    5.576130,4] cam_aux_avdd_gpio_regulator: supplied by pm660l_bob
+[    5.578411,4] cam_aux_dvdd_gpio_regulator: supplied by pm660_s5
+[    5.579792,4] vgaarb: loaded
+[    5.581026,4] qcom,qpnp-misc 800f000.qcom,spmi:qcom,pm660@0:qcom,misc@900: probe successful
+[    5.590374,4] SCSI subsystem initialized
+[    5.595995,4] usbcore: registered new interface driver usbfs
+[    5.596273,4] usbcore: registered new interface driver hub
+[    5.596838,4] usbcore: registered new device driver usb
+[    5.600779,4] soc:usb_nop_phy supply vcc not found, using dummy regulator
+[    5.603749,4] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800: PMIC@SID0 Power-on reason: Triggered from Hard Reset and 'cold' boot
+[    5.603790,4] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800: PMIC@SID0: Power-off reason: Triggered from PS_HOLD (PS_HOLD/MSM controlled shutdown)
+[    5.605026,4] input: qpnp_pon as /devices/virtual/input/input0
+[    5.606187,4] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: No PON config. specified
+[    5.606257,4] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: PMIC@SID2 Power-on reason: Triggered from PON1 (secondary PMIC) and 'cold' boot
+[    5.606296,4] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: PMIC@SID2: Power-off reason: Triggered from GP1 (Keypad_Reset1)
+[    5.614772,4] i2c-msm-v2 c176000.i2c: probing driver i2c-msm-v2
+[    5.624162,4] i2c-msm-v2 c177000.i2c: probing driver i2c-msm-v2
+[    5.631666,4] media: Linux media interface: v0.10
+[    5.631894,4] Linux video capture interface: v2.00
+[    5.633518,4] EDAC MC: Ver: 3.0.0
+[    5.643295,4] cpufreq: driver msm up and running
+[    5.644076,4] dmi: Firmware registration failed.
+[    5.650095,4] platform soc:qcom,ion:qcom,ion-heap@22: assigned reserved memory node adsp_region
+[    5.651765,4] platform soc:qcom,ion:qcom,ion-heap@27: assigned reserved memory node qseecom_region
+[    5.653071,4] platform soc:qcom,ion:qcom,ion-heap@10: assigned reserved memory node secure_region
+[    5.656264,4] ION heap system created
+[    5.656749,4] ION heap adsp created at 0x00000000f6c00000 with size 800000
+[    5.656802,4] ION heap qsecom created at 0x00000000f5800000 with size 1400000
+[    5.656853,4] ION heap secure_display created at 0x00000000f7400000 with size 5c00000
+[    5.656965,4] ION heap secure_heap created
+[    5.660868,4] PMIC@SID0: PM660 v2.0 options: 0, 0, 0, 0
+[    5.661342,4] PMIC@SID2: PM660L v2.0.1 options: 0, 0, 0, 0
+[    5.667449,4] ipa get_ipa_dts_configuration:4871 : apps shutdown support = Disabled
+[    5.667586,4] IPA smmu_info.s1_bypass=1 smmu_info.fast_map=0
+[    5.708242,4] gdsc_vfe0: supplied by gdsc_camss_top
+[    5.710905,4] gdsc_vfe1: supplied by gdsc_camss_top
+[    5.713483,4] gdsc_cpp: supplied by gdsc_camss_top
+[    5.721293,4] gdsc_gpu_gx: supplied by gfx_corner
+[    5.729539,4] mdss_pll_probe: MDSS pll label = MDSS DSI 0 PLL
+[    5.729570,4] mdss_pll_probe: mdss_pll_probe: label=MDSS DSI 0 PLL PLL SSC enabled
+[    5.731854,4] mdss_pll c994400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    5.731897,4] mdss_pll c994400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    5.731974,4] mdss_pll c994400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    5.733835,4] dsi_pll_clock_register_14nm: Registered DSI PLL ndx=0 clocks successfully
+[    5.734065,4] mdss_pll_probe: MDSS pll label = MDSS DSI 1 PLL
+[    5.734094,4] mdss_pll_probe: mdss_pll_probe: label=MDSS DSI 1 PLL PLL SSC enabled
+[    5.735122,4] mdss_pll c996400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    5.735162,4] mdss_pll c996400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    5.735202,4] mdss_pll c996400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    5.736527,4] dsi_pll_clock_register_14nm: Registered DSI PLL ndx=1 clocks successfully
+[    5.736752,4] mdss_pll_probe: MDSS pll label = MDSS DP PLL
+[    7.501417,4] io-pgtable-fast: selftest: completed with 0 failures
+[    7.528279,4] arm-smmu 16c0000.arm,smmu-anoc2: found 29 context interrupt(s) but have 11 context banks. assuming 11 context interrupts.
+[    7.533080,4] arm-smmu 5100000.arm,smmu-lpass_q6: found 17 context interrupt(s) but have 13 context banks. assuming 13 context interrupts.
+[    7.539099,4] arm-smmu cd00000.arm,smmu-mmss: found 24 context interrupt(s) but have 17 context banks. assuming 17 context interrupts.
+[    7.541118,4] arm-smmu 5040000.arm,smmu-kgsl: regulator defer delay 80
+[    7.542516,4] arm-smmu 5040000.arm,smmu-kgsl: found 8 context interrupt(s) but have 5 context banks. assuming 5 context interrupts.
+[    7.596929,4] iommu: Adding device 18800000.qcom,icnss to group 0
+[    7.608414,4] iommu: Adding device soc:iommu_test_device to group 1
+[    7.609187,4] iommu: Adding device soc:usb_audio_qmi_dev to group 2
+[    7.618685,4] iommu: Adding device soc:qcom,msm-audio-ion to group 3
+[    7.628392,4] iommu: Adding device 14780000.qcom,ipa:ipa_smmu_ap to group 4
+[    7.628557,4] iommu: Adding device 14780000.qcom,ipa:ipa_smmu_uc to group 5
+[    7.633948,4] moto sensor init!
+[    7.634060,4] sensor init success!
+[    7.634300,4] Advanced Linux Sound Architecture Driver Initialized.
+[    7.638541,4] Bluetooth: Core ver 2.21
+[    7.638656,4] NET: Registered protocol family 31
+[    7.638671,4] Bluetooth: HCI device and connection manager initialized
+[    7.638715,4] Bluetooth: HCI socket layer initialized
+[    7.638752,4] Bluetooth: L2CAP socket layer initialized
+[    7.638934,4] Bluetooth: SCO socket layer initialized
+[    7.640696,4] cfg80211: World regulatory domain updated:
+[    7.640712,4] cfg80211:  DFS Master region: unset
+[    7.640728,4] cfg80211:   (start_freq - end_freq @ bandwidth), (max_antenna_gain, max_eirp), (dfs_cac_time)
+[    7.640745,4] cfg80211:   (2402000 KHz - 2472000 KHz @ 40000 KHz), (N/A, 2000 mBm), (N/A)
+[    7.640759,4] cfg80211:   (2457000 KHz - 2482000 KHz @ 40000 KHz), (N/A, 2000 mBm), (N/A)
+[    7.640772,4] cfg80211:   (2474000 KHz - 2494000 KHz @ 20000 KHz), (N/A, 2000 mBm), (N/A)
+[    7.640785,4] cfg80211:   (5170000 KHz - 5250000 KHz @ 80000 KHz), (N/A, 2000 mBm), (N/A)
+[    7.640799,4] cfg80211:   (5250000 KHz - 5330000 KHz @ 80000 KHz), (N/A, 2000 mBm), (N/A)
+[    7.640812,4] cfg80211:   (5490000 KHz - 5710000 KHz @ 80000 KHz), (N/A, 2000 mBm), (N/A)
+[    7.640824,4] cfg80211:   (5735000 KHz - 5835000 KHz @ 80000 KHz), (N/A, 2000 mBm), (N/A)
+[    7.640839,4] cfg80211:   (57240000 KHz - 63720000 KHz @ 2160000 KHz), (N/A, 0 mBm), (N/A)
+[    7.641617,4] NetLabel: Initializing
+[    7.641631,4] NetLabel:  domain hash size = 128
+[    7.641644,4] NetLabel:  protocols = UNLABELED CIPSOv4
+[    7.641851,4] NetLabel:  unlabeled traffic allowed by default
+[    7.642535,4] pcie:pcie_init.
+[    7.664293,6] LCDB: qpnp_lcdb_regulator_probe: LCDB module successfully registered! lcdb_en=1 ldo_voltage=5500mV ncp_voltage=11900mV bst_voltage=5600mV
+[    7.676051,6] ipa ipa2_uc_state_check:296 uC interface not initialized
+[    7.676126,6] ipa ipa_sps_irq_control_all:963 EP (2) not allocated.
+[    7.676150,6] ipa ipa_sps_irq_control_all:963 EP (5) not allocated.
+[    7.681117,6] sps:BAM 0x0000000014784000 is registered.
+[    7.683763,6] sps:BAM 0x0000000014784000 (va:0xffffff800b1c0000) enabled: ver:0x27, number of pipes:20
+[    7.714553,6] IPA driver initialization was successful.
+[    7.717672,4] clocksource: Switched to clocksource arch_sys_counter
+[    7.929218,4] pnp: PnP ACPI: disabled
+[    7.945518,0] do not call blocking ops when !TASK_RUNNING; state=1 set at [<ffffff8f985a2d98>] sensor_sysfs_notify+0x0/0x180
+[    7.945570,0] ------------[ cut here ]------------
+[    7.945584,0] WARNING: at /home/nishant/code/chef-cyclo/kernel/kernel/sched/core.c:8616
+[    7.945597,0] Modules linked in:
+[    7.945622,0] 
+[    7.945641,0] CPU: 0 PID: 144 Comm: therm_core:noti Not tainted 4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[    7.945653,0] Hardware name: chef (DT)
+[    7.945667,0] task: ffffffe1b57eac40 task.stack: ffffffe13525c000
+[    7.945691,0] PC is at __might_sleep+0x5c/0x88
+[    7.945705,0] LR is at __might_sleep+0x5c/0x88
+[    7.945717,0] pc : [<ffffff8f974dc108>] lr : [<ffffff8f974dc108>] pstate: 60400045
+[    7.945731,0] sp : ffffffe13525fd60
+[    7.945742,0] x29: ffffffe13525fd60 x28: 0000000000000000 
+[    7.945771,0] x27: 0000000000000000 x26: 0000000000000000 
+[    7.945800,0] x25: 0000000000000000 x24: ffffffe1350fbdd0 
+[    7.945829,0] x23: ffffffe13525fde8 x22: 0000000000000000 
+[    7.945857,0] x21: 0000000000000184 x20: ffffff8f98dcbc5b 
+[    7.945886,0] x19: ffffff8f99f93542 x18: 0000000000000000 
+[    7.945915,0] x17: 000000002b5e7c21 x16: 0000000040764b19 
+[    7.945943,0] x15: 00000000ed0997f4 x14: 6666666666663c5b 
+[    7.945972,0] x13: 2074612074657320 x12: 313d657461747320 
+[    7.946000,0] x11: 3b474e494e4e5552 x10: 5f4b53415421206e 
+[    7.946029,0] x9 : 000000522497a000 x8 : ffffff8f99c7e320 
+[    7.946058,0] x7 : ffffff8f97519ae4 x6 : ffffffe1bda72050 
+[    7.946087,0] x5 : ffffffe13525fbb0 x4 : ffffffe13525fc60 
+[    7.946115,0] x3 : 0000000000000000 x2 : 54a8a266adc1ed90 
+[    7.946144,0] x1 : 54a8a266adc1ed90 x0 : 000000000000006e 
+[    7.946174,0] 
+[    7.946174,0] PC: 0xffffff8f974dc0c8:
+[    7.946187,0] c0c8  2a0203f6 d503201f d5384100 f9401001 b40001e1 f9457802 b40001a2 f00155b3
+[    7.946279,0] c0e8  91150a73 39400a61 35000121 f9401001 d000ba60 aa0203e3 913bc000 940336f1
+[    7.946369,0] c108  d4210000 52800020 39000a60 aa1403e0 2a1503e1 2a1603e2 97ffff97 a94153f3
+[    7.946460,0] c128  a9425bf5 a8c37bfd d65f03c0 a9b67bfd 910003fd a90153f3 a9025bf5 a90363f7
+[    7.946552,0] 
+[    7.946552,0] LR: 0xffffff8f974dc0c8:
+[    7.946565,0] c0c8  2a0203f6 d503201f d5384100 f9401001 b40001e1 f9457802 b40001a2 f00155b3
+[    7.946655,0] c0e8  91150a73 39400a61 35000121 f9401001 d000ba60 aa0203e3 913bc000 940336f1
+[    7.946745,0] c108  d4210000 52800020 39000a60 aa1403e0 2a1503e1 2a1603e2 97ffff97 a94153f3
+[    7.946836,0] c128  a9425bf5 a8c37bfd d65f03c0 a9b67bfd 910003fd a90153f3 a9025bf5 a90363f7
+[    7.946927,0] 
+[    7.946927,0] SP: 0xffffffe13525fd20:
+[    7.946940,0] fd20  974dc108 ffffff8f 3525fd60 ffffffe1 974dc108 ffffff8f 60400045 00000000
+[    7.947030,0] fd40  3525fe00 ffffffe1 3525fde0 ffffffe1 ffffffff ffffffff 974cdc04 ffffff8f
+[    7.947121,0] fd60  3525fd90 ffffffe1 985a2e0c ffffff8f 350fbd20 ffffffe1 b57eac40 ffffffe1
+[    7.947211,0] fd80  99c7c000 ffffff8f 98dcbc5b ffffff8f 3525fe00 ffffffe1 974cdc2c ffffff8f
+[    7.947302,0] 
+[    7.947360,0] ---[ end trace 8fd55b6e1ca7dc2a ]---
+[    7.947376,0] Call trace:
+[    7.947391,0] Exception stack(0xffffffe13525fb60 to 0xffffffe13525fc90)
+[    7.947429,0] fb60: ffffff8f99f93542 0000008000000000 0000000083239000 ffffff8f974dc108
+[    7.947463,0] fb80: 0000000060400045 000000000000003d 0000000000000000 0000000000000000
+[    7.947499,0] fba0: ffffffe100000000 ffffff8f9748e1d8 ffffffe13525fc60 ffffff8f97519ae4
+[    7.947533,0] fbc0: ffffff8f99c7c000 ffffff8f97519a9c ffffff8f98c2aef0 0000000000000000
+[    7.947570,0] fbe0: ffffffe13525fde8 ffffffe1350fbdd0 0000000000000000 0000000000000000
+[    7.947604,0] fc00: 0000000000000000 0000000000000000 0000000000000001 ffffff8f975a9d4c
+[    7.947640,0] fc20: ffffff8f990f4000 54a8a266adc1ed90 000000000000006e 54a8a266adc1ed90
+[    7.947674,0] fc40: 54a8a266adc1ed90 0000000000000000 ffffffe13525fc60 ffffffe13525fbb0
+[    7.947710,0] fc60: ffffffe1bda72050 ffffff8f97519ae4 ffffff8f99c7e320 000000522497a000
+[    7.947733,0] fc80: 5f4b53415421206e 3b474e494e4e5552
+[    7.947748,0] [<ffffff8f974dc108>] __might_sleep+0x5c/0x88
+[    7.947762,0] [<ffffff8f985a2e0c>] sensor_sysfs_notify+0x74/0x180
+[    7.947782,0] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[    7.947802,0] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[    7.949569,4] gcc-debug-sdm660 62000.qcom,cc-debug: Registered debug mux successfully
+[    7.953796,4] NET: Registered protocol family 2
+[    7.956149,4] TCP established hash table entries: 32768 (order: 6, 262144 bytes)
+[    7.957350,4] TCP bind hash table entries: 32768 (order: 8, 1048576 bytes)
+[    7.957927,4] TCP: Hash tables configured (established 32768 bind 32768)
+[    7.958923,4] UDP hash table entries: 2048 (order: 5, 196608 bytes)
+[    7.959572,4] UDP-Lite hash table entries: 2048 (order: 5, 196608 bytes)
+[    7.961470,4] NET: Registered protocol family 1
+[    7.961623,4] PCI: CLS 0 bytes, default 64
+[    7.963735,4] Trying to unpack rootfs image as initramfs...
+[    8.421610,4] Freeing initrd memory: 8508K
+[    8.423703,0] cryptomgr_test (145) used greatest stack depth: 14304 bytes left
+[    8.446186,4] audit: initializing netlink subsys (disabled)
+[    8.446410,4] audit: type=2000 audit(8.443:1): initialized
+[    8.460637,4] Initialise system trusted keyring
+[    8.461174,4] vmscan: error setting kswapd cpu affinity mask
+[    8.519333,4] VFS: Disk quotas dquot_6.6.0
+[    8.520468,4] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    8.533027,4] exFAT: Version 1.2.9
+[    8.538847,4] Registering sdcardfs 0.1
+[    8.541071,4] fuse init (API version 7.23)
+[    8.543429,4] SELinux:  Registering netfilter hooks
+[    8.545094,4] pfk_ecryptfs [pfk_ecryptfs_init]: PFK ecryptfs inited successfully
+[    8.545109,4] pfk_ext4 [pfk_ext4_init]: PFK EXT4 inited successfully
+[    8.545130,4] pfk [pfk_init]: Driver initialized successfully
+[    8.562559,4] Key type asymmetric registered
+[    8.562584,4] Asymmetric key parser 'x509' registered
+[    8.562662,4] io scheduler noop registered
+[    8.563666,4] io scheduler cfq registered (default)
+[    8.644478,4] msm_dss_get_res_byname: 'vbif_nrt_phys' resource not found
+[    8.644531,4] mdss_mdp_probe+0x2d4/0x17dc->msm_dss_ioremap_byname: 'vbif_nrt_phys' msm_dss_get_res_byname failed
+[    8.646144,4] mdss_mdp_irq_clk_setup: unable to get core gdsc regulator
+[    8.655641,4] No change in context(0==0), skip
+[    8.657197,4] mdss_mdp_pipe_addr_setup: type:0 ftchid:-1 xinid:0 num:0 rect:0 ndx:0x1 prio:0
+[    8.657212,4] mdss_mdp_pipe_addr_setup: type:0 ftchid:-1 xinid:4 num:1 rect:0 ndx:0x2 prio:1
+[    8.657320,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:1 num:6 rect:0 ndx:0x40 prio:2
+[    8.657335,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:1 num:6 rect:1 ndx:0x40 prio:2
+[    8.657348,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:5 num:7 rect:0 ndx:0x80 prio:3
+[    8.657362,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:5 num:7 rect:1 ndx:0x80 prio:3
+[    8.657374,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:9 num:12 rect:0 ndx:0x1000 prio:4
+[    8.657388,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:9 num:12 rect:1 ndx:0x1000 prio:4
+[    8.657470,4] mdss_mdp_pipe_addr_setup: type:3 ftchid:-1 xinid:2 num:10 rect:0 ndx:0x400 prio:0
+[    8.657495,4] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-pipe-sw-reset-off : u32 array read
+[    8.657757,4] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-ib-factor-overlap : u32 array read
+[    8.657784,4] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-bus-througput-factor : u32 array read
+[    8.659497,4] xlog_status: enable:0, panic:1, dump:2
+[    8.661406,4] iommu: Adding device c900000.qcom,mdss_mdp:qcom,smmu_mdp_unsec_cb to group 6
+[    8.663107,4] iommu: Adding device c900000.qcom,mdss_mdp:qcom,smmu_mdp_sec_cb to group 7
+[    8.664243,4] mdss_mdp_probe: mdss version = 0x30020000, bootloader display is on, num 1, intf_sel=0x00000100
+[    8.676582,4] mdss_smmu_probe: iommu v2 domain[0] mapping and clk register successful!
+[    8.678579,4] mdss_smmu_probe: iommu v2 domain[2] mapping and clk register successful!
+[    8.697313,4] mdss_dsi_ctrl_probe: DSI Ctrl name = MDSS DSI CTRL->0
+[    8.699362,4] mdss_panel_parse_panel_config_dt: BL: panel = mipi_mot_vid_tianma_nt_fhd_618, manufacture_id(0xDA) = 0x2 controller_ver(0xDB) = 0x61 controller_drv_ver(0XDC) = 0x21, full = 0x0000000000216102
+[    8.699381,4] mdss_dsi_find_panel_of_node: cmdline:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi panel_name:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0
+[    8.699497,4] mdss_dsi_panel_init: Panel Name = mipi_mot_vid_tianma_nt_fhd_618
+[    8.699715,4] mdss_dsi_parse_split_link_settings: enable 0 sublinks-count 0 lanes per sublink 0
+[    8.699838,4] mdss_dsi_panel_timing_from_dt: found new timing "qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0" (ffffffe1b72a31d8)
+[    8.699926,4] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-post-panel-on-command
+[    8.699953,4] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-timing-switch-command
+[    8.699977,4] mdss_dsi_panel_get_dsc_cfg_np: cannot find dsc config node:config0
+[    8.700260,4] mdss_dsi_parse_panel_features: ulps feature disabled
+[    8.700278,4] mdss_dsi_parse_panel_features: ulps during suspend feature disabled
+[    8.700297,4] mdss_dsi_parse_dms_config: dynamic switch feature enabled: 0
+[    8.700439,4] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-lp-mode-on
+[    8.700461,4] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-lp-mode-off
+[    8.700512,4] mdss_dsi_set_refresh_rate_range:2796, Unable to read min refresh rate
+[    8.700530,4] mdss_dsi_set_refresh_rate_range:2811, Unable to read max refresh rate
+[    8.700542,4] dyn_fps: min = 60, max = 60
+[    8.700632,4] mdss_panel_parse_param_prop: HBM feature enabled with 2 dt cmds
+[    8.700645,4] mdss_panel_parse_param_prop: HBM type = 1
+[    8.700735,4] mdss_panel_parse_param_prop: CABC feature enabled with 3 dt cmds
+[    8.702374,4] mdss_dsi_parse_ctrl_params:4581 Unable to read qcom,display-id, data=0000000000000000,len=20
+[    8.702451,4] mdss_dsi_parse_gpio_params: bklt_en gpio not specified
+[    8.702472,4] mdss_dsi_parse_gpio_params: avdd_en gpio not specified
+[    8.702533,4] mdss_dsi_parse_gpio_params:4645, tp reset gpio not specified
+[    8.702643,4] msm_dss_get_res_byname: 'dsi_phy_regulator' resource not found
+[    8.702677,4] mdss_dsi_retrieve_ctrl_resources+0x178/0x25c->msm_dss_ioremap_byname: 'dsi_phy_regulator' msm_dss_get_res_byname failed
+[    8.702695,4] mdss_dsi_retrieve_ctrl_resources: ctrl_base=ffffff800b0d2000 ctrl_size=400 phy_base=ffffff800b0d8400 phy_size=588
+[    8.703096,4] dsi_panel_device_register: Continuous splash enabled
+[    8.704968,4] Unable to find fb node for device: c994000.qcom,mdss_dsi_ctrl0
+[    8.708861,4] mdss_register_panel: adding framebuffer device c994000.qcom,mdss_dsi_ctrl0
+[    8.714661,4] mdss_dsi_ctrl_probe: Dsi Ctrl->0 initialized, DSI rev:0x20010000, PHY rev:0x2
+[    8.715481,4] mdss_dsi_status_init: DSI status check interval:8000
+[    8.733441,4] mdss_register_panel: adding framebuffer device soc:qcom,mdss_wb_panel
+[    8.740355,4] mdss_fb_probe: fb0: split_mode:0 left:0 right:0
+[    8.744303,4] mdss_fb_register: FrameBuffer[0] 1080x2246 registered successfully!
+[    8.747643,4] mdss_fb_probe: fb1: split_mode:0 left:0 right:0
+[    8.748581,4] mdss_fb_register: FrameBuffer[1] 640x480 registered successfully!
+[    8.749906,4] mdss_mdp_splash_parse_dt: splash mem child node is not present
+[    8.796115,4] spcom [spcom_init]: spcom driver version 1.2 23-Aug-2017.
+[    8.805130,4] audio_notifer_reg_service: service SSR_MODEM is in use
+[    8.863886,6] memshare_child soc:qcom,memshare:qcom,client_1: for memshare_GPS segments only will be dumped.
+[    8.866792,6] memshare_child soc:qcom,memshare:qcom,client_2: for memshare_FTM segments only will be dumped.
+[    8.869235,6] memshare_child soc:qcom,memshare:qcom,client_3: for memshare_DIAG segments only will be dumped.
+[    8.869908,6] In memshare_probe, Memshare probe success
+[    8.876785,6] subsys-pil-tz cce0000.qcom,venus: invalid resource
+[    8.876809,6] subsys-pil-tz cce0000.qcom,venus: Failed to iomap base register
+[    8.882294,6] subsys-pil-tz cce0000.qcom,venus: for venus segments only will be dumped.
+[    8.886797,6] subsys-pil-tz soc:qcom,kgsl-hyp: invalid resource
+[    8.886818,6] subsys-pil-tz soc:qcom,kgsl-hyp: Failed to iomap base register
+[    8.886942,6] subsys-pil-tz soc:qcom,kgsl-hyp: for a512_zap segments only will be dumped.
+[    8.899877,6] pil-q6v5-mss 4080000.qcom,mss: No pas_id found.
+[    8.914373,6] msm-dcc 10b3000.dcc: DCC XPU is not specified
+[    8.925455,6] icnss 18800000.qcom,icnss: for wcss_msa0 segments only will be dumped.
+[    8.926824,6] icnss: Platform driver probed successfully
+[    8.931219,6] Gladiator Error Reporting not available
+[    8.979159,6] msm_rpm_log_probe: OK
+[    8.990832,6] ACPU Bin is not available.
+[    8.991132,6] mmi_storage_info :EMMC: 64GB SAMSUNG DH6DMB FV=
+[    8.991371,6] mmi_unit_info (SMEM) for modem: version = 0x03, device = 'chef', radio = 0x0, radio_str = 'APAC', system_rev = 0xc000, system_serial = 0x00000000130bc260, machine = '', barcode = 'ZF6223WZGL', baseband = '', carrier = 'retin', pu_reason = 0x00004000
+[    8.991905,6] BOOT_SEQ: 0x0000040e
+[    8.994779,6] msm_serial c170000.serial: msm_serial: detected port #0
+[    8.994971,6] msm_serial c170000.serial: uartclk = 1843200
+[    8.995184,6] c170000.serial: ttyMSM0 at MMIO 0xc170000 (irq = 49, base_baud = 115200) is a MSM
+[    9.000160,6] msm_serial: driver initialized
+[    9.006471,6] uart_tx_gpio is not available
+[    9.006497,6] uart_rx_gpio is not available
+[    9.006516,6] uart_cts_gpio is not available
+[    9.006535,6] uart_rfr_gpio is not available
+[    9.010430,6] sps: BAM device 0x000000000c184000 is not registered yet.
+[    9.011559,6] sps:BAM 0x000000000c184000 is registered.
+[    9.015216,6] c1af000.uart: ttyHS0 at MMIO 0xc1af000 (irq = 298, base_baud = 460800) is a MSM HS UART
+[    9.019582,6] msm_serial_hs module loaded
+[    9.033582,0] random: nonblocking pool is initialized
+[    9.123774,6] iommu: Adding device 5040000.qcom,kgsl-iommu:gfx3d_user to group 8
+[    9.126045,6] iommu: Adding device 5040000.qcom,kgsl-iommu:gfx3d_secure to group 9
+[    9.216854,5] brd: module loaded
+[    9.254343,5] loop: module loaded
+[    9.258141,5] zram: Added device: zram0
+[    9.258247,5] lkdtm: No crash points registered, enable through debugfs
+[    9.262347,5] QSEECOM: qseecom_probe: qseecom.qsee_version = 0x1001000
+[    9.262460,5] QSEECOM: qseecom_retrieve_ce_data: Device does not support PFE
+[    9.262491,5] QSEECOM: qseecom_probe: no-clock-support=0x1<4>[    9.262508,5] QSEECOM: qseecom_probe: qseecom.qsee_reentrancy_support = 2
+[    9.264884,5] QSEECOM: qseecom_probe: qseecom.whitelist_support = 1
+[    9.293871,5] alsa-to-h2w soc:alsa_to_h2w: alsa_to_h2w_probe success
+[    9.336379,4] qce 1de0000.qcedev: Qualcomm Crypto 5.3.4 device found @0x1de0000
+[    9.336406,4] qce 1de0000.qcedev: CE device = 0x0
+[    9.336406,4] IO base, CE = 0xffffff800b9c0000
+[    9.336406,4] Consumer (IN) PIPE 2,    Producer (OUT) PIPE 3
+[    9.336406,4] IO base BAM = 0x0000000000000000
+[    9.336406,4] BAM IRQ 92
+[    9.336406,4] Engines Availability = 0x2011053
+[    9.337885,4] sps:BAM 0x0000000001dc4000 is registered.
+[    9.339279,4] sps:BAM 0x0000000001dc4000 (va:0xffffff800bb00000) enabled: ver:0x27, number of pipes:16
+[    9.340297,4] QCE50: qce_sps_init:  Qualcomm MSM CE-BAM at 0x0000000001dc4000 irq 92
+[    9.357433,4] qcrypto 1de0000.qcrypto: Qualcomm Crypto 5.3.4 device found @0x1de0000
+[    9.357458,4] qcrypto 1de0000.qcrypto: CE device = 0x0
+[    9.357458,4] IO base, CE = 0xffffff800bb40000
+[    9.357458,4] Consumer (IN) PIPE 4,    Producer (OUT) PIPE 5
+[    9.357458,4] IO base BAM = 0x0000000000000000
+[    9.357458,4] BAM IRQ 92
+[    9.357458,4] Engines Availability = 0x2011053
+[    9.359075,4] QCE50: qce_sps_init:  Qualcomm MSM CE-BAM at 0x0000000001dc4000 irq 92
+[    9.367681,4] qcrypto 1de0000.qcrypto: qcrypto-ecb-aes
+[    9.368167,4] qcrypto 1de0000.qcrypto: qcrypto-cbc-aes
+[    9.368707,4] qcrypto 1de0000.qcrypto: qcrypto-ctr-aes
+[    9.369232,4] qcrypto 1de0000.qcrypto: qcrypto-ecb-des
+[    9.369748,4] qcrypto 1de0000.qcrypto: qcrypto-cbc-des
+[    9.370312,4] qcrypto 1de0000.qcrypto: qcrypto-ecb-3des
+[    9.370825,4] qcrypto 1de0000.qcrypto: qcrypto-cbc-3des
+[    9.371370,4] qcrypto 1de0000.qcrypto: qcrypto-xts-aes
+[    9.371888,4] qcrypto 1de0000.qcrypto: qcrypto-sha1
+[    9.372404,4] qcrypto 1de0000.qcrypto: qcrypto-sha256
+[    9.372999,4] qcrypto 1de0000.qcrypto: qcrypto-aead-hmac-sha1-cbc-aes
+[    9.373557,4] qcrypto 1de0000.qcrypto: qcrypto-aead-hmac-sha1-cbc-des
+[    9.374078,4] qcrypto 1de0000.qcrypto: qcrypto-aead-hmac-sha1-cbc-3des
+[    9.374638,4] qcrypto 1de0000.qcrypto: qcrypto-aead-hmac-sha256-cbc-aes
+[    9.375147,4] qcrypto 1de0000.qcrypto: qcrypto-aead-hmac-sha256-cbc-des
+[    9.375657,4] qcrypto 1de0000.qcrypto: qcrypto-aead-hmac-sha256-cbc-3des
+[    9.376171,4] qcrypto 1de0000.qcrypto: qcrypto-hmac-sha1
+[    9.377190,4] qcrypto 1de0000.qcrypto: qcrypto-hmac-sha256
+[    9.377682,4] qcrypto 1de0000.qcrypto: qcrypto-aes-ccm
+[    9.378194,4] qcrypto 1de0000.qcrypto: qcrypto-rfc4309-aes-ccm
+[    9.390577,4] qcom_ice_get_device_tree_data: No vdd-hba-supply regulator, assuming not needed
+[    9.397685,4] ufshcd-qcom 1da4000.ufshc: ufshcd_populate_vreg: Unable to find vccq-supply regulator, assuming enabled
+[    9.402273,4] ufshcd-qcom 1da4000.ufshc: ufshcd_variant_hba_init: variant qcom init failed err -19
+[    9.403828,4] ufshcd-qcom 1da4000.ufshc: Intialization failed
+[    9.404406,4] ufshcd-qcom 1da4000.ufshc: ufshcd_pltfrm_init() failed -19
+[    9.409098,4] SCSI Media Changer driver v0.25 
+[    9.420455,4] Ethernet Channel Bonding Driver: v3.7.1 (April 27, 2011)
+[    9.432140,4] tun: Universal TUN/TAP device driver, 1.6
+[    9.432154,4] tun: (C) 1999-2004 Max Krasnyansky <maxk@qualcomm.com>
+[    9.433008,4] PPP generic driver version 2.4.2
+[    9.433764,4] PPP BSD Compression module registered
+[    9.433789,4] PPP Deflate Compression module registered
+[    9.433830,4] PPP MPPE Compression module registered
+[    9.433887,4] NET: Registered protocol family 24
+[    9.435662,4] CLD80211: Initializing
+[    9.436066,4] pegasus: v0.9.3 (2013/04/25), Pegasus/Pegasus II USB Ethernet driver
+[    9.436370,4] usbcore: registered new interface driver pegasus
+[    9.436673,4] usbcore: registered new interface driver asix
+[    9.436959,4] usbcore: registered new interface driver ax88179_178a
+[    9.437166,4] usbcore: registered new interface driver cdc_ether
+[    9.437409,4] usbcore: registered new interface driver net1080
+[    9.437636,4] usbcore: registered new interface driver cdc_subset
+[    9.437835,4] usbcore: registered new interface driver zaurus
+[    9.438037,4] usbcore: registered new interface driver MOSCHIP usb-ethernet driver
+[    9.438394,4] usbcore: registered new interface driver cdc_ncm
+[    9.441256,4] msm_sharedmem: sharedmem_register_qmi: qmi init successful
+[    9.462469,6] msm_sharedmem: msm_sharedmem_probe: Device created for client 'rmtfs'
+[    9.501024,6] msm-dwc3 a800000.ssusb: USB core frequency = 133333333
+[    9.501838,6] msm-dwc3 a800000.ssusb: setting lpm_to_suspend_delay to zero.
+[    9.503646,6] msm-dwc3 a800000.ssusb: missing TCSR memory resource
+[    9.504024,6] msm-dwc3 a800000.ssusb: unable to get dbm device
+[    9.518509,6] ehci_hcd: USB 2.0 'Enhanced' Host Controller (EHCI) Driver
+[    9.518586,6] ehci-pci: EHCI PCI platform driver
+[    9.518789,6] ehci-platform: EHCI generic platform driver
+[    9.523445,6] ohci_hcd: USB 1.1 'Open' Host Controller (OHCI) Driver
+[    9.523501,6] ohci-pci: OHCI PCI platform driver
+[    9.523718,6] ohci-platform: OHCI generic platform driver
+[    9.533704,6] usbcore: registered new interface driver usblp
+[    9.534002,6] usbcore: registered new interface driver uas
+[    9.534296,6] usbcore: registered new interface driver usb-storage
+[    9.534483,6] usbcore: registered new interface driver ums-alauda
+[    9.534637,6] usbcore: registered new interface driver ums-cypress
+[    9.534792,6] usbcore: registered new interface driver ums-datafab
+[    9.534947,6] usbcore: registered new interface driver ums-freecom
+[    9.535100,6] usbcore: registered new interface driver ums-isd200
+[    9.535254,6] usbcore: registered new interface driver ums-jumpshot
+[    9.535408,6] usbcore: registered new interface driver ums-karma
+[    9.535562,6] usbcore: registered new interface driver ums-sddr09
+[    9.535740,6] usbcore: registered new interface driver ums-sddr55
+[    9.535896,6] usbcore: registered new interface driver ums-usbat
+[    9.536097,6] usbcore: registered new interface driver usb_ehset_test
+[    9.543727,6] qpnp-pdphy 800f000.qcom,spmi:qcom,pm660@0:qcom,usb-pdphy@1700: GPIO info and name mismatch
+[    9.546392,6] qpnp-pdphy 800f000.qcom,spmi:qcom,pm660@0:qcom,usb-pdphy@1700: usbpd_create failed: -517
+[    9.553021,6] mousedev: PS/2 mouse device common for all mice
+[    9.556965,6] focaltech_ts 3-0038: processing modifier config_modifier-fps[1]
+[    9.556990,6] using fingerprint sensor detection
+[    9.557015,6] using touch clip area in fps-active
+[    9.557624,6] 3-0038 supply vdd not found, using dummy regulator
+[    9.558168,6] 3-0038 supply vcc_i2c not found, using dummy regulator
+[    9.787155,6] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:0 tx) bc(rx:1 tx:1) mode:FIFO slv_addr:0x38 MSTR_STS:0x0d1300c8 OPER:0x00000010
+[    9.787267,6] focaltech_ts 3-0038: ft_i2c_read: i2c read error.
+[    9.787283,6] focaltech_ts 3-0038: version read failed
+[    9.788467,6] [NVT-ts] nvt_driver_init 1800: start
+[    9.788739,6] [NVT-ts] nvt_ts_probe 1303: start
+[    9.788815,6] [NVT-ts] nvt_parse_dt 882: novatek,irq-gpio=67
+[    9.800097,6] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[    9.874447,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1239: buf[1]=0x0B, buf[2]=0x00, buf[3]=0x00, buf[4]=0x25, buf[5]=0x65, buf[6]=0x03
+[    9.874480,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1256: This is NVT touch IC
+[    9.874508,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[    9.913459,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[    9.929399,0] [NVT-ts] nvt_read_pid 556: PID=3AD9
+[    9.931372,7] input: NVTCapacitiveTouchScreen as /devices/virtual/input/input1
+[    9.932103,7] [NVT-ts] nvt_ts_probe 1415: int_trigger_type=1
+[    9.932294,7] [NVT-ts] nvt_ts_probe 1427: request irq 249 succeed
+[    9.932941,7] [NVT-ts] nvt_flash_proc_init 762: Succeeded!
+[    9.932959,7] [NVT-ts] nvt_flash_proc_init 765: ============================================================
+[    9.932974,7] [NVT-ts] nvt_flash_proc_init 766: Create /proc/NVTflash
+[    9.932990,7] [NVT-ts] nvt_flash_proc_init 767: ============================================================
+[    9.933025,7] [NVT-ts] nvt_extra_proc_init 658: create proc/nvt_fw_version Succeeded!
+[    9.933059,7] [NVT-ts] nvt_extra_proc_init 666: create proc/nvt_baseline Succeeded!
+[    9.933090,7] [NVT-ts] nvt_extra_proc_init 674: create proc/nvt_raw Succeeded!
+[    9.933122,7] [NVT-ts] nvt_extra_proc_init 682: create proc/nvt_diff Succeeded!
+[    9.933152,7] [NVT-ts] nvt_fw_class_init 1182: assigned minor 98
+[    9.933909,7] [NVT-ts] nvt_fw_class_init 1209: create /sys/class/touchscreen/NVT-ts Succeeded!
+[    9.934204,7] [NVT-ts] nvt_mp_proc_init 1899: Not found novatek,mp-support-dt, use default setting
+[    9.934221,7] [NVT-ts] nvt_mp_proc_init 1902: create /proc/nvt_selftest Succeeded!
+[    9.934251,7] [NVT-ts] nvt_mp_proc_init 1913: create /proc/nvt_read_data Succeeded!
+[    9.934270,7] [NVT-ts] nvt_ts_probe 1504: end
+[    9.934510,7] nvt_driver_init: finished
+[    9.944644,7] input: hbtp_vm as /devices/virtual/input/input2
+[    9.948183,7] SX9310 sx9310_probe()
+[    9.948285,7] SX9310 read dtsi 0x13:0x0f set reg
+[    9.948298,7] SX9310 read dtsi 0x15:0xc3 set reg
+[    9.948310,7] SX9310 read dtsi 0x17:0x4e set reg
+[    9.948322,7] SX9310 read dtsi 0x18:0x79 set reg
+[    9.948334,7] SX9310 read dtsi 0x19:0x79 set reg
+[    9.948347,7] SX9310 read dtsi 0x1a:0x15 set reg
+[    9.948359,7] SX9310 read dtsi 0x21:0x1a set reg
+[    9.948371,7] SX9310 read dtsi 0x23:0x20 set reg
+[    9.949081,7] SX9310 cap_vdd regulator is on
+[    9.949565,7] SX9310 cap_svdd regulator is on
+[    9.950113,7] SX9310 sx9310 read_register for 0 time Addr:					0x42 Return: 0x1
+[    9.950127,7] SX9310 sx9310 detect success !
+[    9.950142,7] SX9310 	 Initialized Main Memory: 0xffffffe1b3f28200
+[    9.950164,7] SX9310 	 Initialized Device Specific Memory: 0xffffffe1b606ed00
+[    9.951075,7] input: SX9310 Cap Touch top as /devices/virtual/input/input3
+[    9.952549,7] input: SX9310 Cap Touch bottom as /devices/virtual/input/input4
+[    9.953327,7] sensors_classdev_register,capsense_top
+[    9.954203,7] Registered sensors device: capsense_top,ret = 0
+[    9.954216,7] sensors_classdev_register,capsense_bottom
+[    9.955017,7] Registered sensors device: capsense_bottom,ret = 0
+[    9.955642,7] SX9310 registered with threaded irq (257)
+[    9.955963,7] SX9310 Software Reset. Waiting device back to continue.
+[   10.256763,7] SX9310 Device back from the reset, continuing. NIRQ = 1
+[   10.256777,7] SX9310 Going to Setup I2C Registers
+[   10.367502,7] SX9310 Exiting initialize(). NIRQ = 0
+[   10.368849,7] ets_init  enter
+[   10.377270,7] etspi_probe initial
+[   10.377431,7] etspi_parse_dt: sleepPin=20
+[   10.377490,7] etspi_parse_dt: drdyPin=72
+[   10.377547,7] etspi_parse_dt: 3.3v power pin=61
+[   10.377601,7] etspi_parse_dt: 18v power pin=12
+[   10.377613,7] etspi_parse_dt is successful
+[   10.377629,7] etspi_platformInit
+[   10.377706,7] etspi:  vdd_18v_Pin set to high
+[   10.378777,7] etspi:  vcc_33v_Pin set to high
+[   10.380838,7] etspi:  reset to high
+[   10.380896,7] ets320: etspi_platformInit successful status=0
+[   10.381557,7] Egis navigation driver, egis_input device init
+[   10.383127,7] Egis navigation driver, uinput_egis_init
+[   10.383676,0] nav_input_thread enter
+[   10.384413,7] input: uinput-egis as /devices/virtual/input/input5
+[   10.385093,7] etspi:etspi_reset
+[   10.440104,7]   add_timer ---- 
+[   10.440121,7] etspi_probe : initialize success 0
+[   10.440707,7] ets_init  done
+[   10.443384,7] FPS interrupt count = 0
+[   10.443395,7] FPS triggered !!!!!!!
+[   10.448761,7] qcom,qpnp-rtc 800f000.qcom,spmi:qcom,pm660@0:qcom,pm660_rtc: rtc core: registered qpnp_rtc as rtc0
+[   10.448827,7] Current shipmode info is 0x88e = 0x1
+[   10.448841,7] qcom,qpnp-rtc 800f000.qcom,spmi:qcom,pm660@0:qcom,pm660_rtc: Disable Shipmode alarm
+[   10.448917,7] Current shipmode info1 is 0x88e = 0x1
+[   10.448960,7] Write shipmode info1 to 0x88e with 0x0
+[   10.453414,7] i2c /dev entries driver
+[   10.459626,7] iommu: Adding device soc:qcom,cam_smmu:msm_cam_smmu_cb1 to group 10
+[   10.461483,7] CAM-SMMU cam_smmu_populate_sids:2331 __debug cnt = 8, cb->name: :vfe sid [0] = 3072
+[   10.461483,7] ,
+[   10.461505,7] CAM-SMMU cam_smmu_populate_sids:2331 __debug cnt = 8, cb->name: :vfe sid [1] = 3073
+[   10.461505,7] ,CAM-SMMU cam_smmu_populate_sids:2331 __debug cnt = 8, cb->name: :vfe sid [2] = 3074
+[   10.461527,7] ,
+[   10.461545,7] CAM-SMMU cam_smmu_populate_sids:2331 __debug cnt = 8, cb->name: :vfe sid [3] = 3075
+[   10.461545,7] ,<6>[   10.462558,7] iommu: Adding device soc:qcom,cam_smmu:msm_cam_smmu_cb2 to group 11
+[   10.464274,7] CAM-SMMU cam_smmu_populate_sids:2331 __debug cnt = 2, cb->name: :cpp sid [0] = 2560
+[   10.464274,7] ,
+[   10.465143,7] iommu: Adding device soc:qcom,cam_smmu:msm_cam_smmu_cb4 to group 12
+[   10.466766,7] CAM-SMMU cam_smmu_populate_sids:2331 __debug cnt = 2, cb->name: :jpeg_enc0 sid [0] = 2048
+[   10.466766,7] ,
+[   10.467689,7] iommu: Adding device soc:qcom,cam_smmu:msm_cam_smmu_cb5 to group 13
+[   10.469389,7] CAM-SMMU cam_smmu_populate_sids:2331 __debug cnt = 2, cb->name: :jpeg_dma sid [0] = 2049
+[   10.469389,7] ,
+[   10.562798,7] msm_actuator_platform_probe:2077 msm_actuator_platform_probe: No/Error Actuator GPIOs
+[   10.563817,7] msm_actuator_platform_probe:2077 msm_actuator_platform_probe: No/Error Actuator GPIOs
+[   10.564789,7] msm_actuator_platform_probe:2077 msm_actuator_platform_probe: No/Error Actuator GPIOs
+[   10.573628,7] msm_eeprom_platform_probe qcom,i2c-freq-mode read fail. Setting to 0 -22
+[   10.608374,7] msm_cci_init:1443: hw_version = 0x10060000
+[   11.245497,0] msm_eeprom_platform_probe qcom,i2c-freq-mode read fail. Setting to 0 -22
+[   11.293134,0] msm_cci_init:1443: hw_version = 0x10060000
+[   11.581831,0] msm_eeprom_platform_probe qcom,i2c-freq-mode read fail. Setting to 0 -22
+[   11.629163,0] msm_cci_init:1443: hw_version = 0x10060000
+[   11.629762,0] msm_cci_irq:1807 MASTER_1 error 0x40000000
+[   11.629881,0] msm_cci_i2c_read:960 read_words = 0, exp words = 4
+[   11.629913,0] msm_cci_i2c_read_bytes:1043 failed rc -22
+[   11.629963,0] read_eeprom_memory: read failed
+[   11.629987,0] msm_eeprom_platform_probe read_eeprom_memory failed
+[   11.674626,0] qcom,eeprom: probe of ca0c000.qcom,cci:qcom,eeprom@2 failed with error -22
+[   11.679230,0] msm_eeprom_platform_probe qcom,i2c-freq-mode read fail. Setting to 0 -22
+[   11.725882,0] msm_cci_init:1443: hw_version = 0x10060000
+[   11.745098,0] msm_camera_cci_i2c_poll:425 poll failed rc=1(non-fatal)
+[   11.799037,4] IPC_RTR: msm_ipc_router_smd_driver_register Already driver registered IPCRTR
+[   11.799074,4] IPC_RTR: msm_ipc_router_smd_driver_register Already driver registered IPCRTR
+[   11.818309,4] msm_camera_get_dt_vreg_data:1127 number of entries is 0 or not present in dts
+[   11.820557,4] msm_camera_get_dt_vreg_data:1127 number of entries is 0 or not present in dts
+[   11.821802,4] qcom,camera-flash soc:qcom,camera-flash@1: Led torch-light0 renamed to torch-light0_1 due to name collision
+[   11.858800,4] MSM-CPP cpp_probe:4619 cpp_probe register cx_ipeak received bit 1
+[   11.865451,4] MSM-CPP cpp_init_hardware:1141 CPP HW Version: 0x60010002
+[   11.865505,4] MSM-CPP cpp_init_hardware:1159 stream_cnt:0
+[   11.866736,4] MSM-CPP cpp_release_hardware:1222 cpp hw release done
+[   11.872915,4] CAM-SOC msm_camera_get_reg_base:864 err: mem resource vfe_fuse not found
+[   11.872935,4] CAM-SOC msm_camera_get_res_size:907 err: mem resource vfe_fuse not found
+[   11.881106,4] CAM-SOC msm_camera_get_reg_base:864 err: mem resource vfe_fuse not found
+[   11.881126,4] CAM-SOC msm_camera_get_res_size:907 err: mem resource vfe_fuse not found
+[   11.925704,4] __msm_jpeg_init:1577] Jpeg Device id 0
+[   11.970688,4] iommu: Adding device cc00000.qcom,vidc:non_secure_cb to group 14
+[   11.976661,4] iommu: Adding device cc00000.qcom,vidc:firmware_cb to group 15
+[   11.979772,4] iommu: Adding device cc00000.qcom,vidc:secure_bitstream_cb to group 16
+[   11.984844,4] iommu: Adding device cc00000.qcom,vidc:secure_pixel_cb to group 17
+[   11.989248,4] iommu: Adding device cc00000.qcom,vidc:secure_non_pixel_cb to group 18
+[   12.013963,4] sde_smmu_callback: <SDEROT_INFO> sde_smmu_callback registered domain: 1
+[   12.013983,4] sde_smmu_callback: <SDEROT_INFO> sde_smmu_callback registered domain: 0
+[   12.021333,4] No change in context(0==0), skip
+[   12.025182,4] sde_rotator_evtlog_create_debugfs: evtlog_status: enable:1, panic:1, dump:2
+[   12.025484,4] sde_rotator c900000.qcom,mdss_rotator: <SDEROT_INFO> SDE v4l2 rotator probe success
+[   12.032001,4] usbcore: registered new interface driver uvcvideo
+[   12.032015,4] USB Video Class driver (1.1.1)
+[   12.048064,4] Error getting the pd phandle -517
+[   12.049388,4] ODEBUG: assert_init not available (active state 0) object type: timer_list hint: stub_timer+0x0/0x1c
+[   12.049419,4] ------------[ cut here ]------------
+[   12.049428,4] WARNING: at /home/nishant/code/chef-cyclo/kernel/lib/debugobjects.c:265
+[   12.049435,4] Modules linked in:
+[   12.049448,4] 
+[   12.049460,4] CPU: 4 PID: 1 Comm: swapper/0 Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[   12.049468,4] Hardware name: chef (DT)
+[   12.049475,4] task: ffffffe1b7298000 task.stack: ffffffe1b72a0000
+[   12.049488,4] PC is at debug_print_object+0x8c/0xb0
+[   12.049494,4] LR is at debug_print_object+0x8c/0xb0
+[   12.049501,4] pc : [<ffffff8f977e9390>] lr : [<ffffff8f977e9390>] pstate: 60400085
+[   12.049507,4] sp : ffffffe1b72a37e0
+[   12.049514,4] x29: ffffffe1b72a37e0 x28: ffffff8f99dc1b98 
+[   12.049529,4] x27: ffffffe133e17a38 x26: ffffffe1b3ea7800 
+[   12.049544,4] x25: 0000000000000080 x24: ffffff8f9a114918 
+[   12.049558,4] x23: ffffff8f99ca2208 x22: ffffff8f99ca2208 
+[   12.049573,4] x21: ffffff8f9a0aa000 x20: ffffff8f99c7e000 
+[   12.049587,4] x19: ffffffe1b72a3880 x18: 0000000000000060 
+[   12.049602,4] x17: 0000000000000007 x16: 000000000000000e 
+[   12.049617,4] x15: 0000000000000000 x14: 696c5f72656d6974 
+[   12.049631,4] x13: 203a657079742074 x12: 63656a626f202930 
+[   12.049646,4] x11: 2065746174732065 x10: 7669746361282065 
+[   12.049660,4] x9 : 00000052249ce000 x8 : ffffff8f99c7e320 
+[   12.049675,4] x7 : ffffff8f97519ae4 x6 : ffffffe1bdac6050 
+[   12.049689,4] x5 : ffffffe1b72a3630 x4 : ffffffe1b72a36e0 
+[   12.049704,4] x3 : 0000000000000000 x2 : 54a8a266adc1ed90 
+[   12.049718,4] x1 : 54a8a266adc1ed90 x0 : 0000000000000064 
+[   12.049735,4] 
+[   12.049735,4] PC: 0xffffff8f977e9350:
+[   12.049742,4] 9350  f9001fa1 d63f0040 aa0003e5 f9401fa1 b00070c2 b94bb2a0 b9401263 9133e042
+[   12.049790,4] 9370  11000400 f94002c4 b90bb2a0 b000a380 f8637842 91066800 b9401663 97f7024f
+[   12.049838,4] 9390  d4210000 91192294 a9425bf5 b9401280 11000400 b9001280 a94153f3 a8c47bfd
+[   12.049885,4] 93b0  d65f03c0 a9bc7bfd 910003fd a90153f3 b0012793 f9001bf7 911d4260 a9025bf5
+[   12.049933,4] 
+[   12.049933,4] LR: 0xffffff8f977e9350:
+[   12.049940,4] 9350  f9001fa1 d63f0040 aa0003e5 f9401fa1 b00070c2 b94bb2a0 b9401263 9133e042
+[   12.049987,4] 9370  11000400 f94002c4 b90bb2a0 b000a380 f8637842 91066800 b9401663 97f7024f
+[   12.050034,4] 9390  d4210000 91192294 a9425bf5 b9401280 11000400 b9001280 a94153f3 a8c47bfd
+[   12.050081,4] 93b0  d65f03c0 a9bc7bfd 910003fd a90153f3 b0012793 f9001bf7 911d4260 a9025bf5
+[   12.050129,4] 
+[   12.050129,4] SP: 0xffffffe1b72a37a0:
+[   12.050136,4] 37a0  977e9390 ffffff8f b72a37e0 ffffffe1 977e9390 ffffff8f 60400085 00000000
+[   12.050183,4] 37c0  98c2f903 ffffff8f 9752df50 ffffff8f ffffffff ffffffff 977e99c0 ffffff8f
+[   12.050230,4] 37e0  b72a3820 ffffffe1 977ea044 ffffff8f 00069d40 00000000 9a0aabd0 ffffff8f
+[   12.050277,4] 3800  99c7c000 ffffff8f b3ea69b8 ffffffe1 b72a3820 ffffffe1 98c5a304 ffffff8f
+[   12.050325,4] 
+[   12.050333,4] ---[ end trace 8fd55b6e1ca7dc2b ]---
+[   12.050341,4] Call trace:
+[   12.050351,4] Exception stack(0xffffffe1b72a35e0 to 0xffffffe1b72a3710)
+[   12.050370,4] 35e0: ffffffe1b72a3880 0000008000000000 0000000083239000 ffffff8f977e9390
+[   12.050389,4] 3600: 0000000060400085 000000000000003d 0000000000000080 ffffffe1b3ea7800
+[   12.050408,4] 3620: ffffffe100000004 ffffff8f9748e1d8 ffffffe1b72a36e0 ffffff8f97519ae4
+[   12.050427,4] 3640: ffffff8f99c7c000 ffffff8f97519a9c ffffff8f98c5a19a ffffff8f99ca2208
+[   12.050447,4] 3660: ffffff8f99ca2208 ffffff8f9a114918 0000000000000080 ffffffe1b3ea7800
+[   12.050466,4] 3680: ffffffe133e17a38 ffffff8f99dc1b98 0000000000000001 ffffff8f975a9d4c
+[   12.050485,4] 36a0: ffffff8f990f4000 54a8a266adc1ed90 0000000000000064 54a8a266adc1ed90
+[   12.050505,4] 36c0: 54a8a266adc1ed90 0000000000000000 ffffffe1b72a36e0 ffffffe1b72a3630
+[   12.050524,4] 36e0: ffffffe1bdac6050 ffffff8f97519ae4 ffffff8f99c7e320 00000052249ce000
+[   12.050537,4] 3700: 7669746361282065 2065746174732065
+[   12.050545,4] [<ffffff8f977e9390>] debug_print_object+0x8c/0xb0
+[   12.050554,4] [<ffffff8f977ea044>] debug_object_assert_init+0xd4/0x110
+[   12.050562,4] [<ffffff8f9752f8d4>] del_timer+0x3c/0x9c
+[   12.050573,4] [<ffffff8f974c6cf8>] try_to_grab_pending+0x5c/0x1a8
+[   12.050580,4] [<ffffff8f974c77d4>] __cancel_work_timer+0x54/0x1d8
+[   12.050587,4] [<ffffff8f974c7a54>] cancel_delayed_work_sync+0x24/0x30
+[   12.050601,4] [<ffffff8f97ed2b40>] pl_disable_vote_callback+0x4c/0x304
+[   12.050609,4] [<ffffff8f97ed8c2c>] vote+0x324/0x368
+[   12.050616,4] [<ffffff8f97ed3558>] qcom_batt_init+0x160/0x46c
+[   12.050626,4] [<ffffff8f97ef9158>] smblib_init+0x40c/0x908
+[   12.050635,4] [<ffffff8f97ee5194>] smb2_probe+0x790/0x19b8
+[   12.050646,4] [<ffffff8f97b132e4>] platform_drv_probe+0x60/0xac
+[   12.050655,4] [<ffffff8f97b10f80>] driver_probe_device+0x1a4/0x41c
+[   12.050663,4] [<ffffff8f97b1126c>] __driver_attach+0x74/0xa0
+[   12.050671,4] [<ffffff8f97b0fbec>] bus_for_each_dev+0x9c/0xcc
+[   12.050679,4] [<ffffff8f97b108a8>] driver_attach+0x2c/0x34
+[   12.050686,4] [<ffffff8f97b10378>] bus_add_driver+0x144/0x24c
+[   12.050693,4] [<ffffff8f97b11f9c>] driver_register+0x9c/0xe8
+[   12.050700,4] [<ffffff8f97b131e4>] __platform_driver_register+0x60/0x6c
+[   12.050709,4] [<ffffff8f98fa3180>] smb2_driver_init+0x18/0x20
+[   12.050719,4] [<ffffff8f97484224>] do_one_initcall+0x198/0x1b4
+[   12.050732,4] [<ffffff8f98f50e7c>] kernel_init_freeable+0x1b0/0x268
+[   12.050744,4] [<ffffff8f9859ffd0>] kernel_init+0x18/0x100
+[   12.050751,4] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[   12.050838,4] ODEBUG: assert_init not available (active state 0) object type: timer_list hint: stub_timer+0x0/0x1c
+[   12.050857,4] ------------[ cut here ]------------
+[   12.050864,4] WARNING: at /home/nishant/code/chef-cyclo/kernel/lib/debugobjects.c:265
+[   12.050870,4] Modules linked in:
+[   12.050881,4] 
+[   12.050890,4] CPU: 4 PID: 1 Comm: swapper/0 Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[   12.050897,4] Hardware name: chef (DT)
+[   12.050904,4] task: ffffffe1b7298000 task.stack: ffffffe1b72a0000
+[   12.050912,4] PC is at debug_print_object+0x8c/0xb0
+[   12.050918,4] LR is at debug_print_object+0x8c/0xb0
+[   12.050925,4] pc : [<ffffff8f977e9390>] lr : [<ffffff8f977e9390>] pstate: 60400085
+[   12.050931,4] sp : ffffffe1b72a37e0
+[   12.050938,4] x29: ffffffe1b72a37e0 x28: ffffff8f99dc1b98 
+[   12.050953,4] x27: ffffffe133e17a38 x26: ffffffe1b3ea7800 
+[   12.050968,4] x25: 0000000000000080 x24: ffffff8f9a114918 
+[   12.050983,4] x23: ffffff8f99ca2208 x22: ffffff8f99ca2208 
+[   12.050998,4] x21: ffffff8f9a0aa000 x20: ffffff8f99c7e000 
+[   12.051013,4] x19: ffffffe1b72a3880 x18: 0000000000000060 
+[   12.051028,4] x17: 0000000000000007 x16: 000000000000000e 
+[   12.051043,4] x15: 0000000000000000 x14: 696c5f72656d6974 
+[   12.051058,4] x13: 203a657079742074 x12: 63656a626f202930 
+[   12.051073,4] x11: 2065746174732065 x10: 7669746361282065 
+[   12.051088,4] x9 : 00000052249ce000 x8 : ffffff8f99c7e320 
+[   12.051103,4] x7 : ffffff8f97519ae4 x6 : ffffffe1bdac6050 
+[   12.051117,4] x5 : ffffffe1b72a3630 x4 : ffffffe1b72a36e0 
+[   12.051132,4] x3 : 0000000000000000 x2 : 54a8a266adc1ed90 
+[   12.051147,4] x1 : 54a8a266adc1ed90 x0 : 0000000000000064 
+[   12.051162,4] 
+[   12.051162,4] PC: 0xffffff8f977e9350:
+[   12.051169,4] 9350  f9001fa1 d63f0040 aa0003e5 f9401fa1 b00070c2 b94bb2a0 b9401263 9133e042
+[   12.051218,4] 9370  11000400 f94002c4 b90bb2a0 b000a380 f8637842 91066800 b9401663 97f7024f
+[   12.051267,4] 9390  d4210000 91192294 a9425bf5 b9401280 11000400 b9001280 a94153f3 a8c47bfd
+[   12.051316,4] 93b0  d65f03c0 a9bc7bfd 910003fd a90153f3 b0012793 f9001bf7 911d4260 a9025bf5
+[   12.051367,4] 
+[   12.051367,4] LR: 0xffffff8f977e9350:
+[   12.051374,4] 9350  f9001fa1 d63f0040 aa0003e5 f9401fa1 b00070c2 b94bb2a0 b9401263 9133e042
+[   12.051424,4] 9370  11000400 f94002c4 b90bb2a0 b000a380 f8637842 91066800 b9401663 97f7024f
+[   12.051473,4] 9390  d4210000 91192294 a9425bf5 b9401280 11000400 b9001280 a94153f3 a8c47bfd
+[   12.051523,4] 93b0  d65f03c0 a9bc7bfd 910003fd a90153f3 b0012793 f9001bf7 911d4260 a9025bf5
+[   12.051574,4] 
+[   12.051574,4] SP: 0xffffffe1b72a37a0:
+[   12.051580,4] 37a0  977e9390 ffffff8f b72a37e0 ffffffe1 977e9390 ffffff8f 60400085 00000000
+[   12.051630,4] 37c0  98c2f903 ffffff8f 9752df50 ffffff8f ffffffff ffffffff 977e99c0 ffffff8f
+[   12.051680,4] 37e0  b72a3820 ffffffe1 977ea044 ffffff8f 00069d40 00000000 9a0aabd0 ffffff8f
+[   12.051729,4] 3800  99c7c000 ffffff8f b3ea6958 ffffffe1 b72a3820 ffffffe1 98c5a304 ffffff8f
+[   12.051779,4] 
+[   12.051785,4] ---[ end trace 8fd55b6e1ca7dc2c ]---
+[   12.051792,4] Call trace:
+[   12.051799,4] Exception stack(0xffffffe1b72a35e0 to 0xffffffe1b72a3710)
+[   12.051819,4] 35e0: ffffffe1b72a3880 0000008000000000 0000000083239000 ffffff8f977e9390
+[   12.051838,4] 3600: 0000000060400085 000000000000003d 0000000000000080 ffffffe1b3ea7800
+[   12.051858,4] 3620: ffffffe100000004 ffffff8f9748e1d8 ffffffe1b72a36e0 ffffff8f97519ae4
+[   12.051878,4] 3640: ffffff8f99c7c000 ffffff8f97519a9c ffffff8f98c5a19a ffffff8f99ca2208
+[   12.051898,4] 3660: ffffff8f99ca2208 ffffff8f9a114918 0000000000000080 ffffffe1b3ea7800
+[   12.051918,4] 3680: ffffffe133e17a38 ffffff8f99dc1b98 0000000000000001 ffffff8f975a9d4c
+[   12.051938,4] 36a0: ffffff8f990f4000 54a8a266adc1ed90 0000000000000064 54a8a266adc1ed90
+[   12.051958,4] 36c0: 54a8a266adc1ed90 0000000000000000 ffffffe1b72a36e0 ffffffe1b72a3630
+[   12.051978,4] 36e0: ffffffe1bdac6050 ffffff8f97519ae4 ffffff8f99c7e320 00000052249ce000
+[   12.051991,4] 3700: 7669746361282065 2065746174732065
+[   12.051999,4] [<ffffff8f977e9390>] debug_print_object+0x8c/0xb0
+[   12.052007,4] [<ffffff8f977ea044>] debug_object_assert_init+0xd4/0x110
+[   12.052015,4] [<ffffff8f9752f8d4>] del_timer+0x3c/0x9c
+[   12.052022,4] [<ffffff8f974c6cf8>] try_to_grab_pending+0x5c/0x1a8
+[   12.052030,4] [<ffffff8f974c77d4>] __cancel_work_timer+0x54/0x1d8
+[   12.052038,4] [<ffffff8f974c7a54>] cancel_delayed_work_sync+0x24/0x30
+[   12.052047,4] [<ffffff8f97ed2d20>] pl_disable_vote_callback+0x22c/0x304
+[   12.052055,4] [<ffffff8f97ed8c2c>] vote+0x324/0x368
+[   12.052063,4] [<ffffff8f97ed3558>] qcom_batt_init+0x160/0x46c
+[   12.052071,4] [<ffffff8f97ef9158>] smblib_init+0x40c/0x908
+[   12.052079,4] [<ffffff8f97ee5194>] smb2_probe+0x790/0x19b8
+[   12.052087,4] [<ffffff8f97b132e4>] platform_drv_probe+0x60/0xac
+[   12.052095,4] [<ffffff8f97b10f80>] driver_probe_device+0x1a4/0x41c
+[   12.052102,4] [<ffffff8f97b1126c>] __driver_attach+0x74/0xa0
+[   12.052109,4] [<ffffff8f97b0fbec>] bus_for_each_dev+0x9c/0xcc
+[   12.052117,4] [<ffffff8f97b108a8>] driver_attach+0x2c/0x34
+[   12.052124,4] [<ffffff8f97b10378>] bus_add_driver+0x144/0x24c
+[   12.052132,4] [<ffffff8f97b11f9c>] driver_register+0x9c/0xe8
+[   12.052139,4] [<ffffff8f97b131e4>] __platform_driver_register+0x60/0x6c
+[   12.052147,4] [<ffffff8f98fa3180>] smb2_driver_init+0x18/0x20
+[   12.052155,4] [<ffffff8f97484224>] do_one_initcall+0x198/0x1b4
+[   12.052163,4] [<ffffff8f98f50e7c>] kernel_init_freeable+0x1b0/0x268
+[   12.052170,4] [<ffffff8f9859ffd0>] kernel_init+0x18/0x100
+[   12.052178,4] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[   12.055869,4] PMI: parse_mmi_dt: mmi temp zones: Num: 5
+[   12.055894,4] PMI: parse_mmi_dt: mmi temp zones: Zone 0, Temp 0 C, Step Volt 4200 mV, Full Rate 620 mA, Taper Rate 0 mA
+[   12.055917,4] PMI: parse_mmi_dt: mmi temp zones: Zone 1, Temp 10 C, Step Volt 4200 mV, Full Rate 1550 mA, Taper Rate 620 mA
+[   12.055938,4] PMI: parse_mmi_dt: mmi temp zones: Zone 2, Temp 15 C, Step Volt 0 mV, Full Rate 1550 mA, Taper Rate 1550 mA
+[   12.055959,4] PMI: parse_mmi_dt: mmi temp zones: Zone 3, Temp 45 C, Step Volt 4200 mV, Full Rate 3000 mA, Taper Rate 2000 mA
+[   12.055979,4] PMI: parse_mmi_dt: mmi temp zones: Zone 4, Temp 60 C, Step Volt 4200 mV, Full Rate 1550 mA, Taper Rate 0 mA
+[   12.056062,4] PMI: mmi_init: Error getting mmi dt items
+[   12.056087,4] PMI: parse_mmi_dt_gpio: No GPIOS defined.
+[   12.056106,4] PMI: mmi_init: IRQ for Warn doesn't exist
+[   12.061037,4] qcom,qpnp-smb2 800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2: Couldn't find bob regulator
+[   12.064565,4] hw init hvdcp force to 5v
+[   12.073437,4] thermal thermal_zone1: failed to read out thermal zone (-19)
+[   12.074192,4] SX9310 ps notification: event = 0
+[   12.074225,4] SX9310 usb is present
+[   12.075042,4] PMI: smblib_check_ov_condition: Couldn't get current voltage, rc=-61
+[   12.075917,4] SX9310 ps notification: event = 0
+[   12.075948,4] SX9310 usb is present
+[   12.075960,4] SX9310 ps present state not change
+[   12.077252,4] PMI: mmi_chrg_rate_check: Normal Charger Detected
+[   12.102005,5] QPNP SMB2 probed successfully usb:present=1 type=0 batt:present = 1 health = 0 charge = 1
+[   12.102332,4] SX9310 ps notification: event = 1
+[   12.102363,4] SX9310 usb is present
+[   12.103953,4] SX9310 ps notification: event = 0
+[   12.103983,4] SX9310 usb is present
+[   12.103995,4] SX9310 ps present state not change
+[   12.105078,4] PMI: mmi_heartbeat_work: Error getting Batt Voltage rc = -22
+[   12.122441,5] qpnp_vadc_read: Error reading vadc_hc channel 78
+[   12.122471,5] thermal thermal_zone2: failed to read out thermal zone (-517)
+[   12.123913,5] qpnp_vadc_read: Error reading vadc_hc channel 79
+[   12.123934,5] thermal thermal_zone3: failed to read out thermal zone (-517)
+[   12.132805,5] generic-adc-thermal soc:typec-temp-sensor: Lookup table is not provided
+[   12.132826,5] generic-adc-thermal soc:typec-temp-sensor: lookup table not defined, continuing: -22
+[   12.132929,5] generic-adc-thermal soc:typec-temp-sensor: IIO channel not found: -517
+[   12.207305,5] msm_lmh_dcvs:lmh_activate_trip lmh_activate_trip: disable not supported
+[   12.211063,5] msm_lmh_dcvs:lmh_activate_trip lmh_activate_trip: disable not supported
+[   12.222247,5] md: linear personality registered for level -1
+[   12.223272,5] device-mapper: uevent: version 1.0.3
+[   12.225149,5] device-mapper: ioctl: 4.34.0-ioctl (2015-10-28) initialised: dm-devel@redhat.com
+[   12.225657,5] device-mapper: req-crypt: dm-req-crypt successfully initalized.
+[   12.225657,5] 
+[   12.225805,5] Bluetooth: HCI UART driver ver 2.3
+[   12.225827,5] Bluetooth: HCI UART protocol H4 registered
+[   12.225840,5] Bluetooth: HCI UART protocol QCA registered
+[   12.230752,5] bt_power_populate_dt_pinfo: bt-reset-gpio not provided in device tree
+[   12.230909,5] bt_dt_parse_vreg_info: qca,bt-vdd-io: is not provided in device tree
+[   12.230926,5] bt_dt_parse_vreg_info: qca,bt-vdd-xtal: is not provided in device tree
+[   12.231075,5] bt_dt_parse_vreg_info: qca,bt-detune: is not provided in device tree
+[   12.234243,5] sdhci: Secure Digital Host Controller Interface driver
+[   12.234257,5] sdhci: Copyright(c) Pierre Ossman
+[   12.234281,5] sdhci-pltfm: SDHCI platform and OF driver helper
+[   12.242653,0] qcom_ice_get_pdevice: found ice device ffffffe1b412a800
+[   12.242679,0] qcom_ice_get_pdevice: matching platform device ffffffe1b5901000
+[   12.255707,4] qcom_ice c0c8000.sdcc1ice: QC ICE 3.0.72 device found @0xffffff800b7e0000
+[   12.257211,4] sdhci_msm c0c4000.sdhci: No vmmc regulator found
+[   12.257225,4] sdhci_msm c0c4000.sdhci: No vqmmc regulator found
+[   12.258293,5] ledtrig-cpu: registered to indicate activity on CPUs
+[   12.258587,4] mmc0: SDHCI controller on c0c4000.sdhci [c0c4000.sdhci] using 64-bit ADMA in CMDQ mode
+[   12.261658,5] hidraw: raw HID events driver (C) Jiri Kosina
+[   12.264605,5] usbcore: registered new interface driver usbhid
+[   12.264619,5] usbhid: USB HID core driver
+[   12.266210,5] ashmem: initialized
+[   12.270204,5] qpnp_coincell_charger_show_state: enabled=N, voltage=2500 mV, resistance=2100 ohm
+[   12.404023,3] mmc0: Out-of-interrupt timeout is 100[ms]
+[   12.404054,3] mmc0: eMMC FW version: 0x05
+[   12.404076,3] mmc0: CMDQ supported: depth: 16
+[   12.404098,3] mmc0: cache barrier support 0 flush policy 0
+[   12.419677,3] cmdq_host_alloc_tdl: desc_size: 1024 data_sz: 63488 slot-sz: 32
+[   12.421048,3] mmc0: CMDQ enabled on card
+[   12.421112,3] mmc0: new HS400 Enhanced strobe MMC card at address 0001
+[   12.425417,4] sdhci_msm_pm_qos_cpu_init (): voted for group #0 (mask=0xf) latency=-1
+[   12.425482,4] sdhci_msm_pm_qos_cpu_init (): voted for group #1 (mask=0xf0) latency=-1
+[   12.425975,4] mmcblk0: mmc0:0001 DH6DMB 58.2 GiB 
+[   12.427447,4] mmcblk0rpmb: mmc0:0001 DH6DMB partition 3 4.00 MiB
+[   12.434132,4]  mmcblk0: p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12 p13 p14 p15 p16 p17 p18 p19 p20 p21 p22 p23 p24 p25 p26 p27 p28 p29 p30 p31 p32 p33 p34 p35 p36 p37 p38 p39 p40 p41 p42 p43 p44 p45 p46 p47 p48 p49 p50 p51 p52 p53 p54 p55 p56 p57 p58 p59 p61 p62 p63 p64 p65 p66 p67 p68 p69
+[   12.532020,5] bimc-bwmon 1008000.qcom,cpu-bwmon: BW HWmon governor registered.
+[   12.537857,0] sdhci_msm c084000.sdhci: sdhci_msm_probe: ICE device is not enabled
+[   12.565145,4] sdhci_msm c084000.sdhci: No vmmc regulator found
+[   12.565162,4] sdhci_msm c084000.sdhci: No vqmmc regulator found
+[   12.566506,4] mmc1: SDHCI controller on c084000.sdhci [c084000.sdhci] using 64-bit ADMA in legacy mode
+[   12.601277,5] arm-memlat-mon soc:qcom,arm-memlat-mon-0: Memory Latency governor registered.
+[   12.601605,5] arm-memlat-mon soc:qcom,arm-memlat-mon-4: Memory Latency governor registered.
+[   12.617393,5] devfreq soc:qcom,cpubw: Couldn't update frequency transition information.
+[   12.619624,5] devfreq soc:qcom,mincpubw: Couldn't update frequency transition information.
+[   12.621890,5] devfreq soc:qcom,memlat-cpu0: Couldn't update frequency transition information.
+[   12.624121,5] devfreq soc:qcom,memlat-cpu4: Couldn't update frequency transition information.
+[   12.653562,5] hw perfevents: enabled with armv8_pmuv3 PMU driver, 7 counters available
+[   12.665219,5] usbcore: registered new interface driver snd-usb-audio
+[   12.689711,5] tas2560 2-004c: tas2560_i2c_probe enter
+[   12.690232,5] tas2560 2-004c: Looking up ti,ear-switch-gpio property in node /soc/i2c@c176000/tas2560@4c failed -22
+[   12.718435,5] tas2560 2-004c: tas2560_register_codec, enter
+[   12.719041,5] tas2560 2-004c: tas2560_register_misc, leave
+[   12.719281,5] TAS2560_ALGO:tas_calib_init
+[   12.745795,5] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   12.750526,2] PMI: mmi_heartbeat_work: Error getting Batt Voltage rc = -22
+[   12.932201,5] msm-dai-tdm soc:qcom,msm-dai-tdm-pri-rx: msm_dai_tdm_q6_probe: dev_name: soc:qcom,msm-dai-tdm-pri-rx group_id: 0x9100
+[   12.935302,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-pri-rx:qcom,msm-dai-q6-tdm-pri-rx-0: msm_dai_q6_tdm_dev_probe: dev_name: soc:qcom,msm-dai-tdm-pri-rx:qcom,msm-dai-q6-tdm-pri-rx-0 dev_id: 0x9000
+[   12.935355,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-pri-rx:qcom,msm-dai-q6-tdm-pri-rx-0: msm_dai_q6_tdm_dev_probe: Custom tdm header not supported
+[   12.935616,5] msm-dai-tdm soc:qcom,msm-dai-tdm-pri-tx: msm_dai_tdm_q6_probe: dev_name: soc:qcom,msm-dai-tdm-pri-tx group_id: 0x9101
+[   12.938564,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-pri-tx:qcom,msm-dai-q6-tdm-pri-tx-0: msm_dai_q6_tdm_dev_probe: dev_name: soc:qcom,msm-dai-tdm-pri-tx:qcom,msm-dai-q6-tdm-pri-tx-0 dev_id: 0x9001
+[   12.938615,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-pri-tx:qcom,msm-dai-q6-tdm-pri-tx-0: msm_dai_q6_tdm_dev_probe: Custom tdm header not supported
+[   12.938869,5] msm-dai-tdm soc:qcom,msm-dai-tdm-sec-rx: msm_dai_tdm_q6_probe: dev_name: soc:qcom,msm-dai-tdm-sec-rx group_id: 0x9110
+[   12.941775,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-sec-rx:qcom,msm-dai-q6-tdm-sec-rx-0: msm_dai_q6_tdm_dev_probe: dev_name: soc:qcom,msm-dai-tdm-sec-rx:qcom,msm-dai-q6-tdm-sec-rx-0 dev_id: 0x9010
+[   12.941825,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-sec-rx:qcom,msm-dai-q6-tdm-sec-rx-0: msm_dai_q6_tdm_dev_probe: Custom tdm header not supported
+[   12.942078,5] msm-dai-tdm soc:qcom,msm-dai-tdm-sec-tx: msm_dai_tdm_q6_probe: dev_name: soc:qcom,msm-dai-tdm-sec-tx group_id: 0x9111
+[   12.944946,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-sec-tx:qcom,msm-dai-q6-tdm-sec-tx-0: msm_dai_q6_tdm_dev_probe: dev_name: soc:qcom,msm-dai-tdm-sec-tx:qcom,msm-dai-q6-tdm-sec-tx-0 dev_id: 0x9011
+[   12.945028,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-sec-tx:qcom,msm-dai-q6-tdm-sec-tx-0: msm_dai_q6_tdm_dev_probe: Custom tdm header not supported
+[   12.945278,5] msm-dai-tdm soc:qcom,msm-dai-tdm-tert-rx: msm_dai_tdm_q6_probe: dev_name: soc:qcom,msm-dai-tdm-tert-rx group_id: 0x9120
+[   12.948178,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-tert-rx:qcom,msm-dai-q6-tdm-tert-rx-0: msm_dai_q6_tdm_dev_probe: dev_name: soc:qcom,msm-dai-tdm-tert-rx:qcom,msm-dai-q6-tdm-tert-rx-0 dev_id: 0x9020
+[   12.948229,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-tert-rx:qcom,msm-dai-q6-tdm-tert-rx-0: msm_dai_q6_tdm_dev_probe: Custom tdm header not supported
+[   12.948504,5] msm-dai-tdm soc:qcom,msm-dai-tdm-tert-tx: msm_dai_tdm_q6_probe: dev_name: soc:qcom,msm-dai-tdm-tert-tx group_id: 0x9121
+[   12.951374,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-tert-tx:qcom,msm-dai-q6-tdm-tert-tx-0: msm_dai_q6_tdm_dev_probe: dev_name: soc:qcom,msm-dai-tdm-tert-tx:qcom,msm-dai-q6-tdm-tert-tx-0 dev_id: 0x9021
+[   12.951424,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-tert-tx:qcom,msm-dai-q6-tdm-tert-tx-0: msm_dai_q6_tdm_dev_probe: Custom tdm header not supported
+[   12.951679,5] msm-dai-tdm soc:qcom,msm-dai-tdm-quat-rx: msm_dai_tdm_q6_probe: dev_name: soc:qcom,msm-dai-tdm-quat-rx group_id: 0x9130
+[   12.954566,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-quat-rx:qcom,msm-dai-q6-tdm-quat-rx-0: msm_dai_q6_tdm_dev_probe: dev_name: soc:qcom,msm-dai-tdm-quat-rx:qcom,msm-dai-q6-tdm-quat-rx-0 dev_id: 0x9030
+[   12.954616,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-quat-rx:qcom,msm-dai-q6-tdm-quat-rx-0: msm_dai_q6_tdm_dev_probe: Custom tdm header not supported
+[   12.954868,5] msm-dai-tdm soc:qcom,msm-dai-tdm-quat-tx: msm_dai_tdm_q6_probe: dev_name: soc:qcom,msm-dai-tdm-quat-tx group_id: 0x9131
+[   12.957752,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-quat-tx:qcom,msm-dai-q6-tdm-quat-tx-0: msm_dai_q6_tdm_dev_probe: dev_name: soc:qcom,msm-dai-tdm-quat-tx:qcom,msm-dai-q6-tdm-quat-tx-0 dev_id: 0x9031
+[   12.957803,5] msm-dai-q6-tdm soc:qcom,msm-dai-tdm-quat-tx:qcom,msm-dai-q6-tdm-quat-tx-0: msm_dai_q6_tdm_dev_probe: Custom tdm header not supported
+[   13.076245,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   13.087074,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   13.100191,5] TAS2560_ALGO:tas2560_algo_probe rx_port_id = 0x1004 tx_port_id = 0x1005
+[   13.102143,5] GACT probability NOT on
+[   13.102184,5] Mirror/redirect action on
+[   13.102262,5] u32 classifier
+[   13.102273,5]     Actions configured
+[   13.102362,5] Netfilter messages via NETLINK v0.30.
+[   13.102567,5] nf_conntrack version 0.5.0 (16384 buckets, 65536 max)
+[   13.104062,5] ctnetlink v0.93: registering with nfnetlink.
+[   13.107900,5] xt_time: kernel timezone is -0000
+[   13.108082,5] IPv4 over IPsec tunneling driver
+[   13.111242,5] ip_tables: (C) 2000-2006 Netfilter Core Team
+[   13.112423,5] arp_tables: (C) 2002 David S. Miller
+[   13.112939,5] Initializing XFRM netlink socket
+[   13.117285,5] NET: Registered protocol family 10
+[   13.121448,5] mip6: Mobile IPv6
+[   13.121552,5] ip6_tables: (C) 2000-2006 Netfilter Core Team
+[   13.125191,5] sit: IPv6 over IPv4 tunneling driver
+[   13.130197,5] NET: Registered protocol family 17
+[   13.130310,5] NET: Registered protocol family 15
+[   13.130480,5] bridge: automatic filtering via arp/ip/ip6tables has been deprecated. Update your scripts to load br_netfilter if you need this.
+[   13.130515,5] Ebtables v2.0 registered
+[   13.130744,5] l2tp_core: L2TP core driver, V2.0
+[   13.130801,5] l2tp_ppp: PPPoL2TP kernel driver, V2.0
+[   13.130822,5] l2tp_ip: L2TP IP encapsulation support (L2TPv3)
+[   13.130903,5] l2tp_netlink: L2TP netlink interface
+[   13.131053,5] l2tp_eth: L2TP ethernet pseudowire support (L2TPv3)
+[   13.131145,5] l2tp_debugfs: L2TP debugfs support
+[   13.131168,5] l2tp_ip6: L2TP IP encapsulation support for IPv6 (L2TPv3)
+[   13.131297,5] Key type dns_resolver registered
+[   13.137458,5] NET: Registered protocol family 27
+[   13.198882,5] subsys-pil-tz 15700000.qcom,lpass: for adsp segments only will be dumped.
+[   13.204736,5] pil-q6v5-mss 4080000.qcom,mss: No pas_id found.
+[   13.212028,5] msm-dwc3 a800000.ssusb: USB core frequency = 133333333
+[   13.212715,5] msm-dwc3 a800000.ssusb: setting lpm_to_suspend_delay to zero.
+[   13.214362,5] msm-dwc3 a800000.ssusb: missing TCSR memory resource
+[   13.227964,5] sps:BAM 0x000000000a904000 is registered.
+[   13.233299,5] Invalid index Defaulting curr to 0<3>[   13.247674,6] qpnp-pdphy 800f000.qcom,spmi:qcom,pm660@0:qcom,usb-pdphy@1700: GPIO info and name mismatch
+[   13.269007,6] thermal thermal_zone28: failed to read out thermal zone (-19)
+[   13.280290,6] FG: fg_gen3_probe: battery SOC:98 voltage: 4258045uV temp: 310 id: 0KOhms
+[   13.284464,6] generic-adc-thermal soc:typec-temp-sensor: Lookup table is not provided
+[   13.284484,6] generic-adc-thermal soc:typec-temp-sensor: lookup table not defined, continuing: -22
+[   13.285384,6] FG: fg_psy_get_property: unsupported property 4
+[   13.289309,6] FG: fg_get_time_to_full_locked: battery profile is not loaded
+[   13.436249,0] PMI: smblib_update_usb_type: APSD=SDP PD=0
+[   13.697019,6] FG: fg_get_mmi_battid: Battsn = SB18C29743
+[   13.697044,6] qcom,fg-gen3 800f000.qcom,spmi:qcom,pm660@0:qpnp,fg: Default Serial Number SB18C28956
+[   13.697111,6] qcom,fg-gen3 800f000.qcom,spmi:qcom,pm660@0:qpnp,fg: Battery Match Found using qcom,jk50_atl_india_5000mah
+[   13.816052,4] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   13.824218,4] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   13.835063,4] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   13.842276,4] msm-dwc3 a800000.ssusb: USB core frequency = 133333333
+[   13.842988,4] msm-dwc3 a800000.ssusb: setting lpm_to_suspend_delay to zero.
+[   13.844488,4] msm-dwc3 a800000.ssusb: missing TCSR memory resource
+[   13.857735,4] sps:BAM 0x000000000a904000 is registered.
+[   13.863432,4] msm-dwc3 a800000.ssusb: charger detection in progress
+[   13.865943,4] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   13.873878,4] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   13.884999,4] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   13.893312,5] EDAC DEVICE0: Giving out device to module soc:arm64-cpu-erp controller cache: DEV soc:arm64-cpu-erp (INTERRUPT)
+[   13.895326,5] ARM64 CPU ERP: Could not find <cci-irq> IRQ property. Proceeding anyway.
+[   13.895345,5] ARM64 CPU ERP: SBE detection is disabled.
+[   13.901344,5] Registered cp15_barrier emulation handler
+[   13.901394,5] Registered setend emulation handler
+[   13.901591,5] core_ctl: Creating CPU group 0
+[   13.901604,5] core_ctl: Init CPU0 state
+[   13.901616,5] core_ctl: Init CPU1 state
+[   13.901627,5] core_ctl: Init CPU2 state
+[   13.901637,5] core_ctl: Init CPU3 state
+[   13.902281,5] core_ctl: Creating CPU group 4
+[   13.902293,5] core_ctl: Init CPU4 state
+[   13.902305,5] core_ctl: Init CPU5 state
+[   13.902316,5] core_ctl: Init CPU6 state
+[   13.902328,5] core_ctl: Init CPU7 state
+[   13.905682,5] registered taskstats version 1
+[   13.905760,5] Loading compiled-in X.509 certificates
+[   13.906555,5] Loaded X.509 cert 'Android: 7e4333f9bba00adfe0ede979e28ed1920492b40f'
+[   13.906737,5] Loaded X.509 cert 'Motorola: MAP4 OTA 466-6-133: 1913'
+[   13.910140,0] kworker/u16:6 (535) used greatest stack depth: 12992 bytes left
+[   13.914371,5] Key type encrypted registered
+[   13.928169,5] spss_utils [spss_init]: spss-utils driver Ver 1.2 13-Jan-2017.
+[   13.937589,5] scm_call failed: func id 0x42001601, ret: -2, syscall returns: 0x0, 0x0, 0x0
+[   13.939549,5] fastrpc soc:qcom,msm-adsprpc-mem: for adsp_rh segments only will be dumped.
+[   13.940460,5] ADSPRPC: gcinfo[0].heap_vmid 33
+[   13.941279,5] iommu: Adding device soc:qcom,msm_fastrpc:qcom,msm_fastrpc_compute_cb1 to group 19
+[   13.946148,5] iommu: Adding device soc:qcom,msm_fastrpc:qcom,msm_fastrpc_compute_cb2 to group 20
+[   13.950913,5] iommu: Adding device soc:qcom,msm_fastrpc:qcom,msm_fastrpc_compute_cb3 to group 21
+[   13.955600,5] iommu: Adding device soc:qcom,msm_fastrpc:qcom,msm_fastrpc_compute_cb4 to group 22
+[   13.969337,1] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   13.979534,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   13.990332,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   13.999126,6] utags (utags_bootdevice_expand): path expanded to: /dev/block/platform/soc/c0c4000.sdhci/by-name/utags(52)
+[   13.999165,6] utags (utags_bootdevice_expand): path expanded to: /dev/block/platform/soc/c0c4000.sdhci/by-name/utagsBackup(58)
+[   14.000349,6] utags (utags_probe): Done [config]
+[   14.000622,6] utags (utags_bootdevice_expand): path expanded to: /dev/block/platform/soc/c0c4000.sdhci/by-name/hw(49)
+[   14.000639,6] utags (utags_dt_init): backup storage path not provided
+[   14.000670,6] utags (utags_bootdevice_expand): path expanded to: /dev/block/platform/soc/c0c4000.sdhci/by-name/hw(49)
+[   14.001933,6] utags (utags_probe): Done [hw]
+[   14.002644,5] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   14.011109,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   14.012267,5] RNDIS_IPA module is loaded.
+[   14.021608,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   14.023167,6] input: gpio-keys as /devices/soc/soc:gpio_keys/input/input6
+[   14.026139,6] qcom,qpnp-rtc 800f000.qcom,spmi:qcom,pm660@0:qcom,pm660_rtc: setting system clock to 1970-01-01 16:29:57 UTC (59397)
+[   14.027706,0] SX9310 ps notification: event = 0
+[   14.027750,0] SX9310 usb is present
+[   14.027771,0] SX9310 ps present state not change
+[   14.027843,0] usbpd usbpd0: Type-C Source (default) connected
+[   14.028099,5] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   14.028149,0] msm-dwc3 a800000.ssusb: vbus:1 event received
+[   14.028221,2] msm-dwc3 a800000.ssusb: dwc3_resume_work: dwc3 resume work
+[   14.028278,2] msm-dwc3 a800000.ssusb: XCVR: ID set
+[   14.028301,2] msm-dwc3 a800000.ssusb: XCVR: BSV set
+[   14.028324,2] msm-dwc3 a800000.ssusb: XCVR: SUSP clear
+[   14.028393,2] msm-dwc3 a800000.ssusb: undefined state
+[   14.028453,2] msm-dwc3 a800000.ssusb: b_sess_vld
+[   14.028490,2] msm-dwc3 a800000.ssusb: DWC3-msm runtime resume
+[   14.028523,2] msm-dwc3 a800000.ssusb: dwc3_msm_resume: exiting lpm
+[   14.028603,2] msm-dwc3 a800000.ssusb: dwc3_msm_resume: exit power collapse
+[   14.030427,2] msm-dwc3 a800000.ssusb: dwc3_msm_resume: exit power collapse
+[   14.031756,2] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_RESET_EVENT received
+[   14.031784,2] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_POST_RESET_EVENT received
+[   14.032575,2] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_RESET_EVENT received
+[   14.032602,2] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_POST_RESET_EVENT received
+[   14.032803,2] msm-dwc3 a800000.ssusb: DWC3 exited from low power mode
+[   14.032841,2] msm-dwc3 a800000.ssusb: dwc3_pwr_event_handler irq_stat=0
+[   14.032929,2] msm-dwc3 a800000.ssusb: dwc3_otg_start_peripheral: turn on gadget dwc3-gadget
+[   14.034341,2] msm_dwc3_perf_vote_update: latency updated to: 41
+[   14.034428,2] msm-dwc3 a800000.ssusb: peripheral state
+[   14.036871,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   14.039138,6] msm-core initialized without polling period
+[   14.047316,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   14.053769,5] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   14.062077,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   14.069550,6] lmh_lite:lmh_parse_sensor Registering sensor:[GLM_soc]
+[   14.071233,6] lmh_lite:lmh_parse_sensor Registering sensor:[LLM_cp1-]
+[   14.072747,6] lmh_lite:lmh_parse_sensor Registering sensor:[LLM_cp0-]
+[   14.072809,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   14.074994,6] soc:qcom,lmh supply vdd-apss not found, using dummy regulator
+[   14.075180,6] lmh_lite:lmh_get_sensor_devicetree Error getting ODCM thresh. err:-22
+[   14.079496,5] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   14.085979,6] calculate_residency: residency < 0 for LPM
+[   14.085996,6] parse_cpu_levels: idx 1 172
+[   14.086011,6] parse_cpu_levels: idx 2 1181
+[   14.086025,6] parse_cpu_levels: idx 2 2009
+[   14.086091,6] calculate_residency: residency < 0 for LPM
+[   14.087874,6] parse_cpu_levels: idx 1 191
+[   14.087889,6] parse_cpu_levels: idx 2 1109
+[   14.087902,6] parse_cpu_levels: idx 2 2410
+[   14.087915,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   14.088194,6] calculate_residency: residency < 0 for LPM
+[   14.098392,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   14.105013,5] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   14.113547,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   14.124044,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   14.126306,6] ipa-wan ipa_wwan_init:3286 Registering for q6_cleanup_cb
+[   14.126336,6] ipa register_ipa_platform_cb:2210 In register_ipa_platform_cb
+[   14.126356,6] ipa register_ipa_platform_cb:2213 reg q6_cleanup_cb
+[   14.128152,6] rmnet_ipa started initialization
+[   14.128171,6] IPA SSR support = True
+[   14.128188,6] IPA ipa-loaduC = True
+[   14.128204,6] IPA SG support = True
+[   14.128220,6] IPA Napi Enable = False
+[   14.128237,6] using default for wan-rx-desc-size = 1024
+[   14.130711,5] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   14.139467,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   14.140118,4] ipa ipa_sps_irq_control_all:963 EP (5) not allocated.
+[   14.140144,4] ipa ipa2_uc_state_check:301 uC is not loaded
+[   14.142057,4] rmnet_ipa completed initialization
+[   14.150199,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   14.157132,5] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[   14.165834,5] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[   14.176456,5] sdm660-asoc-snd soc:sound: ASoC: platform (null) not registered
+[   14.240581,6] PMI: set_sdp_current: ICL 25000uA isn't supported for SDP
+[   14.240607,6] PMI: smblib_set_icl_current: Couldn't set SDP ICL rc=-22
+[   14.240794,6] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[   14.240814,6] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[   14.240857,6] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[   14.277059,4] gfx_mem_acc_corner: disabling
+[   14.277121,4] apc0_pwrcl_corner: disabling
+[   14.277144,4] apc1_perfcl_corner: disabling
+[   14.277168,4] cam_avdd_gpio_regulator: disabling
+[   14.277190,4] cam_actuator_regulator: disabling
+[   14.277211,4] cam_dvdd_gpio_regulator: disabling
+[   14.277232,4] cam_rear_dvdd_gpio_regulator: disabling
+[   14.277254,4] cam_front_avdd_gpio_regulator: disabling
+[   14.277275,4] cam_front_dvdd_gpio_regulator: disabling
+[   14.277296,4] cam_aux_avdd_gpio_regulator: disabling
+[   14.277317,4] cam_aux_dvdd_gpio_regulator: disabling
+[   14.277439,4] gdsc_venus: disabling
+[   14.277705,4] regulator_proxy_consumer_remove_all: removing regulator proxy consumer requests
+[   14.284897,4] ALSA device list:
+[   14.284911,4]   No soundcards found.
+[   14.285140,4] Warning: unable to open an initial console.
+[   14.326438,4] Freeing unused kernel memory: 13440K
+[   14.420866,2] mkdir (580) used greatest stack depth: 11408 bytes left
+[   14.485768,1] cyclo-init: starting (4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty)
+[   14.542549,1] using random self ethernet address
+[   14.542627,1] using random host ethernet address
+[   14.545624,1] Gadget function do not bind yet.
+[   14.546351,1] Gadget function do not bind yet.
+[   14.588596,1] usb0: HOST MAC ce:7b:ec:b1:c3:84
+[   14.588916,1] usb0: MAC c6:8b:67:45:e2:9e
+[   14.589088,1] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_NOTIFY_OTG_EVENT received
+[   14.589922,1] cyclo-init: gadget bound to a800000.dwc3
+[   14.607706,0] IPv6: ADDRCONF(NETDEV_UP): usb0: link is not ready
+[   14.642986,0] cyclo-init: usb0 up, 172.16.42.1/24
+[   14.733745,6] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[   14.733771,6] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[   14.733820,6] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[   14.933132,0] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_NOTIFY_OTG_EVENT received
+[   14.933153,0] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_SET_CURRENT_DRAW_EVENT received
+[   14.933249,0] msm-dwc3 a800000.ssusb: Avail curr from USB = 100
+[   14.933503,0] PMI: set_sdp_current: ICL 25000uA isn't supported for SDP
+[   14.933538,0] PMI: smblib_set_icl_current: Couldn't set SDP ICL rc=-22
+[   14.943533,0] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_CONNDONE_EVENT received
+[   14.954227,0] cyclo-init: exec init
+[   14.986667,1] cyclo-bt: enabling WCN3990 power rails
+[   14.993518,0] bt_ioctl: BT_CMD_PWR_CTRL pwr_cntrl:1
+[   15.001317,0] android_work: sent uevent USB_STATE=CONNECTED
+[   15.019345,0] sps:BAM 0x000000000c184000 (va:0xffffff800b2a0000) enabled: ver:0x19, number of pipes:12
+[   15.035695,0] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_NOTIFY_OTG_EVENT received
+[   15.035716,0] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_SET_CURRENT_DRAW_EVENT received
+[   15.035925,0] android_work: sent uevent USB_STATE=DISCONNECTED
+[   15.042559,0] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_CONNDONE_EVENT received
+[   15.112301,0] android_work: sent uevent USB_STATE=CONNECTED
+[   15.149288,0] configfs-gadget gadget: high-speed config #1: c
+[   15.149339,0] msm-dwc3 a800000.ssusb: DWC3_CONTROLLER_SET_CURRENT_DRAW_EVENT received
+[   15.149455,0] msm-dwc3 a800000.ssusb: Avail curr from USB = 500
+[   15.149654,0] PMI: set_sdp_current: ICL 25000uA isn't supported for SDP
+[   15.149688,0] PMI: smblib_set_icl_current: Couldn't set SDP ICL rc=-22
+[   15.150212,0] android_work: sent uevent USB_STATE=CONFIGURED
+[   15.153601,0] msm-dwc3 a800000.ssusb: msm_dwc3_pwr_irq received
+[   15.153615,0] msm-dwc3 a800000.ssusb: dwc3_pwr_event_handler irq_stat=40004
+[   15.153625,0] msm-dwc3 a800000.ssusb: dwc3_pwr_event_handler: unexpected PWR_EVNT, irq_stat=40000
+[   15.164642,0] IPv6: ADDRCONF(NETDEV_CHANGE): usb0: link becomes ready
+[   15.263479,0] cyclo-bt: attaching /dev/ttyHS0 as hci_uart/qca
+[   15.280812,0] Bluetooth: hci0: setting up wcn3990
+[   15.287296,0] Bluetooth: hci0: QCA Product:0x0000000a Patch:0x0001 ROM:0x0201 SOC:0x40020140
+[   15.287475,0] Bluetooth: hci0: Set UART speed to 3200000
+[   15.317470,0] Bluetooth: hci0: QCA controller version 0x01400201
+[   15.317494,0] Bluetooth: hci0: QCA Downloading qca/crbtfw21.tlv
+[   16.040136,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:117
+[   16.040232,2] msm_dwc3_perf_vote_update: latency updated to: -1
+[   16.057049,6] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[   16.057073,6] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[   16.057122,6] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[   16.340126,0] Bluetooth: hci0: QCA Downloading qca/crnv21.bin
+[   16.377289,0] Bluetooth: hci0: QCA setup on UART is completed
+[   16.950614,0] cyclo-bt: hci0 public address set to 30:4B:07:6F:0D:75
+[   17.380377,6] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[   17.380403,6] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[   17.380451,6] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[   18.046813,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:41
+[   18.703714,6] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[   18.703740,6] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[   18.703789,6] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[   19.029960,0] SX9310 ps notification: event = 0
+[   19.030005,0] SX9310 usb is present
+[   19.030161,0] SX9310 ps present state not change
+[   19.350748,0] SX9310 ps notification: event = 0
+[   19.350790,0] SX9310 usb is present
+[   19.350810,0] SX9310 ps present state not change
+[   20.027021,6] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[   20.027042,6] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[   20.027086,6] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[   20.053474,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:78
+[   20.217489,0] SX9310 ps notification: event = 0
+[   20.217532,0] SX9310 usb is present
+[   20.217553,0] SX9310 ps present state not change
+[   20.537421,0] SX9310 ps notification: event = 0
+[   20.537463,0] SX9310 usb is present
+[   20.537484,0] SX9310 ps present state not change
+[   21.404995,0] SX9310 ps notification: event = 0
+[   21.405037,0] SX9310 usb is present
+[   21.405058,0] SX9310 ps present state not change
+[   21.724083,0] SX9310 ps notification: event = 0
+[   21.724126,0] SX9310 usb is present
+[   21.724147,0] SX9310 ps present state not change
+[   22.060124,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:10
+[   22.592244,0] PMI: smblib_update_usb_type: APSD=SDP PD=0
+[   22.592872,0] SX9310 ps notification: event = 0
+[   22.592914,0] SX9310 usb is present
+[   22.592934,0] SX9310 ps present state not change
+[   24.066793,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   26.073472,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[   28.080126,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   30.086793,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   32.093471,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[   34.100132,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[   36.106789,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   37.113873,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[   37.113907,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[   37.113987,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[   38.113452,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   40.120125,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   42.126789,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   44.133448,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:4
+[   46.140143,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:133
+[   48.146796,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   50.153448,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[   52.160116,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   54.166789,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   56.173456,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   58.180115,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   60.186787,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   62.193444,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   64.200119,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   66.206783,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   67.734739,5] [NVT-ts] nvt_fw_version_open 431: ++
+[   67.736549,5] [NVT-ts] nvt_read_pid 556: PID=3AD9
+[   67.736569,5] [NVT-ts] nvt_fw_version_open 442: --
+[   68.213464,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:286
+[   70.220120,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   72.226785,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   74.233446,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   76.240114,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   78.246781,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   80.253458,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   82.260109,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   84.266762,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   86.273434,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   87.242094,4] fbtouch: show: opening /dev/fb0
+[   87.242909,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   87.366664,2] mdss_mdp_cxipeak_vote: cxipeak api fail ret:-22 set_vote :0 new_rate:171428571 prev_rate:412500000
+[   87.367078,2] mdss_dsi_on[0]+.
+[   87.367097,2] mdss_dsi_on[0]-.
+[   87.371672,2] mdss_dsi_post_panel_on[0]-.
+[   87.548701,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[   87.549668,4] fbtouch: backlight 128 (readback 128)
+[   88.280117,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:60
+[   89.593875,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[   89.593909,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[   89.593990,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[   90.286771,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   92.293445,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:28
+[   94.300105,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   96.306772,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   98.313438,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  100.320107,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  102.326769,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  104.333442,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  106.340099,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  108.346772,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  110.353558,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  111.126131,0] sps: BAM device 0x000000000c144000 is not registered yet.
+[  111.128342,0] sps:BAM 0x000000000c144000 is registered.
+[  111.129062,0] sps:BAM 0x000000000c144000 (va:0xffffff800d0a0000) enabled: ver:0x19, number of pipes:12
+[  111.132685,0] fbtouch: first touch contact at +23.891 s raw=(643,5)
+[  112.360112,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  114.366784,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  116.373447,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  118.380121,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  120.386775,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  122.393451,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  124.400118,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  126.406783,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  128.413445,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  130.420115,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  132.426782,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  134.433455,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:1
+[  136.368514,0] PMI: smblib_update_usb_type: APSD=SDP PD=0
+[  136.440112,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[  136.474388,3] SX9310 ps notification: event = 0
+[  136.474432,3] SX9310 usb is present
+[  136.474454,3] SX9310 ps present state not change
+[  137.113887,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  137.113916,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  137.113993,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  138.446775,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:97
+[  140.453434,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  142.093866,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  142.093901,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  142.093982,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  142.460123,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  144.466764,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[  146.473430,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[  147.258623,0] fbtouch: blank cycle: powerdown
+[  147.258763,0] [NVT-ts] nvt_ts_suspend 1591: start
+[  147.310152,0] [NVT-ts] nvt_ts_suspend 1643: end
+[  147.323000,0] mdss_dsi_panel_off[0]+.
+[  147.530155,0] mdss_dsi_off[0]+.
+[  147.573614,0] mdss_dsi_off[0]-.
+[  148.480123,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  150.486771,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  150.577102,0] fbtouch: blank cycle: unblank
+[  150.580208,0] is_mdp_prefetch_needed: low vbp+vfp may lead to perf issues in some cases
+[  150.584139,0] mdss_dsi_on[0]+.
+[  150.620769,1] mdss_dsi_on[0]-.
+[  150.620870,1] mdss_dsi_panel_on[0]+.
+[  150.764209,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  150.764917,4] mdss_dsi_post_panel_on[0]-.
+[  150.776780,0] [NVT-ts] nvt_ts_resume 1668: start
+[  150.776796,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  150.816793,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[  150.830631,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[  150.831677,0] [NVT-ts] nvt_ts_resume 1690: end
+[  150.915313,4] fbtouch: blank cycle: frame recommitted
+[  150.916219,4] fbtouch: backlight 128 (readback 128)
+[  152.493432,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  154.500094,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  156.506759,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  158.513425,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  160.520093,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  162.526762,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  164.533427,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  166.540095,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  168.546757,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  170.553426,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  172.560089,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  174.566777,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  176.573423,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  178.580088,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  180.586756,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:35
+[  182.593408,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:53
+[  184.600112,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  186.606758,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  188.613432,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  190.620084,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  192.626753,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  194.603856,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  194.603891,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  194.603973,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  194.633448,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  196.640085,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  198.646751,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  200.653420,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  202.660083,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  204.666771,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  206.673417,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  208.680082,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  210.686763,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  212.693415,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  214.700102,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  216.706749,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  218.713415,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  220.720083,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  222.726746,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  224.733430,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  226.740080,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  228.746745,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  230.753414,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  232.760078,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  234.766760,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  236.773411,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  237.552561,0] fbtouch: done: frames=139 contacts=24
+[  238.067230,0] mdss_mdp_overlay_release: Unable to unset pipe(s) ndx=0x40 unset=0x0
+[  238.083407,0] mdss_dsi_panel_off[0]+.
+[  238.290138,0] mdss_dsi_off[0]+.
+[  238.333887,0] mdss_dsi_off[0]-.
+[  238.364662,4] fbtouch (725) used greatest stack depth: 10720 bytes left
+[  238.780127,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  240.786754,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  242.793416,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  244.800109,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  245.376819,1] INFO: task kworker/6:0:66 blocked for more than 120 seconds.
+[  245.376847,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  245.376872,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  245.376898,1] kworker/6:0     D ffffff8f9748675c 13936    66      2 0x00000010
+[  245.376979,1] Workqueue: events pd_locator_work
+[  245.377015,1] Call trace:
+[  245.377043,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  245.377073,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  245.377096,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  245.377123,1] [<ffffff8f985a95b4>] schedule_timeout+0x40/0x284
+[  245.377147,1] [<ffffff8f985a6174>] wait_for_common+0x188/0x1c0
+[  245.377170,1] [<ffffff8f985a61d4>] wait_for_completion+0x28/0x34
+[  245.377194,1] [<ffffff8f97a27100>] pd_locator_work+0x1d4/0x5e4
+[  245.377220,1] [<ffffff8f974c7e40>] process_one_work+0x288/0x434
+[  245.377243,1] [<ffffff8f974c85f4>] worker_thread+0x294/0x3f4
+[  245.377270,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  245.377294,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  245.377341,1] INFO: task kworker/5:1:99 blocked for more than 120 seconds.
+[  245.377365,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  245.377388,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  245.377411,1] kworker/5:1     D ffffff8f9748675c 14208    99      2 0x00000010
+[  245.377479,1] Workqueue: events pd_locator_work
+[  245.377515,1] Call trace:
+[  245.377538,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  245.377561,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  245.377585,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  245.377610,1] [<ffffff8f985a5880>] schedule_preempt_disabled+0x1c/0x2c
+[  245.377634,1] [<ffffff8f985a81ac>] __mutex_lock_slowpath+0x210/0x3a8
+[  245.377658,1] [<ffffff8f985a8378>] mutex_lock+0x34/0x48
+[  245.377682,1] [<ffffff8f97a26f80>] pd_locator_work+0x54/0x5e4
+[  245.377705,1] [<ffffff8f974c7e40>] process_one_work+0x288/0x434
+[  245.377728,1] [<ffffff8f974c85f4>] worker_thread+0x294/0x3f4
+[  245.377752,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  245.377775,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  245.377800,1] INFO: task kworker/u16:1:101 blocked for more than 120 seconds.
+[  245.377825,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  245.377848,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  245.377871,1] kworker/u16:1   D ffffff8f9748675c 14352   101      2 0x00000010
+[  245.377940,1] Workqueue: mpm msm_mpm_work_fn
+[  245.377976,1] Call trace:
+[  245.377999,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  245.378022,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  245.378046,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  245.378070,1] [<ffffff8f985a95b4>] schedule_timeout+0x40/0x284
+[  245.378093,1] [<ffffff8f985a6174>] wait_for_common+0x188/0x1c0
+[  245.378117,1] [<ffffff8f985a61d4>] wait_for_completion+0x28/0x34
+[  245.378140,1] [<ffffff8f97a2085c>] msm_mpm_work_fn+0x3c/0x9c
+[  245.378164,1] [<ffffff8f974c7e40>] process_one_work+0x288/0x434
+[  245.378187,1] [<ffffff8f974c85f4>] worker_thread+0x294/0x3f4
+[  245.378211,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  245.378234,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  245.378296,1] INFO: task mdss_dsi_event:208 blocked for more than 120 seconds.
+[  245.378321,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  245.378343,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  245.378367,1] mdss_dsi_event  D ffffff8f9748675c 14304   208      2 0x00000010
+[  245.378430,1] Call trace:
+[  245.378453,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  245.378477,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  245.378500,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  245.378529,1] [<ffffff8f978e8bd8>] dsi_event_thread+0x10c/0x43c
+[  245.378553,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  245.378576,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  245.378769,1] INFO: task mmc-cmdqd/0:470 blocked for more than 120 seconds.
+[  245.378793,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  245.378817,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  245.378840,1] mmc-cmdqd/0     D ffffff8f9748675c 14240   470      2 0x00000010
+[  245.378904,1] Call trace:
+[  245.378928,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  245.378951,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  245.378974,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  245.379002,1] [<ffffff8f97fa362c>] mmc_cmdq_thread+0x18c/0x294
+[  245.379025,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  245.379048,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  245.379123,1] INFO: task msm-core:sampli:557 blocked for more than 120 seconds.
+[  245.379147,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  245.379171,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  245.379193,1] msm-core:sampli D ffffff8f9748675c 14064   557      2 0x00000010
+[  245.379257,1] Call trace:
+[  245.379279,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  245.379303,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  245.379326,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  245.379350,1] [<ffffff8f985a95b4>] schedule_timeout+0x40/0x284
+[  245.379374,1] [<ffffff8f985a6174>] wait_for_common+0x188/0x1c0
+[  245.379398,1] [<ffffff8f985a61d4>] wait_for_completion+0x28/0x34
+[  245.379422,1] [<ffffff8f985a2bd4>] do_sampling+0x50/0x214
+[  245.379446,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  245.379469,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  246.806741,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  247.260604,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  247.260647,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  247.260734,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  248.813427,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:155
+[  250.820082,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  252.826747,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  254.833439,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:1
+[  256.840074,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  258.846757,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  260.853412,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  262.860083,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[  263.894564,7] fbtouch: show: opening /dev/fb0
+[  263.899551,7] mdss_dsi_on[0]+.
+[  263.901401,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  263.901454,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  263.902633,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  263.902707,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  263.903878,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  263.903925,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  263.904997,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  263.905043,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  263.906110,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  263.906157,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  263.906565,0] [NVT-ts] CTP_I2C_READ 319: error, ret=-107
+[  263.906592,0] [NVT-ts] nvt_ts_work_func 997: CTP_I2C_READ failed.(-5)
+[  263.933912,4] mdss_dsi_on[0]-.
+[  263.933991,4] mdss_dsi_panel_on[0]+.
+[  263.964098,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  263.964146,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  263.965214,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  263.965261,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  264.078234,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  264.079393,0] mdss_dsi_post_panel_on[0]-.
+[  264.080335,0] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[  264.163079,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[  264.164058,4] fbtouch: backlight 200 (readback 200)
+[  264.866770,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:89
+[  266.873427,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:18
+[  268.880074,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  270.886749,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[  272.893415,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[  274.900094,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  276.906736,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  278.913407,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  280.920073,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  282.926734,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  284.933427,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  286.940069,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  288.946739,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  289.167521,0] fbtouch: done: frames=1 contacts=0
+[  289.680360,0] mdss_mdp_overlay_release: Unable to unset pipe(s) ndx=0x40 unset=0x0
+[  289.697561,0] mdss_dsi_panel_off[0]+.
+[  289.903463,0] mdss_dsi_off[0]+.
+[  289.947184,0] mdss_dsi_off[0]-.
+[  289.974910,4] fbtouch (801) used greatest stack depth: 10480 bytes left
+[  290.953464,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  292.960078,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  294.966763,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  296.973411,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  298.980077,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  299.657225,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  299.657262,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  299.657347,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  300.986749,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  302.993407,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  305.000093,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  307.006734,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:37
+[  307.771710,7] [NVT-ts] nvt_fw_version_open 431: ++
+[  307.772027,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.772261,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.772484,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.772670,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.772891,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.772980,7] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  307.773095,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000010
+[  307.773282,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.773538,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001b21c4 OPER:0x00000010
+[  307.773730,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.773922,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.774013,7] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  307.774030,7] [NVT-ts] nvt_get_fw_info 591: FW info is broken! fw_ver=0x01, ~fw_ver=0x1A
+[  307.774045,7] [NVT-ts] nvt_get_fw_info 601: retry_count=1
+[  307.774197,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.774423,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.774649,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.774875,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.775101,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.775194,7] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  307.775310,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000010
+[  307.775500,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.775691,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000010
+[  307.775883,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001b21c4 OPER:0x00000010
+[  307.776072,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.776162,7] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  307.776177,7] [NVT-ts] nvt_get_fw_info 591: FW info is broken! fw_ver=0x01, ~fw_ver=0x1A
+[  307.776191,7] [NVT-ts] nvt_get_fw_info 601: retry_count=2
+[  307.776340,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.776566,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.776836,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.777063,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.777288,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.777379,7] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  307.777495,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001221c4 OPER:0x00000010
+[  307.777685,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.777874,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001221c4 OPER:0x00000010
+[  307.778064,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000010
+[  307.778253,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001b21c4 OPER:0x00000010
+[  307.778343,7] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  307.778358,7] [NVT-ts] nvt_get_fw_info 591: FW info is broken! fw_ver=0x01, ~fw_ver=0x1A
+[  307.778372,7] [NVT-ts] nvt_get_fw_info 601: retry_count=3
+[  307.778521,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.778746,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.778971,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.779196,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.779420,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.779511,7] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  307.779626,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.779815,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.780025,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000010
+[  307.780218,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001b21c4 OPER:0x00000010
+[  307.780407,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:16 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001b21c4 OPER:0x00000010
+[  307.780497,7] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  307.780512,7] [NVT-ts] nvt_get_fw_info 591: FW info is broken! fw_ver=0x01, ~fw_ver=0x1A
+[  307.780528,7] [NVT-ts] nvt_get_fw_info 607: Set default fw_ver=0, x_num=18, y_num=32, 					abs_x_max=1080, abs_y_max=2246, max_button_num=0!
+[  307.780679,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.780905,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.781130,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.781355,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.781580,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:1 cur:0 tx) bc(rx:0 tx:3) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000090
+[  307.781671,7] [NVT-ts] CTP_I2C_WRITE 371: error, ret=-3
+[  307.781786,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:2 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001221c4 OPER:0x00000010
+[  307.781975,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:2 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.782164,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:2 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001b21c4 OPER:0x00000010
+[  307.782353,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:2 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001321c4 OPER:0x00000010
+[  307.782541,7] i2c-msm-v2 c177000.i2c: BUS ERROR:noisy bus/unexpected start/stop tag: msgs(n:2 cur:0 tx) bc(rx:2 tx:1) mode:FIFO slv_addr:0x1 MSTR_STS:0x001121c4 OPER:0x00000010
+[  307.782632,7] [NVT-ts] CTP_I2C_READ 319: error, ret=-3
+[  307.782646,7] [NVT-ts] nvt_read_pid 556: PID=0000
+[  309.013409,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:86
+[  311.020064,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  313.026718,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  315.033443,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  317.040080,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  319.046744,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  321.053443,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  323.060082,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  325.066749,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  327.073393,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  329.080060,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  331.086727,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  333.093393,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  335.100080,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  337.106726,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  339.113392,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  341.120060,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  343.126752,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:18
+[  345.133419,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:70
+[  347.140058,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  349.146722,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  351.153389,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  352.153877,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  352.153916,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  352.154000,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  353.160057,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  355.166743,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  357.173388,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  359.180061,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:56
+[  359.303772,4] fbtouch: show: opening /dev/fb0
+[  359.308734,4] mdss_dsi_on[0]+.
+[  359.310668,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  359.310720,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  359.311894,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  359.311941,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  359.313078,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  359.313126,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  359.314263,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  359.314310,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  359.315443,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  359.315488,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  359.315834,0] [NVT-ts] CTP_I2C_READ 319: error, ret=-107
+[  359.315862,0] [NVT-ts] nvt_ts_work_func 997: CTP_I2C_READ failed.(-5)
+[  359.343034,5] mdss_dsi_on[0]-.
+[  359.343110,5] mdss_dsi_panel_on[0]+.
+[  359.373283,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  359.373406,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  359.374466,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  359.374512,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  359.485950,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  359.486687,4] mdss_dsi_post_panel_on[0]-.
+[  359.487230,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[  359.570382,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[  359.571283,4] fbtouch: backlight 160 (readback 160)
+[  361.186732,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:10
+[  363.193400,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:23
+[  365.200076,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  365.376801,1] INFO: task kworker/6:0:66 blocked for more than 120 seconds.
+[  365.376828,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  365.376852,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  365.376876,1] kworker/6:0     D ffffff8f9748675c 13936    66      2 0x00000010
+[  365.376955,1] Workqueue: events pd_locator_work
+[  365.376992,1] Call trace:
+[  365.377019,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  365.377047,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  365.377071,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  365.377097,1] [<ffffff8f985a95b4>] schedule_timeout+0x40/0x284
+[  365.377122,1] [<ffffff8f985a6174>] wait_for_common+0x188/0x1c0
+[  365.377144,1] [<ffffff8f985a61d4>] wait_for_completion+0x28/0x34
+[  365.377167,1] [<ffffff8f97a27100>] pd_locator_work+0x1d4/0x5e4
+[  365.377192,1] [<ffffff8f974c7e40>] process_one_work+0x288/0x434
+[  365.377214,1] [<ffffff8f974c85f4>] worker_thread+0x294/0x3f4
+[  365.377240,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  365.377264,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  365.377309,1] INFO: task kworker/5:1:99 blocked for more than 120 seconds.
+[  365.377333,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  365.377356,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  365.377379,1] kworker/5:1     D ffffff8f9748675c 14208    99      2 0x00000010
+[  365.377444,1] Workqueue: events pd_locator_work
+[  365.377478,1] Call trace:
+[  365.377501,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  365.377524,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  365.377546,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  365.377570,1] [<ffffff8f985a5880>] schedule_preempt_disabled+0x1c/0x2c
+[  365.377594,1] [<ffffff8f985a81ac>] __mutex_lock_slowpath+0x210/0x3a8
+[  365.377616,1] [<ffffff8f985a8378>] mutex_lock+0x34/0x48
+[  365.377639,1] [<ffffff8f97a26f80>] pd_locator_work+0x54/0x5e4
+[  365.377661,1] [<ffffff8f974c7e40>] process_one_work+0x288/0x434
+[  365.377683,1] [<ffffff8f974c85f4>] worker_thread+0x294/0x3f4
+[  365.377706,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  365.377729,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  365.377752,1] INFO: task kworker/u16:1:101 blocked for more than 120 seconds.
+[  365.377776,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  365.377798,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  365.377822,1] kworker/u16:1   D ffffff8f9748675c 14352   101      2 0x00000010
+[  365.377888,1] Workqueue: mpm msm_mpm_work_fn
+[  365.377922,1] Call trace:
+[  365.377945,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  365.377968,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  365.377990,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  365.378013,1] [<ffffff8f985a95b4>] schedule_timeout+0x40/0x284
+[  365.378036,1] [<ffffff8f985a6174>] wait_for_common+0x188/0x1c0
+[  365.378059,1] [<ffffff8f985a61d4>] wait_for_completion+0x28/0x34
+[  365.378081,1] [<ffffff8f97a2085c>] msm_mpm_work_fn+0x3c/0x9c
+[  365.378103,1] [<ffffff8f974c7e40>] process_one_work+0x288/0x434
+[  365.378125,1] [<ffffff8f974c85f4>] worker_thread+0x294/0x3f4
+[  365.378148,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  365.378170,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  365.378227,1] INFO: task mdss_dsi_event:208 blocked for more than 120 seconds.
+[  365.378250,1]       Tainted: G        W       4.4.192-cyclo-g6d83ef138-00007-g925dbb7ad-dirty #14
+[  365.378273,1] "echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+[  365.378296,1] mdss_dsi_event  D ffffff8f9748675c 14304   208      2 0x00000010
+[  365.378357,1] Call trace:
+[  365.378380,1] [<ffffff8f9748675c>] __switch_to+0xc4/0xd0
+[  365.378403,1] [<ffffff8f985a5250>] __schedule+0x5e8/0x834
+[  365.378425,1] [<ffffff8f985a5688>] schedule+0x78/0x94
+[  365.378452,1] [<ffffff8f978e8bd8>] dsi_event_thread+0x10c/0x43c
+[  365.378475,1] [<ffffff8f974cdc2c>] kthread+0xfc/0x104
+[  365.378498,1] [<ffffff8f97483ac0>] ret_from_fork+0x10/0x50
+[  367.206722,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  369.213397,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  371.220053,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  373.226718,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  375.233409,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  377.240050,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  379.246719,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  381.253387,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  383.260052,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  385.266738,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  387.273395,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  389.280182,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  391.286720,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  393.293510,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  395.300200,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  397.306842,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  399.313531,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  399.574455,0] fbtouch: done: frames=1 contacts=0
+[  400.090339,0] mdss_mdp_overlay_release: Unable to unset pipe(s) ndx=0x40 unset=0x0
+[  400.104892,0] mdss_dsi_panel_off[0]+.
+[  400.313446,0] mdss_dsi_off[0]+.
+[  400.357164,0] mdss_dsi_off[0]-.
+[  400.391704,4] fbtouch (852) used greatest stack depth: 10432 bytes left
+[  401.320082,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  403.326846,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  404.663870,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  404.663908,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  404.663993,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  405.333370,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  407.340057,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:100
+[  409.346837,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  411.353514,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  413.360180,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  415.366883,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  417.373512,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  419.380179,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  421.386846,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  423.393507,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  425.400210,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  427.406868,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  429.413548,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  431.420179,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  433.426709,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  435.433543,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  437.440231,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  437.440783,0] kworker/dying (6) used greatest stack depth: 10416 bytes left
+[  439.446717,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  441.453509,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  443.460175,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  445.466875,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  447.473508,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  449.480174,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  451.486841,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  453.493506,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  455.500207,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  457.153830,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  457.153865,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  457.153951,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  457.506905,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  459.513427,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  460.933817,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  460.933854,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  460.933937,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  461.520179,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  463.526705,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  465.533540,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  467.540173,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  469.546838,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  471.553504,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  473.560194,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  475.566892,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  477.573501,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  479.580169,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  481.586834,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  483.593488,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  485.600059,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  487.606836,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  489.613486,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  491.620152,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  493.626696,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  495.633517,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  497.640154,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  499.646830,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:1
+[  501.653361,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  503.660166,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  505.666837,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  507.673483,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  509.640457,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  509.640494,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  509.640578,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  509.680026,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  511.686817,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  513.693482,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  515.700170,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  516.173814,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  516.173851,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  516.173933,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  517.706816,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  519.713473,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  521.720193,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[  523.726690,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  525.733531,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  527.740035,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:102
+[  529.746699,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[  531.753494,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  533.760163,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[  535.766712,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  537.311232,5] fbtouch: show: opening /dev/fb0
+[  537.316154,5] mdss_dsi_on[0]+.
+[  537.318075,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  537.318128,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  537.319305,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  537.319350,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  537.320509,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  537.320555,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  537.321623,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  537.321670,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  537.322734,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  537.322782,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  537.323197,0] [NVT-ts] CTP_I2C_READ 319: error, ret=-107
+[  537.323224,0] [NVT-ts] nvt_ts_work_func 997: CTP_I2C_READ failed.(-5)
+[  537.350550,5] mdss_dsi_on[0]-.
+[  537.350629,5] mdss_dsi_panel_on[0]+.
+[  537.380804,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  537.380851,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  537.381905,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  537.381952,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  537.494390,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  537.495104,4] mdss_dsi_post_panel_on[0]-.
+[  537.495553,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[  537.578835,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[  537.579779,4] fbtouch: backlight 200 (readback 200)
+[  537.773372,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:66
+[  539.780029,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[  541.786684,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  542.338396,0] fbtouch: blank cycle: powerdown
+[  542.338539,0] [NVT-ts] nvt_ts_suspend 1591: start
+[  542.390063,0] [NVT-ts] nvt_ts_suspend 1643: end
+[  542.396443,0] mdss_dsi_panel_off[0]+.
+[  542.603403,0] mdss_dsi_off[0]+.
+[  542.646943,1] mdss_dsi_off[0]-.
+[  543.793536,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  545.650239,1] fbtouch: blank cycle: unblank
+[  545.657360,1] mdss_dsi_on[0]+.
+[  545.692396,1] mdss_dsi_on[0]-.
+[  545.692501,1] mdss_dsi_panel_on[0]+.
+[  545.800072,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  545.835532,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  545.836265,4] mdss_dsi_post_panel_on[0]-.
+[  545.846706,1] [NVT-ts] nvt_ts_resume 1668: start
+[  545.846723,1] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  545.886942,1] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[  545.900552,1] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[  545.901615,1] [NVT-ts] nvt_ts_resume 1690: end
+[  545.986706,4] fbtouch: blank cycle: frame recommitted
+[  545.987650,4] fbtouch: backlight 200 (readback 200)
+[  547.806704,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  549.813376,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:19
+[  551.820020,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  553.826686,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  555.833378,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  557.840020,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  559.846684,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  561.853350,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  562.093792,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  562.093829,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  562.093912,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  563.860014,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  565.866706,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  567.873350,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  569.880016,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  571.886682,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  573.893347,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  575.900032,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  577.906679,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  579.913619,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:93
+[  581.920013,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  582.582701,0] fbtouch: done: frames=2 contacts=0
+[  583.090311,0] mdss_mdp_overlay_release: Unable to unset pipe(s) ndx=0x40 unset=0x0
+[  583.104400,0] mdss_dsi_panel_off[0]+.
+[  583.313415,0] mdss_dsi_off[0]+.
+[  583.356829,0] mdss_dsi_off[0]-.
+[  583.926685,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  585.933384,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  587.940147,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  589.946805,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  591.953469,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  593.960134,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  595.966835,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  597.973494,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  599.980136,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  601.986802,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  603.993469,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  606.000041,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  608.006810,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  610.013470,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  612.020134,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  614.026673,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  614.637164,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  614.637203,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  614.637287,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  616.033375,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  618.040009,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  620.046672,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  622.053478,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  624.060131,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  626.066848,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  628.073459,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  630.080129,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  632.086797,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  634.093488,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  636.100148,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  638.106792,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  640.113461,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  642.120148,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  644.126690,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  646.133480,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  648.140011,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  650.146795,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  652.153459,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  654.160143,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  656.166840,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  658.173333,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  660.180158,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  662.186792,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  664.193471,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  666.200145,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  667.123810,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  667.123849,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  667.123932,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  668.206668,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  670.213345,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  672.220137,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  674.226882,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  676.233373,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  678.240039,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  680.246706,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  682.253373,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  684.260051,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  686.266644,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  688.273360,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  690.280027,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  692.286694,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  694.293372,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  696.300040,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  698.306699,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  700.313328,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  702.319985,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  704.326652,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  706.333319,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  708.339987,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  710.346648,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  712.353317,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  714.359983,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  716.366653,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  718.373320,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  719.600415,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  719.600452,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  719.600534,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  720.379986,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  722.386654,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  724.393319,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  726.399981,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  726.933743,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  726.933781,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  726.933864,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  728.406654,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  730.413317,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  732.419981,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  734.426650,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  736.433507,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  738.439981,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  740.446650,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  742.453315,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  744.459980,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  746.466814,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  748.473312,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  750.479979,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  752.486646,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  754.493326,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  756.500145,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  758.506644,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  760.513311,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  762.519997,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  764.526660,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  766.533443,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  768.539978,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  770.546645,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  772.087120,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  772.087158,3] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  772.087240,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  772.553306,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  774.559979,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  776.566790,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  778.573309,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  780.579998,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  782.586640,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  784.593322,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  786.600122,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  788.606640,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  790.613306,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  792.619972,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  794.626857,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  796.633459,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  798.640029,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  800.646637,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  802.653302,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  804.659976,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  806.666772,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  808.673304,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  810.679969,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  812.686634,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  814.693312,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  816.699987,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  818.706634,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  820.713300,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  822.719966,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  824.673744,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  824.673782,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  824.673864,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  824.726727,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  826.733443,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  828.739966,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  830.746633,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  832.753300,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  834.759965,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  836.766774,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  838.773298,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  840.779965,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  842.786656,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  844.793324,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  846.800111,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  848.806632,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  850.813297,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  852.819962,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  854.826621,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  856.833438,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  858.839961,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  860.846631,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  862.853296,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  864.859963,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  866.866769,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  868.873293,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  870.879962,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  872.886625,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  874.893304,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  876.899947,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  877.040379,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  877.040414,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  877.040497,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  878.906624,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  880.913291,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  882.920075,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:39
+[  883.147150,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  883.147193,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  883.147279,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  884.926612,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:225
+[  886.933293,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:218
+[  888.939989,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:228
+[  890.946657,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:229
+[  892.953290,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  894.959957,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  896.966786,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  898.954102,6] fbtouch: show: opening /dev/fb0
+[  898.959120,6] mdss_dsi_on[0]+.
+[  898.960942,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  898.960995,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  898.962128,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  898.962174,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  898.963835,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  898.963883,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  898.964972,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  898.965019,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  898.966148,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  898.966194,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  898.966586,0] [NVT-ts] CTP_I2C_READ 319: error, ret=-107
+[  898.966613,0] [NVT-ts] nvt_ts_work_func 997: CTP_I2C_READ failed.(-5)
+[  898.973303,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:73
+[  898.993427,6] mdss_dsi_on[0]-.
+[  898.993502,6] mdss_dsi_panel_on[0]+.
+[  899.023741,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  899.023788,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  899.024857,0] i2c-msm-v2 c177000.i2c: NACK: slave not responding, ensure its powered: msgs(n:2 cur:1 rx) bc(rx:65 tx:1) mode:DMA slv_addr:0x1 MSTR_STS:0x0d1300c8 OPER:0x00008010
+[  899.024904,0] i2c-msm-v2 c177000.i2c: error i2c_msm_dma_xfer_process(n_bufs:2):-1
+[  899.137625,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  899.138729,0] mdss_dsi_post_panel_on[0]-.
+[  899.139618,0] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[  899.222411,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[  899.223367,4] fbtouch: backlight 200 (readback 200)
+[  900.979950,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  902.986630,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[  904.056917,0] fbtouch: blank cycle: powerdown
+[  904.057056,0] [NVT-ts] nvt_ts_suspend 1591: start
+[  904.110120,0] [NVT-ts] nvt_ts_suspend 1643: end
+[  904.123442,0] mdss_dsi_panel_off[0]+.
+[  904.330094,0] mdss_dsi_off[0]+.
+[  904.373492,0] mdss_dsi_off[0]-.
+[  904.993319,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  906.999983,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  907.376999,1] fbtouch: blank cycle: unblank
+[  907.384156,1] mdss_dsi_on[0]+.
+[  907.419213,1] mdss_dsi_on[0]-.
+[  907.419318,1] mdss_dsi_panel_on[0]+.
+[  907.563169,4] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  907.563962,4] mdss_dsi_post_panel_on[0]-.
+[  907.576629,1] [NVT-ts] nvt_ts_resume 1668: start
+[  907.576645,1] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  907.616645,1] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[  907.630480,1] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[  907.631552,1] [NVT-ts] nvt_ts_resume 1690: end
+[  907.714355,4] fbtouch: blank cycle: frame recommitted
+[  907.715264,4] fbtouch: backlight 200 (readback 200)
+[  909.006624,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  911.013307,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:21
+[  913.019942,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  914.070918,0] fbtouch: first touch contact at +15.117 s raw=(194,510)
+[  915.026612,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  917.033309,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  919.039946,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  921.046610,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  923.053276,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  925.059942,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  927.066608,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  929.073254,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  929.503711,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  929.503745,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  929.503827,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  931.079946,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  933.086610,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  935.093289,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  937.099956,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  939.106606,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  941.113277,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  943.119938,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  944.241893,0] fbtouch: done: frames=46 contacts=6
+[  944.242805,0] fbtouch: blanking before close
+[  944.242917,0] [NVT-ts] nvt_ts_suspend 1591: start
+[  944.296657,0] [NVT-ts] nvt_ts_suspend 1643: end
+[  944.315495,0] mdss_dsi_panel_off[0]+.
+[  944.523345,0] mdss_dsi_off[0]+.
+[  944.567031,0] mdss_dsi_off[0]-.
+[  944.779972,1] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[  944.780235,1] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[  944.780260,1] mdss_dsi_cmds_tx: failed to call
+[  945.126643,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  947.133320,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  949.139940,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  951.146606,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  953.153272,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  955.159939,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  957.167858,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:68
+[  959.173279,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:33
+[  961.179936,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  963.186602,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  965.193288,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  966.037334,4] fbtouch: show: opening /dev/fb0
+[  966.042392,4] mdss_dsi_on[0]+.
+[  966.076686,4] mdss_dsi_on[0]-.
+[  966.076762,4] mdss_dsi_panel_on[0]+.
+[  966.220943,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  966.222046,0] mdss_dsi_post_panel_on[0]-.
+[  966.233291,0] [NVT-ts] nvt_ts_resume 1668: start
+[  966.233308,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  966.273295,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[  966.287134,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[  966.288177,0] [NVT-ts] nvt_ts_resume 1690: end
+[  966.389080,4] fbtouch: first frame committed (1080x2246 32 bpp)
+[  966.390068,4] fbtouch: backlight 160 (readback 160)
+[  967.200007,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:67
+[  969.206632,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:27
+[  969.512275,0] fbtouch: first touch contact at +3.475 s raw=(44,71)
+[  971.213272,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  973.219948,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:1
+[  975.226608,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  977.233278,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  979.239939,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  981.246585,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  982.003709,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL 500 mA, DC 900 mA
+[  982.003745,2] PMI: mmi_heartbeat_work: Step State = NORMAL, EB State DISCONN
+[  982.003828,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[  983.253272,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  985.259938,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  987.266636,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  989.273291,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  991.280062,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  993.286597,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  995.293405,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  997.300076,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  999.306725,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1001.313242,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1003.320049,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1005.326594,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1006.408566,0] fbtouch: done: frames=158 contacts=18
+[ 1006.409494,0] fbtouch: blanking before close
+[ 1006.409606,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 1006.463313,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 1006.473533,0] mdss_dsi_panel_off[0]+.
+[ 1006.679995,0] mdss_dsi_off[0]+.
+[ 1006.723452,0] mdss_dsi_off[0]-.
+[ 1006.933294,0] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[ 1006.933563,0] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[ 1006.933587,0] mdss_dsi_cmds_tx: failed to call
+[ 1007.333458,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1009.339911,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1011.346747,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1013.353397,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1015.360064,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 1017.366657,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:16

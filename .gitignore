@@ -13,8 +13,10 @@ toolchain/
 # tools/ build outputs (see tools/Makefile)
 tools/irsc
 tools/qmuxd-lite
+tools/fbtouch
 tools/tests/test-qmux
 tools/tests/test-msmipc
+tools/tests/test-fbtouch
 tools/rmtfs/tests/test-storage
 tools/servreg-locator/servreg-locator
 tools/servreg-locator/tests/test-jsn

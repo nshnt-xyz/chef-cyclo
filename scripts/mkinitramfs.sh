@@ -1,7 +1,8 @@
 #!/bin/sh
 # Build out/initramfs.cpio.gz: the Alpine rootfs from scripts/mkrootfs.sh
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
-# the btprobe helper and the WCN3990 firmware on top.
+# the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers and the
+# display/touch probe fbtouch on top.
 set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
@@ -131,6 +132,15 @@ echo "built $ROOT/usr/bin/servreg-locator"
     tools/tftp/ramfs.c tools/tftp/translate.c tools/tftp/protocol.c \
     tools/tftp/tftpserv.c tools/msmipc.c
 echo "built $ROOT/usr/bin/tftp-server"
+
+# Display + touch probe (tools/fbtouch.c): holds /dev/fb0 open, draws a test
+# pattern through mmap + FBIOPAN_DISPLAY, drives lcd-backlight and decodes
+# the NT36xxx evdev stream. Manual opt-in from the telnet shell, not in
+# inittab, until live-verified (same policy as gps-up). Needs only libc's
+# <linux/fb.h>/<linux/input.h>, so no kernel include paths.
+[ -f tools/fbtouch.c ] || { echo "missing required source: tools/fbtouch.c" >&2; exit 1; }
+"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/fbtouch" tools/fbtouch.c
+echo "built $ROOT/usr/bin/fbtouch"
 
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \

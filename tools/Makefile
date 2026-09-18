@@ -1,6 +1,7 @@
-# Builds this directory's new GPS transport/protocol code only:
-# msmipc (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the
-# vendored qrtr/ QMI codec, and their host tests. Does not touch btprobe.c
+# Builds this directory's new GPS transport/protocol code -- msmipc
+# (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
+# qrtr/ QMI codec -- plus the display/touch probe fbtouch, and their host
+# tests. Does not touch btprobe.c
 # or build anything under scripts/, initramfs/ -- those are built/wired into
 # the boot image by scripts/mkinitramfs.sh. `make test` does read (but not
 # build) initramfs/usr/bin/gps-up, to run its host-testable selection logic
@@ -27,9 +28,9 @@ LDFLAGS ?=
 INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := irsc qmuxd-lite
+BIN := irsc qmuxd-lite fbtouch
 VENDOR_OBJ := qmi.o logging.o
-TEST_BIN := tests/test-qmux tests/test-msmipc
+TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch
 
 .PHONY: all test test-shell clean
 
@@ -59,9 +60,21 @@ tests/test-qmux: tests/test_qmux.c qmux.o
 tests/test-msmipc: tests/test_msmipc.c msmipc.o
 	$(CC) $(ALL_CFLAGS) -o $@ $^ $(LDFLAGS) -Wl,--wrap=recvfrom
 
+# Display + touch probe (see fbtouch.c's header). It only needs the libc's
+# own <linux/fb.h>/<linux/input.h>, so it is built without the vendor
+# kernel include paths the QMI code needs (those would shadow the host's
+# headers). The test includes the .c with FBTOUCH_NO_MAIN to reach the
+# pure functions.
+fbtouch: fbtouch.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
 test: $(TEST_BIN) test-shell
 	./tests/test-qmux
 	./tests/test-msmipc
+	./tests/test-fbtouch
 
 # gps-up (initramfs/) selection-logic regression; not a build product of
 # this directory, but the natural place to run it alongside the rest of the
@@ -70,4 +83,4 @@ test-shell:
 	sh tests/test_gps-up.sh
 
 clean:
-	rm -f *.o irsc qmuxd-lite $(TEST_BIN)
+	rm -f *.o irsc qmuxd-lite fbtouch $(TEST_BIN)

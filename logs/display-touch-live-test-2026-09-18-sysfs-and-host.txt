@@ -1,0 +1,173 @@
+===== cmdline
+rcupdate.rcu_expedited=1 console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 sched_enable_hmp=1 sched_enable_power_aware=1 service_locator.enable=1 swiotlb=1 loop.max_part=7 androidboot.hab.csv=39 androidboot.hab.product=chef androidboot.hab.cid=50 buildvariant=user quiet root=/dev/mmcblk0p67 androidboot.verifiedbootstate=orange androidboot.keymaster=1 androidboot.bootdevice=c0c4000.sdhci androidboot.serialno=ZF6223WZGL androidboot.device=chef androidboot.revision=pvt androidboot.hwrev=0xC000 androidboot.radio=APAC androidboot.powerup_reason=0x00004000 androidboot.bootreason=reboot msm_poweroff.download_mode=0 androidboot.wifimacaddr=30:4B:07:6F:0D:76,30:4B:07:6F:0D:77 androidboot.btmacaddr=30:4B:07:6F:0D:75 androidboot.bootloader=MBM-3.0-chef_retail-06369b83c90-210922 androidboot.carrier=retin androidboot.build_vars=black androidboot.hardware.sku=XT1942-2 androidboot.secure_hardware=1 androidboot.cid=0x0032 androidboot.write_protect=0 androidboot.veritymode=disabled androidboot.bl_state=2 androidboot.mode=normal androidboot.baseband=msm mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi androidboot.slot_suffix=_a skip_initramfs rootwait ro init=/init androidboot.dtb_idx=-1347440721 androidboot.dualsim=true
+
+===== fb0 sysfs (boot, cont-splash)
+panel_name=mipi_mot_vid_tianma_nt_fhd_618 
+panel_supplier=tianma 
+panel_ver=0x00216102 
+msm_fb_panel_status=panel_status=suspend 
+bits_per_pixel=32 
+virtual_size=1080,4492 
+stride=4352 
+modes=U:1080x2246p-60 
+msm_fb_type=mipi dsi video panel 
+===== fb0 sysfs (final)
+panel_name=mipi_mot_vid_tianma_nt_fhd_618 
+panel_supplier=tianma 
+panel_ver=0x00216102 
+msm_fb_panel_status=panel_status=suspend 
+bits_per_pixel=32 
+virtual_size=1080,4492 
+stride=4352 
+modes=U:1080x2246p-60 
+===== fbtouch info
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 8/255
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+===== touch sysfs 3-0062
+buildid=e2-240145240
+ic_ver=[FW]e2,[IC]NT36525
+productinfo=NT36870
+poweron=1
+flashprog=0
+===== /proc/nvt_fw_version (boot)
+fw_ver=226, x_num=18, y_num=32, button_num=0
+===== NVT probe
+[    9.788467,6] [NVT-ts] nvt_driver_init 1800: start
+[    9.788739,6] [NVT-ts] nvt_ts_probe 1303: start
+[    9.788815,6] [NVT-ts] nvt_parse_dt 882: novatek,irq-gpio=67
+[    9.800097,6] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[    9.874447,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1239: buf[1]=0x0B, buf[2]=0x00, buf[3]=0x00, buf[4]=0x25, buf[5]=0x65, buf[6]=0x03
+[    9.874480,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1256: This is NVT touch IC
+[    9.874508,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[    9.913459,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[    9.929399,0] [NVT-ts] nvt_read_pid 556: PID=3AD9
+[    9.932103,7] [NVT-ts] nvt_ts_probe 1415: int_trigger_type=1
+[    9.932294,7] [NVT-ts] nvt_ts_probe 1427: request irq 249 succeed
+[    9.933152,7] [NVT-ts] nvt_fw_class_init 1182: assigned minor 98
+[    9.933909,7] [NVT-ts] nvt_fw_class_init 1209: create /sys/class/touchscreen/NVT-ts Succeeded!
+[    9.934270,7] [NVT-ts] nvt_ts_probe 1504: end
+===== input devices
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="qpnp_pon"
+P: Phys=qpnp_pon/input0
+S: Sysfs=/devices/virtual/input/input0
+U: Uniq=
+H: Handlers=event0 
+B: PROP=0
+B: EV=3
+B: KEY=14000000000000 0
+
+I: Bus=0018 Vendor=0000 Product=0000 Version=0000
+N: Name="NVTCapacitiveTouchScreen"
+P: Phys=input/ts
+S: Sysfs=/devices/virtual/input/input1
+U: Uniq=
+H: Handlers=mdss_fb kgsl event1 
+B: PROP=2
+B: EV=b
+B: KEY=400 0 0 0 0 0
+B: ABS=661800000000000
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="hbtp_vm"
+P: Phys=
+S: Sysfs=/devices/virtual/input/input2
+U: Uniq=
+H: Handlers=mouse0 event2 
+B: PROP=2
+B: EV=7
+B: KEY=30000 0 0 0 0
+B: REL=3
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="SX9310 Cap Touch top"
+P: Phys=
+S: Sysfs=/devices/virtual/input/input3
+U: Uniq=
+H: Handlers=event3 
+B: PROP=0
+B: EV=9
+B: ABS=2000000
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="SX9310 Cap Touch bottom"
+P: Phys=
+S: Sysfs=/devices/virtual/input/input4
+U: Uniq=
+H: Handlers=event4 
+B: PROP=0
+B: EV=9
+B: ABS=2000000
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="uinput-egis"
+P: Phys=
+S: Sysfs=/devices/virtual/input/input5
+U: Uniq=
+H: Handlers=event5 
+B: PROP=0
+B: EV=3
+B: KEY=7fc000000000 0 0 0 0 0 0 0 0 0
+
+I: Bus=0019 Vendor=0001 Product=0001 Version=0100
+N: Name="gpio-keys"
+P: Phys=gpio-keys/input0
+S: Sysfs=/devices/soc/soc:gpio_keys/input/input6
+U: Uniq=
+H: Handlers=event6 
+B: PROP=0
+B: EV=3
+B: KEY=8000000000000 0
+
+===== NVT irq 249: boot / between runs / final
+249:          0          0          0          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+249:        382          0          0          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+249:        712          2          0          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+===== wled raw before/after cycle in run4 (old binary)
+wled after open+pan: 0 lcd-backlight: 200
+wled after cycle: 0 lcd-backlight: 200
+===== binaries
+5e2cd31a1a8e226c013f89c2fb100737f4b6ca86c32eb2072e0bac60a007a79b  /tmp/fbtouch-new
+b832e32f35e19a8f17b4213307e5f587d7690a5b8757f74b4ac275aad53cb756  /usr/bin/fbtouch
+===== host
+date: 2026-09-18T05:20:07+00:00
+List of devices attached
+ZF6223WZGL             device usb:1-1.2 product:chef model:motorola_one_power device:chef_sprout transport_id:11
+
+radio         1171     1  110844   1048 0                   0 S rmt_storage
+vendor_rfs    1175     1   37836    948 0                   0 S tftp_server
+_a
+ec60052c5ac4ef325e2ba182435be531584ca6bd6410c8ad92f9c5f9429d12cb  out/boot.img
+6565f99b1bd1fcded76d59a5f6eb192e919edaba
+ M .gitignore
+ M scripts/mkinitramfs.sh
+ M tools/Makefile
+?? tools/fbtouch.c
+?? tools/tests/test_fbtouch.c
+2026-09-18T05:20:14+00:00
+ZF6223WZGL	 fastboot
+ec60052c5ac4ef325e2ba182435be531584ca6bd6410c8ad92f9c5f9429d12cb  out/boot.img
+2026-09-18T05:20:26+00:00
+Sending 'boot.img' (22680 KB)                      OKAY [  0.560s]
+Booting                                            OKAY [  5.083s]
+Finished. Total time: 5.660s
+fastboot exit=0
+2026-09-18T05:20:31+00:00
+up after 8s 2026-09-18T05:20:54+00:00
+2026-09-18T05:38:25+00:00
+reboot-issued
+stock adb back after 41s 2026-09-18T05:39:05+00:00
+List of devices attached
+ZF6223WZGL             device usb:1-1.2 product:chef model:motorola_one_power device:chef_sprout transport_id:12
+
+QPTS30.61-18-16-19
+2

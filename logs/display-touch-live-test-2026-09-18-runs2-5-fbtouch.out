@@ -1,0 +1,108 @@
+===== run2 (263.87s uptime)
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 128/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.186 s
+fb: unblanked in 0.186 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.268 s
+backlight: wrote 200, readback 200
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+summary: frames=1 touch_reports=0 contacts=0
+===== run3 (359.28s uptime)
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 200/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.183 s
+fb: unblanked in 0.184 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.267 s
+backlight: wrote 160, readback 160
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+summary: frames=1 touch_reports=0 contacts=0
+===== run4 (537.29s uptime)
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 160/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.184 s
+fb: unblanked in 0.184 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.268 s
+backlight: wrote 200, readback 200
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+cycle: FBIOBLANK POWERDOWN at +5.027 s
+cycle: panel off (5.339 s), holding 3 s
+cycle: unblanked in 3.253 s
+cycle: frame recommitted at +8.675 s
+backlight: wrote 200, readback 200
+summary: frames=2 touch_reports=0 contacts=0
+===== run5 (898.93s uptime)
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 200/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.185 s
+fb: unblanked in 0.186 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.268 s
+backlight: wrote 200, readback 200
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+cycle: FBIOBLANK POWERDOWN at +5.103 s
+cycle: panel off (5.423 s), holding 3 s
+cycle: unblanked in 3.255 s
+cycle: frame recommitted at +8.760 s
+backlight: wrote 200, readback 200
+touch: +15.117 slot=0 id=24 down raw=(194,510) screen=(290,715)
+touch: +15.233 slot=0 id=-1 up raw=(194,510) screen=(290,715)
+touch: +15.650 slot=0 id=25 down raw=(543,560) screen=(813,785)
+touch: +15.766 slot=0 id=-1 up raw=(543,560) screen=(813,785)
+touch: +16.283 slot=0 id=26 down raw=(670,120) screen=(1004,168)
+touch: +16.383 slot=0 id=-1 up raw=(670,120) screen=(1004,168)
+touch: +16.883 slot=0 id=27 down raw=(73,134) screen=(109,188)
+touch: +16.983 slot=0 id=-1 up raw=(73,134) screen=(109,188)
+touch: +17.766 slot=0 id=28 down raw=(78,1534) screen=(116,2152)
+touch: +17.883 slot=0 id=-1 up raw=(78,1534) screen=(116,2152)
+touch: +18.366 slot=0 id=29 down raw=(621,1575) screen=(930,2209)
+touch: +18.449 slot=0 id=-1 up raw=(621,1575) screen=(930,2209)
+summary: frames=46 touch_reports=12 contacts=6
+summary: touched screen area x=[109..1004] y=[168..2209], first contact +15.117 s
+fb: blanked before close
