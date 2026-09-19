@@ -1,0 +1,89 @@
+# run2.log (audio-up + speaker-test-tone sequence, revised image 2076c85f)
+== pre 38.06 285.86
+--- no soundcards ---
+f92911810d9211d9eba907c37774da4bdf387b4803875f32b29695db8df1772b  /usr/bin/audio-up
+533cb75cd90a36227b021c9eea984c7d7e3e2fa6f8339727afee8ee832925eb1  /usr/bin/speaker-test-tone
+== audio-up start 38.09 286.19
+== audio-up log at 41.22 308.21:
+audio-up: mounted active modem_a read-only
+audio-up: booting adsp
+audio-up: adsp up, card 0 'sdm660sndcard' 1.59s after boot_adsp, MultiMedia1 playback pcm device 0
+audio-up: supervising the servreg-locator this process started (TERM stops the locator only; the adsp stays up)
+== audio-up pid 677 alive? yes; procs:
+  677 root      0:00 {audio-up} /bin/sh /usr/bin/audio-up
+  716 root      0:00 servreg-locator -v
+== -s #1 41.45 310.60
+card:  0 [sdm660sndcard  ]: sdm660-snd-card - sdm660-snd-card
+MultiMedia1 playback: card 0 device 0
+TERT_MI2S_RX Audio Mixer MultiMedia1: Off 
+DAC Playback Volume: 15 (range 0->15) 
+TAS2560_ALGO_FF_MODULE: > DISABLE, ENABLE,  
+rc=0
+== -v 15 41.95 314.00
+speaker-test-tone: tinymix set 'TERT_MI2S_RX Audio Mixer MultiMedia1' '1'
+speaker-test-tone: tinymix set 'DAC Playback Volume' '15'
+wavtone: wrote /run/speaker-test-tone-813.wav (1000 Hz, 1.00s, -20.0 dBFS, 48000 Hz, 2 ch)
+speaker-test-tone: playing 1000Hz, 1s, -20dBFS, vol=15, protection attempt=no, card 0 device 0 (mmap)
+playing '/run/speaker-test-tone-813.wav': 2 ch, 48000 hz, 16 bit
+speaker-test-tone: tinyplay finished
+speaker-test-tone: tinymix set 'TERT_MI2S_RX Audio Mixer MultiMedia1' '0'
+rc=0 end 43.64 325.36
+== -p -d 3 -v 15 49.66 371.56
+speaker-test-tone: tinymix set 'TERT_MI2S_RX Audio Mixer MultiMedia1' '1'
+speaker-test-tone: tinymix set 'DAC Playback Volume' '15'
+wavtone: wrote /run/speaker-test-tone-853.wav (1000 Hz, 3.00s, -20.0 dBFS, 48000 Hz, 2 ch)
+speaker-test-tone: playing 1000Hz, 3s, -20dBFS, vol=15, protection attempt=yes, card 0 device 0 (mmap)
+playing '/run/speaker-test-tone-853.wav': 2 ch, 48000 hz, 16 bit
+speaker-test-tone: tinymix set 'TAS2560_ALGO_FF_MODULE' 'ENABLE'
+speaker-test-tone: protection: set rc=0, read back: > DISABLE, ENABLE,  
+-- status at +2s:
+state: RUNNING
+hw_ptr      : 73728
+appl_ptr    : 75776
+speaker-test-tone: tinyplay finished
+speaker-test-tone: tinymix set 'TERT_MI2S_RX Audio Mixer MultiMedia1' '0'
+rc=0 end 53.37 398.35
+== -s #2 54.40 406.22
+card:  0 [sdm660sndcard  ]: sdm660-snd-card - sdm660-snd-card
+MultiMedia1 playback: card 0 device 0
+TERT_MI2S_RX Audio Mixer MultiMedia1: Off 
+DAC Playback Volume: 15 (range 0->15) 
+TAS2560_ALGO_FF_MODULE: > DISABLE, ENABLE,  
+rc=0
+== audio-up still alive? yes; ls /run/audio-up.lock: /run/audio-up.lock; wav leftovers: ls: /run/speaker-test-tone-*.wav: No such file or directory
+== done 54.91 409.43
+
+# audio-up.log
+audio-up: mounted active modem_a read-only
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: kernel/elf_loader -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: tms/servreg -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: wlan/fw -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/adspr.jsn: tms/servreg -> msm/adsp/root_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/modemr.jsn: tms/servreg -> msm/modem/root_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemr.jsn: tms/pdr_enabled -> msm/modem/root_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/adsps.jsn: tms/servreg -> msm/adsp/sensor_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/adspua.jsn: tms/servreg -> msm/adsp/audio_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/adspua.jsn: avs/audio -> msm/adsp/audio_pd (instance 74)
+[SERVREG-LOC] loaded 9 (domain,service) entries from /firmware/image
+[SERVREG-LOC] published service 0x40 instance 0x101 (9 entries loaded)
+[SERVREG-LOC] GET_DOMAIN_LIST "wlan/fw" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+audio-up: booting adsp
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "tms/pdr_enabled" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "tms/pddump_disabled" offset 0 => 0/0 domain(s) (no match)
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+audio-up: adsp up, card 0 'sdm660sndcard' 1.59s after boot_adsp, MultiMedia1 playback pcm device 0
+audio-up: supervising the servreg-locator this process started (TERM stops the locator only; the adsp stays up)
+[SERVREG-LOC] GET_DOMAIN_LIST "tms/pddump_disabled" offset 0 => 0/0 domain(s) (no match)
+[SERVREG-LOC] GET_DOMAIN_LIST "tms/pdr_enabled" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "kernel/elf_loader" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+
+# gps-up.log (coexistence check, gps-up lines only)
+gps-up: /firmware already mounted (by audio-up or a previous run); reusing it, will not unmount on exit
+gps-up: validated active-slot fsg_a (mmcblk0p36): 10485760 bytes
+gps-up: servreg-locator already served (0x40), not starting one
+gps-up: opening /dev/subsys_modem (boots mpss; keep fd 3 open for the modem's lifetime)
+gps-up: modem up, qmux bridge on /run/qmux_socket

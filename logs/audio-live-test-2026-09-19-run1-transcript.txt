@@ -1,0 +1,176 @@
+# run 1 (image 196c1617): audio-up.log, then manual play scripts
+## audio-up.log
+audio-up: mounted active modem_a read-only
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: kernel/elf_loader -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: tms/servreg -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: wlan/fw -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/adspr.jsn: tms/servreg -> msm/adsp/root_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/modemr.jsn: tms/servreg -> msm/modem/root_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemr.jsn: tms/pdr_enabled -> msm/modem/root_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/adsps.jsn: tms/servreg -> msm/adsp/sensor_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/adspua.jsn: tms/servreg -> msm/adsp/audio_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/adspua.jsn: avs/audio -> msm/adsp/audio_pd (instance 74)
+[SERVREG-LOC] loaded 9 (domain,service) entries from /firmware/image
+[SERVREG-LOC] published service 0x40 instance 0x101 (9 entries loaded)
+[SERVREG-LOC] GET_DOMAIN_LIST "wlan/fw" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+audio-up: booting adsp
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "tms/pdr_enabled" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "tms/pddump_disabled" offset 0 => 0/0 domain(s) (no match)
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+audio-up: timed out waiting for the ALSA card to register
+audio-up: dmesg: [   42.759485,6] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+audio-up: dmesg: [   42.770116,6] sdm660-asoc-snd soc:sound: ASoC: CODEC DAI msm_dig_cdc_dai_rx1 not registered
+audio-up: dmesg: [   42.782714,6] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+audio-up: dmesg: [   42.815918,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for MM_UL28
+audio-up: dmesg: [   42.815945,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route MultiMedia28 Mixer -> direct -> MM_UL28
+audio-up: dmesg: [   42.815982,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for MM_UL29
+audio-up: dmesg: [   42.815997,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route MultiMedia29 Mixer -> direct -> MM_UL29
+audio-up: dmesg: [   42.819752,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.819770,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route PRI_MI2S_TX -> PRI_MI2S_TX -> AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.819804,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.819819,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route SEC_MI2S_TX -> SEC_MI2S_TX -> AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.819851,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.819866,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route TERT_MI2S_TX -> TERT_MI2S_TX -> AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.819893,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.819907,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route QUAT_MI2S_TX -> QUAT_MI2S_TX -> AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.819933,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.819947,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route PRI_MI2S_TX -> PRI_MI2S_TX -> AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.819979,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.819994,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route SEC_MI2S_TX -> SEC_MI2S_TX -> AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.820074,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.820091,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route TERT_MI2S_TX -> TERT_MI2S_TX -> AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.820117,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no sink widget found for AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.820133,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route QUAT_MI2S_TX -> QUAT_MI2S_TX -> AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.820209,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no source widget found for AUDIO_REF_EC_UL28 MUX
+audio-up: dmesg: [   42.820224,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route AUDIO_REF_EC_UL28 MUX -> direct -> MM_UL28
+audio-up: dmesg: [   42.820258,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no source widget found for AUDIO_REF_EC_UL29 MUX
+audio-up: dmesg: [   42.820272,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route AUDIO_REF_EC_UL29 MUX -> direct -> MM_UL29
+audio-up: dmesg: [   42.829219,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no dapm match for TERT_MI2S_TX --> TERT_MI2S_TX --> VoLTE Stub Tx Mixer
+audio-up: dmesg: [   42.829234,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route TERT_MI2S_TX -> TERT_MI2S_TX -> VoLTE Stub Tx Mixer
+audio-up: dmesg: [   42.829404,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: no dapm match for TERT_MI2S_TX --> TERT_MI2S_TX --> Voice2 Stub Tx Mixer
+audio-up: dmesg: [   42.829417,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: Failed to add route TERT_MI2S_TX -> TERT_MI2S_TX -> Voice2 Stub Tx Mixer
+audio-up: dmesg: [   42.839607,6] msm_digital_codec msm_digital_codec: ASoC: Failed to create AIF2 Capture debugfs file
+audio-up: dmesg: [   42.914895,6] sdm660-asoc-snd soc:sound: control 2:0:0:MultiMedia5 Mixer QUAT_MI2S_TX:0 is already present
+audio-up: dmesg: [   42.914933,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: failed to add widget MultiMedia5 Mixer dapm kcontrol MultiMedia5 Mixer QUAT_MI2S_TX: -16
+audio-up: dmesg: [   43.053660,6] msm-pcm-routing soc:qcom,msm-pcm-routing: ASoC: mux AUDIO_REF_EC_UL16 MUX has no paths
+audio-up: dmesg: [   43.204516,6] sdm660-asoc-snd soc:sound: wcd_mbhc_start: qcom,msm-mbhc-usbc-audio-supported in dt node is missing or false
+audio-up: dmesg: [   43.204536,6] sdm660-asoc-snd soc:sound: wcd_mbhc_start: skipping USB c analog configuration
+audio-up: dmesg: [   43.269194,6] input: sdm660-snd-card Headset Jack as /devices/soc/soc:sound/sound/card0/input7
+audio-up: dmesg: [   43.270734,6] input: sdm660-snd-card Button Jack as /devices/soc/soc:sound/sound/card0/input8
+audio-up: dmesg: [   43.274349,6] sdm660-asoc-snd soc:sound: msm_asoc_machine_probe: snd_soc_register_card sucessfully
+## play.log
+start 217.65 1696.55
+Error: invalid enum value
+play 1 at 218.05 1700.56
+playing '/run/tone.wav': 2 ch, 48000 hz, 16 bit
+rc=0
+play 2 at 222.23 1729.79
+playing '/run/tone.wav': 2 ch, 48000 hz, 16 bit
+rc=0
+play 3 at 226.40 1762.31
+playing '/run/tone.wav': 2 ch, 48000 hz, 16 bit
+rc=0
+route reset 230.71 1794.11
+## play2.log
+wavtone: wrote /run/tone4.wav (1000 Hz, 4.00s, -20.0 dBFS, 48000 Hz, 2 ch)
+A: default periods, 4 s tone, FF ENABLE attempted at +1s: 323.14 2526.63
+playing '/run/tone4.wav': 2 ch, 48000 hz, 16 bit
+ff set rc=0 at 324.33 2534.79
+> DISABLE, ENABLE, 
+state: XRUN
+owner_pid   : 1011
+trigger_time: 190778.265530385
+tstamp      : 190778.289857210
+delay       : 0
+avail       : 3072
+avail_max   : 3072
+-----
+hw_ptr      : 1024
+appl_ptr    : 0
+access: RW_INTERLEAVED
+format: S16_LE
+subformat: STD
+channels: 2
+rate: 48000 (48000/1)
+period_size: 1024
+buffer_size: 2048
+rc=0 end 331.64 2584.78
+B: -p 1920 -n 8: 333.66 2600.80
+playing '/run/tone4.wav': 2 ch, 48000 hz, 16 bit
+rc=0 end 341.18 2653.90
+> DISABLE, ENABLE, 
+route reset 341.45 2655.56
+## play3.log
+== -p 1920 -n 8 start 385.66 3005.78
+playing '/run/tone4.wav': 2 ch, 48000 hz, 16 bit
+-- status at +1.5s:
+state: XRUN
+owner_pid   : 1044
+trigger_time: 190840.937020847
+tstamp      : 190840.965170954
+delay       : 0
+avail       : 17280
+avail_max   : 17280
+-----
+hw_ptr      : 1920
+appl_ptr    : 0
+period_size: 1920
+buffer_size: 15360
+-- status at +3s:
+state: XRUN
+hw_ptr      : 1920
+appl_ptr    : 0
+rc=0 end 393.18 3061.12
+== -p 4800 -n 4 start 398.20 3098.25
+playing '/run/tone4.wav': 2 ch, 48000 hz, 16 bit
+-- status at +1.5s:
+state: XRUN
+owner_pid   : 1053
+trigger_time: 190853.434397560
+tstamp      : 190853.507683766
+delay       : 0
+avail       : 24000
+avail_max   : 24000
+-----
+hw_ptr      : 4800
+appl_ptr    : 0
+period_size: 4800
+buffer_size: 19200
+-- status at +3s:
+state: XRUN
+hw_ptr      : 4800
+appl_ptr    : 0
+rc=0 end 405.56 3155.70
+route reset 410.71 3196.20
+## play4.log
+== -M start 502.34 3924.09
+playing '/run/tone4.wav': 2 ch, 48000 hz, 16 bit
+-- status at +1.5s:
+state: RUNNING
+owner_pid   : 1091
+trigger_time: 190956.189466911
+tstamp      : 190957.633170545
+delay       : 2048
+avail       : 0
+avail_max   : 1024
+-----
+hw_ptr      : 70656
+appl_ptr    : 72704
+tstamp_mode: ENABLE
+period_step: 1
+avail_min: 0
+start_threshold: 1024
+stop_threshold: 2048
+silence_threshold: 2048
+silence_size: 0
+boundary: 2305843009213693952
+period_size: 1024
+buffer_size: 2048
+-- status at +3s:
+state: RUNNING
+hw_ptr      : 144384
+appl_ptr    : 146432
+rc=0 end 506.48 3952.65
+route reset 506.62 3953.67

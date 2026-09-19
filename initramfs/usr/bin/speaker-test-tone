@@ -1,0 +1,298 @@
+#!/bin/sh
+# Plays a short sine test tone out of the TAS2560 loudspeaker (chef-cyclo),
+# once audio-up (initramfs/usr/bin/audio-up) has the ADSP and the ALSA card
+# up. Sets the TERT_MI2S_RX -> MultiMedia1 mixer route and a conservative
+# DAC volume, writes a WAV tone with tools/wavtone.c's wavtone, plays it
+# with tinyalsa's tinyplay in mmap mode, and always resets the mixer route
+# back off on exit. `speaker-test-tone -s` only prints the card, the
+# MultiMedia1 device and the three control values, without playing.
+#
+# tinyplay MUST run with -M (mmap). Live 2026-09-19 run 1: without it every
+# play sat in `state: XRUN` (hw_ptr 1024, appl_ptr 0), a 4 s tone took
+# 7.5-8.5 s of wall-clock, dmesg WARN_ON_ONCE'd in msm_pcm_trigger
+# (msm-pcm-q6-v2.c:652, a pending CMD_EOS from the XRUN-triggered stop) and
+# the tone was audibly broken. msm-pcm-q6-v2's copy path acks each period
+# as soon as the DSP has copied it, so ALSA's avail reaches buffer_size at
+# once and the core declares an XRUN (stop_threshold = buffer_size);
+# tinyplay then prepare/rewrites in a loop. Android's HAL sidesteps this
+# with stop_threshold = INT_MAX / mmap; tinyplay only exposes -M. With -M:
+# `state: RUNNING`, hw_ptr trailing appl_ptr by 2048 frames, 4.14 s for
+# the 4 s tone, 0 xruns, tone heard properly. Any future ALSA client on
+# this card must use mmap or raise stop_threshold to the boundary.
+#
+# TAS2560_ALGO_FF_MODULE (the ADSP-side speaker-protection module) is NOT
+# set by default. Live it cannot be set while the TERT_MI2S_RX AFE port is
+# inactive (`Error: invalid enum value`, rc=1 -- the put handler forwards an
+# AFE set-param to port 0x1004 and the DSP rejects it with no active port),
+# and set 1 s into a running stream the write succeeds (rc=0, kernel logs
+# `Sending Rx-Enable data 1`) but reads straight back as 0 -- the module
+# stays disabled, presumably because there is no calibration data (no ACDB
+# loader on this build). -p makes a best-effort, never-fatal attempt 1 s
+# after playback starts and logs the set rc and the read-back value, so the
+# behaviour can be re-checked when calibration/sequencing is worked out.
+# The amplitude ceiling (-a refuses anything above -6 dBFS, default -20;
+# see wavtone.c for the matching refusal on its side) is what protects the
+# uncalibrated speaker meanwhile.
+#
+# Mixer control names live at the top of the script as plain variables
+# (stock mixer_paths.xml names, cross-checked against the kernel and
+# confirmed live -- see docs/features/audio.md). Do not rename them without
+# updating tools/tests/test_speaker-test-tone.sh's expected tinymix argv.
+set -u
+
+# ---- mixer control names (all three confirmed present and typed as expected live 2026-09-19) ----
+CTL_ROUTE="TERT_MI2S_RX Audio Mixer MultiMedia1"
+CTL_DAC_VOL="DAC Playback Volume"
+CTL_FF_MODULE="TAS2560_ALGO_FF_MODULE"
+
+# Overridable so this can be exercised against a fake /proc/asound tree and
+# stub tinymix/tinyplay/wavtone in tools/tests/test_speaker-test-tone.sh;
+# unset in production, so these default to the real device paths/binaries.
+ASOUND_DIR=${ASOUND_DIR:-/proc/asound}
+RUN_DIR=${RUN_DIR:-/run}
+CARD=${CARD:-0}
+TINYMIX=${TINYMIX:-tinymix}
+TINYPLAY=${TINYPLAY:-tinyplay}
+WAVTONE=${WAVTONE:-wavtone}
+# How long after tinyplay starts the -p attempt is made. Overridable so the
+# host test does not have to wait a real second.
+PROTECT_DELAY=${PROTECT_DELAY:-1}
+
+# Defaults. VOL: TAS2560's "DAC Playback Volume" is SOC_SINGLE_TLV(0, 0x0f)
+# (kernel/sound/soc/codecs/tas2560-codec.c:458), i.e. 0..15, 1 dB/step, 0 =
+# quietest. Stock's initial mixer setup leaves it at 15 and the live run
+# used 15 at -20 dBFS; 10 here is deliberate headroom on an uncalibrated
+# speaker, not the codec's maximum. -v 15 reproduces the live setting.
+FREQ=1000
+DURATION=1
+DURATION_MAX=5
+AMPLITUDE_DBFS=-20
+AMPLITUDE_MAX_DBFS=-6
+VOL=10
+VOL_MAX=15
+PROTECT=0
+STATUS_ONLY=0
+
+ROUTE_SET=0
+TMPWAV=
+PROTECT_PID=
+
+usage() {
+	cat >&2 <<EOF
+usage: speaker-test-tone [-f HZ] [-d SECONDS] [-a AMPLITUDE_DBFS] [-v VOL] [-p]
+       speaker-test-tone -s
+  -f HZ               tone frequency (default $FREQ)
+  -d SECONDS          duration, clamped to $DURATION_MAX (default $DURATION)
+  -a AMPLITUDE_DBFS   peak level, clamped to <= $AMPLITUDE_MAX_DBFS dBFS (default $AMPLITUDE_DBFS)
+  -v VOL              DAC Playback Volume, 0..$VOL_MAX (default $VOL; 15 = stock/live setting)
+  -p                  best-effort attempt to enable $CTL_FF_MODULE ${PROTECT_DELAY}s into
+                      playback; logs the result, never fatal (see the script header)
+  -s                  status only: card, MultiMedia1 device, the three control values
+EOF
+}
+
+log() {
+	echo "speaker-test-tone: $*" >&2
+}
+
+is_number() {
+	awk -v v="$1" 'BEGIN { exit (v ~ /^-?[0-9]+(\.[0-9]+)?$/) ? 0 : 1 }'
+}
+
+# Pure clamp helpers (host-tested directly via the SELFTEST sourcing hook).
+clamp_duration() {
+	d=$1
+	awk -v d="$d" -v max="$DURATION_MAX" 'BEGIN { print (d > max) ? max : d }'
+}
+
+clamp_amplitude() {
+	a=$1
+	awk -v a="$a" -v max="$AMPLITUDE_MAX_DBFS" 'BEGIN { print (a > max) ? max : a }'
+}
+
+card_ready() {
+	# Never test /proc/asound/cards with [ -s ]: procfs reports st_size 0
+	# for it even when it lists the card (this is what made run 1's
+	# audio-up time out and this script refuse -- see audio-up's
+	# card_ready). grep alone is the test; grep on a missing file fails too.
+	grep -q 'sdm660' "$ASOUND_DIR/cards" 2>/dev/null
+}
+
+# Same parsing rule as audio-up's pcm_mm1_device(); duplicated rather than
+# shared because this script must work standalone from the telnet shell
+# without sourcing audio-up (which may not even be resident -- the ADSP,
+# once up, stays up without audio-up's process). Keep both copies in sync by
+# hand if the front-end list or /proc/asound/pcm's line shape ever changes.
+pcm_mm1_device() {
+	pcmfile="$ASOUND_DIR/pcm"
+	[ -r "$pcmfile" ] || return 1
+	while IFS= read -r line; do
+		case "$line" in
+		*MultiMedia1*playback*)
+			rest=${line#*-}
+			dev=${rest%%:*}
+			# "00" -> 0 (sed, not $((...)): a leading 0 makes "08"/"09"
+			# invalid octal in ash).
+			dev=$(printf '%s' "$dev" | sed 's/^0*//')
+			echo "${dev:-0}"
+			return 0
+			;;
+		esac
+	done < "$pcmfile"
+	return 1
+}
+
+tinymix_set() {
+	# $1: control name, $2: value. Every call is checked; a failure names
+	# the control and carries tinymix's own stderr so a bad name or a
+	# rejected value (live: `Error: invalid enum value` for the protection
+	# module with no active port) is obvious in the log.
+	ctl=$1
+	val=$2
+	if err=$("$TINYMIX" -D "$CARD" set "$ctl" "$val" 2>&1 >/dev/null); then
+		log "tinymix set '$ctl' '$val'"
+		return 0
+	fi
+	log "tinymix set '$ctl' '$val' failed: ${err:-no output} (check the control name/value -- see docs/features/audio.md)"
+	return 1
+}
+
+tinymix_get() {
+	# $1: control name. Echoes tinymix's value line(s), or "?" on failure.
+	"$TINYMIX" -D "$CARD" get "$1" 2>/dev/null || echo "?"
+}
+
+protect_attempt() {
+	# Best-effort, never fatal, run in the background PROTECT_DELAY s after
+	# tinyplay starts so the TERT_MI2S_RX AFE port is active by then (the
+	# set is rejected outright while it is not). Logs the rc and the value
+	# read straight back, which live was still 0 -- see the header.
+	sleep "$PROTECT_DELAY"
+	if tinymix_set "$CTL_FF_MODULE" ENABLE; then
+		log "protection: set rc=0, read back: $(tinymix_get "$CTL_FF_MODULE" | tr '\n' ' ')"
+	else
+		log "protection: set failed (best-effort, playback continues)"
+	fi
+}
+
+print_status() {
+	cards="$ASOUND_DIR/cards"
+	if card_ready; then
+		grep 'sdm660' "$cards" | head -n 1 | sed 's/^/card: /'
+	else
+		echo "card: none (no sdm660 card in $cards; run audio-up first)"
+	fi
+	if dev=$(pcm_mm1_device); then
+		echo "MultiMedia1 playback: card $CARD device $dev"
+	else
+		echo "MultiMedia1 playback: not found in $ASOUND_DIR/pcm"
+	fi
+	for ctl in "$CTL_ROUTE" "$CTL_DAC_VOL" "$CTL_FF_MODULE"; do
+		echo "$ctl: $(tinymix_get "$ctl" | tr '\n' ' ')"
+	done
+}
+
+cleanup() {
+	status=$?
+	[ -n "$PROTECT_PID" ] && kill "$PROTECT_PID" 2>/dev/null
+	[ -n "$TMPWAV" ] && rm -f "$TMPWAV"
+	# Always reset the route, even if tinyplay failed or this script is
+	# exiting on an error after enabling it -- an amp left routed and
+	# powered is not the state to leave the speaker in.
+	if [ "$ROUTE_SET" -eq 1 ]; then
+		tinymix_set "$CTL_ROUTE" 0 || log "WARNING: could not reset '$CTL_ROUTE' to 0"
+	fi
+	exit "$status"
+}
+
+# Let tools/tests/test_speaker-test-tone.sh source this file for its pure
+# functions (clamp_duration, clamp_amplitude, card_ready, pcm_mm1_device)
+# without running the mixer/playback flow below.
+[ "${SPEAKER_TEST_TONE_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
+
+while getopts 'f:d:a:v:psh' opt; do
+	case "$opt" in
+	f) FREQ=$OPTARG ;;
+	d) DURATION=$OPTARG ;;
+	a) AMPLITUDE_DBFS=$OPTARG ;;
+	v) VOL=$OPTARG ;;
+	p) PROTECT=1 ;;
+	s) STATUS_ONLY=1 ;;
+	h) usage; exit 0 ;;
+	*) usage; exit 1 ;;
+	esac
+done
+shift $((OPTIND - 1))
+if [ $# -ne 0 ]; then
+	usage
+	exit 1
+fi
+
+if [ "$STATUS_ONLY" -eq 1 ]; then
+	print_status
+	exit 0
+fi
+
+if ! is_number "$FREQ" || [ "$(awk -v f="$FREQ" 'BEGIN { print (f > 0) }')" != 1 ]; then
+	log "invalid -f '$FREQ': must be a positive number"
+	exit 1
+fi
+if ! is_number "$DURATION" || [ "$(awk -v d="$DURATION" 'BEGIN { print (d > 0) }')" != 1 ]; then
+	log "invalid -d '$DURATION': must be a positive number"
+	exit 1
+fi
+if ! is_number "$AMPLITUDE_DBFS"; then
+	log "invalid -a '$AMPLITUDE_DBFS': must be a number"
+	exit 1
+fi
+case "$VOL" in
+'' | *[!0-9]*) log "invalid -v '$VOL': must be an integer 0..$VOL_MAX"; exit 1 ;;
+esac
+[ "$VOL" -ge 0 ] && [ "$VOL" -le "$VOL_MAX" ] || {
+	log "invalid -v '$VOL': must be 0..$VOL_MAX"
+	exit 1
+}
+
+CLAMPED_DURATION=$(clamp_duration "$DURATION")
+if [ "$CLAMPED_DURATION" != "$DURATION" ]; then
+	log "clamping -d $DURATION to $CLAMPED_DURATION (max $DURATION_MAX)"
+fi
+DURATION=$CLAMPED_DURATION
+
+CLAMPED_AMPLITUDE=$(clamp_amplitude "$AMPLITUDE_DBFS")
+if [ "$CLAMPED_AMPLITUDE" != "$AMPLITUDE_DBFS" ]; then
+	log "clamping -a $AMPLITUDE_DBFS to $CLAMPED_AMPLITUDE dBFS (uncalibrated speaker, max $AMPLITUDE_MAX_DBFS dBFS)"
+fi
+AMPLITUDE_DBFS=$CLAMPED_AMPLITUDE
+
+card_ready || { log "no sdm660 card in $ASOUND_DIR/cards; run audio-up first"; exit 1; }
+PCM_DEV=$(pcm_mm1_device) || { log "could not find the MultiMedia1 playback PCM device in $ASOUND_DIR/pcm"; exit 1; }
+
+trap cleanup EXIT HUP INT TERM
+
+tinymix_set "$CTL_ROUTE" 1 || exit 1
+ROUTE_SET=1
+tinymix_set "$CTL_DAC_VOL" "$VOL" || exit 1
+
+TMPWAV="$RUN_DIR/speaker-test-tone-$$.wav"
+"$WAVTONE" -f "$FREQ" -d "$DURATION" -a "$AMPLITUDE_DBFS" -o "$TMPWAV" || {
+	log "wavtone failed to generate $TMPWAV"
+	exit 1
+}
+
+log "playing ${FREQ}Hz, ${DURATION}s, ${AMPLITUDE_DBFS}dBFS, vol=$VOL, protection attempt=$([ "$PROTECT" -eq 1 ] && echo yes || echo no), card $CARD device $PCM_DEV (mmap)"
+if [ "$PROTECT" -eq 1 ]; then
+	protect_attempt &
+	PROTECT_PID=$!
+fi
+# -M is mandatory on this card -- see the header.
+if "$TINYPLAY" "$TMPWAV" -D "$CARD" -d "$PCM_DEV" -M; then
+	log "tinyplay finished"
+else
+	log "tinyplay exited with an error"
+	exit 1
+fi
+if [ -n "$PROTECT_PID" ]; then
+	wait "$PROTECT_PID" 2>/dev/null
+	PROTECT_PID=
+fi

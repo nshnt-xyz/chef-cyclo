@@ -124,5 +124,31 @@ got=$(od -An -tx1 < "$FW_PATH_NODE" | tr -d ' \n')
 want=$(printf '%s' /firmware/image | od -An -tx1 | tr -d ' \n')
 eq "set_firmware_path writes exactly /firmware/image, byte for byte (no trailing newline)" "$want" "$got"
 
+# --- server_present(): DUMP_SERVERS override added so audio-up's symmetric
+# "who already serves 0x40" check (initramfs/usr/bin/audio-up) can be
+# exercised the same way on both sides without a device; gps-up itself uses
+# the real path by default (unchanged behavior). ---
+DUMP_SERVERS="$TMPROOT/dump_servers-present"
+printf '0x00000040 |0x00000000|... \n' > "$DUMP_SERVERS"
+if DUMP_SERVERS="$DUMP_SERVERS" server_present 40; then
+	ok
+else
+	bad "server_present 40 must succeed when 0x00000040 is in dump_servers"
+fi
+
+DUMP_SERVERS="$TMPROOT/dump_servers-absent"
+printf '0x0000000e |0x00000000|... \n' > "$DUMP_SERVERS"
+if DUMP_SERVERS="$DUMP_SERVERS" server_present 40; then
+	bad "server_present 40 must fail when 0x00000040 is not in dump_servers"
+else
+	ok
+fi
+
+# The mount-tolerance change (skip mounting /firmware if audio-up already
+# mounted it, and never unmount someone else's mount) is real-filesystem
+# behavior (`mountpoint -q /firmware`) that cannot be exercised against a
+# fake tree the way the selection logic above can; it is covered by manual
+# review and live verification only (see docs/features/audio.md).
+
 echo "PASS: $pass/$((pass + fail)) checks passed"
 [ "$fail" -eq 0 ]

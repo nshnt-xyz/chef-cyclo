@@ -41,6 +41,7 @@ FSG_SIZE_EXPECT=10485760
 SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
 CMDLINE=${CMDLINE:-/proc/cmdline}
 FW_PATH_NODE=${FW_PATH_NODE:-/sys/module/firmware_class/parameters/path}
+DUMP_SERVERS=${DUMP_SERVERS:-/sys/kernel/debug/msm_ipc_router/dump_servers}
 
 part() {
 	for u in "$SYSFS_BLOCK"/*/uevent; do
@@ -95,7 +96,10 @@ set_firmware_path() {
 server_present() {
 	# dump_servers in this 4.4 tree writes the service in the first column as
 	# 0x000000NN, rather than the shorthand 0xNN used in some newer trees.
-	grep -Eq "^0x0*$1[[:space:]]*[|]" /sys/kernel/debug/msm_ipc_router/dump_servers 2>/dev/null
+	# DUMP_SERVERS is overridable (see SYSFS_BLOCK above) so audio-up's
+	# "who already serves 0x40" symmetry check below can be exercised
+	# against a fake tree in tools/tests/test_gps-up.sh.
+	grep -Eq "^0x0*$1[[:space:]]*[|]" "$DUMP_SERVERS" 2>/dev/null
 }
 
 wait_for_server() {
@@ -188,9 +192,19 @@ if [ -z "$MODEM_PART" ]; then
 	log "$MODEM_LABEL partition not found, aborting"
 	exit 1
 fi
-mount -o ro "/dev/$MODEM_PART" /firmware || { log "failed to mount $MODEM_LABEL read-only"; exit 1; }
-FIRMWARE_MOUNTED=1
-log "mounted active $MODEM_LABEL read-only"
+# audio-up (initramfs/usr/bin/audio-up) also needs /firmware (adsp.mdt/b00..b21
+# live on the same modem partition) and keeps it mounted for the ADSP's whole
+# boot, so whichever of the two scripts runs second must not shadow-mount over
+# the first's, and must not tear the other's mount down on exit. FIRMWARE_MOUNTED
+# only tracks *this* process's own mount; if /firmware is already a mountpoint
+# (audio-up got there first) it is left at 0 and cleanup() never unmounts it.
+if mountpoint -q /firmware 2>/dev/null; then
+	log "/firmware already mounted (by audio-up or a previous run); reusing it, will not unmount on exit"
+else
+	mount -o ro "/dev/$MODEM_PART" /firmware || { log "failed to mount $MODEM_LABEL read-only"; exit 1; }
+	FIRMWARE_MOUNTED=1
+	log "mounted active $MODEM_LABEL read-only"
+fi
 
 [ -w "$FW_PATH_NODE" ] || { log "firmware path sysfs node missing"; exit 1; }
 set_firmware_path || {
@@ -267,12 +281,24 @@ fi
 # timeout) entry). Fixing the +40.02s ERR_FATAL required this, but the
 # 2026-09-17 (stock read + TFTP/RFS) probe showed it alone was not
 # sufficient -- see tftp-server below, also required and also fail-closed.
-servreg-locator -v &
-SERVREG_PID=$!
+#
+# audio-up also needs a servreg-locator (it serves the ADSP's own
+# /firmware/image/adspua.jsn descriptor for the kernel audio PDR's service
+# lookup) and starts its own only if 0x40 isn't already up -- symmetric with
+# this check, so whichever of the two scripts runs second never starts a
+# second locator process. SERVREG_PID stays empty when skipped, so cleanup()
+# and the supervision loop below never touch a locator this process doesn't
+# own.
+if server_present 40; then
+	log "servreg-locator already served (0x40), not starting one"
+else
+	servreg-locator -v &
+	SERVREG_PID=$!
 
-if ! wait_for_server 40 SERVREG-LOCATOR 20; then
-	log "timed out waiting for servreg-locator service (0x40); refusing modem boot"
-	exit 1
+	if ! wait_for_server 40 SERVREG-LOCATOR 20; then
+		log "timed out waiting for servreg-locator service (0x40); refusing modem boot"
+		exit 1
+	fi
 fi
 
 # tftp-server answers the modem's boot-time TFTP/RFS transactions (QMI

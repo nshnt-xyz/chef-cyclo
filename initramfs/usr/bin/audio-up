@@ -1,0 +1,330 @@
+#!/bin/sh
+# Bring up the ADSP for on-device audio: mount its firmware read-only (the
+# same modem partition GPS uses -- adsp.mdt/b00..b21 live next to the modem's
+# own firmware), start the servreg-locator server if nothing already serves
+# QMI service 0x40 (it answers the ADSP's own boot-time service-registry
+# lookup), boot the ADSP through its PIL loader node, and wait for the ALSA
+# card to register.
+#
+# The ADSP has no unload path (kernel/drivers/soc/qcom/qdsp6v2/adsp-loader.c:
+# subsystem_get("adsp") only) -- once booted it stays up for the rest of the
+# boot; there is nothing for this script to tear down but the servreg-locator
+# it may have started, and /firmware stays mounted for the ADSP's whole
+# lifetime (PIL re-reads it on any subsystem-restart recovery). See
+# docs/features/audio.md.
+#
+# gps-up (initramfs/usr/bin/gps-up) mounts the same /firmware and may run a
+# servreg-locator of its own; whichever of audio-up/gps-up runs second must
+# not shadow-mount over or start a redundant locator for the first -- see the
+# "audio-up also needs" comments in gps-up for its half of this symmetry.
+#
+# Manual opt-in only (not in inittab), same policy as gps-up: run by hand
+# from the telnet shell with `audio-up &`, or as `audio-up` (it exits once
+# the ADSP is up if it started nothing that needs supervising).
+set -u
+
+LOCK=/run/audio-up.lock
+SERVREG_PID=
+FIRMWARE_MOUNTED=0
+ADSP_BOOT_ATTEMPTED=0
+
+# Overridable so this selection/wait logic can be exercised against a fake
+# sysfs/procfs tree in tools/tests/test_audio-up.sh; unset in production, so
+# these default to the real device paths. SYSFS_BLOCK/CMDLINE/FW_PATH_NODE
+# mirror gps-up's own (same meaning); the rest are specific to this script.
+SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
+CMDLINE=${CMDLINE:-/proc/cmdline}
+FW_PATH_NODE=${FW_PATH_NODE:-/sys/module/firmware_class/parameters/path}
+ASOUND_DIR=${ASOUND_DIR:-/proc/asound}
+BOOT_ADSP_NODE=${BOOT_ADSP_NODE:-/sys/kernel/boot_adsp/boot}
+SUBSYS_DIR=${SUBSYS_DIR:-/sys/bus/msm_subsys/devices}
+DUMP_SERVERS=${DUMP_SERVERS:-/sys/kernel/debug/msm_ipc_router/dump_servers}
+
+# part() and active_slot() are copied from gps-up rather than sourced at
+# runtime (gps-up is opt-in and may not be running, and sourcing another
+# script's live process state here would be fragile); keep both copies in
+# sync by hand if the selection rules ever change.
+part() {
+	for u in "$SYSFS_BLOCK"/*/uevent; do
+		grep -q "^PARTNAME=$1\$" "$u" 2>/dev/null && { basename "$(dirname "$u")"; return; }
+	done
+}
+
+active_slot() {
+	for arg in $(cat "$CMDLINE" 2>/dev/null); do
+		case "$arg" in
+		androidboot.slot_suffix=_a) echo a; return 0 ;;
+		androidboot.slot_suffix=_b) echo b; return 0 ;;
+		esac
+	done
+	return 1
+}
+
+set_firmware_path() {
+	# printf, not echo -- see gps-up's set_firmware_path comment for why a
+	# trailing newline breaks every direct-load firmware lookup. Same node,
+	# same value; whichever of audio-up/gps-up sets it first is fine, since
+	# both write the identical byte string.
+	printf '%s' /firmware/image > "$FW_PATH_NODE"
+}
+
+server_present() {
+	# Same dump_servers column format as gps-up's own server_present (this
+	# 4.4 tree prints the service as 0x000000NN, not the 0xNN shorthand).
+	grep -Eq "^0x0*$1[[:space:]]*[|]" "$DUMP_SERVERS" 2>/dev/null
+}
+
+wait_for_server() {
+	service=$1
+	name=$2
+	limit=$3
+	i=0
+	while ! server_present "$service"; do
+		if [ -n "$SERVREG_PID" ] && ! kill -0 "$SERVREG_PID" 2>/dev/null; then
+			log "servreg-locator exited before $name service became ready"
+			return 1
+		fi
+		[ "$i" -lt "$limit" ] || return 1
+		sleep 0.5
+		i=$((i + 1))
+	done
+	return 0
+}
+
+find_subsys() {
+	# $1: subsystem "name" node value (e.g. "adsp"). Echoes the matching
+	# /sys/bus/msm_subsys/devices/subsysN path on success.
+	name=$1
+	for s in "$SUBSYS_DIR"/subsys*; do
+		[ -r "$s/name" ] || continue
+		[ "$(cat "$s/name" 2>/dev/null)" = "$name" ] || continue
+		echo "$s"
+		return 0
+	done
+	return 1
+}
+
+boot_adsp() {
+	[ -w "$BOOT_ADSP_NODE" ] || { log "boot_adsp node missing or not writable"; return 1; }
+	echo 1 > "$BOOT_ADSP_NODE"
+}
+
+card_ready() {
+	# /proc/asound/cards containing the sdm660 machine driver's card name
+	# (kernel/sound/soc/msm/sdm660-internal.c:3142, "sdm660-snd-card"; live
+	# it reads ` 0 [sdm660sndcard  ]: sdm660-snd-card - sdm660-snd-card`).
+	# Never test this file with [ -s ]: procfs reports st_size 0 for it even
+	# when it lists the card (live 2026-09-19 run 1: the card was up 1.17 s
+	# after boot_adsp and this wait still timed out at 60 s because of an
+	# -s check). grep alone is the test; grep on a missing file fails too.
+	grep -q 'sdm660' "$ASOUND_DIR/cards" 2>/dev/null
+}
+
+wait_for_card() {
+	# $1: retry limit (0.5s per attempt, like gps-up's wait_for_server).
+	limit=$1
+	i=0
+	while ! card_ready; do
+		[ "$i" -lt "$limit" ] || return 1
+		sleep 0.5
+		i=$((i + 1))
+	done
+	return 0
+}
+
+pcm_mm1_device() {
+	# Parses /proc/asound/pcm for the MultiMedia1 playback front-end
+	# (kernel/sound/soc/msm/sdm660-internal.c: msm_int_dai[0], "hw:x,0",
+	# platform msm-pcm-dsp.0) and echoes its ALSA device number. Never
+	# hardcode the device number -- msm_int_dai's ordering is not part of any
+	# stable ABI. Line shape: "00-00: MultiMedia1 (*) :  : playback 1 : capture 1".
+	pcmfile="$ASOUND_DIR/pcm"
+	[ -r "$pcmfile" ] || return 1
+	while IFS= read -r line; do
+		case "$line" in
+		*MultiMedia1*playback*)
+			rest=${line#*-}
+			dev=${rest%%:*}
+			# "00" -> 0: tinyplay -d accepts either, but logs should say
+			# the device number the way `tinyplay -d 0` is typed. sed, not
+			# $((...)): a leading 0 makes "08"/"09" invalid octal in ash.
+			dev=$(printf '%s' "$dev" | sed 's/^0*//')
+			echo "${dev:-0}"
+			return 0
+			;;
+		esac
+	done < "$pcmfile"
+	return 1
+}
+
+uptime_s() {
+	# Seconds since boot with centisecond resolution (busybox date has no
+	# sub-second format); the first field of /proc/uptime.
+	cut -d ' ' -f 1 /proc/uptime 2>/dev/null || echo 0
+}
+
+elapsed_s() {
+	# $1: an earlier uptime_s value. Echoes now - $1 to two decimals.
+	awk -v t0="$1" -v t1="$(uptime_s)" 'BEGIN { printf "%.2f", t1 - t0 }'
+}
+
+child_running() {
+	# See gps-up's child_running comment: a zombie is a failed daemon for
+	# our purposes, so check /proc state rather than trust kill -0 alone.
+	[ -r "/proc/$1/stat" ] || return 1
+	awk '{ exit ($3 == "Z") }' "/proc/$1/stat"
+}
+
+log() {
+	[ -w /dev/kmsg ] && echo "audio-up: $*" > /dev/kmsg 2>/dev/null
+	echo "audio-up: $*"
+}
+
+dump_adsp_diagnostics() {
+	# Best-effort only: dmesg may not exist under every busybox config, and
+	# this is a diagnostic aid, not something the script's success depends on.
+	command -v dmesg >/dev/null 2>&1 || { log "dmesg unavailable, cannot dump diagnostics"; return; }
+	dmesg 2>/dev/null | grep -Ei 'adsp|asoc|snd|apr|q6|tas2560|lpass|pil' | tail -n 40 \
+		| while IFS= read -r line; do log "dmesg: $line"; done
+}
+
+cleanup() {
+	status=$?
+	trap - EXIT HUP INT TERM
+	[ -n "$SERVREG_PID" ] && kill "$SERVREG_PID" 2>/dev/null
+	[ -n "$SERVREG_PID" ] && wait "$SERVREG_PID" 2>/dev/null
+	# /firmware and the ADSP itself are deliberately never torn down once
+	# boot_adsp has been written -- the ADSP has no unload path and PIL may
+	# re-read /firmware on a subsystem-restart recovery for as long as the
+	# kernel is up, including long after this process has exited (the normal
+	# case: it exits 0 right after the card comes up). Reboot is the only way
+	# to power the ADSP down. Only unmount if this script's own mount (never
+	# gps-up's -- FIRMWARE_MOUNTED is only ever set to 1 by this script's own
+	# mount above) never got as far as boot_adsp, so a failed attempt doesn't
+	# leave a stale mount behind for no reason and a retry starts clean.
+	[ "$FIRMWARE_MOUNTED" -eq 1 ] && [ "$ADSP_BOOT_ATTEMPTED" -eq 0 ] && umount /firmware 2>/dev/null
+	rmdir "$LOCK" 2>/dev/null
+	exit "$status"
+}
+
+# Let tools/tests/test_audio-up.sh source this file for its functions
+# without running the ADSP bring-up below.
+[ "${AUDIO_UP_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
+
+if ! mkdir "$LOCK" 2>/dev/null; then
+	log "already running (or stale $LOCK remains); refusing a second ADSP boot attempt"
+	exit 1
+fi
+trap cleanup EXIT HUP INT TERM
+
+mkdir -p /firmware /sys/kernel/debug
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+[ -r "$DUMP_SERVERS" ] || {
+	log "IPC-router debugfs dump_servers is unavailable; cannot prove servreg-locator readiness"
+	exit 1
+}
+
+SLOT=$(active_slot) || { log "active A/B slot not present in /proc/cmdline, aborting"; exit 1; }
+MODEM_LABEL=modem_$SLOT
+MODEM_PART=$(part "$MODEM_LABEL")
+if [ -z "$MODEM_PART" ]; then
+	log "$MODEM_LABEL partition not found, aborting"
+	exit 1
+fi
+
+# gps-up may already have this mounted (and vice versa -- see gps-up's own
+# "audio-up also needs /firmware" comment); the ADSP only reads its firmware
+# once, at boot_adsp time below, so either script getting there first is
+# fine. Never unmount someone else's mount, and never shadow-mount over it.
+if mountpoint -q /firmware 2>/dev/null; then
+	log "/firmware already mounted (by gps-up or a previous run); reusing it, will not unmount on exit"
+else
+	mount -o ro "/dev/$MODEM_PART" /firmware || { log "failed to mount $MODEM_LABEL read-only"; exit 1; }
+	FIRMWARE_MOUNTED=1
+	log "mounted active $MODEM_LABEL read-only"
+fi
+
+[ -w "$FW_PATH_NODE" ] || { log "firmware path sysfs node missing"; exit 1; }
+set_firmware_path || {
+	log "failed to set firmware search path"
+	exit 1
+}
+
+if ! irsc; then
+	log "irsc failed; refusing to start clients that could block in IPC router security"
+	exit 1
+fi
+
+# service_locator.enable=1 is on the bootloader cmdline, so the kernel audio
+# PDR (kernel/drivers/soc/qcom/qdsp6v2/audio_pdr.c) will block a workqueue
+# waiting for the userspace SERVREG locator (0x40) to answer its avs/audio
+# lookup. adsp-loader itself does not need this (it sets the APR state
+# directly), but stock always has a locator up by boot_adsp time, so match
+# that rather than leave the workqueue stuck. Skip starting our own if
+# gps-up (or a previous audio-up) already has one up -- see gps-up's
+# matching comment for its half of this symmetry.
+if server_present 40; then
+	log "servreg-locator already served (0x40), not starting one"
+else
+	servreg-locator -v &
+	SERVREG_PID=$!
+
+	if ! wait_for_server 40 SERVREG-LOCATOR 20; then
+		log "timed out waiting for servreg-locator service (0x40); refusing ADSP boot"
+		exit 1
+	fi
+fi
+
+# The default restart_level is "system", which panics the whole kernel on a
+# subsystem crash -- same reasoning as gps-up's modem restart_level=related.
+ADSP_SUBSYS=$(find_subsys adsp) || { log "adsp subsystem was not found"; exit 1; }
+[ -w "$ADSP_SUBSYS/restart_level" ] || { log "adsp restart_level is unavailable"; exit 1; }
+echo related > "$ADSP_SUBSYS/restart_level" || { log "failed to set adsp restart_level=related"; exit 1; }
+
+log "booting adsp"
+BOOT_T0=$(uptime_s)
+boot_adsp || { log "failed to write $BOOT_ADSP_NODE"; exit 1; }
+# From here on, cleanup() must never unmount /firmware: the ADSP may have
+# already started reading it, and PIL can re-read it on a later
+# subsystem-restart recovery for as long as the kernel is up.
+ADSP_BOOT_ATTEMPTED=1
+
+# 60s / 0.5s per attempt = 120 attempts. The codec probe
+# (kernel/sound/soc/codecs/sdm660_cdc/msm-analog-cdc.c) EPROBE_DEFERs until
+# apr_get_subsys_state()==APR_SUBSYS_LOADED && q6core_is_adsp_ready(), so the
+# card should appear within a few seconds of boot_adsp on a working boot;
+# this bound is generous headroom, not the expected latency.
+if ! wait_for_card 120; then
+	log "timed out waiting for the ALSA card to register"
+	dump_adsp_diagnostics
+	[ -n "$SERVREG_PID" ] && log "stopping the servreg-locator this process started; the adsp stays up without a locator and kernel PDR notifications will stop"
+	exit 1
+fi
+CARD_ELAPSED=$(elapsed_s "$BOOT_T0")
+
+CARD_LINE=$(grep 'sdm660' "$ASOUND_DIR/cards" | head -n 1)
+CARD_NUM=$(echo "$CARD_LINE" | sed -n 's/^ *\([0-9][0-9]*\).*/\1/p')
+PCM_DEV=$(pcm_mm1_device) || log "could not find the MultiMedia1 playback PCM device in $ASOUND_DIR/pcm"
+log "adsp up, card ${CARD_NUM:-?} '$(echo "$CARD_LINE" | sed -n 's/^[^\[]*\[\([^]]*\).*/\1/p' | sed 's/ *$//')' ${CARD_ELAPSED}s after boot_adsp${PCM_DEV:+, MultiMedia1 playback pcm device $PCM_DEV}"
+
+if [ -z "$SERVREG_PID" ]; then
+	# Nothing this process owns needs supervising; the ADSP itself is never
+	# torn down (see cleanup()'s comment), so there is nothing left to wait
+	# on. Exit 0 rather than staying resident for no reason.
+	log "nothing to supervise, exiting (adsp stays up for the rest of this boot)"
+	exit 0
+fi
+
+# Live (2026-09-19 run 1) the kernel asked the locator for avs/audio three
+# times during bring-up and got PDR state indications from msm/adsp/audio_pd,
+# so the locator stays useful for as long as the ADSP is up. Stay resident
+# for it; a TERM here stops the locator only -- the ADSP itself stays up.
+log "supervising the servreg-locator this process started (TERM stops the locator only; the adsp stays up)"
+while :; do
+	if ! child_running "$SERVREG_PID"; then
+		wait "$SERVREG_PID" 2>/dev/null
+		log "servreg-locator exited; the adsp stays up without a locator and kernel PDR notifications will stop"
+		exit 1
+	fi
+	sleep 1
+done

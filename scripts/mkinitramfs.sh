@@ -2,8 +2,9 @@
 # Build out/initramfs.cpio.gz: the Alpine rootfs from scripts/mkrootfs.sh
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
 # the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
-# display/touch probe fbtouch, the on-device log screen fblog and the gpsd
-# feed nmea-broker on top.
+# display/touch probe fbtouch, the on-device log screen fblog, the gpsd
+# feed nmea-broker, the button daemon buttond and the ADSP bring-up +
+# speaker test tone (audio-up, speaker-test-tone, wavtone) on top.
 #
 # VARIANT=ride additionally lays the initramfs-ride/ overlay on top (the
 # unattended GPS ride logger, its inittab entries and the HTTP extraction
@@ -28,7 +29,8 @@ cp -a out/rootfs/. "$ROOT"/
 mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
          "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus
 cp -a initramfs/. "$ROOT"/
-chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up
+chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
+    "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone
 if [ "$VARIANT" = ride ]; then
     for f in initramfs-ride/etc/inittab initramfs-ride/usr/bin/ride-logger \
              initramfs-ride/usr/share/ride/www/cgi-bin/index.cgi \
@@ -200,6 +202,22 @@ echo "built $ROOT/usr/bin/nmea-broker"
 [ -f tools/buttond.c ] || { echo "missing required source: tools/buttond.c" >&2; exit 1; }
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/buttond" tools/buttond.c
 echo "built $ROOT/usr/bin/buttond"
+
+# ADSP bring-up + speaker test tone (docs/features/audio.md): audio-up
+# (initramfs/usr/bin/audio-up) and speaker-test-tone
+# (initramfs/usr/bin/speaker-test-tone, chmod'd above) drive tinyalsa's
+# tinymix/tinyplay from the rootfs's package list -- fail closed on either
+# half missing, same pattern as nmea-broker/gpsd above. wavtone
+# (tools/wavtone.c) writes the WAV file speaker-test-tone hands to
+# tinyplay; only libc's <math.h>, so no kernel include paths, but needs
+# -lm explicitly since musl's static libm is a separate archive.
+[ -f tools/wavtone.c ] || { echo "missing required source: tools/wavtone.c" >&2; exit 1; }
+[ -x "$ROOT/usr/bin/tinymix" ] && [ -x "$ROOT/usr/bin/tinyplay" ] || {
+    echo "no tinymix/tinyplay in out/rootfs; rerun scripts/mkrootfs.sh (package list changed)" >&2
+    exit 1
+}
+"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/wavtone" tools/wavtone.c -lm
+echo "built $ROOT/usr/bin/wavtone"
 
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \

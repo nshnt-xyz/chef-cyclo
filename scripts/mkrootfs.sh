@@ -17,9 +17,16 @@ CACHE=$PWD/toolchain/apk/cache
 # pulls libcap2 + libstdc++ (+libgcc); 551 KB apk, 1.2 MB installed. Fed over
 # loopback UDP by tools/nmea-broker.c. No gpsd-clients (3.7 MB, ncurses):
 # verify with busybox nc on 2947 instead.
+#
+# tinyalsa (audio, docs/features/audio.md): community, 2.0.0-r4, 270 KB,
+# libc-only -- tinymix/tinyplay/tinycap/tinypcminfo, the userspace side of
+# initramfs/usr/bin/audio-up and speaker-test-tone. Not alsa-utils: that
+# pulls ncurses/fftw/dialog, ~6 MB, for tools we don't need (amixer/aplay
+# have no functional advantage here over tinymix/tinyplay). tinymix's
+# control names match stock's mixer_paths.xml verbatim.
 PKGS="alpine-baselayout musl busybox busybox-extras
       dbus bluez bluez-btmgmt bluez-btmon bluez-deprecated
-      qmi-utils gpsd"
+      qmi-utils gpsd tinyalsa"
 
 rm -rf "$ROOT"
 mkdir -p "$ROOT" "$CACHE"
@@ -34,4 +41,5 @@ rm -rf "$ROOT/var/cache/apk" "$ROOT/etc/apk/keys"
 du -sh "$ROOT"
 ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/dbus-daemon" \
    "$ROOT/usr/bin/qmicli" "$ROOT/usr/sbin/gpsd" "$ROOT/usr/lib/libgps.so.32" \
-   "$ROOT/bin/busybox" "$ROOT/bin/busybox-extras"
+   "$ROOT/bin/busybox" "$ROOT/bin/busybox-extras" \
+   "$ROOT/usr/bin/tinymix" "$ROOT/usr/bin/tinyplay"

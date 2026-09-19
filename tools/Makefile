@@ -2,7 +2,9 @@
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
 # qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
 # log screen fblog (fblog/, binary fblog/fblog), the gpsd feed nmea-broker,
-# the side-button gesture daemon buttond, and their host tests. Does not touch btprobe.c
+# the side-button gesture daemon buttond, the WAV tone generator wavtone
+# (for the speaker test, initramfs/usr/bin/speaker-test-tone), and their
+# host tests. Does not touch btprobe.c
 # or build anything under scripts/, initramfs/ -- those are built/wired into
 # the boot image by scripts/mkinitramfs.sh. `make test` does read (but not
 # build) initramfs/usr/bin/gps-up, to run its host-testable selection logic
@@ -29,10 +31,10 @@ LDFLAGS ?=
 INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond
+BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond wavtone
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog \
-            tests/test-nmea-broker tests/test-buttond
+            tests/test-nmea-broker tests/test-buttond tests/test-wavtone
 
 .PHONY: all test test-shell clean
 
@@ -105,6 +107,16 @@ buttond: buttond.c
 tests/test-buttond: tests/test_buttond.c buttond.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
+# WAV sine-tone generator for the speaker test (tools/wavtone.c): tinyalsa's
+# tinyplay only plays WAV files, so this writes one at the requested
+# frequency/duration/dBFS. Only libc's <math.h>, so no kernel include paths;
+# link -lm for the host build. The test includes the .c with WAVTONE_NO_MAIN.
+wavtone: wavtone.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) -lm
+
+tests/test-wavtone: tests/test_wavtone.c wavtone.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) -lm
+
 test: $(TEST_BIN) test-shell
 	./tests/test-qmux
 	./tests/test-msmipc
@@ -112,6 +124,7 @@ test: $(TEST_BIN) test-shell
 	./tests/test-fblog
 	./tests/test-nmea-broker
 	./tests/test-buttond
+	./tests/test-wavtone
 
 # gps-up (initramfs/) selection-logic regression and the ride image's
 # ride-logger (initramfs-ride/) supervision/failure/HTTP-extraction
@@ -122,6 +135,8 @@ test: $(TEST_BIN) test-shell
 test-shell:
 	sh tests/test_gps-up.sh
 	sh tests/test_ride-logger.sh
+	sh tests/test_audio-up.sh
+	sh tests/test_speaker-test-tone.sh
 
 clean:
-	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond $(TEST_BIN)
+	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond wavtone $(TEST_BIN)
