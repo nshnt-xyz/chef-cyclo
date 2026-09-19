@@ -8,6 +8,13 @@
 # touch. Holds /dev/fb0 for the life of the boot (the panel is off otherwise);
 # `touch /run/fblog.off; kill $(pidof fblog)` idles it, rm + kill brings it back.
 ::respawn:/usr/bin/fblog
+# Side buttons: grabs the power/volume evdev nodes and publishes gestures on
+# /run/buttond.sock; with nothing claiming them a short power press toggles
+# the panel through the fblog.off protocol above, and power held 3 s (buzz
+# at 1.5 s, long buzz at 3 s) then released runs `poweroff` -- the orderly
+# way down through this init (::shutdown, SIGTERM to all, RB_POWER_OFF).
+# The PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look.
+::respawn:/usr/bin/buttond
 ::ctrlaltdel:/sbin/reboot
 ::shutdown:/bin/umount -a -r
 ::restart:/sbin/init

@@ -2,7 +2,7 @@
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
 # qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
 # log screen fblog (fblog/, binary fblog/fblog), the gpsd feed nmea-broker,
-# and their host tests. Does not touch btprobe.c
+# the side-button gesture daemon buttond, and their host tests. Does not touch btprobe.c
 # or build anything under scripts/, initramfs/ -- those are built/wired into
 # the boot image by scripts/mkinitramfs.sh. `make test` does read (but not
 # build) initramfs/usr/bin/gps-up, to run its host-testable selection logic
@@ -29,10 +29,10 @@ LDFLAGS ?=
 INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker
+BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog \
-            tests/test-nmea-broker
+            tests/test-nmea-broker tests/test-buttond
 
 .PHONY: all test test-shell clean
 
@@ -93,12 +93,25 @@ nmea-broker: nmea-broker.c
 tests/test-nmea-broker: tests/test_nmea-broker.c nmea-broker.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
+# Side-button gesture daemon (buttond.c): grabs the qpnp_pon/gpio-keys evdev
+# nodes, turns presses into short/double/long/chord gestures, publishes them
+# on /run/buttond.sock to claimants, and toggles the panel (fblog's
+# /run/fblog.off protocol) on an unclaimed power.short. Only libc's
+# <linux/input.h>. The test includes the .c with BUTTOND_NO_MAIN and drives
+# the server over socketpairs with an injected log/kill and a temp flag file.
+buttond: buttond.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+tests/test-buttond: tests/test_buttond.c buttond.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
 test: $(TEST_BIN) test-shell
 	./tests/test-qmux
 	./tests/test-msmipc
 	./tests/test-fbtouch
 	./tests/test-fblog
 	./tests/test-nmea-broker
+	./tests/test-buttond
 
 # gps-up (initramfs/) selection-logic regression and the ride image's
 # ride-logger (initramfs-ride/) supervision/failure/HTTP-extraction
@@ -111,4 +124,4 @@ test-shell:
 	sh tests/test_ride-logger.sh
 
 clean:
-	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker $(TEST_BIN)
+	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond $(TEST_BIN)

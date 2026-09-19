@@ -190,6 +190,17 @@ echo "built $ROOT/usr/bin/fblog"
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/nmea-broker" tools/nmea-broker.c
 echo "built $ROOT/usr/bin/nmea-broker"
 
+# Side-button gesture daemon (tools/buttond.c): grabs the qpnp_pon and
+# gpio-keys evdev nodes, publishes short/double/long/chord gestures on
+# /run/buttond.sock to whoever claims them, and by default toggles the panel
+# on a short power press through fblog's /run/fblog.off protocol and powers
+# off cleanly (sync + busybox `poweroff`) when power is held 3 s and released
+# (README next-steps item 14). Started from inittab (respawn). Only libc's
+# <linux/input.h>, so no kernel include paths.
+[ -f tools/buttond.c ] || { echo "missing required source: tools/buttond.c" >&2; exit 1; }
+"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/buttond" tools/buttond.c
+echo "built $ROOT/usr/bin/buttond"
+
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \
     | cpio -0 -o -H newc --owner=+0:+0 --quiet ) | gzip -9n > "$OUTCPIO"

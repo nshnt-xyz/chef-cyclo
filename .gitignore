@@ -27,6 +27,8 @@ tools/fblog/fblog
 tools/tests/test-fblog
 tools/nmea-broker
 tools/tests/test-nmea-broker
+tools/buttond
+tools/tests/test-buttond
 tools/rmtfs/tests/test-storage
 tools/rmtfs/tests/test-sharedmem
 tools/servreg-locator/servreg-locator

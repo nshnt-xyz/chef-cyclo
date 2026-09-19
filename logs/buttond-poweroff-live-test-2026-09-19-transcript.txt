@@ -1,0 +1,146 @@
+# buttond power-off live test 2026-09-19 — boot.img b3425446660dc9288ba0c9e3761e26c9f11eaa1ca8887caec4f4e5a45c96dcdc
+
+## PM660 PON registers (regmap debugfs spmi0-00, read only)
+### under rooted stock Android, before the boot
+0840: 0e  KPDPWR_S1_TIMER  (6720 ms)
+0841: 07  KPDPWR_S2_TIMER  (2000 ms)
+0842: 08  KPDPWR_S2_CNTL   (reset type 0x8)
+0843: 80  KPDPWR_S2_CNTL2  (S2 reset ENABLED)
+0844: 0f  RESIN_S1_TIMER   (10256 ms)
+0845: 07  RESIN_S2_TIMER   (2000 ms)
+0846: 04  RESIN_S2_CNTL    (shutdown)
+0847: 00  RESIN_S2_CNTL2   (disabled)
+0848: 0f  KPDPWR_RESIN_S1_TIMER (10256 ms)
+0849: 07  KPDPWR_RESIN_S2_TIMER (2000 ms)
+084a: 04  KPDPWR_RESIN_S2_CNTL  (shutdown)
+084b: 00  KPDPWR_RESIN_S2_CNTL2 (disabled)
+0880: f4  PON_TRIGGER_EN: RTC, USB_CHG, PON1, CBLPWR, KPDPWR enabled; SMPL, DC_CHG disabled
+### under our kernel (same boot as the test): identical, see the session below
+
+## preflight
+2026-09-19T13:55:25Z
+b3425446660dc9288ba0c9e3761e26c9f11eaa1ca8887caec4f4e5a45c96dcdc  out/boot.img
+a9924dc09a4345283363c63a6af028e303bf70fe12f4221b4faaf892c54a7962  out/initramfs.cpio.gz
+ M .gitignore
+ M README.md
+ M initramfs/etc/inittab
+ M scripts/mkinitramfs.sh
+ M tools/Makefile
+?? logs/buttond-live-test-2026-09-19-dmesg-full.txt
+?? logs/buttond-live-test-2026-09-19-transcript.txt
+?? tools/buttond.c
+?? tools/tests/test_buttond.c
+8b7ba3096f234b504b343b7e0f389a7afed9818e
+List of devices attached
+ZF6223WZGL             device usb:1-1.2 product:chef model:motorola_one_power device:chef_sprout transport_id:4
+
+motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0:user/release-keys
+172.16.42.1 not reachable (expected on stock)
+
+## fastboot
+2026-09-19T13:55:30Z
+ZF6223WZGL	 fastboot
+current-slot: a
+Finished. Total time: 0.000s
+2026-09-19T13:55:37Z
+Sending 'boot.img' (24376 KB)                      OKAY [  0.602s]
+Booting                                            OKAY [  5.084s]
+Finished. Total time: 5.704s
+fastboot boot exit=0
+2026-09-19T13:55:42Z
+network up=1 after ~23s at 2026-09-19T13:56:05Z
+
+## telnet sessions (in order)
+--- /home/nishant/chef-cyclo-evidence/buttond-poweroff-probe-20260919T135519Z/session-192615791156.txt
+Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> echo "uptime $(cut -d. -f1 /proc/uptime)"; dmesg | grep -E "buttond|Power-o" ; mount -t debugfs none /sys/kernel/debug 2>&1; echo "PON regs under our kernel:"; dd if=/sys/kernel/debug/regmap/spmi0-00/registers bs=9 skip=2112 count=12 2>/dev/null; dd if=/sys/kernel/debug/regmap/spmi0-00/registers bs=9 skip=2176 count=1 2>/dev/null; buttond status; ls /sys/class/timed_output/vibrator/enable; echo "poweroff=$(command -v poweroff)"
+
+uptime 28
+[    5.581945,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800: PMIC@SID0 Power-on reason: Triggered from Hard Reset and 'cold' boot
+[    5.581987,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800: PMIC@SID0: Power-off reason: Triggered from PS_HOLD (PS_HOLD/MSM controlled shutdown)
+[    5.584551,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: PMIC@SID2 Power-on reason: Triggered from PON1 (secondary PMIC) and 'cold' boot
+[    5.584591,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: PMIC@SID2: Power-off reason: Triggered from GP1 (Keypad_Reset1)
+[   15.074397,3] buttond: grabbed /dev/input/event6 (gpio-keys): volup
+[   15.074589,3] buttond: grabbed /dev/input/event0 (qpnp_pon): power voldown
+[   15.075193,3] buttond: ready: /run/buttond.sock, long 1500 ms, double 300 ms, power.short toggles the screen via /run/fblog.off, power held 3000 ms then released powers off
+PON regs under our kernel:
+0840: 0e
+0841: 07
+0842: 08
+0843: 80
+0844: 0f
+0845: 07
+0846: 04
+0847: 00
+0848: 0f
+0849: 07
+084a: 04
+084b: 00
+0880: f4
+ok status power=up volup=up voldown=up long_ms=1500 double_ms=300 poweroff_hold_ms=1500 poweroff=idle claims=- watchers=0
+/sys/class/timed_output/vibrator/enable
+poweroff=/sbin/poweroff
+PROBE_SHELL> PROBE_SHELL> --- /home/nishant/chef-cyclo-evidence/buttond-poweroff-probe-20260919T135519Z/session-192628307630.txt
+Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> buttond status
+
+ok status power=up volup=up voldown=up long_ms=1500 double_ms=300 poweroff_hold_ms=1500 poweroff=idle claims=- watchers=1
+PROBE_SHELL> PROBE_SHELL> --- /home/nishant/chef-cyclo-evidence/buttond-poweroff-probe-20260919T135519Z/session-192654737253.txt
+Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1='PROBE_SHELL> '
+stty -echo; export PS1='PROBE_SHELL> '
+PROBE_SHELL> echo "uptime $(cut -d. -f1 /proc/uptime)"; buttond status
+
+uptime 67
+ok status power=up volup=up voldown=up long_ms=1500 double_ms=300 poweroff_hold_ms=1500 poweroff=idle claims=- watchers=1
+PROBE_SHELL> 
+## buttond watch stream (until the power-off)
+Trying 172.16.42.1...
+Connected to 172.16.42.1.
+Escape character is '^]'.
+
+~ # [6nstty -echo; export PS1=''
+ok watch
+event power.long
+event power.long
+Connection closed by foreign host.
+
+## /dev/kmsg stream, buttond + pwrkey lines (until the power-off)
+12,1328,15074397,-;buttond: grabbed /dev/input/event6 (gpio-keys): volup
+12,1329,15074589,-;buttond: grabbed /dev/input/event0 (qpnp_pon): power voldown
+12,1331,15075193,-;buttond: ready: /run/buttond.sock, long 1500 ms, double 300 ms, power.short toggles the screen via /run/fblog.off, power held 3000 ms then released powers off
+6,1422,49795985,-;Report pwrkey press event at: 1970-01-03 01:05:45 UTC
+12,1424,51298720,-;buttond: power.long: keep holding 1500 ms more to power off, release now to cancel
+6,1425,51980804,-;Report pwrkey release event at: 1970-01-03 01:05:47 UTC
+12,1426,51981088,-;buttond: power off cancelled: released after 2183 ms
+6,1457,100012558,-;Report pwrkey press event at: 1970-01-03 01:06:35 UTC
+12,1462,101515330,-;buttond: power.long: keep holding 1500 ms more to power off, release now to cancel
+12,1467,103017007,-;buttond: power off ready: release the button to power off
+6,1468,103493136,-;Report pwrkey release event at: 1970-01-03 01:06:38 UTC
+12,1469,103493459,-;buttond: power off: released after 3479 ms, shutting down now
+Connection closed by foreign host.
+
+## stock Android afterwards (booted by the user from off-mode charging)
+2026-09-19T13:59:26Z
+motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0:user/release-keys
+_a
+reboot
+normal
+[    0.282262] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800: PMIC@SID0 Power-on reason: Triggered from Hard Reset and 'cold' boot
+[    0.282284] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800: PMIC@SID0: Power-off reason: Triggered from PS_HOLD (PS_HOLD/MSM controlled shutdown)
+[    0.282635] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: PMIC@SID2 Power-on reason: Triggered from PON1 (secondary PMIC) and 'cold' boot
+[    0.282656] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: PMIC@SID2: Power-off reason: Triggered from GP1 (Keypad_Reset1)
+2
