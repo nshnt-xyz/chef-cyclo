@@ -10,9 +10,11 @@ out/
 # Cross toolchain, fetched by scripts/setup-toolchain.sh
 toolchain/
 
-# Ride captures can contain exact GPS coordinates. Keep the raw archives as
-# local evidence only; commit the redacted README summary and text diagnostics.
+# Ride and GPS captures can contain exact GPS coordinates. Keep the raw
+# archives as local evidence only; commit the redacted README summary and
+# text diagnostics.
 logs/ride-live-test-*.tgz
+logs/gpsd-live-test-*.tgz
 
 # tools/ build outputs (see tools/Makefile)
 tools/irsc
@@ -23,6 +25,8 @@ tools/tests/test-msmipc
 tools/tests/test-fbtouch
 tools/fblog/fblog
 tools/tests/test-fblog
+tools/nmea-broker
+tools/tests/test-nmea-broker
 tools/rmtfs/tests/test-storage
 tools/rmtfs/tests/test-sharedmem
 tools/servreg-locator/servreg-locator

@@ -1,7 +1,8 @@
 # Builds this directory's new GPS transport/protocol code -- msmipc
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
 # qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
-# log screen fblog (fblog/, binary fblog/fblog), and their host tests. Does not touch btprobe.c
+# log screen fblog (fblog/, binary fblog/fblog), the gpsd feed nmea-broker,
+# and their host tests. Does not touch btprobe.c
 # or build anything under scripts/, initramfs/ -- those are built/wired into
 # the boot image by scripts/mkinitramfs.sh. `make test` does read (but not
 # build) initramfs/usr/bin/gps-up, to run its host-testable selection logic
@@ -28,9 +29,10 @@ LDFLAGS ?=
 INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := irsc qmuxd-lite fbtouch fblog/fblog
+BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker
 VENDOR_OBJ := qmi.o logging.o
-TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog
+TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog \
+            tests/test-nmea-broker
 
 .PHONY: all test test-shell clean
 
@@ -80,11 +82,23 @@ fblog/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h
 tests/test-fblog: tests/test_fblog.c fblog/fblog.c fblog/font9x15.h fbdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
+# gpsd feed (nmea-broker.c): qmicli follower stdout -> one UDP datagram per
+# valid NMEA sentence to gpsd on loopback, optional tee/log, set-once clock
+# step from the first valid RMC. Plain libc, no kernel headers. The test
+# includes the .c with NMEA_BROKER_NO_MAIN (injected clock, never
+# settimeofday) and drives the loop against a real loopback UDP socket.
+nmea-broker: nmea-broker.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+tests/test-nmea-broker: tests/test_nmea-broker.c nmea-broker.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
 test: $(TEST_BIN) test-shell
 	./tests/test-qmux
 	./tests/test-msmipc
 	./tests/test-fbtouch
 	./tests/test-fblog
+	./tests/test-nmea-broker
 
 # gps-up (initramfs/) selection-logic regression and the ride image's
 # ride-logger (initramfs-ride/) supervision/failure/HTTP-extraction
@@ -97,4 +111,4 @@ test-shell:
 	sh tests/test_ride-logger.sh
 
 clean:
-	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog $(TEST_BIN)
+	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker $(TEST_BIN)

@@ -31,6 +31,16 @@ dbus-uuidgen --ensure 2>/dev/null
 log "starting ($(uname -r))"
 buzz 150
 
+# gpsd and nmea-broker communicate over loopback, and gpsd's client socket is
+# loopback-only by default. A bare initramfs does not configure lo for us.
+if ip link set lo up 2>/dev/null &&
+   { ip addr add 127.0.0.1/8 dev lo 2>/dev/null ||
+     ip addr show dev lo 2>/dev/null | grep -q 'inet 127\.0\.0\.1/8'; }; then
+    log "loopback up, 127.0.0.1/8"
+else
+    log "failed to configure loopback"
+fi
+
 # --- USB gadget: one NCM ethernet function, via configfs ------------------
 SERIAL=chef
 for a in $(cat /proc/cmdline); do

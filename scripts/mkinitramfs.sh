@@ -2,7 +2,8 @@
 # Build out/initramfs.cpio.gz: the Alpine rootfs from scripts/mkrootfs.sh
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
 # the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
-# display/touch probe fbtouch and the on-device log screen fblog on top.
+# display/touch probe fbtouch, the on-device log screen fblog and the gpsd
+# feed nmea-broker on top.
 #
 # VARIANT=ride additionally lays the initramfs-ride/ overlay on top (the
 # unattended GPS ride logger, its inittab entries and the HTTP extraction
@@ -177,6 +178,17 @@ for f in tools/fblog/fblog.c tools/fblog/font9x15.h tools/fbdev.h; do
 done
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/fblog" tools/fblog/fblog.c
 echo "built $ROOT/usr/bin/fblog"
+
+# gpsd feed (tools/nmea-broker.c): reads the qmicli LOC follower's stdout and
+# sends each valid NMEA sentence as one UDP datagram to gpsd on
+# 127.0.0.1:20175 (gpsd cannot read a FIFO; README next-steps item 7). The
+# rootfs must carry gpsd itself (scripts/mkrootfs.sh's package list) or the
+# broker has nothing to feed -- fail closed on either half missing. Manual
+# opt-in from the telnet shell like gps-up; not in inittab until live-verified.
+[ -f tools/nmea-broker.c ] || { echo "missing required source: tools/nmea-broker.c" >&2; exit 1; }
+[ -x "$ROOT/usr/sbin/gpsd" ] || { echo "no gpsd in out/rootfs; rerun scripts/mkrootfs.sh (package list changed)" >&2; exit 1; }
+"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/nmea-broker" tools/nmea-broker.c
+echo "built $ROOT/usr/bin/nmea-broker"
 
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \
