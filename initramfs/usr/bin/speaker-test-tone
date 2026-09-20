@@ -27,9 +27,11 @@
 # and set 1 s into a running stream the write succeeds (rc=0, kernel logs
 # `Sending Rx-Enable data 1`) but reads straight back as 0 -- the module
 # stays disabled, presumably because there is no calibration data (no ACDB
-# loader on this build). -p makes a best-effort, never-fatal attempt 1 s
-# after playback starts and logs the set rc and the read-back value, so the
-# behaviour can be re-checked when calibration/sequencing is worked out.
+# loader on this build). -p now loads this phone's decimal Rdc from the
+# persist partition through a read-only mount, converts it to Q19, and then,
+# only after mmap playback reports RUNNING, sends the calibration before it
+# enables and reads back the module. Every protection/calibration failure is
+# logged and remains non-fatal to playback.
 # The amplitude ceiling (-a refuses anything above -6 dBFS, default -20;
 # see wavtone.c for the matching refusal on its side) is what protects the
 # uncalibrated speaker meanwhile.
@@ -40,7 +42,7 @@
 # updating tools/tests/test_speaker-test-tone.sh's expected tinymix argv.
 set -u
 
-# ---- mixer control names (all three confirmed present and typed as expected live 2026-09-19) ----
+# ---- mixer control names (route/volume/FF confirmed live; SEND_CAL is the kernel's 5-value control) ----
 CTL_ROUTE="TERT_MI2S_RX Audio Mixer MultiMedia1"
 CTL_DAC_VOL="DAC Playback Volume"
 CTL_FF_MODULE="TAS2560_ALGO_FF_MODULE"
@@ -50,13 +52,25 @@ CTL_FF_MODULE="TAS2560_ALGO_FF_MODULE"
 # unset in production, so these default to the real device paths/binaries.
 ASOUND_DIR=${ASOUND_DIR:-/proc/asound}
 RUN_DIR=${RUN_DIR:-/run}
+SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
+MOUNTS_FILE=${MOUNTS_FILE:-/proc/mounts}
+PERSIST_MOUNT=${PERSIST_MOUNT:-/factory}
+PERSIST_RDC_FILE=${PERSIST_RDC_FILE:-$PERSIST_MOUNT/factory/audio/tas2560_calib_rdc}
 CARD=${CARD:-0}
 TINYMIX=${TINYMIX:-tinymix}
 TINYPLAY=${TINYPLAY:-tinyplay}
 WAVTONE=${WAVTONE:-wavtone}
-# How long after tinyplay starts the -p attempt is made. Overridable so the
-# host test does not have to wait a real second.
-PROTECT_DELAY=${PROTECT_DELAY:-1}
+SEND_CAL_HELPER=${SEND_CAL_HELPER:-tas2560-send-cal}
+# After the PCM reports RUNNING, allow the AFE route this settling delay.
+# Poll timing/count and the procfs status path are overridable for host tests.
+PROTECT_DELAY=${PROTECT_DELAY:-0.1}
+PROTECT_POLL_DELAY=${PROTECT_POLL_DELAY:-0.05}
+PROTECT_POLL_ATTEMPTS=${PROTECT_POLL_ATTEMPTS:-20}
+
+# Sanity bounds, not a replacement for the per-device value: TAS2560 supports
+# 4-ohm and 8-ohm loads, and this phone's saved cold Rdc is between them.
+RDC_MIN_OHMS=${RDC_MIN_OHMS:-4}
+RDC_MAX_OHMS=${RDC_MAX_OHMS:-16}
 
 # Defaults. VOL: TAS2560's "DAC Playback Volume" is SOC_SINGLE_TLV(0, 0x0f)
 # (kernel/sound/soc/codecs/tas2560-codec.c:458), i.e. 0..15, 1 dB/step, 0 =
@@ -76,6 +90,9 @@ STATUS_ONLY=0
 ROUTE_SET=0
 TMPWAV=
 PROTECT_PID=
+PERSIST_MOUNTED=0
+PERSIST_DIR_CREATED=0
+PROTECT_Q19=
 
 usage() {
 	cat >&2 <<EOF
@@ -85,8 +102,8 @@ usage: speaker-test-tone [-f HZ] [-d SECONDS] [-a AMPLITUDE_DBFS] [-v VOL] [-p]
   -d SECONDS          duration, clamped to $DURATION_MAX (default $DURATION)
   -a AMPLITUDE_DBFS   peak level, clamped to <= $AMPLITUDE_MAX_DBFS dBFS (default $AMPLITUDE_DBFS)
   -v VOL              DAC Playback Volume, 0..$VOL_MAX (default $VOL; 15 = stock/live setting)
-  -p                  best-effort attempt to enable $CTL_FF_MODULE ${PROTECT_DELAY}s into
-                      playback; logs the result, never fatal (see the script header)
+  -p                  best-effort calibrated protection attempt during mmap playback;
+                      reads the device Rdc from persist, logs results, never fatal
   -s                  status only: card, MultiMedia1 device, the three control values
 EOF
 }
@@ -142,18 +159,110 @@ pcm_mm1_device() {
 	return 1
 }
 
+part() {
+	for u in "$SYSFS_BLOCK"/*/uevent; do
+		grep -q "^PARTNAME=$1\$" "$u" 2>/dev/null && { basename "$(dirname "$u")"; return; }
+	done
+}
+
+# The factory file is exactly a decimal followed by ';' (no sign, exponent,
+# whitespace or extra fields). Convert Rdc * 2^19 by rounding half upward to
+# the nearest integer; this makes 7.081085 ohm become Q19 3712528.
+rdc_to_q19() {
+	awk -v v="$1" -v min="$RDC_MIN_OHMS" -v max="$RDC_MAX_OHMS" 'BEGIN {
+		if (v !~ /^[0-9]+([.][0-9]+)?;$/) exit 1
+		sub(/;$/, "", v)
+		if ((v + 0) < min || (v + 0) > max) exit 2
+		printf "%d\n", int((v + 0) * 524288 + 0.5)
+	}'
+}
+
+persist_mount_is_usable() {
+	# Reuse only the expected persist block device mounted read-only. Never
+	# trust or unmount some other caller's mount at the same path.
+	awk -v dev="/dev/$1" -v mnt="$PERSIST_MOUNT" '
+		$1 == dev && $2 == mnt && ("," $4 ",") ~ /,ro,/ { found=1 }
+		END { exit found ? 0 : 1 }
+	' "$MOUNTS_FILE" 2>/dev/null
+}
+
+release_persist_mount() {
+	[ "$PERSIST_MOUNTED" -eq 1 ] || return 0
+	if umount "$PERSIST_MOUNT" 2>/dev/null; then
+		PERSIST_MOUNTED=0
+		[ "$PERSIST_DIR_CREATED" -eq 1 ] && rmdir "$PERSIST_MOUNT" 2>/dev/null
+		PERSIST_DIR_CREATED=0
+		return 0
+	fi
+	log "protection: failed to unmount owned read-only persist mount $PERSIST_MOUNT (will retry on exit)"
+	return 1
+}
+
+load_protection_calibration() {
+	persist_part=$(part persist)
+	if [ -z "$persist_part" ]; then
+		log "protection: persist partition not found; skipping calibration and enable"
+		return 1
+	fi
+
+	if persist_mount_is_usable "$persist_part"; then
+		log "protection: reusing existing read-only persist mount at $PERSIST_MOUNT (not owned; will not unmount)"
+	else
+		# If anything is already mounted here but is not the expected read-only
+		# persist device, refuse to shadow it.
+		if awk -v mnt="$PERSIST_MOUNT" '$2 == mnt { found=1 } END { exit found ? 0 : 1 }' "$MOUNTS_FILE" 2>/dev/null; then
+			log "protection: $PERSIST_MOUNT is not the expected read-only persist mount; refusing to shadow it"
+			return 1
+		fi
+		if [ ! -d "$PERSIST_MOUNT" ]; then
+			mkdir -p "$PERSIST_MOUNT" 2>/dev/null || { log "protection: cannot create $PERSIST_MOUNT"; return 1; }
+			PERSIST_DIR_CREATED=1
+		fi
+		# noload prevents ext4 journal replay: even a nominally read-only ext4
+		# mount may otherwise write recovery metadata to persist.
+		if ! mount -t ext4 -o ro,noload "/dev/$persist_part" "$PERSIST_MOUNT"; then
+			log "protection: failed to mount persist read-only; skipping calibration and enable"
+			[ "$PERSIST_DIR_CREATED" -eq 1 ] && rmdir "$PERSIST_MOUNT" 2>/dev/null
+			PERSIST_DIR_CREATED=0
+			return 1
+		fi
+		PERSIST_MOUNTED=1
+		log "protection: mounted persist read-only at $PERSIST_MOUNT"
+	fi
+
+	if [ ! -r "$PERSIST_RDC_FILE" ]; then
+		log "protection: missing $PERSIST_RDC_FILE; skipping calibration and enable"
+		release_persist_mount || true
+		return 1
+	fi
+	rdc=$(cat "$PERSIST_RDC_FILE" 2>/dev/null) || {
+		log "protection: could not read $PERSIST_RDC_FILE; skipping calibration and enable"
+		release_persist_mount || true
+		return 1
+	}
+	if ! PROTECT_Q19=$(rdc_to_q19 "$rdc"); then
+		log "protection: malformed or out-of-range Rdc in $PERSIST_RDC_FILE (expected decimal; in ${RDC_MIN_OHMS}..${RDC_MAX_OHMS} ohm); skipping calibration and enable"
+		release_persist_mount || true
+		return 1
+	fi
+	log "protection: loaded device Rdc and converted it to Q19=$PROTECT_Q19 (nearest integer)"
+	release_persist_mount || true
+	return 0
+}
+
 tinymix_set() {
-	# $1: control name, $2: value. Every call is checked; a failure names
+	# $1: control name, remaining arguments: value(s). Every call is checked;
+	# a failure names
 	# the control and carries tinymix's own stderr so a bad name or a
 	# rejected value (live: `Error: invalid enum value` for the protection
 	# module with no active port) is obvious in the log.
 	ctl=$1
-	val=$2
-	if err=$("$TINYMIX" -D "$CARD" set "$ctl" "$val" 2>&1 >/dev/null); then
-		log "tinymix set '$ctl' '$val'"
+	shift
+	if err=$("$TINYMIX" -D "$CARD" set "$ctl" "$@" 2>&1 >/dev/null); then
+		log "tinymix set '$ctl' '$*'"
 		return 0
 	fi
-	log "tinymix set '$ctl' '$val' failed: ${err:-no output} (check the control name/value -- see docs/features/audio.md)"
+	log "tinymix set '$ctl' '$*' failed: ${err:-no output} (check the control name/value -- see docs/features/audio.md)"
 	return 1
 }
 
@@ -163,13 +272,36 @@ tinymix_get() {
 }
 
 protect_attempt() {
-	# Best-effort, never fatal, run in the background PROTECT_DELAY s after
-	# tinyplay starts so the TERT_MI2S_RX AFE port is active by then (the
-	# set is rejected outright while it is not). Logs the rc and the value
-	# read straight back, which live was still 0 -- see the header.
+	# Best-effort, never fatal. Do not send calibration until mmap playback
+	# has made the PCM RUNNING, because the DSP rejects these controls with
+	# an inactive TERT_MI2S_RX AFE port.
+	i=0
+	while ! grep -q '^state: RUNNING' "$PLAYBACK_STATUS" 2>/dev/null; do
+		[ "$i" -lt "$PROTECT_POLL_ATTEMPTS" ] || {
+			log "protection: playback never reported RUNNING at $PLAYBACK_STATUS; skipping calibration and enable"
+			return 0
+		}
+		sleep "$PROTECT_POLL_DELAY"
+		i=$((i + 1))
+	done
 	sleep "$PROTECT_DELAY"
+	if ! grep -q '^state: RUNNING' "$PLAYBACK_STATUS" 2>/dev/null; then
+		log "protection: playback left RUNNING during the settling delay at $PLAYBACK_STATUS; skipping calibration and enable"
+		return 0
+	fi
+	if err=$("$SEND_CAL_HELPER" "$CARD" "$PROTECT_Q19" 2>&1); then
+		log "protection: calibration helper sent: 1 $PROTECT_Q19 0 0 0"
+	else
+		rc=$?
+		log "protection: calibration helper failed rc=$rc: ${err:-no output} (best-effort, playback continues); not enabling module"
+		return 0
+	fi
 	if tinymix_set "$CTL_FF_MODULE" ENABLE; then
-		log "protection: set rc=0, read back: $(tinymix_get "$CTL_FF_MODULE" | tr '\n' ' ')"
+		if readback=$("$TINYMIX" -D "$CARD" get "$CTL_FF_MODULE" 2>&1); then
+			log "protection: set rc=0, read back: $(printf '%s' "$readback" | tr '\n' ' ')"
+		else
+			log "protection: enable succeeded but readback failed: ${readback:-no output} (best-effort, playback continues)"
+		fi
 	else
 		log "protection: set failed (best-effort, playback continues)"
 	fi
@@ -195,6 +327,8 @@ print_status() {
 cleanup() {
 	status=$?
 	[ -n "$PROTECT_PID" ] && kill "$PROTECT_PID" 2>/dev/null
+	[ -n "$PROTECT_PID" ] && wait "$PROTECT_PID" 2>/dev/null
+	release_persist_mount || true
 	[ -n "$TMPWAV" ] && rm -f "$TMPWAV"
 	# Always reset the route, even if tinyplay failed or this script is
 	# exiting on an error after enabling it -- an amp left routed and
@@ -267,8 +401,15 @@ AMPLITUDE_DBFS=$CLAMPED_AMPLITUDE
 
 card_ready || { log "no sdm660 card in $ASOUND_DIR/cards; run audio-up first"; exit 1; }
 PCM_DEV=$(pcm_mm1_device) || { log "could not find the MultiMedia1 playback PCM device in $ASOUND_DIR/pcm"; exit 1; }
+PLAYBACK_STATUS=${PLAYBACK_STATUS:-$ASOUND_DIR/card${CARD}/pcm${PCM_DEV}p/sub0/status}
 
 trap cleanup EXIT HUP INT TERM
+
+if [ "$PROTECT" -eq 1 ]; then
+	# Read/unmount persist before playback. A failure disables only the
+	# protection attempt; tone generation and clean playback still proceed.
+	load_protection_calibration || PROTECT=0
+fi
 
 tinymix_set "$CTL_ROUTE" 1 || exit 1
 ROUTE_SET=1

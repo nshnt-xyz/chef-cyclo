@@ -3,6 +3,7 @@
 # qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
 # log screen fblog (fblog/, binary fblog/fblog), the gpsd feed nmea-broker,
 # the side-button gesture daemon buttond, the WAV tone generator wavtone
+# and atomic TAS2560 calibration-control writer tas2560-send-cal
 # (for the speaker test, initramfs/usr/bin/speaker-test-tone), and their
 # host tests. Does not touch btprobe.c
 # or build anything under scripts/, initramfs/ -- those are built/wired into
@@ -31,10 +32,11 @@ LDFLAGS ?=
 INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond wavtone
+BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond wavtone tas2560-send-cal
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog \
-            tests/test-nmea-broker tests/test-buttond tests/test-wavtone
+            tests/test-nmea-broker tests/test-buttond tests/test-wavtone \
+            tests/test-tas2560-send-cal
 
 .PHONY: all test test-shell clean
 
@@ -117,6 +119,16 @@ wavtone: wavtone.c
 tests/test-wavtone: tests/test_wavtone.c wavtone.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) -lm
 
+# Atomic writer for the TAS2560's write-only five-integer calibration
+# control. Uses only libc and the kernel ALSA UAPI; no alsa-lib/tinyalsa.
+# The test includes the source with TAS2560_SEND_CAL_NO_MAIN and injects
+# open/ioctl/close boundaries, so it needs no ALSA device on the host.
+tas2560-send-cal: tas2560-send-cal.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+tests/test-tas2560-send-cal: tests/test_tas2560_send_cal.c tas2560-send-cal.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
 test: $(TEST_BIN) test-shell
 	./tests/test-qmux
 	./tests/test-msmipc
@@ -125,6 +137,7 @@ test: $(TEST_BIN) test-shell
 	./tests/test-nmea-broker
 	./tests/test-buttond
 	./tests/test-wavtone
+	./tests/test-tas2560-send-cal
 
 # gps-up (initramfs/) selection-logic regression and the ride image's
 # ride-logger (initramfs-ride/) supervision/failure/HTTP-extraction
@@ -139,4 +152,5 @@ test-shell:
 	sh tests/test_speaker-test-tone.sh
 
 clean:
-	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond wavtone $(TEST_BIN)
+	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond wavtone \
+		tas2560-send-cal $(TEST_BIN)

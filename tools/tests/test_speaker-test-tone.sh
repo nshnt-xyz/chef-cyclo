@@ -27,6 +27,9 @@ eq() {
 # ---- pure functions, via the sourcing hook ----
 SPEAKER_TEST_TONE_SELFTEST=1 . "./$SCRIPT"
 
+eq "default persist calibration path includes persist's factory directory" \
+	"/factory/factory/audio/tas2560_calib_rdc" "$PERSIST_RDC_FILE"
+
 eq "clamp_duration under the cap" 3 "$(clamp_duration 3)"
 eq "clamp_duration at the cap" 5 "$(clamp_duration 5)"
 eq "clamp_duration over the cap" 5 "$(clamp_duration 10)"
@@ -39,6 +42,17 @@ if is_number 1000; then ok; else bad "is_number 1000 must accept an integer"; fi
 if is_number -20.5; then ok; else bad "is_number -20.5 must accept a signed decimal"; fi
 if is_number 1000abc; then bad "is_number 1000abc must reject trailing garbage"; else ok; fi
 if is_number ''; then bad "is_number '' must reject an empty string"; else ok; fi
+
+eq "Rdc decimal converts to nearest Q19 integer" 3712528 "$(rdc_to_q19 '7.081085;')"
+eq "Rdc lower bound is accepted" 2097152 "$(rdc_to_q19 '4;')"
+eq "Rdc upper bound is accepted" 8388608 "$(rdc_to_q19 '16.0;')"
+for bad_rdc in '7.081085' '7.081085;garbage' ' 7.081085;' '+7.081085;' '1e1;' '3.999;' '16.001;' ''; do
+	if rdc_to_q19 "$bad_rdc" >/dev/null 2>&1; then
+		bad "rdc_to_q19 must reject '$bad_rdc'"
+	else
+		ok
+	fi
+done
 
 ASOUND_DIR="$TMPROOT/asound-pcm"
 mkdir -p "$ASOUND_DIR"
@@ -85,6 +99,10 @@ if [ "$3" = set ] && [ -n "${STUB_TINYMIX_FAIL_ON:-}" ] && [ "$4" = "$STUB_TINYM
 	exit 1
 fi
 if [ "$3" = get ]; then
+	if [ -n "${STUB_TINYMIX_GET_FAIL_ON:-}" ] && [ "$4" = "$STUB_TINYMIX_GET_FAIL_ON" ]; then
+		echo "Error: get failed" >&2
+		exit 1
+	fi
 	echo "stub-value-for: $4"
 fi
 exit "${STUB_TINYMIX_EXIT:-0}"
@@ -92,6 +110,17 @@ STUB
 cat > "$STUBDIR/tinyplay" <<'STUB'
 #!/bin/sh
 echo "tinyplay $*" >> "$LOGFILE"
+[ -n "${ASOUND_DIR:-}" ] && [ "${STUB_TINYPLAY_NO_STATUS:-0}" != 1 ] && {
+	status="$ASOUND_DIR/card0/pcm0p/sub0/status"
+	mkdir -p "$(dirname "$status")"
+	printf 'state: RUNNING\n' > "$status"
+	if [ -n "${STUB_TINYPLAY_STATUS_CHANGE_DELAY:-}" ]; then
+		(
+			sleep "$STUB_TINYPLAY_STATUS_CHANGE_DELAY"
+			printf 'state: %s\n' "${STUB_TINYPLAY_STATUS_AFTER:-SETUP}" > "$status"
+		) &
+	fi
+}
 [ -n "${STUB_TINYPLAY_SLEEP:-}" ] && sleep "$STUB_TINYPLAY_SLEEP"
 exit "${STUB_TINYPLAY_EXIT:-0}"
 STUB
@@ -106,13 +135,38 @@ for a in "$@"; do
 done
 exit "${STUB_WAVTONE_EXIT:-0}"
 STUB
-chmod +x "$STUBDIR"/tinymix "$STUBDIR"/tinyplay "$STUBDIR"/wavtone
+cat > "$STUBDIR/tas2560-send-cal" <<'STUB'
+#!/bin/sh
+echo "tas2560-send-cal $*" >> "$LOGFILE"
+if [ "${STUB_SEND_CAL_EXIT:-0}" -ne 0 ]; then
+	echo "mock atomic calibration write failed" >&2
+	exit "$STUB_SEND_CAL_EXIT"
+fi
+exit 0
+STUB
+cat > "$STUBDIR/mount" <<'STUB'
+#!/bin/sh
+echo "mount $*" >> "$LOGFILE"
+exit "${STUB_MOUNT_EXIT:-0}"
+STUB
+cat > "$STUBDIR/umount" <<'STUB'
+#!/bin/sh
+echo "umount $*" >> "$LOGFILE"
+exit "${STUB_UMOUNT_EXIT:-0}"
+STUB
+chmod +x "$STUBDIR"/tinymix "$STUBDIR"/tinyplay "$STUBDIR"/wavtone \
+	"$STUBDIR"/tas2560-send-cal \
+	"$STUBDIR"/mount "$STUBDIR"/umount
 
 setup_fixture() {
 	FIXROOT=$(mktemp -d "$TMPROOT/fixture.XXXXXX")
-	mkdir -p "$FIXROOT/asound" "$FIXROOT/run"
+	mkdir -p "$FIXROOT/asound" "$FIXROOT/run" "$FIXROOT/sysfs/mmcblk0p99" \
+		"$FIXROOT/factory/factory/audio"
 	printf ' 0 [sdm660snd      ]: sdm660-asoc-s - sdm660-snd-card\n' > "$FIXROOT/asound/cards"
 	printf '00-00: MultiMedia1 (*) :  : playback 1 : capture 1\n' > "$FIXROOT/asound/pcm"
+	printf 'PARTNAME=persist\n' > "$FIXROOT/sysfs/mmcblk0p99/uevent"
+	printf '7.081085;' > "$FIXROOT/factory/factory/audio/tas2560_calib_rdc"
+	: > "$FIXROOT/mounts"
 	echo "$FIXROOT"
 }
 
@@ -153,20 +207,32 @@ FIXROOT=$(setup_fixture)
 LOGFILE="$FIXROOT/log"
 : > "$LOGFILE"
 ERRLOG="$FIXROOT/stderr"
-if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0.2 \
+if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0 \
+   PROTECT_POLL_DELAY=0.01 SYSFS_BLOCK="$FIXROOT/sysfs" MOUNTS_FILE="$FIXROOT/mounts" \
+   PERSIST_MOUNT="$FIXROOT/factory" PERSIST_RDC_FILE="$FIXROOT/factory/factory/audio/tas2560_calib_rdc" \
+   SEND_CAL_HELPER="$STUBDIR/tas2560-send-cal" \
    STUB_TINYPLAY_SLEEP=0.6 PATH="$STUBDIR:$PATH" sh "$SCRIPT" -p >/dev/null 2>"$ERRLOG"; then
 	ok
 else
 	bad "-p run should exit 0 (attempt is best-effort)"
 fi
+if grep -q '^tas2560-send-cal 0 3712528$' "$LOGFILE"; then ok; else bad "-p must invoke the atomic helper with card and Q19"; fi
 if grep -q '^tinymix -D 0 set TAS2560_ALGO_FF_MODULE ENABLE$' "$LOGFILE"; then ok; else bad "-p must attempt to set TAS2560_ALGO_FF_MODULE ENABLE"; fi
 if grep -q '^tinymix -D 0 get TAS2560_ALGO_FF_MODULE$' "$LOGFILE"; then ok; else bad "-p must read TAS2560_ALGO_FF_MODULE back after the set"; fi
 # Ordering: the attempt must come after tinyplay started, and tinyplay must
 # still have been started with -M.
 tp_line=$(grep -n '^tinyplay' "$LOGFILE" | head -n 1 | cut -d: -f1)
+cal_line=$(grep -n '^tas2560-send-cal ' "$LOGFILE" | head -n 1 | cut -d: -f1)
 ff_line=$(grep -n 'FF_MODULE ENABLE' "$LOGFILE" | head -n 1 | cut -d: -f1)
-if [ -n "$tp_line" ] && [ -n "$ff_line" ] && [ "$ff_line" -gt "$tp_line" ]; then ok; else bad "-p attempt must happen after tinyplay starts (tinyplay line $tp_line, attempt line $ff_line)"; fi
+if [ -n "$tp_line" ] && [ -n "$cal_line" ] && [ -n "$ff_line" ] && \
+   [ "$cal_line" -gt "$tp_line" ] && [ "$ff_line" -gt "$cal_line" ]; then
+	ok
+else
+	bad "-p order must be tinyplay RUNNING, SEND_CAL, then enable (lines $tp_line/$cal_line/$ff_line)"
+fi
 if grep -q 'protection: set rc=0, read back:' "$ERRLOG"; then ok; else bad "-p must log the set rc and the read-back value"; fi
+if grep -q "^mount -t ext4 -o ro,noload /dev/mmcblk0p99 $FIXROOT/factory$" "$LOGFILE"; then ok; else bad "-p must explicitly mount persist as ext4, read-only, with journal replay disabled"; fi
+if grep -q "^umount $FIXROOT/factory$" "$LOGFILE"; then ok; else bad "-p must unmount the persist mount it owns"; fi
 
 # -p with the set rejected (live behaviour before the port is active): the
 # failure carries tinymix's stderr and the run is still a success.
@@ -174,7 +240,9 @@ FIXROOT=$(setup_fixture)
 LOGFILE="$FIXROOT/log"
 : > "$LOGFILE"
 ERRLOG="$FIXROOT/stderr"
-if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0.2 \
+if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0 \
+   PROTECT_POLL_DELAY=0.01 SYSFS_BLOCK="$FIXROOT/sysfs" MOUNTS_FILE="$FIXROOT/mounts" \
+   PERSIST_MOUNT="$FIXROOT/factory" PERSIST_RDC_FILE="$FIXROOT/factory/factory/audio/tas2560_calib_rdc" \
    STUB_TINYPLAY_SLEEP=0.6 STUB_TINYMIX_FAIL_ON=TAS2560_ALGO_FF_MODULE \
    PATH="$STUBDIR:$PATH" sh "$SCRIPT" -p >/dev/null 2>"$ERRLOG"; then
 	ok
@@ -185,6 +253,114 @@ if grep -q "failed: Error: invalid enum value" "$ERRLOG"; then ok; else bad "a f
 if grep -q 'protection: set failed (best-effort' "$ERRLOG"; then ok; else bad "-p must log that the attempt failed and playback continued"; fi
 last_log=$(tail -n 1 "$LOGFILE")
 eq "route is still reset to 0 after a -p run" "tinymix -D 0 set TERT_MI2S_RX Audio Mixer MultiMedia1 0" "$last_log"
+
+# Atomic calibration-helper failure is non-fatal and must prevent enable.
+FIXROOT=$(setup_fixture)
+LOGFILE="$FIXROOT/log"
+: > "$LOGFILE"
+ERRLOG="$FIXROOT/stderr"
+if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0 \
+   PROTECT_POLL_DELAY=0.01 SYSFS_BLOCK="$FIXROOT/sysfs" MOUNTS_FILE="$FIXROOT/mounts" \
+   PERSIST_MOUNT="$FIXROOT/factory" PERSIST_RDC_FILE="$FIXROOT/factory/factory/audio/tas2560_calib_rdc" \
+   STUB_TINYPLAY_SLEEP=0.2 STUB_SEND_CAL_EXIT=9 \
+   PATH="$STUBDIR:$PATH" sh "$SCRIPT" -p >/dev/null 2>"$ERRLOG"; then
+	ok
+else
+	bad "-p run must still exit 0 when the calibration helper fails"
+fi
+if grep -q 'calibration helper failed rc=9: mock atomic calibration write failed' "$ERRLOG"; then ok; else bad "helper failure and stderr must be logged"; fi
+if grep -q 'FF_MODULE ENABLE' "$LOGFILE"; then bad "module must not be enabled after helper failure"; else ok; fi
+
+# Readback failure is explicitly logged but does not change playback success.
+FIXROOT=$(setup_fixture)
+LOGFILE="$FIXROOT/log"
+: > "$LOGFILE"
+ERRLOG="$FIXROOT/stderr"
+if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0 \
+   PROTECT_POLL_DELAY=0.01 SYSFS_BLOCK="$FIXROOT/sysfs" MOUNTS_FILE="$FIXROOT/mounts" \
+   PERSIST_MOUNT="$FIXROOT/factory" PERSIST_RDC_FILE="$FIXROOT/factory/factory/audio/tas2560_calib_rdc" \
+   STUB_TINYPLAY_SLEEP=0.2 STUB_TINYMIX_GET_FAIL_ON=TAS2560_ALGO_FF_MODULE \
+   PATH="$STUBDIR:$PATH" sh "$SCRIPT" -p >/dev/null 2>"$ERRLOG"; then
+	ok
+else
+	bad "-p run must still exit 0 when protection readback fails"
+fi
+if grep -q 'readback failed: Error: get failed' "$ERRLOG"; then ok; else bad "readback failure must be explicit in the log"; fi
+
+# Failure to observe RUNNING is best-effort: playback succeeds and no DSP
+# protection control is touched.
+FIXROOT=$(setup_fixture)
+LOGFILE="$FIXROOT/log"
+: > "$LOGFILE"
+ERRLOG="$FIXROOT/stderr"
+if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0 \
+   PROTECT_POLL_DELAY=0.01 PROTECT_POLL_ATTEMPTS=1 SYSFS_BLOCK="$FIXROOT/sysfs" MOUNTS_FILE="$FIXROOT/mounts" \
+   PERSIST_MOUNT="$FIXROOT/factory" PERSIST_RDC_FILE="$FIXROOT/factory/factory/audio/tas2560_calib_rdc" \
+   STUB_TINYPLAY_SLEEP=0.1 STUB_TINYPLAY_NO_STATUS=1 \
+   PATH="$STUBDIR:$PATH" sh "$SCRIPT" -p >/dev/null 2>"$ERRLOG"; then
+	ok
+else
+	bad "-p run must still exit 0 when PCM never reports RUNNING"
+fi
+if grep -q 'playback never reported RUNNING' "$ERRLOG"; then ok; else bad "inactive playback protection skip must be logged"; fi
+if grep -Eq '^(tas2560-send-cal |tinymix .*TAS2560_ALGO_)' "$LOGFILE"; then bad "inactive playback must skip helper/enable/readback"; else ok; fi
+
+# Playback can end during the post-RUNNING settling delay (notably with an
+# arbitrarily short positive -d). Recheck immediately before SEND_CAL so an
+# inactive AFE port is never touched after a stale RUNNING observation.
+FIXROOT=$(setup_fixture)
+LOGFILE="$FIXROOT/log"
+: > "$LOGFILE"
+ERRLOG="$FIXROOT/stderr"
+if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0.1 \
+   PROTECT_POLL_DELAY=0.01 SYSFS_BLOCK="$FIXROOT/sysfs" MOUNTS_FILE="$FIXROOT/mounts" \
+   PERSIST_MOUNT="$FIXROOT/factory" PERSIST_RDC_FILE="$FIXROOT/factory/factory/audio/tas2560_calib_rdc" \
+   STUB_TINYPLAY_SLEEP=0.3 STUB_TINYPLAY_STATUS_CHANGE_DELAY=0.02 STUB_TINYPLAY_STATUS_AFTER=SETUP \
+   PATH="$STUBDIR:$PATH" sh "$SCRIPT" -p -d 0.01 >/dev/null 2>"$ERRLOG"; then
+	ok
+else
+	bad "-p run must still exit 0 when playback leaves RUNNING during PROTECT_DELAY"
+fi
+if grep -q 'playback left RUNNING during the settling delay' "$ERRLOG"; then ok; else bad "loss of RUNNING during PROTECT_DELAY must be logged"; fi
+if grep -Eq '^(tas2560-send-cal |tinymix .*TAS2560_ALGO_)' "$LOGFILE"; then bad "playback that stopped during PROTECT_DELAY must skip helper/enable/readback"; else ok; fi
+
+# An existing read-only persist mount is reused and never unmounted.
+FIXROOT=$(setup_fixture)
+LOGFILE="$FIXROOT/log"
+: > "$LOGFILE"
+printf '/dev/mmcblk0p99 %s ext4 ro,relatime 0 0\n' "$FIXROOT/factory" > "$FIXROOT/mounts"
+ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" PROTECT_DELAY=0 \
+	PROTECT_POLL_DELAY=0.01 SYSFS_BLOCK="$FIXROOT/sysfs" MOUNTS_FILE="$FIXROOT/mounts" \
+	PERSIST_MOUNT="$FIXROOT/factory" PERSIST_RDC_FILE="$FIXROOT/factory/factory/audio/tas2560_calib_rdc" \
+	STUB_TINYPLAY_SLEEP=0.2 PATH="$STUBDIR:$PATH" sh "$SCRIPT" -p >/dev/null 2>&1 || \
+	bad "-p must work with an existing read-only persist mount"
+if grep -Eq '^(mount|umount) ' "$LOGFILE"; then bad "a non-owned persist mount must be neither mounted over nor unmounted"; else ok; fi
+
+# Missing/malformed calibration and mount failure all leave playback clean and
+# skip every protection mixer command.
+for failure in missing malformed mount; do
+	FIXROOT=$(setup_fixture)
+	LOGFILE="$FIXROOT/log"
+	: > "$LOGFILE"
+	ERRLOG="$FIXROOT/stderr"
+	case "$failure" in
+	missing) rm -f "$FIXROOT/factory/factory/audio/tas2560_calib_rdc"; mount_exit=0 ;;
+	malformed) printf '7.081085;garbage' > "$FIXROOT/factory/factory/audio/tas2560_calib_rdc"; mount_exit=0 ;;
+	mount) mount_exit=1 ;;
+	esac
+	if ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" \
+	   SYSFS_BLOCK="$FIXROOT/sysfs" MOUNTS_FILE="$FIXROOT/mounts" \
+	   PERSIST_MOUNT="$FIXROOT/factory" PERSIST_RDC_FILE="$FIXROOT/factory/factory/audio/tas2560_calib_rdc" \
+	   STUB_MOUNT_EXIT="$mount_exit" PATH="$STUBDIR:$PATH" sh "$SCRIPT" -p >/dev/null 2>"$ERRLOG"; then
+		ok
+	else
+		bad "$failure calibration failure must be non-fatal to playback"
+	fi
+	if grep -q '^tinyplay .* -M$' "$LOGFILE"; then ok; else bad "$failure calibration failure must still play with mmap"; fi
+	if grep -Eq '^(tas2560-send-cal |tinymix .*TAS2560_ALGO_)' "$LOGFILE"; then bad "$failure calibration failure must skip helper/enable/readback"; else ok; fi
+	if grep -q 'protection:' "$ERRLOG"; then ok; else bad "$failure calibration failure must be logged"; fi
+	if [ "$failure" != mount ] && grep -q "^umount $FIXROOT/factory$" "$LOGFILE"; then ok; elif [ "$failure" != mount ]; then bad "$failure calibration path must clean up its owned mount"; else ok; fi
+done
 
 # -P (the old flag) is gone: rejected as an unknown option, nothing touched.
 FIXROOT=$(setup_fixture)

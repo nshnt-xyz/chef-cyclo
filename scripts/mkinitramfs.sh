@@ -4,7 +4,8 @@
 # the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
 # display/touch probe fbtouch, the on-device log screen fblog, the gpsd
 # feed nmea-broker, the button daemon buttond and the ADSP bring-up +
-# speaker test tone (audio-up, speaker-test-tone, wavtone) on top.
+# speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
+# TAS2560 calibration-control writer) on top.
 #
 # VARIANT=ride additionally lays the initramfs-ride/ overlay on top (the
 # unattended GPS ride logger, its inittab entries and the HTTP extraction
@@ -211,13 +212,21 @@ echo "built $ROOT/usr/bin/buttond"
 # (tools/wavtone.c) writes the WAV file speaker-test-tone hands to
 # tinyplay; only libc's <math.h>, so no kernel include paths, but needs
 # -lm explicitly since musl's static libm is a separate archive.
+# tas2560-send-cal uses the kernel ALSA control UAPI to atomically write the
+# write-only five-integer calibration control; it has no runtime library
+# dependency beyond the statically linked musl libc.
 [ -f tools/wavtone.c ] || { echo "missing required source: tools/wavtone.c" >&2; exit 1; }
+[ -f tools/tas2560-send-cal.c ] || { echo "missing required source: tools/tas2560-send-cal.c" >&2; exit 1; }
 [ -x "$ROOT/usr/bin/tinymix" ] && [ -x "$ROOT/usr/bin/tinyplay" ] || {
     echo "no tinymix/tinyplay in out/rootfs; rerun scripts/mkrootfs.sh (package list changed)" >&2
     exit 1
 }
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/wavtone" tools/wavtone.c -lm
 echo "built $ROOT/usr/bin/wavtone"
+
+"$MUSLCC" -Wall -Wextra -O2 -static \
+    -o "$ROOT/usr/bin/tas2560-send-cal" tools/tas2560-send-cal.c
+echo "built $ROOT/usr/bin/tas2560-send-cal"
 
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \
