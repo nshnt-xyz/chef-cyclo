@@ -31,6 +31,12 @@ tools/buttond
 tools/tests/test-buttond
 tools/wavtone
 tools/tests/test-wavtone
+tools/tas2560-send-cal
+tools/tests/test-tas2560-send-cal
+tools/afe-topology-cal
+tools/tests/test-afe-topology-cal
+tools/tert-tx-hold
+tools/tests/test-tert-tx-hold
 tools/rmtfs/tests/test-storage
 tools/rmtfs/tests/test-sharedmem
 tools/servreg-locator/servreg-locator

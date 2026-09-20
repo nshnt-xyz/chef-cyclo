@@ -5,7 +5,8 @@
 # display/touch probe fbtouch, the on-device log screen fblog, the gpsd
 # feed nmea-broker, the button daemon buttond and the ADSP bring-up +
 # speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
-# TAS2560 calibration-control writer) on top.
+# TAS2560 calibration-control writer) and the speaker-protection experiment
+# (afe-debug, spk-protect-probe, afe-topology-cal, tert-tx-hold) on top.
 #
 # VARIANT=ride additionally lays the initramfs-ride/ overlay on top (the
 # unattended GPS ride logger, its inittab entries and the HTTP extraction
@@ -31,7 +32,8 @@ mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
          "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus
 cp -a initramfs/. "$ROOT"/
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
-    "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone
+    "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
+    "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe
 if [ "$VARIANT" = ride ]; then
     for f in initramfs-ride/etc/inittab initramfs-ride/usr/bin/ride-logger \
              initramfs-ride/usr/share/ride/www/cgi-bin/index.cgi \
@@ -227,6 +229,27 @@ echo "built $ROOT/usr/bin/wavtone"
 "$MUSLCC" -Wall -Wextra -O2 -static \
     -o "$ROOT/usr/bin/tas2560-send-cal" tools/tas2560-send-cal.c
 echo "built $ROOT/usr/bin/tas2560-send-cal"
+
+# Speaker-protection experiment (docs/features/audio.md, "Why FF stays
+# DISABLE"): spk-protect-probe (initramfs/usr/bin, chmod'd above, with
+# afe-debug) drives speaker-test-tone under two resident helpers --
+# afe-topology-cal (tools/afe-topology-cal.c: installs the stock AFE
+# topology 0x000112FC for the speaker port through /dev/msm_audio_cal and
+# holds the fd, since the kernel frees the block on last close) and
+# tert-tx-hold (tools/tert-tx-hold.c: starts the TERT MI2S_TX hostless
+# capture so AFE port 0x1005 is up). Both use only libc + kernel UAPI,
+# static musl; fail closed on either source missing, same as the block
+# above. Neither is started by anything in inittab.
+for f in tools/afe-topology-cal.c tools/tert-tx-hold.c \
+         initramfs/usr/bin/afe-debug initramfs/usr/bin/spk-protect-probe; do
+    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
+done
+"$MUSLCC" -Wall -Wextra -O2 -static \
+    -o "$ROOT/usr/bin/afe-topology-cal" tools/afe-topology-cal.c
+echo "built $ROOT/usr/bin/afe-topology-cal"
+"$MUSLCC" -Wall -Wextra -O2 -static \
+    -o "$ROOT/usr/bin/tert-tx-hold" tools/tert-tx-hold.c
+echo "built $ROOT/usr/bin/tert-tx-hold"
 
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \

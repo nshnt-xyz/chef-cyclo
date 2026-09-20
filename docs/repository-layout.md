@@ -10,7 +10,7 @@ Paths below are relative to the repository root.
 | `kernel-config/chef-cyclo.config` | Project fragment appended to Motorola's three-part config stack. |
 | `stock/partitions/` | Verified stock backups; includes irreplaceable device-unique partitions. See [device reference](device.md). |
 | `stock/twrp-3.7.0_9-0-chef.img`, `stock/twrp-*.txt` | Verified recovery image and stock-kernel observations. |
-| `initramfs/` | Alpine overlay: `/init`, users, service configuration, `bt-up`, `gps-up`, and [`audio-up`/`speaker-test-tone`](features/audio.md). |
+| `initramfs/` | Alpine overlay: `/init`, users, service configuration, `bt-up`, `gps-up`, [`audio-up`/`speaker-test-tone`](features/audio.md) and the speaker-protection experiment scripts `spk-protect-probe`/`afe-debug`. |
 | `initramfs-ride/` | Temporary ride overlay: `ride-logger`, alternate inittab, HTTP log extraction. |
 | `tools/btprobe.c` | Freestanding power/UART/HCI helper for [Bluetooth](features/bluetooth.md). |
 | `tools/fbdev.h` | Shared framebuffer lifecycle and advisory screen-lock contract. |
@@ -23,6 +23,8 @@ Paths below are relative to the repository root.
 | `tools/tftp/` | Bounded TFTP/RFS server; read-only firmware and RAM-shadow writable data. |
 | `tools/nmea-broker.c` | Checksum-filtered UDP feed to gpsd, optional logging/tee, initial GPS clock step. See [GPS](features/gps.md). |
 | `tools/wavtone.c` | Deterministic PCM WAV sine-tone generator for the speaker test. See [Audio](features/audio.md). |
+| `tools/tas2560-send-cal.c` | Atomic writer for the TAS2560's write-only five-integer calibration control. |
+| `tools/afe-topology-cal.c`, `tools/tert-tx-hold.c`, `tools/acdb-afe-topology.py` | Speaker-protection experiment helpers: resident AFE topology installer, resident TERT_MI2S_TX hostless holder, read-only stock ACDB topology decoder. See [Audio](features/audio.md). |
 | `tools/tests/`, component Makefiles | Host verification for helpers and lifecycle scripts. |
 | `scripts/` | Toolchain setup, kernel environment, rootfs/initramfs/boot packing, ride image build. |
 | `logs/` | Captured device evidence; GPS trace archives may be intentionally gitignored. |

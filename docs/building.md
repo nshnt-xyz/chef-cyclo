@@ -27,7 +27,7 @@ The kernel config combines `sdm660_defconfig`, `moto-sdm660.config`, `moto-sdm66
 
 `mkrootfs.sh` builds an Alpine aarch64 root with musl, BusyBox, D-Bus, BlueZ, QMI tools, gpsd, and tinyalsa. Rerun it when the package list changes; roots created before the 2026-09-19 gpsd addition, or before the same-day tinyalsa addition, need rebuilding.
 
-`mkinitramfs.sh` overlays `initramfs/` and cross-builds the device helpers. GPS requires RMTFS, IRSC, SERVREG-LOCATOR, TFTP/RFS, and QMUX support. Missing mandatory sources, failed cross-builds, a missing persist seed, a rootfs without gpsd, or a rootfs without tinymix/tinyplay abort image generation. `fbtouch`, `fblog`, `nmea-broker`, `buttond`, and the [audio helpers](features/audio.md) `audio-up`/`speaker-test-tone`/`wavtone` are also packed.
+`mkinitramfs.sh` overlays `initramfs/` and cross-builds the device helpers. GPS requires RMTFS, IRSC, SERVREG-LOCATOR, TFTP/RFS, and QMUX support. Missing mandatory sources, failed cross-builds, a missing persist seed, a rootfs without gpsd, or a rootfs without tinymix/tinyplay abort image generation. `fbtouch`, `fblog`, `nmea-broker`, `buttond`, the [audio helpers](features/audio.md) `audio-up`/`speaker-test-tone`/`wavtone`/`tas2560-send-cal` and the speaker-protection experiment `spk-protect-probe`/`afe-debug`/`afe-topology-cal`/`tert-tx-hold` are also packed.
 
 `mkboot.sh` uses the stock `boot_a.img` header values and the built kernel/initramfs. A normal reboot returns to the flashed OS; see [device recovery](device.md#stock-backups-and-recovery).
 
@@ -47,7 +47,7 @@ make -C tools/servreg-locator test
 make -C tools/tftp test
 ```
 
-`make -C tools test` includes the GPS startup, ride-logger, audio-up, and speaker-test-tone shell suites. For a focused script change, run `sh tools/tests/test_gps-up.sh`, `sh tools/tests/test_ride-logger.sh`, `sh tools/tests/test_audio-up.sh`, or `sh tools/tests/test_speaker-test-tone.sh` directly. Component-specific tests and live verification expectations are linked from each feature guide. Host success does not imply live device verification. Record image hashes, device results, and evidence paths in the [build log](build-log.md).
+`make -C tools test` includes the GPS startup, ride-logger, audio-up, speaker-test-tone, afe-debug, spk-protect-probe and acdb-afe-topology shell suites. For a focused script change, run `sh tools/tests/test_gps-up.sh`, `sh tools/tests/test_ride-logger.sh`, `sh tools/tests/test_audio-up.sh`, `sh tools/tests/test_speaker-test-tone.sh`, `sh tools/tests/test_afe-debug.sh`, `sh tools/tests/test_spk-protect-probe.sh` or `sh tools/tests/test_acdb-afe-topology.sh` directly (python3 is needed for the last one). Component-specific tests and live verification expectations are linked from each feature guide. Host success does not imply live device verification. Record image hashes, device results, and evidence paths in the [build log](build-log.md).
 
 After boot, connect through [USB networking](features/usb-networking.md). The baseline starts Bluetooth, the [log screen](features/display-and-touch.md), and [button handling](features/buttons-and-power-off.md); [GPS](features/gps.md) remains manual.
 

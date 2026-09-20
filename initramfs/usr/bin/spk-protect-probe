@@ -1,0 +1,422 @@
+#!/bin/sh
+# Scripted live experiment for TAS2560 speaker protection (chef-cyclo): does
+# the ADSP's FF (feed-forward protection) module come up once the two things
+# stock does and we never did are in place -- the TERT_MI2S_TX feedback port
+# (0x1005) being started, and the stock AFE topology 0x000112FC being
+# installed for the speaker port (0x1004)? It plays the same short
+# calibrated `speaker-test-tone -p` four times under different helper
+# combinations and captures the kernel's answer around each one, with the
+# q6afe/tas2560 dynamic-debug sites switched on (afe-debug) so the AFE
+# status words the default log hides are visible:
+#
+#   phase 1  baseline   tone only, no helpers
+#   phase 2  tx         tert-tx-hold (TERT_MI2S_TX hostless capture) + tone
+#   phase 3  tx-topo    afe-topology-cal (RX topology block) + tert-tx-hold + tone
+#   phase 4  restored   tone only again, after both helpers exited (reversibility)
+#
+# Best-effort and self-cleaning: a failing tone, a helper that refuses to
+# start or an interrupt never skips the remaining phases' cleanup -- the
+# helpers are always killed, afe-debug is always switched off again on
+# exit, and the only state ever written is /run/spk-protect-probe-<ts>/.
+# The amplitude/duration/volume flags are speaker-test-tone's own (-d, -a,
+# -v) with the same clamps and defaults; nothing here can play louder than
+# that script allows.
+#
+# Preconditions (abort before touching anything): the sdm660 card is up
+# (audio-up ran), the adsp subsystem's restart_level is "related" (a DSP
+# crash under a new topology must not panic the kernel), and all four
+# helpers plus dmesg and /dev/kmsg are available.
+#
+# The one-screen summary at the end answers, per phase: did AFE port
+# 0x1005 start (and what did the AFE say), was SET_TOPOLOGY sent and acked
+# for 0x1004, which `DSP returned error` lines appeared, what status word
+# (PL#0) did the TAS get-param responses carry, what did the FF readback
+# say, and did playback complete. The user drives this live; see
+# docs/features/audio.md ("Why FF stays DISABLE").
+set -u
+
+# Overridable for tools/tests/test_spk-protect-probe.sh (fake sysfs/procfs,
+# stub helpers on PATH, a file standing in for /dev/kmsg and a stub dmesg
+# that prints it); all unset in production.
+ASOUND_DIR=${ASOUND_DIR:-/proc/asound}
+SUBSYS_DIR=${SUBSYS_DIR:-/sys/bus/msm_subsys/devices}
+RUN_DIR=${RUN_DIR:-/run}
+KMSG=${KMSG:-/dev/kmsg}
+DMESG=${DMESG:-dmesg}
+SPEAKER_TEST_TONE=${SPEAKER_TEST_TONE:-speaker-test-tone}
+AFE_DEBUG=${AFE_DEBUG:-afe-debug}
+AFE_TOPOLOGY_CAL=${AFE_TOPOLOGY_CAL:-afe-topology-cal}
+TERT_TX_HOLD=${TERT_TX_HOLD:-tert-tx-hold}
+CARD=${CARD:-0}
+# How long to wait for a helper's "resident"/"holding" line.
+HELPER_POLL_DELAY=${HELPER_POLL_DELAY:-0.1}
+HELPER_POLL_ATTEMPTS=${HELPER_POLL_ATTEMPTS:-50}
+# Settling time after a helper reports ready and after the tone, so the
+# kernel lines it triggers land inside the phase's window.
+SETTLE_DELAY=${SETTLE_DELAY:-0.5}
+
+# Mirrors of speaker-test-tone's limits and defaults: tools/tests/
+# test_spk-protect-probe.sh asserts they are equal to that script's, so the
+# probe can never pass a value speaker-test-tone would not clamp the same
+# way. Duration defaults to 3 s (long enough for -p's post-RUNNING
+# calibration/enable/readback sequence); -a/-v are only passed through when
+# given, so speaker-test-tone's own defaults (-20 dBFS, vol 10) apply.
+DURATION=3
+DURATION_MAX=5
+AMPLITUDE_MAX_DBFS=-6
+VOL_MAX=15
+AMPLITUDE_DBFS=
+VOL=
+TOPOLOGY=
+
+PHASES="baseline tx tx-topo restored"
+OUT_DIR=
+DEBUG_ON=0
+TOPO_PID=
+TX_PID=
+HELPER_PID=
+
+usage() {
+	cat >&2 <<EOF
+usage: spk-protect-probe [-d SECONDS] [-a AMPLITUDE_DBFS] [-v VOL] [-r TOPOLOGY_HEX]
+  -d SECONDS          tone duration per phase, clamped to $DURATION_MAX (default $DURATION)
+  -a AMPLITUDE_DBFS   passed to speaker-test-tone, clamped to <= $AMPLITUDE_MAX_DBFS dBFS (default: its own -20)
+  -v VOL              passed to speaker-test-tone, 0..$VOL_MAX (default: its own 10)
+  -r TOPOLOGY_HEX     RX topology for afe-topology-cal (default: its own 000112FC)
+Runs four calibrated tones (baseline, +tert-tx-hold, +afe-topology-cal, restored),
+captures the kernel window of each into $RUN_DIR/spk-protect-probe-<ts>/ and
+prints a summary. Always kills its helpers and turns afe-debug off on exit.
+EOF
+}
+
+log() {
+	echo "spk-protect-probe: $*" >&2
+}
+
+is_number() {
+	awk -v v="$1" 'BEGIN { exit (v ~ /^-?[0-9]+(\.[0-9]+)?$/) ? 0 : 1 }'
+}
+
+clamp_duration() {
+	awk -v d="$1" -v max="$DURATION_MAX" 'BEGIN { print (d > max) ? max : d }'
+}
+
+clamp_amplitude() {
+	awk -v a="$1" -v max="$AMPLITUDE_MAX_DBFS" 'BEGIN { print (a > max) ? max : a }'
+}
+
+card_ready() {
+	# grep, never [ -s ]: /proc/asound/cards has st_size 0 (see audio-up).
+	grep -q 'sdm660' "$ASOUND_DIR/cards" 2>/dev/null
+}
+
+find_subsys() {
+	# Same rule as audio-up's find_subsys: the msm_subsys device whose
+	# name node reads $1.
+	for s in "$SUBSYS_DIR"/subsys*; do
+		[ -r "$s/name" ] || continue
+		[ "$(cat "$s/name" 2>/dev/null)" = "$1" ] || continue
+		echo "$s"
+		return 0
+	done
+	return 1
+}
+
+adsp_restart_level() {
+	s=$(find_subsys adsp) || return 1
+	cat "$s/restart_level" 2>/dev/null
+}
+
+kmark() {
+	# Tag the kernel log so each phase's window can be cut out of dmesg
+	# afterwards regardless of how much else is logged.
+	# >> not >: identical for the character device, and it keeps the
+	# host test's file stand-in from being truncated.
+	echo "spk-protect-probe: $*" >> "$KMSG" 2>/dev/null || true
+}
+
+capture_window() {
+	# capture_window PHASE: the kernel lines between this phase's BEGIN and
+	# END markers, into the evidence dir.
+	"$DMESG" 2>/dev/null | awk -v b="spk-protect-probe: BEGIN $1" -v e="spk-protect-probe: END $1" '
+		index($0, b) { on = 1 }
+		on { print }
+		index($0, e) { on = 0 }
+	' > "$OUT_DIR/kmsg-$1.log"
+}
+
+child_running() {
+	# As in audio-up: a zombie (exited, not yet reaped) must count as gone,
+	# so check the /proc state rather than kill -0 alone.
+	[ -n "$1" ] && [ -r "/proc/$1/stat" ] || return 1
+	awk '{ exit ($3 == "Z") }' "/proc/$1/stat" 2>/dev/null
+}
+
+start_helper() {
+	# start_helper LOGNAME READY_PATTERN COMMAND [ARGS...]: background the
+	# helper (as a real child of this shell, so it can be waited for) with
+	# its output in the evidence dir, and wait for its ready line. Sets
+	# HELPER_PID; returns 1 when the ready line never appeared or the
+	# helper exited first (HELPER_PID is then empty).
+	logname=$1
+	ready=$2
+	shift 2
+	"$@" > "$OUT_DIR/$logname.log" 2>&1 &
+	HELPER_PID=$!
+	i=0
+	while ! grep -Eq "$ready" "$OUT_DIR/$logname.log" 2>/dev/null; do
+		if ! child_running "$HELPER_PID"; then
+			wait "$HELPER_PID" 2>/dev/null
+			log "$logname exited (rc=$?) before reporting ready: $(tr '\n' ' ' < "$OUT_DIR/$logname.log")"
+			HELPER_PID=
+			return 1
+		fi
+		[ "$i" -lt "$HELPER_POLL_ATTEMPTS" ] || {
+			log "$logname did not report ready within the wait; stopping it and continuing without it"
+			stop_helper "$HELPER_PID"
+			HELPER_PID=
+			return 1
+		}
+		sleep "$HELPER_POLL_DELAY"
+		i=$((i + 1))
+	done
+	log "$logname ready: $(grep -E "$ready" "$OUT_DIR/$logname.log" | head -n 1)"
+	return 0
+}
+
+stop_helper() {
+	# stop_helper PID: TERM, give it the helper-wait budget to release what
+	# it holds and exit (they exit 0 on TERM), KILL as a last resort, reap.
+	[ -n "$1" ] || return 0
+	child_running "$1" && kill "$1" 2>/dev/null
+	i=0
+	while child_running "$1"; do
+		[ "$i" -lt "$HELPER_POLL_ATTEMPTS" ] || {
+			log "helper pid $1 ignored TERM; killing it"
+			kill -9 "$1" 2>/dev/null
+			break
+		}
+		sleep "$HELPER_POLL_DELAY"
+		i=$((i + 1))
+	done
+	wait "$1" 2>/dev/null
+}
+
+stop_helpers() {
+	# Reverse order of starting: release the TX port before the topology
+	# block, so the topology is still installed while 0x1005 closes.
+	stop_helper "$TX_PID"
+	TX_PID=
+	stop_helper "$TOPO_PID"
+	TOPO_PID=
+}
+
+snapshot() {
+	# snapshot NAME: mixer status and the ALSA procfs listing.
+	"$SPEAKER_TEST_TONE" -s > "$OUT_DIR/status-$1.txt" 2>&1 || true
+	{
+		echo "== $ASOUND_DIR/cards"
+		cat "$ASOUND_DIR/cards" 2>/dev/null
+		echo "== $ASOUND_DIR/pcm"
+		cat "$ASOUND_DIR/pcm" 2>/dev/null
+	} > "$OUT_DIR/asound-$1.txt"
+}
+
+run_phase() {
+	# run_phase NAME WITH_TX WITH_TOPO
+	phase=$1
+	with_tx=$2
+	with_topo=$3
+	log "phase $phase: tx-hold=$with_tx topology=$with_topo"
+	kmark "BEGIN $phase"
+	topo_state=none
+	tx_state=none
+	# Topology block first (it must exist before any port starts), then
+	# the TX holder, then the tone that starts the RX port.
+	if [ "$with_topo" = 1 ]; then
+		set -- "$AFE_TOPOLOGY_CAL"
+		[ -n "$TOPOLOGY" ] && set -- "$@" -r "$TOPOLOGY"
+		# The pid is recorded (for cleanup's trap) before any settling
+		# sleep, so a signal during the sleep still reaches the helper.
+		if start_helper "afe-topology-cal-$phase" "resident, holding" "$@"; then
+			TOPO_PID=$HELPER_PID
+			topo_state=ready
+			sleep "$SETTLE_DELAY"
+		else
+			TOPO_PID=$HELPER_PID
+			topo_state=failed
+		fi
+	fi
+	if [ "$with_tx" = 1 ]; then
+		if start_helper "tert-tx-hold-$phase" "holding .* RUNNING" "$TERT_TX_HOLD" -D "$CARD"; then
+			TX_PID=$HELPER_PID
+			tx_state=ready
+			sleep "$SETTLE_DELAY"
+		else
+			TX_PID=$HELPER_PID
+			tx_state=failed
+		fi
+	fi
+
+	set -- "$SPEAKER_TEST_TONE" -p -d "$DURATION"
+	[ -n "$AMPLITUDE_DBFS" ] && set -- "$@" -a "$AMPLITUDE_DBFS"
+	[ -n "$VOL" ] && set -- "$@" -v "$VOL"
+	log "phase $phase: $*"
+	if "$@" > "$OUT_DIR/tone-$phase.log" 2>&1; then
+		tone_rc=0
+	else
+		tone_rc=$?
+		log "phase $phase: speaker-test-tone exited rc=$tone_rc (continuing)"
+	fi
+	sleep "$SETTLE_DELAY"
+	stop_helpers
+	kmark "END $phase"
+	capture_window "$phase"
+	snapshot "$phase"
+	printf '%s tone_rc=%s topology=%s tx_hold=%s\n' "$phase" "$tone_rc" "$topo_state" "$tx_state" >> "$OUT_DIR/phases.txt"
+}
+
+# section TITLE PATTERN EMPTY_TEXT FILE...: the matching lines, indented,
+# or EMPTY_TEXT when there are none. Extended regex (busybox grep -E; no
+# BRE \| which musl's regcomp does not support).
+section() {
+	title=$1
+	pattern=$2
+	empty=$3
+	shift 3
+	echo "  $title"
+	if grep -Eih "$pattern" "$@" 2>/dev/null | sed 's/^/    /' | grep .; then
+		:
+	else
+		echo "    $empty"
+	fi
+}
+
+summarize_phase() {
+	phase=$1
+	kl="$OUT_DIR/kmsg-$phase.log"
+	tl="$OUT_DIR/tone-$phase.log"
+	echo "--- phase $phase: $(grep "^$phase " "$OUT_DIR/phases.txt" | cut -d ' ' -f 2-)"
+	echo "  playback: $(sed -n -e 's/.*\(tinyplay finished\).*/\1/p' -e 's/.*\(tinyplay exited with an error\).*/\1/p' "$tl" 2>/dev/null | head -n 1)"
+	section "TX port 0x1005 (4101):" '0x1005|port 4101|port_id 4101' \
+		"(no port 0x1005 lines)" "$kl"
+	section "SET_TOPOLOGY on 0x1004:" 'set topology id|get_cal_topology|top_id:|topology_id = ' \
+		"(no topology lines)" "$kl"
+	section "DSP errors:" 'DSP returned error|returned error =|failed with code' \
+		"(none)" "$kl"
+	section "TAS get-param responses (PL#0 = status word, PL#1 = module):" \
+		'PL#1\[0x1000fc00\]|PL#1\[0x1000fd00\]' \
+		"(none -- afe_callback_debug_print not logged?)" "$kl"
+	section "FF readback:" 'Rx-Enable|read back' "(none)" "$kl" "$tl"
+}
+
+summarize() {
+	{
+		echo "spk-protect-probe summary ($OUT_DIR)"
+		echo "duration=${DURATION}s amplitude=${AMPLITUDE_DBFS:-default} vol=${VOL:-default} topology=${TOPOLOGY:-default} card=$CARD"
+		echo "adsp restart_level: $(cat "$OUT_DIR/restart_level.txt" 2>/dev/null)"
+		for phase in $PHASES; do
+			[ -r "$OUT_DIR/kmsg-$phase.log" ] || { echo "--- phase $phase: not run"; continue; }
+			summarize_phase "$phase"
+		done
+		echo "evidence: $OUT_DIR (kmsg-*.log, tone-*.log, status-*.txt, asound-*.txt, helper logs)"
+	} | tee "$OUT_DIR/summary.txt"
+}
+
+cleanup() {
+	status=$?
+	trap - EXIT HUP INT TERM
+	stop_helpers
+	# A helper caught between launch and being recorded as TOPO_PID/TX_PID.
+	stop_helper "${HELPER_PID:-}"
+	HELPER_PID=
+	if [ "$DEBUG_ON" -eq 1 ]; then
+		"$AFE_DEBUG" off > "$OUT_DIR/afe-debug-off.log" 2>&1 || log "WARNING: afe-debug off failed: $(tr '\n' ' ' < "$OUT_DIR/afe-debug-off.log")"
+		DEBUG_ON=0
+	fi
+	# Interrupted after at least one phase: still print what was gathered.
+	if [ -n "$OUT_DIR" ] && [ -r "$OUT_DIR/phases.txt" ] && [ ! -r "$OUT_DIR/summary.txt" ]; then
+		summarize
+	fi
+	[ -n "$OUT_DIR" ] && log "evidence in $OUT_DIR"
+	exit "$status"
+}
+
+# Let tools/tests/test_spk-protect-probe.sh source this file for its pure
+# functions and constants without running the experiment.
+[ "${SPK_PROTECT_PROBE_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
+
+while getopts 'd:a:v:r:h' opt; do
+	case "$opt" in
+	d) DURATION=$OPTARG ;;
+	a) AMPLITUDE_DBFS=$OPTARG ;;
+	v) VOL=$OPTARG ;;
+	r) TOPOLOGY=$OPTARG ;;
+	h) usage; exit 0 ;;
+	*) usage; exit 1 ;;
+	esac
+done
+shift $((OPTIND - 1))
+if [ $# -ne 0 ]; then
+	usage
+	exit 1
+fi
+
+if ! is_number "$DURATION" || [ "$(awk -v d="$DURATION" 'BEGIN { print (d > 0) }')" != 1 ]; then
+	log "invalid -d '$DURATION': must be a positive number"
+	exit 1
+fi
+CLAMPED=$(clamp_duration "$DURATION")
+[ "$CLAMPED" != "$DURATION" ] && log "clamping -d $DURATION to $CLAMPED (max $DURATION_MAX)"
+DURATION=$CLAMPED
+if [ -n "$AMPLITUDE_DBFS" ]; then
+	is_number "$AMPLITUDE_DBFS" || { log "invalid -a '$AMPLITUDE_DBFS': must be a number"; exit 1; }
+	CLAMPED=$(clamp_amplitude "$AMPLITUDE_DBFS")
+	[ "$CLAMPED" != "$AMPLITUDE_DBFS" ] && log "clamping -a $AMPLITUDE_DBFS to $CLAMPED dBFS (max $AMPLITUDE_MAX_DBFS)"
+	AMPLITUDE_DBFS=$CLAMPED
+fi
+if [ -n "$VOL" ]; then
+	case "$VOL" in
+	*[!0-9]*) log "invalid -v '$VOL': must be an integer 0..$VOL_MAX"; exit 1 ;;
+	esac
+	[ "$VOL" -le "$VOL_MAX" ] || { log "invalid -v '$VOL': must be 0..$VOL_MAX"; exit 1; }
+fi
+if [ -n "$TOPOLOGY" ]; then
+	case "$TOPOLOGY" in
+	'' | *[!0-9a-fA-Fx]*) log "invalid -r '$TOPOLOGY': hex topology id"; exit 1 ;;
+	esac
+fi
+
+# ---- preconditions ----
+for cmd in "$SPEAKER_TEST_TONE" "$AFE_DEBUG" "$AFE_TOPOLOGY_CAL" "$TERT_TX_HOLD" "$DMESG"; do
+	command -v "$cmd" > /dev/null 2>&1 || { log "missing $cmd; rebuild the image (scripts/mkinitramfs.sh)"; exit 1; }
+done
+[ -w "$KMSG" ] || { log "$KMSG is not writable; cannot mark the kernel log"; exit 1; }
+card_ready || { log "no sdm660 card in $ASOUND_DIR/cards; run audio-up first"; exit 1; }
+LEVEL=$(adsp_restart_level) || { log "adsp subsystem not found under $SUBSYS_DIR"; exit 1; }
+[ "$LEVEL" = related ] || { log "adsp restart_level is '$LEVEL', not 'related' (audio-up sets it); refusing -- a DSP fault under a new topology would panic the kernel"; exit 1; }
+
+OUT_DIR="$RUN_DIR/spk-protect-probe-$(date +%Y%m%d-%H%M%S 2>/dev/null || echo unknown)-$$"
+mkdir -p "$OUT_DIR" || { log "cannot create $OUT_DIR"; exit 1; }
+echo "$LEVEL" > "$OUT_DIR/restart_level.txt"
+trap cleanup EXIT HUP INT TERM
+
+snapshot before
+if "$AFE_DEBUG" on > "$OUT_DIR/afe-debug-on.log" 2>&1; then
+	DEBUG_ON=1
+else
+	# Half-enabled sites are still worth switching off again on exit.
+	DEBUG_ON=1
+	log "afe-debug on failed: $(tr '\n' ' ' < "$OUT_DIR/afe-debug-on.log"); the kernel window will lack the AFE status words -- aborting"
+	exit 1
+fi
+"$AFE_DEBUG" status > "$OUT_DIR/afe-debug-status.txt" 2>&1 || true
+
+run_phase baseline 0 0
+run_phase tx 1 0
+run_phase tx-topo 1 1
+run_phase restored 0 0
+
+snapshot after
+summarize
+exit 0

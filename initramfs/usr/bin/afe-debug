@@ -1,0 +1,179 @@
+#!/bin/sh
+# Toggle the kernel's dynamic-debug sites that expose what the ADSP's AFE
+# actually answered (chef-cyclo). The vendor 4.4 kernel logs every AFE
+# set-param DSP error and the GET_PARAM response status word at pr_debug
+# only (kernel/sound/soc/msm/qdsp6v2/q6afe.c: afe_apr_send_pkt's
+# `DSP returned error[...]` for SET_PARAM_V2, afe_callback_debug_print's
+# `PL#0[status] PL#1[module]`, afe_send_port_topology_id's `AFE set topology
+# id ... ret`), and afe_callback matches a GET_PARAM response purely on
+# payload[1] == module id, ignoring the status in payload[0]. So the default
+# log cannot tell "TAS2560 FF module reports disabled" from "module absent"
+# or "DSP error" -- `Recieving Rx-Enable data 0` says nothing on its own.
+# CONFIG_DYNAMIC_DEBUG=y and CONFIG_DEBUG_FS=y (out/kernel/.config), so the
+# missing lines can be switched on at runtime without a rebuild.
+#
+#   afe-debug on      enable +p for exactly the sites listed in SITES
+#   afe-debug off     disable them again (-p)
+#   afe-debug status  print each site's current flags from the control file
+#
+# Every `func NAME +p`/`-p` write is verified by re-reading the control
+# file: the kernel accepts a query that matches zero sites without error, so
+# a typo'd or renamed function would otherwise pass silently. debugfs is
+# mounted here if needed with the same idiom audio-up uses. Only the
+# dynamic_debug control file is ever written; nothing persists across boot.
+# spk-protect-probe turns this on around its tone phases and always off
+# again on exit.
+set -u
+
+# One `func` query per line. Names are the kernel functions carrying the
+# pr_debug sites we need (q6afe.c and tas2560-algo.c); keep this list in
+# sync with the kernel tree and with tools/tests/test_afe-debug.sh. Every
+# name must own at least one pr_debug, or the verification below fails on
+# purpose (q6afe_set_params_v2 has none -- its DSP error is printed by
+# afe_apr_send_pkt -- so it is not listed; __afe_port_start carries the
+# `port id: 0x1005` line that shows the TX port actually starting).
+SITES="afe_callback_debug_print
+afe_apr_send_pkt
+afe_callback
+__afe_port_start
+afe_send_port_topology_id
+afe_get_cal_topology_id
+afe_find_cal_topo_id_by_port
+afe_send_hw_delay
+afe_send_cal_block
+tas2560_algo_afe_set_param
+tas2560_algo_afe_get_param"
+
+# Overridable for tools/tests/test_afe-debug.sh (fake control file, stub
+# mount, a stub "kernel" that applies the query to the fake file instead of
+# the shell truncating it with `>`); all unset in production.
+DEBUGFS_DIR=${DEBUGFS_DIR:-/sys/kernel/debug}
+DYNDBG_CONTROL=${DYNDBG_CONTROL:-$DEBUGFS_DIR/dynamic_debug/control}
+DYNDBG_WRITER=${DYNDBG_WRITER:-}
+MOUNT=${MOUNT:-mount}
+
+log() {
+	echo "afe-debug: $*" >&2
+}
+
+usage() {
+	echo "usage: afe-debug on|off|status" >&2
+}
+
+ensure_debugfs() {
+	# The control file only exists once debugfs is mounted. audio-up mounts
+	# it too (mkdir -p + mount -t debugfs, errors ignored), so this is a
+	# no-op on a normal audio boot; a second mount attempt on an already
+	# mounted debugfs fails harmlessly.
+	[ -r "$DYNDBG_CONTROL" ] && return 0
+	mkdir -p "$DEBUGFS_DIR" 2>/dev/null
+	"$MOUNT" -t debugfs debugfs "$DEBUGFS_DIR" 2>/dev/null
+	[ -r "$DYNDBG_CONTROL" ] && return 0
+	log "dynamic_debug control file $DYNDBG_CONTROL is unavailable (debugfs not mountable, or CONFIG_DYNAMIC_DEBUG off)"
+	return 1
+}
+
+# site_flags NAME: prints the distinct flag words ("=p", "=_") of every
+# control line whose function is NAME. Control lines look like
+# "sound/soc/msm/qdsp6v2/q6afe.c:286 [q6afe]afe_callback_debug_print =_ \"...\"";
+# the function name sits between the "]" and the " =" and must match whole
+# so afe_callback never matches afe_callback_debug_print.
+site_flags() {
+	awk -v name="$1" '
+		{
+			f = $2
+			sub(/^\[[^]]*\]/, "", f)
+			if (f == name) seen[$3] = 1
+		}
+		END { for (k in seen) print k }
+	' "$DYNDBG_CONTROL" 2>/dev/null
+}
+
+# dyndbg_write QUERY: one write of the query to the control node (the
+# kernel applies it and keeps the file's listing; nothing is truncated).
+dyndbg_write() {
+	if [ -n "$DYNDBG_WRITER" ]; then
+		"$DYNDBG_WRITER" "$1"
+	else
+		echo "$1" > "$DYNDBG_CONTROL" 2>/dev/null
+	fi
+}
+
+# set_site NAME +p|-p: writes the query, then proves the resulting flags
+# on every line of that function are exactly the wanted ones.
+set_site() {
+	name=$1
+	op=$2
+	case "$op" in
+	+p) want="=p" ;;
+	-p) want="=_" ;;
+	*) log "internal error: bad op $op"; return 1 ;;
+	esac
+	if ! dyndbg_write "func $name $op"; then
+		log "write 'func $name $op' to $DYNDBG_CONTROL failed"
+		return 1
+	fi
+	flags=$(site_flags "$name")
+	if [ -z "$flags" ]; then
+		log "no dynamic-debug site for function $name (renamed? not built?)"
+		return 1
+	fi
+	if [ "$flags" != "$want" ]; then
+		log "function $name has flags '$(printf '%s' "$flags" | tr '\n' ' ')' after '$op', expected $want"
+		return 1
+	fi
+	return 0
+}
+
+apply_all() {
+	op=$1
+	rc=0
+	for name in $SITES; do
+		set_site "$name" "$op" || rc=1
+	done
+	return $rc
+}
+
+print_status() {
+	for name in $SITES; do
+		flags=$(site_flags "$name" | tr '\n' ' ')
+		if [ -z "$flags" ]; then
+			echo "$name: absent"
+		else
+			echo "$name: $flags"
+		fi
+	done
+}
+
+[ "${AFE_DEBUG_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
+
+[ $# -eq 1 ] || { usage; exit 2; }
+case "$1" in
+on)
+	ensure_debugfs || exit 1
+	if apply_all +p; then
+		log "enabled $(printf '%s\n' "$SITES" | wc -l | tr -d ' ') q6afe/tas2560 debug sites"
+		exit 0
+	fi
+	log "not every site could be enabled (see above); run 'afe-debug status'"
+	exit 1
+	;;
+off)
+	ensure_debugfs || exit 1
+	if apply_all -p; then
+		log "disabled the q6afe/tas2560 debug sites"
+		exit 0
+	fi
+	log "not every site could be disabled (see above); run 'afe-debug status'"
+	exit 1
+	;;
+status)
+	ensure_debugfs || exit 1
+	print_status
+	exit 0
+	;;
+*)
+	usage
+	exit 2
+	;;
+esac

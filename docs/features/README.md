@@ -12,6 +12,6 @@ These guides describe current behavior and how to work on it. Verification statu
 | [Display and touch](display-and-touch.md) | Log screen, framebuffer handoff, backlight, and multitouch verified. |
 | [Buttons and power-off](buttons-and-power-off.md) | Baseline screen toggle, gesture claims, and clean shutdown verified. |
 | [Temporary ride logging](ride-logging.md) | Automatic GPS capture and HTTP extraction verified; RAM-only, no button daemon. |
-| [Audio](audio.md) | `audio-up` ADSP boot/card and `speaker-test-tone` mmap playback live-verified 2026-09-19; manual opt-in, speaker protection not yet usable. |
+| [Audio](audio.md) | `audio-up` ADSP boot/card and `speaker-test-tone` mmap playback live-verified 2026-09-19; manual opt-in, speaker protection not yet usable — `spk-protect-probe` (TX port + AFE topology experiment) built, not yet run live. |
 
 When changing a feature, inspect the listed source files, run its host tests, rebuild the appropriate image, and distinguish build/host results from live verification. Update the guide when behavior changes and append dated evidence to the [build log](../build-log.md). Keep pending integration work in the linked plan.
