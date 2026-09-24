@@ -1,0 +1,21 @@
+chef-cyclo spk-protect-probe live run, 2026-09-22 (ephemeral fastboot boot, no flash, no persist write)
+boot.img 4b1c6e7d9faa1e98863b89f7b73f902027b797a5ce3252c8b5cd1334229a72e4 / initramfs 3d9ed5d953ff233a01166e05067e73ff2493f9093c19ea118795f33f65711693
+single invocation, default topology 0x112FC, speaker-test-tone defaults (-20 dBFS, vol 10, -d 3); LISTEN sent 17:33:58Z, launch 17:34:23Z, end 17:35:14Z
+device evidence dir: /run/spk-protect-probe-19700106-044334-984 (device clock unset -> 1970 date in the run id)
+probe rc=0; all four phases tone_rc=0, tinyplay finished, window=ok
+USER AUDIBILITY: user reported "4 tones heard" (all four phases audible; no differences reported)
+post-run cleanup verified: no helpers running, all 11 afe-debug sites =_, route Off, DAC vol 10, /factory unmounted, persist not mounted, no process holding /dev/msm_audio_cal
+FINDING: phase 'restored' still sent AFE set topology id 0x112fc on 0x1004 ret 0 after afe-topology-cal exited and no fd was open.
+  Cause (kernel source): q6afe.c:7148 registers AFE_TOPOLOGY_CAL_TYPE with dealloc=NULL; audio_calibration.c call_deallocs skips clients whose dealloc is NULL,
+  so audio_cal_release/dealloc_all_clients never frees it. The installed topology persists until reboot (RAM only; cleared by the reboot to stock).
+
+ANALYSIS (reviewer; all phases window=ok, so empty sections are real):
+- baseline: port 0x1005 never starts. Tx-FB cfg returns status 0; Tx-Enable to port 4101 fails ADSP_EBADPARAM. Rx-Enable/Rx-Cfg/Rdc/FF-set to module 0x1000FC00 on 4100 all return status 0.
+  FF get-param reply: PL#0[0x2] PL#1[0x1000fc00], i.e. ADSP_EBADPARAM, so "Recieving Rx-Enable data 0" is an error reply the kernel ignores, not a report that the module is disabled.
+- tx: first live start of AFE port 0x1005 via the TERT MI2S_TX hostless front end (__afe_port_start 0x1005, mad_type 5; topology not initialized for 4101, same as stock).
+  Feedback path cfg (afe_spk_prot_prepare param 0x1022c on 0x1005) now fails ADSP_EBADPARAM. "Tx-Enable already enabled" is just tas2560-algo.c's else branch when afe_spk_prot_feed_back_cfg fails, so Tx-Enable was never sent to the open port.
+  RX-side sets are accepted as in baseline; the FF get reply is again PL#0[0x2] and the readback is 0. Holding TX alone changed nothing on the RX module.
+- tx-topo: SET_TOPOLOGY 0x112fc on 0x1004 is acked (ret 0, first time). The same 0x1022c EBADPARAM occurs on 0x1005.
+  The first TAS RX set (Rx-Enable, param 0x12D13 to module 0x1000FC00 on 4100) now fails ADSP_EBADPARAM, "Sending Rx-Enable failed", the helper ioctl returns EINVAL, enable is skipped, and there is no get-param.
+  With the stock speaker topology installed, the DSP rejects the TAS module outright. This is consistent with the dynamic module 0x1000FC00 not being loaded (no FastRPC apps_std listener).
+- restored: not a baseline repeat. Topology 0x112fc is still applied (see FINDING above), so it is identical to tx-topo on the RX side; 0x1005 is not started.
