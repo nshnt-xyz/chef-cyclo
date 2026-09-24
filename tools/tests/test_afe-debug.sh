@@ -256,5 +256,13 @@ eq "default control path is DEBUGFS_DIR/dynamic_debug/control" '$DEBUGFS_DIR/dyn
 eq "default debugfs dir is /sys/kernel/debug" "/sys/kernel/debug" "$(sed -n 's/^DEBUGFS_DIR=\${DEBUGFS_DIR:-\(.*\)}$/\1/p' "$SCRIPT")"
 if grep -q 'echo "\$1" > "\$DYNDBG_CONTROL"' "$SCRIPT"; then ok; else bad "the production writer must write the query to the control file"; fi
 
-echo "PASS: $pass/$((pass + fail)) checks passed"
-[ "$fail" -eq 0 ]
+# A failing run must SAY so rather than print "PASS:" regardless and leave
+# the exit status as the only signal -- the last line of a suite's output is
+# what a reader (and `make test`'s log) actually sees. Exit behaviour is
+# unchanged: 0 only when nothing failed.
+if [ "$fail" -eq 0 ]; then
+	echo "PASS: $pass/$((pass + fail)) checks passed"
+else
+	echo "FAILED: $fail of $((pass + fail)) checks failed ($pass passed)" >&2
+	exit 1
+fi

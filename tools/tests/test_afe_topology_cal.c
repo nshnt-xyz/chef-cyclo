@@ -233,9 +233,27 @@ static void test_build_msg(void)
 	check(memcmp(&msg, want, sizeof(want)) == 0,
 	      "RX payload is byte-exact (48 bytes, LE, cal_type 23, size 32, mem_handle -1)");
 
+	/* Topology 0 on an RX block is the NEUTRALISE payload (-N): it is a
+	 * legal message, byte-identical to an install except for the topology
+	 * word. The kernel's afe_get_cal_topology_id() then rejects the block
+	 * (`if (!afe_top_info->topology)`) and afe_send_port_topology_id()
+	 * sends nothing at the next port start. An install may still never
+	 * carry topology 0 -- that is enforced by block_is_valid() and by the
+	 * CLI, checked below. */
 	block.topology = 0;
-	check(afe_top_build_msg(&block, &msg) < 0 && errno == EINVAL,
-	      "topology 0 is refused");
+	memset(&msg, 0xAA, sizeof(msg));
+	check(afe_top_build_msg(&block, &msg) == 0,
+	      "topology 0 on an RX block builds (the neutralise payload)");
+	expected_bytes(want, 0, 14, 0, 48000);
+	check(memcmp(&msg, want, sizeof(want)) == 0,
+	      "neutralise payload is byte-exact and differs from an install only in the topology word");
+	check(!block_is_valid(&block),
+	      "topology 0 is still refused as an INSTALL");
+	block.path = AFE_TOP_PATH_TX;
+	check(!neutralise_block_is_valid(&block),
+	      "a TX block may not be neutralised (buffer 1 is not what the speaker port matches)");
+	block.path = AFE_TOP_PATH_RX;
+	block.topology = 0x000112FC;
 	block.topology = 0x80000000U;
 	check(afe_top_build_msg(&block, &msg) < 0, "topology above int32 range is refused");
 	block.topology = 0x000112FB;
@@ -285,6 +303,7 @@ static void test_defaults_and_success(void)
 	unsigned char want[48];
 
 	afe_top_default_config(&config);
+	config.sentinel = "";
 	check(strcmp(config.device, "/dev/msm_audio_cal") == 0, "default device");
 	check(config.rx.topology == 0x000112FC && config.rx.acdb_id == 14 &&
 	      config.rx.path == 0 && config.rx.sample_rate == 48000,
@@ -314,6 +333,7 @@ static void test_tx_block(void)
 	unsigned char want[48];
 
 	afe_top_default_config(&config);
+	config.sentinel = "";
 	config.install_tx = 1;
 	config.tx.topology = 0x000112FB;
 	config.tx.acdb_id = 4;
@@ -332,11 +352,228 @@ static void test_tx_block(void)
 	check(close_calls == 1 && wait_calls == 1, "still one wait and one close");
 }
 
+/* -N: the explicit neutralisation. One SET of topology 0 on buffer 0 (RX),
+ * then exit -- no sigwait, because there is nothing to hold up and closing
+ * frees nothing. The probe uses this to make its restored phase genuine
+ * instead of relying on close, which the 2026-09-22 live run disproved. */
+static void test_neutralise(void)
+{
+	struct afe_top_config config;
+	unsigned char want[48];
+
+	afe_top_default_config(&config);
+	config.sentinel = "";
+	config.neutralise = 1;
+	config.rx.topology = 0;
+
+	reset_mock();
+	check(run(&config) == 0, "neutralise returns 0");
+	check(open_calls == 1 && lock_calls == 1,
+	      "neutralise opens and locks the device like an install");
+	check(ioctl_calls == 1, "neutralise issues exactly one SET ioctl");
+	check(captured_request[0] == 0xC00861CBUL,
+	      "neutralise uses AUDIO_SET_CALIBRATION, never DEALLOCATE (dealloc=NULL makes that a no-op)");
+	expected_bytes(want, 0, 14, 0, 48000);
+	check(memcmp(&captured_msg[0], want, 48) == 0,
+	      "neutralise writes topology 0 to buffer 0 on the RX path");
+	check(wait_calls == 0,
+	      "neutralise does NOT wait for a signal -- there is nothing to hold");
+	check(close_calls == 1, "neutralise closes the fd before returning");
+
+	/* Guard rails: neutralise is RX-only and carries no topology. */
+	afe_top_default_config(&config);
+	config.sentinel = "";
+	config.neutralise = 1;
+	config.rx.topology = 0;
+	config.install_tx = 1;
+	config.tx.topology = 0x000112FB;
+	reset_mock();
+	check(run(&config) == 2 && ioctl_calls == 0,
+	      "neutralise with a TX block is refused before the device is opened");
+
+	afe_top_default_config(&config);
+	config.sentinel = "";
+	config.neutralise = 1;
+	config.rx.topology = 0x000112FC;
+	reset_mock();
+	check(run(&config) == 2 && ioctl_calls == 0,
+	      "neutralise with a non-zero topology is refused (that would be an install)");
+
+	afe_top_default_config(&config);
+	config.sentinel = "";
+	config.neutralise = 1;
+	config.rx.topology = 0;
+	config.rx.sample_rate = 1;
+	reset_mock();
+	check(run(&config) == 2 && ioctl_calls == 0,
+	      "neutralise still range-checks the sample rate");
+}
+
+/* F9: the helper records the install itself, so the fact that this boot has
+ * a topology block survives the probe being killed, this helper being
+ * killed, or the helper being run by hand. Written only AFTER a SET
+ * succeeds -- unlike the probe's deliberately conservative pre-latch, here
+ * we know whether the ioctl returned. Best-effort: an unwritable path must
+ * never turn a successful install into a failure. */
+static void test_sentinel(void)
+{
+	struct afe_top_config config;
+	char path[] = "/tmp/afe-top-sentinel.XXXXXX";
+	char line[256];
+	int fd;
+	FILE *f;
+	int saw_state_yes = 0, saw_state_neutralised = 0, saw_dealloc = 0;
+
+	fd = mkstemp(path);
+	check(fd >= 0, "sentinel temp path is created");
+	close(fd);
+
+	/* Install: state: yes */
+	afe_top_default_config(&config);
+	config.sentinel = path;
+	reset_mock();
+	check(run(&config) == 0, "install with a sentinel path succeeds");
+	f = fopen(path, "r");
+	check(f != NULL, "the sentinel file is written after a successful SET");
+	if (f) {
+		while (fgets(line, sizeof(line), f)) {
+			if (strncmp(line, "state: yes", 10) == 0)
+				saw_state_yes = 1;
+			if (strstr(line, "dealloc=NULL"))
+				saw_dealloc = 1;
+		}
+		fclose(f);
+	}
+	check(saw_state_yes, "an install records state: yes");
+	check(saw_dealloc, "the sentinel says why the block cannot be removed");
+
+	/* Neutralise: state: neutralised */
+	afe_top_default_config(&config);
+	config.sentinel = path;
+	config.neutralise = 1;
+	config.rx.topology = 0;
+	reset_mock();
+	check(run(&config) == 0, "neutralise with a sentinel path succeeds");
+	f = fopen(path, "r");
+	if (f) {
+		while (fgets(line, sizeof(line), f))
+			if (strncmp(line, "state: neutralised", 18) == 0)
+				saw_state_neutralised = 1;
+		fclose(f);
+	}
+	check(saw_state_neutralised,
+	      "neutralising records state: neutralised, not yes");
+	/* G3: that run followed an install, so claiming one is correct. */
+	{
+		int saw_prior_claim = 0;
+
+		f = fopen(path, "r");
+		if (f) {
+			while (fgets(line, sizeof(line), f))
+				if (strstr(line, "was installed in this boot and then"))
+					saw_prior_claim = 1;
+			fclose(f);
+		}
+		check(saw_prior_claim,
+		      "neutralising AFTER a recorded install does say a block was installed");
+	}
+
+	/* G3: standalone -N with nothing recorded beforehand must NOT invent a
+	 * prior install -- it knows only that buffer 0 now reads topology 0. */
+	unlink(path);
+	{
+		int saw_prior_claim = 0, saw_not_known = 0;
+
+		afe_top_default_config(&config);
+		config.sentinel = path;
+		config.neutralise = 1;
+		config.rx.topology = 0;
+		reset_mock();
+		check(run(&config) == 0, "standalone neutralise succeeds");
+		f = fopen(path, "r");
+		check(f != NULL, "standalone neutralise still records its own state");
+		if (f) {
+			while (fgets(line, sizeof(line), f)) {
+				if (strstr(line, "was installed in this boot and then"))
+					saw_prior_claim = 1;
+				if (strstr(line, "NOT known from"))
+					saw_not_known = 1;
+			}
+			fclose(f);
+		}
+		check(!saw_prior_claim,
+		      "standalone neutralise does NOT claim a prior install it has no evidence of");
+		check(saw_not_known,
+		      "standalone neutralise says the prior state is not known from this file");
+	}
+
+	/* A failed SET must leave no record: nothing was installed. */
+	unlink(path);
+	afe_top_default_config(&config);
+	config.sentinel = path;
+	reset_mock();
+	mock_ioctl_errno_on_call = 1;
+	check(run(&config) != 0, "a failing SET still fails");
+	check(fopen(path, "r") == NULL,
+	      "a failed SET writes no sentinel (nothing was installed)");
+	mock_ioctl_errno_on_call = 0;
+
+	/* Disabled, and unwritable: neither may affect the install. */
+	afe_top_default_config(&config);
+	config.sentinel = "";
+	reset_mock();
+	check(run(&config) == 0, "an empty sentinel path disables the record");
+	afe_top_default_config(&config);
+	config.sentinel = "/proc/nonexistent-dir/sentinel";
+	reset_mock();
+	check(run(&config) == 0,
+	      "an unwritable sentinel path does NOT fail the install (best-effort)");
+	unlink(path);
+}
+
+/* The real CLI, exec'd: -N takes no topology, and both refusals must happen
+ * before the calibration device is opened. */
+static void test_cli_neutralise_refusals(void)
+{
+	static const char *const bad[][4] = {
+		{ "./afe-topology-cal", "-N", "-r", "112FC" },
+		{ "./afe-topology-cal", "-N", "-t", "112FB" },
+	};
+	size_t i;
+	pid_t pid;
+	int status;
+
+	if (access("./afe-topology-cal", X_OK) != 0) {
+		check(0, "./afe-topology-cal is built for the CLI checks");
+		return;
+	}
+	for (i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+		pid = fork();
+		check(pid >= 0, "fork for the CLI check");
+		if (pid == 0) {
+			int devnull = open("/dev/null", O_WRONLY);
+
+			if (devnull >= 0) {
+				dup2(devnull, STDOUT_FILENO);
+				dup2(devnull, STDERR_FILENO);
+			}
+			execl(bad[i][0], bad[i][0], bad[i][1], bad[i][2],
+			      bad[i][3], (char *)NULL);
+			_exit(127);
+		}
+		check(waitpid(pid, &status, 0) == pid, "CLI child is reaped");
+		check(WIFEXITED(status) && WEXITSTATUS(status) == 2,
+		      i == 0 ? "-N with -r exits 2 (usage), never installing"
+			     : "-N with -t exits 2 (usage), never installing");
+	}
+}
+
 static void test_failures(void)
 {
 	struct afe_top_config config;
 
 	afe_top_default_config(&config);
+	config.sentinel = "";
 
 	reset_mock();
 	mock_open_errno = ENOENT;
@@ -414,11 +651,14 @@ static void test_resident_until_signal(void)
 	char line[256];
 	int saw_resident = 0;
 	int saw_released = 0;
+	int saw_remains_installed = 0;
+	int saw_false_release_claim = 0;
 
 	check(out_fd >= 0, "temp file for the child's output opens");
 	if (out_fd < 0)
 		return;
 	afe_top_default_config(&config);
+	config.sentinel = "";
 	reset_mock();
 
 	child = fork();
@@ -450,13 +690,28 @@ static void test_resident_until_signal(void)
 		while (fgets(line, sizeof(line), out)) {
 			if (strstr(line, "resident, holding /dev/msm_audio_cal open"))
 				saw_resident = 1;
-			if (strstr(line, "released on signal 15"))
+			if (strstr(line, "exiting on signal 15"))
 				saw_released = 1;
+			/* The block is NOT freed on close: AFE_TOPOLOGY_CAL_TYPE
+			 * is registered with dealloc=NULL, so call_deallocs()
+			 * skips it. The 2026-09-22 live run saw the topology
+			 * still being sent after this helper had exited, so
+			 * neither message may claim a release. */
+			if (strstr(line, "REMAINS INSTALLED"))
+				saw_remains_installed = 1;
+			if (strstr(line, "releases the block") ||
+			    strstr(line, "frees the block") ||
+			    strstr(line, "released on signal"))
+				saw_false_release_claim = 1;
 		}
 		fclose(out);
 	}
 	check(saw_resident, "child announced residency before the signal");
-	check(saw_released, "child announced release on signal 15 after closing");
+	check(saw_released, "child announced its exit on signal 15 after closing");
+	check(saw_remains_installed,
+	      "child says the topology block REMAINS INSTALLED after its exit");
+	check(!saw_false_release_claim,
+	      "child never claims to have released/freed the block (dealloc=NULL)");
 	unlink(path);
 }
 
@@ -468,6 +723,9 @@ int main(void)
 	test_defaults_and_success();
 	test_tx_block();
 	test_failures();
+	test_neutralise();
+	test_sentinel();
+	test_cli_neutralise_refusals();
 	test_resident_until_signal();
 
 	printf("afe-topology-cal: %d/%d checks passed\n", passed, passed + failed);
