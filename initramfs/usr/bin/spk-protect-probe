@@ -4,7 +4,7 @@
 # stock does and we never did are in place -- the TERT_MI2S_TX feedback port
 # (0x1005) being started, and the stock AFE topology 0x000112FC being
 # installed for the speaker port (0x1004)? It plays the same short
-# calibrated `speaker-test-tone -p` four times under different helper
+# calibrated `speaker-test-tone -p` three times under different helper
 # combinations and captures the kernel's answer around each one, with the
 # q6afe/tas2560 dynamic-debug sites switched on (afe-debug) so the AFE
 # status words the default log hides are visible:
@@ -12,12 +12,40 @@
 #   phase 1  baseline   tone only, no helpers
 #   phase 2  tx         tert-tx-hold (TERT_MI2S_TX hostless capture) + tone
 #   phase 3  tx-topo    afe-topology-cal (RX topology block) + tert-tx-hold + tone
-#   phase 4  restored   tone only again, after both helpers exited (reversibility)
+#   phase 4  neutralised afe-topology-cal -N, then tone only (no SET_TOPOLOGY)
 #
-# Best-effort and self-cleaning: a failing tone, a helper that refuses to
-# start or an interrupt never skips the remaining phases' cleanup -- the
-# helpers are always killed, afe-debug is always switched off again on
-# exit, and the only state ever written is /run/spk-protect-probe-<ts>/.
+# *** CLOSING THE DEVICE RESTORES NOTHING. ***
+# There used to be a 4th phase called "restored" that simply ran a tone
+# after the helpers had exited, on the belief that closing
+# /dev/msm_audio_cal frees the block. It does not. q6afe.c registers
+# AFE_TOPOLOGY_CAL_TYPE with
+# a NULL dealloc callback (the cal_type_info entry is
+# `{NULL, NULL, NULL, afe_set_cal, NULL, NULL}`), and
+# audio_calibration.c's call_deallocs() skips every client whose dealloc is
+# NULL, so audio_cal_release()/dealloc_all_clients() -- the close path this
+# probe used to call its "restore" -- never frees the block. Closing
+# /dev/msm_audio_cal, killing afe-topology-cal, or issuing
+# AUDIO_DEALLOCATE_CALIBRATION all leave the topology installed, and
+# afe_send_port_topology_id() keeps sending it at every later RX port
+# start. The 2026-09-22 live run proved this: its 4th phase, described at
+# the time as "restored", still logged
+# `AFE set topology id 0x112fc enable for port 0x1004 ret 0` with the
+# helper long dead and no fd open -- so that phase was never a baseline,
+# and reading it as one would have been wrong. The block lives in RAM
+# only; **a reboot is the only verified way back to the pre-topology
+# state.** Everything that must be measured without a topology therefore
+# happens before phase 3, and a second run in the same boot is refused
+# (see TOPOLOGY_SENTINEL below) because its phase 1 would not be a
+# baseline either.
+#
+# Best-effort and self-cleaning in every other respect: a failing tone, a
+# helper that refuses to start or an interrupt never skips the remaining
+# phases' cleanup -- the helpers are always killed, afe-debug is always
+# switched off again on exit, and the only things ever written are the
+# evidence directory <RUN_DIR>/spk-protect-probe-<ts>-<pid>/ and the
+# sentinel <RUN_DIR>/spk-protect-probe.topology-installed (/run/... in
+# production, i.e. tmpfs, so both vanish on the reboot that also clears the
+# topology).
 # The amplitude/duration/volume flags are speaker-test-tone's own (-d, -a,
 # -v) with the same clamps and defaults; nothing here can play louder than
 # that script allows.
@@ -27,11 +55,24 @@
 # crash under a new topology must not panic the kernel), and all four
 # helpers plus dmesg and /dev/kmsg are available.
 #
+# Preconditions also include: no topology installed earlier in this boot.
+#
+# Every phase's kernel window is bracketed by BEGIN/END markers that carry
+# this invocation's own run id (the same <ts>-<pid> the evidence directory
+# is named after), so two probe runs in one boot can never have their
+# windows mixed up, and a window whose markers are not both found in dmesg
+# is reported as missing/truncated rather than presented as an empty -- and
+# therefore falsely negative -- result.
+#
 # The one-screen summary at the end answers, per phase: did AFE port
 # 0x1005 start (and what did the AFE say), was SET_TOPOLOGY sent and acked
 # for 0x1004, which `DSP returned error` lines appeared, what status word
 # (PL#0) did the TAS get-param responses carry, what did the FF readback
-# say, and did playback complete. The user drives this live; see
+# say, and did playback complete. Read PL#0 before the readback value: on
+# the 2026-09-22 run every TAS get-param reply carried PL#0[0x2]
+# (ADSP_EBADPARAM), which means `Recieving Rx-Enable data 0` was the
+# kernel reading a zeroed buffer out of an ERROR reply, not the module
+# reporting itself disabled. The user drives this live; see
 # docs/features/audio.md ("Why FF stays DISABLE").
 set -u
 
@@ -47,7 +88,11 @@ SPEAKER_TEST_TONE=${SPEAKER_TEST_TONE:-speaker-test-tone}
 AFE_DEBUG=${AFE_DEBUG:-afe-debug}
 AFE_TOPOLOGY_CAL=${AFE_TOPOLOGY_CAL:-afe-topology-cal}
 TERT_TX_HOLD=${TERT_TX_HOLD:-tert-tx-hold}
-CARD=${CARD:-0}
+# Card number: read from /proc/asound/cards below (find_card) unless the
+# environment pins one. Never assume 0 -- msm_int_dai[]'s ordering is not an
+# ABI and neither is the card index; it is exported so speaker-test-tone
+# (which honours CARD the same way) and tert-tx-hold -D use the same card.
+CARD=${CARD:-}
 # How long to wait for a helper's "resident"/"holding" line.
 HELPER_POLL_DELAY=${HELPER_POLL_DELAY:-0.1}
 HELPER_POLL_ATTEMPTS=${HELPER_POLL_ATTEMPTS:-50}
@@ -69,8 +114,20 @@ AMPLITUDE_DBFS=
 VOL=
 TOPOLOGY=
 
-PHASES="baseline tx tx-topo restored"
+# Phase order is load-bearing: every measurement on a genuinely untouched
+# device must happen before tx-topo. The phase after it is explicitly
+# neutralised (afe-topology-cal -N), never "restored".
+PHASES="baseline tx tx-topo neutralised"
+RUN_ID=
+MARKER=
 OUT_DIR=
+# Set once a topology has actually been installed in this boot; the file
+# lives on tmpfs, so it disappears exactly when the topology does.
+TOPOLOGY_SENTINEL=
+TOPOLOGY_INSTALLED=0
+# maybe | yes | neutralised -- what we actually know, not what we hope.
+TOPOLOGY_STATE=
+FORCE=0
 DEBUG_ON=0
 TOPO_PID=
 TX_PID=
@@ -78,14 +135,19 @@ HELPER_PID=
 
 usage() {
 	cat >&2 <<EOF
-usage: spk-protect-probe [-d SECONDS] [-a AMPLITUDE_DBFS] [-v VOL] [-r TOPOLOGY_HEX]
+usage: spk-protect-probe [-d SECONDS] [-a AMPLITUDE_DBFS] [-v VOL] [-r TOPOLOGY_HEX] [-F]
   -d SECONDS          tone duration per phase, clamped to $DURATION_MAX (default $DURATION)
   -a AMPLITUDE_DBFS   passed to speaker-test-tone, clamped to <= $AMPLITUDE_MAX_DBFS dBFS (default: its own -20)
   -v VOL              passed to speaker-test-tone, 0..$VOL_MAX (default: its own 10)
   -r TOPOLOGY_HEX     RX topology for afe-topology-cal (default: its own 000112FC)
-Runs four calibrated tones (baseline, +tert-tx-hold, +afe-topology-cal, restored),
-captures the kernel window of each into $RUN_DIR/spk-protect-probe-<ts>/ and
-prints a summary. Always kills its helpers and turns afe-debug off on exit.
+  -F                  run even though a topology was already installed in this boot;
+                      NO phase is then a baseline and the summary says so throughout
+Runs three calibrated tones (baseline, +tert-tx-hold, +afe-topology-cal) and
+captures the kernel window of each into $RUN_DIR/spk-protect-probe-<ts>-<pid>/.
+Installing the topology is NOT undoable without a reboot (AFE_TOPOLOGY_CAL_TYPE
+has a NULL dealloc, so nothing frees the block), which is why it is the last
+phase and why a second run in the same boot is refused without -F.
+Always kills its helpers and turns afe-debug off on exit.
 EOF
 }
 
@@ -110,6 +172,14 @@ card_ready() {
 	grep -q 'sdm660' "$ASOUND_DIR/cards" 2>/dev/null
 }
 
+find_card() {
+	# The card number from the sdm660 line of /proc/asound/cards
+	# (" 0 [sdm660sndcard  ]: sdm660-snd-card - sdm660-snd-card"). Same
+	# rule as card_ready: read the file, never test its size.
+	awk '/sdm660/ { n = $1; if (n ~ /^[0-9]+$/) { print n; exit } }' \
+		"$ASOUND_DIR/cards" 2>/dev/null
+}
+
 find_subsys() {
 	# Same rule as audio-up's find_subsys: the msm_subsys device whose
 	# name node reads $1.
@@ -127,22 +197,113 @@ adsp_restart_level() {
 	cat "$s/restart_level" 2>/dev/null
 }
 
+normalize_level() {
+	# A lowercased, whitespace-stripped copy of a restart_level readback,
+	# for COMPARISON ONLY -- callers keep the verbatim string for the log
+	# and the evidence file.
+	#
+	# The kernel's two sides disagree in case: restart_level_store()
+	# matches with strncasecmp (so audio-up's `echo related` is accepted),
+	# but restart_level_show() prints restart_levels[] verbatim, and that
+	# table is UPPERCASE -- "SYSTEM" / "RELATED"
+	# (kernel/drivers/soc/qcom/subsystem_restart.c:92). The 2026-09-22
+	# live attempt was refused at this precondition by an exact comparison
+	# against the lowercase spelling, with the node correctly reading
+	# RELATED: no tone played and nothing was learned. Compare case- and
+	# whitespace-insensitively.
+	printf '%s' "${1:-}" | tr 'A-Z' 'a-z' | tr -d ' \t\r\n'
+}
+
+mark_topology_installed() {
+	# mark_topology_installed maybe|yes|neutralised -- one-way latch for
+	# "this boot has had a topology block installed".
+	#
+	# The block cannot be freed from userspace (AFE_TOPOLOGY_CAL_TYPE has
+	# dealloc=NULL, so call_deallocs() skips it and audio_cal_release()
+	# never frees it), so once a SET has gone through, every later RX port
+	# start in this boot carries that topology unless it is neutralised.
+	# The sentinel lives on the same tmpfs as the evidence, so a reboot --
+	# the only verified reset -- clears both together.
+	#
+	# This script is the only writer of this file during a probe run: the
+	# helper is invoked with -S "" (see run_phase), because its built-in
+	# default is the fixed /run path while ours follows RUN_DIR, and two
+	# writers naming different files is worse than one. The helper still
+	# writes its own when run by hand. We latch before launching the
+	# installer (F8), so a helper that dies after its SET is still
+	# recorded.
+	certainty=${1:-yes}
+	TOPOLOGY_INSTALLED=1
+	[ "$certainty" = neutralised ] && TOPOLOGY_STATE=neutralised || TOPOLOGY_STATE=$certainty
+	[ -n "$TOPOLOGY_SENTINEL" ] || return 0
+	{
+		echo "state: $TOPOLOGY_STATE"
+		case "$TOPOLOGY_STATE" in
+		maybe)
+			echo "An AFE topology install was STARTED in this boot. Whether its SET"
+			echo "ioctl completed is not known from here -- this line is written"
+			echo "BEFORE the installer runs, on purpose, because the SET is"
+			echo "irreversible and a missed record is worse than a spurious one."
+			;;
+		yes)
+			echo "An AFE topology block WAS installed in this boot and is still being"
+			echo "sent at every RX port start."
+			;;
+		neutralised)
+			echo "An AFE topology block was installed in this boot and then"
+			echo "NEUTRALISED (buffer 0 rewritten with topology 0), so the kernel"
+			echo "sends no SET_TOPOLOGY at the next port start. The block itself"
+			echo "still exists and always will."
+			;;
+		esac
+		echo "written by $MARKER at $(date 2>/dev/null || echo 'unknown time')"
+		echo "evidence: $OUT_DIR"
+		echo "It cannot be removed from userspace: AFE_TOPOLOGY_CAL_TYPE is registered"
+		echo "with dealloc=NULL (q6afe.c), so audio_calibration.c's call_deallocs()"
+		echo "skips it and closing /dev/msm_audio_cal does not free it."
+		echo "REBOOT to return to the pre-topology state."
+	} > "$TOPOLOGY_SENTINEL" 2>/dev/null || true
+}
+
 kmark() {
 	# Tag the kernel log so each phase's window can be cut out of dmesg
-	# afterwards regardless of how much else is logged.
+	# afterwards regardless of how much else is logged. $MARKER carries
+	# this run's id, so a second probe run in the same boot writes
+	# distinguishable markers and capture_window can never splice one
+	# run's BEGIN to another run's END.
 	# >> not >: identical for the character device, and it keeps the
 	# host test's file stand-in from being truncated.
-	echo "spk-protect-probe: $*" >> "$KMSG" 2>/dev/null || true
+	echo "$MARKER $*" >> "$KMSG" 2>/dev/null || true
 }
 
 capture_window() {
 	# capture_window PHASE: the kernel lines between this phase's BEGIN and
-	# END markers, into the evidence dir.
-	"$DMESG" 2>/dev/null | awk -v b="spk-protect-probe: BEGIN $1" -v e="spk-protect-probe: END $1" '
+	# END markers -- both carrying this run's id -- into the evidence dir.
+	# Echoes the window's status:
+	#   ok         both markers are in the captured window
+	#   truncated  BEGIN is there, END is not (the ring buffer wrapped, or
+	#              dmesg was cut, mid-phase)
+	#   missing    no BEGIN at all (the window aged out of the ring, or the
+	#              /dev/kmsg write was lost)
+	# Anything but ok means the sections cut from this window are
+	# incomplete: their emptiness is NOT evidence that the kernel never
+	# logged the lines, and the summary says so instead of reading an empty
+	# section as a negative result.
+	wbegin="$MARKER BEGIN $1"
+	wend="$MARKER END $1"
+	"$DMESG" 2>/dev/null | awk -v b="$wbegin" -v e="$wend" '
 		index($0, b) { on = 1 }
 		on { print }
 		index($0, e) { on = 0 }
 	' > "$OUT_DIR/kmsg-$1.log"
+	# -F: the markers contain [ ] from the run id and are not patterns.
+	if ! grep -Fq "$wbegin" "$OUT_DIR/kmsg-$1.log" 2>/dev/null; then
+		echo missing
+	elif ! grep -Fq "$wend" "$OUT_DIR/kmsg-$1.log" 2>/dev/null; then
+		echo truncated
+	else
+		echo ok
+	fi
 }
 
 child_running() {
@@ -229,21 +390,101 @@ run_phase() {
 	with_topo=$3
 	log "phase $phase: tx-hold=$with_tx topology=$with_topo"
 	kmark "BEGIN $phase"
-	topo_state=none
+	# "pre-installed": a topology from earlier in this boot is in force for
+	# this phase regardless of what this phase starts (-F runs only).
+	if [ "$with_topo" = none ] && [ "${PRE_INSTALLED:-0}" -eq 1 ]; then
+		# F10: say which pre-existing state, not just "something".
+		# pre-neutralised is materially different from pre-installed:
+		# no SET_TOPOLOGY is going out, though the block is still
+		# there and the DSP has already seen the topology.
+		case "${PRE_STATE:-yes}" in
+		neutralised) topo_state=pre-neutralised ;;
+		maybe) topo_state=pre-maybe ;;
+		*) topo_state=pre-installed ;;
+		esac
+	else
+		topo_state=none
+	fi
 	tx_state=none
 	# Topology block first (it must exist before any port starts), then
 	# the TX holder, then the tone that starts the RX port.
-	if [ "$with_topo" = 1 ]; then
-		set -- "$AFE_TOPOLOGY_CAL"
+	# G2: -S "" on every helper invocation. The probe's sentinel path is
+	# derived from RUN_DIR, which is overridable; the helper's built-in
+	# default is the fixed /run path. Letting both write means the two can
+	# name different files (and do, under any test or non-default
+	# RUN_DIR). The probe is the single writer for probe-driven runs, and
+	# it latches before launching anyway (F8), so nothing is lost. The
+	# helper's own default still applies when it is run by hand.
+	if [ "$with_topo" = neutralise ]; then
+		# Explicit neutralisation, NOT a close: rewrite buffer 0 with
+		# topology 0 so afe_get_cal_topology_id() rejects it and
+		# afe_send_port_topology_id() sends nothing at the next port
+		# start. The helper exits immediately (nothing to hold).
+		# -N is a one-shot: it writes topology 0 and exits. Run it as a
+		# child and bound the wait anyway -- a helper that somehow
+		# stayed resident would otherwise hang the probe here, before
+		# the tone and before the exit trap could clean up.
+		"$AFE_TOPOLOGY_CAL" -S "" -N > "$OUT_DIR/afe-topology-cal-$phase.log" 2>&1 &
+		HELPER_PID=$!
+		i=0
+		while child_running "$HELPER_PID"; do
+			[ "$i" -lt "$HELPER_POLL_ATTEMPTS" ] || {
+				log "phase $phase: afe-topology-cal -N did not exit; killing it (it is a one-shot and must not stay resident)"
+				stop_helper "$HELPER_PID"
+				break
+			}
+			sleep "$HELPER_POLL_DELAY"
+			i=$((i + 1))
+		done
+		wait "$HELPER_PID" 2>/dev/null
+		neutralise_rc=$?
+		HELPER_PID=
+		if [ "$neutralise_rc" -eq 0 ]; then
+			topo_state=neutralised
+			mark_topology_installed neutralised
+			log "phase $phase: topology neutralised (topology 0 written to buffer 0); the block still exists and cannot be deleted"
+		else
+			topo_state=neutralise-failed
+			log "phase $phase: afe-topology-cal -N failed rc=$neutralise_rc: $(tr '\n' ' ' < "$OUT_DIR/afe-topology-cal-$phase.log")"
+		fi
+		sleep "$SETTLE_DELAY"
+	elif [ "$with_topo" = 1 ]; then
+		set -- "$AFE_TOPOLOGY_CAL" -S ""
 		[ -n "$TOPOLOGY" ] && set -- "$@" -r "$TOPOLOGY"
 		# The pid is recorded (for cleanup's trap) before any settling
 		# sleep, so a signal during the sleep still reaches the helper.
+		# F8: latch BEFORE launching, not after. The installer's very
+		# first SET is irreversible, and we cannot tell from out here
+		# whether it got that far -- a helper killed between exec and
+		# its ready line, a timeout, or a crash after a successful
+		# ioctl all look like "failed" to start_helper. Latching first
+		# is the conservative direction: the cost of a false positive
+		# is one unnecessary reboot, the cost of a false negative is a
+		# later run silently presenting a post-topology phase as a
+		# baseline. The helper is invoked with -S "" (G2), so during a
+		# probe run it writes no sentinel of its own and this script is
+		# the only writer -- the latch below is not a backstop for the
+		# helper, it IS the record.
+		#
+		# H1: "maybe" is the fail-safe, not the resting state. The
+		# helper prints its "resident, holding" line only after every
+		# SET has returned 0 (install_block runs before it), so
+		# observing that line is positive proof the block is in the
+		# kernel, and the record is upgraded to "yes". If the line
+		# never appears we stay at "maybe": the helper may still have
+		# completed its SET and died, and an unknown must not be
+		# downgraded to a clean slate.
+		mark_topology_installed maybe
 		if start_helper "afe-topology-cal-$phase" "resident, holding" "$@"; then
 			TOPO_PID=$HELPER_PID
 			topo_state=ready
+			mark_topology_installed yes
 			sleep "$SETTLE_DELAY"
 		else
 			TOPO_PID=$HELPER_PID
+			# Still latched: the helper may have completed its SET
+			# and died afterwards. "failed" describes the helper,
+			# not the kernel's state.
 			topo_state=failed
 		fi
 	fi
@@ -271,9 +512,10 @@ run_phase() {
 	sleep "$SETTLE_DELAY"
 	stop_helpers
 	kmark "END $phase"
-	capture_window "$phase"
+	window=$(capture_window "$phase")
+	[ "$window" = ok ] || log "phase $phase: kernel window $window -- this phase's BEGIN/END markers were not both found in dmesg; its kernel sections are incomplete"
 	snapshot "$phase"
-	printf '%s tone_rc=%s topology=%s tx_hold=%s\n' "$phase" "$tone_rc" "$topo_state" "$tx_state" >> "$OUT_DIR/phases.txt"
+	printf '%s tone_rc=%s topology=%s tx_hold=%s window=%s\n' "$phase" "$tone_rc" "$topo_state" "$tx_state" "$window" >> "$OUT_DIR/phases.txt"
 }
 
 # section TITLE PATTERN EMPTY_TEXT FILE...: the matching lines, indented,
@@ -296,7 +538,36 @@ summarize_phase() {
 	phase=$1
 	kl="$OUT_DIR/kmsg-$phase.log"
 	tl="$OUT_DIR/tone-$phase.log"
-	echo "--- phase $phase: $(grep "^$phase " "$OUT_DIR/phases.txt" | cut -d ' ' -f 2-)"
+	states=$(grep "^$phase " "$OUT_DIR/phases.txt" | cut -d ' ' -f 2-)
+	echo "--- phase $phase: $states"
+	case "$states" in
+	*topology=pre-installed*)
+		echo "  NOTE: a topology was already installed in this boot before the probe started (-F) and is still being sent. This phase is NOT topology-free and is NOT a baseline."
+		;;
+	*topology=pre-neutralised*)
+		echo "  NOTE: a topology was installed earlier in this boot (-F) and then neutralised, so no SET_TOPOLOGY is sent for this phase -- but the block still exists and the DSP has already been sent that topology. NOT a baseline."
+		;;
+	*topology=pre-maybe*)
+		echo "  NOTE: an earlier run in this boot STARTED a topology install and it is not known whether its SET completed (-F). Treat this phase as post-topology: NOT a baseline."
+		;;
+	*topology=neutralised*)
+		echo "  NOTE: topology explicitly NEUTRALISED for this phase (afe-topology-cal -N wrote topology 0 to buffer 0), so the kernel sends no SET_TOPOLOGY -- check for 'topology id 0x0 ... ret -22' and the absence of '0x112fc ... ret 0' below. This is NOT a baseline: the cal block still exists (dealloc=NULL) and the DSP was already sent 0x112FC earlier in this boot."
+		;;
+	*topology=neutralise-failed*)
+		echo "  WARNING: the neutralisation FAILED, so this phase still runs with the installed topology in force. It is not a baseline and not a neutralised phase."
+		;;
+	esac
+	# An incomplete kernel window must never be read as "the kernel did not
+	# log it": say so before the sections cut from it.
+	case "$states" in
+	*window=ok*) ;;
+	*window=truncated*)
+		echo "  WARNING: kernel window TRUNCATED -- this phase's BEGIN marker was found but its END marker was not (the ring buffer wrapped, or dmesg was cut). The kernel sections below stop early; an empty one is NOT evidence the line never appeared."
+		;;
+	*)
+		echo "  WARNING: kernel window MISSING -- this phase's BEGIN marker was not in dmesg at all (the window aged out of the ring buffer, or the /dev/kmsg write was lost). The kernel sections below are empty for that reason alone and prove nothing."
+		;;
+	esac
 	echo "  playback: $(sed -n -e 's/.*\(tinyplay finished\).*/\1/p' -e 's/.*\(tinyplay exited with an error\).*/\1/p' "$tl" 2>/dev/null | head -n 1)"
 	section "TX port 0x1005 (4101):" '0x1005|port 4101|port_id 4101' \
 		"(no port 0x1005 lines)" "$kl"
@@ -307,7 +578,24 @@ summarize_phase() {
 	section "TAS get-param responses (PL#0 = status word, PL#1 = module):" \
 		'PL#1\[0x1000fc00\]|PL#1\[0x1000fd00\]' \
 		"(none -- afe_callback_debug_print not logged?)" "$kl"
-	section "FF readback:" 'Rx-Enable|read back' "(none)" "$kl" "$tl"
+	# Split by origin: what the DSP told the kernel, and what userspace
+	# then read back through tinymix. They can disagree (the kernel's
+	# afe_callback ignores the GET_PARAM status word), and an answer that
+	# came from the kernel log is not the same evidence as one tinymix
+	# printed, so never merge the two into one list.
+	# Real kernel strings only. tas2560-algo.c prints the FF module's own
+	# set and get through tas2560_algo_set_ff_module ("Sending Rx-Enable
+	# data %d") and tas2560_algo_get_ff_module ("Recieving Rx-Enable data
+	# %d"), plus "Sending Rx-Enable data"/"Sending Rx-Enable failed" on
+	# the calibration path -- "Rx-Enable" catches all four. An earlier
+	# "FF set data" alternative here was invented: it appears nowhere in
+	# the kernel tree and in none of the live logs, so it could only ever
+	# have matched nothing. tools/tests/test_spk-protect-probe.sh now
+	# checks every alternative against kernel/sound/soc/msm/tas2560-algo.c.
+	section "FF readback (kernel log, q6afe/tas2560):" 'Rx-Enable' \
+		"(none)" "$kl"
+	section "FF readback + protection log (speaker-test-tone/tinymix):" \
+		'read back|protection: ' "(none)" "$tl"
 }
 
 summarize() {
@@ -319,6 +607,34 @@ summarize() {
 			[ -r "$OUT_DIR/kmsg-$phase.log" ] || { echo "--- phase $phase: not run"; continue; }
 			summarize_phase "$phase"
 		done
+		if [ "$TOPOLOGY_INSTALLED" -eq 1 ]; then
+			echo "--- state left behind"
+			if grep -q 'topology=neutralised' "$OUT_DIR/phases.txt" 2>/dev/null; then
+				echo "  The AFE topology block was NEUTRALISED at the end of this run:"
+				echo "  buffer 0 (RX) now carries topology 0, so afe_get_cal_topology_id()"
+				echo "  rejects it and afe_send_port_topology_id() sends nothing at the"
+				echo "  next RX port start. That is what the 'neutralised' phase above"
+				echo "  demonstrates, and it is the reason there is no 'restored' phase:"
+				echo "  closing /dev/msm_audio_cal frees NOTHING for this cal type."
+				echo "  The block ITSELF still exists and can never be deleted"
+				echo "  (AFE_TOPOLOGY_CAL_TYPE has dealloc=NULL in q6afe.c, so"
+				echo "  call_deallocs() skips it and AUDIO_DEALLOCATE_CALIBRATION is a"
+				echo "  no-op), and the DSP was already sent 0x112FC earlier in this"
+				echo "  boot. So this is NOT the pre-topology state and no measurement"
+				echo "  taken from here on is a baseline. REBOOT remains the only"
+				echo "  VERIFIED way back."
+			else
+				echo "  An AFE topology block IS STILL INSTALLED and will be sent at every"
+				echo "  RX port start for the rest of this boot. Nothing in userspace can"
+				echo "  remove it: AFE_TOPOLOGY_CAL_TYPE is registered with dealloc=NULL"
+				echo "  (q6afe.c), so call_deallocs() skips it and closing"
+				echo "  /dev/msm_audio_cal frees nothing. afe-topology-cal exiting did NOT"
+				echo "  undo it. Run 'afe-topology-cal -N' to stop it being sent, or"
+				echo "  REBOOT -- the only verified way back to the pre-topology state."
+			fi
+			echo "  Everything else IS cleaned up: helpers killed, afe-debug off,"
+			echo "  mixer route reset by speaker-test-tone, no mount left held."
+		fi
 		echo "evidence: $OUT_DIR (kmsg-*.log, tone-*.log, status-*.txt, asound-*.txt, helper logs)"
 	} | tee "$OUT_DIR/summary.txt"
 }
@@ -338,6 +654,7 @@ cleanup() {
 	if [ -n "$OUT_DIR" ] && [ -r "$OUT_DIR/phases.txt" ] && [ ! -r "$OUT_DIR/summary.txt" ]; then
 		summarize
 	fi
+	[ "$TOPOLOGY_INSTALLED" -eq 1 ] && log "NOTE: the AFE topology block installed by this run is STILL INSTALLED and cannot be removed from userspace (dealloc=NULL); reboot to clear it"
 	[ -n "$OUT_DIR" ] && log "evidence in $OUT_DIR"
 	exit "$status"
 }
@@ -346,12 +663,13 @@ cleanup() {
 # functions and constants without running the experiment.
 [ "${SPK_PROTECT_PROBE_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
 
-while getopts 'd:a:v:r:h' opt; do
+while getopts 'd:a:v:r:Fh' opt; do
 	case "$opt" in
 	d) DURATION=$OPTARG ;;
 	a) AMPLITUDE_DBFS=$OPTARG ;;
 	v) VOL=$OPTARG ;;
 	r) TOPOLOGY=$OPTARG ;;
+	F) FORCE=1 ;;
 	h) usage; exit 0 ;;
 	*) usage; exit 1 ;;
 	esac
@@ -394,9 +712,48 @@ done
 [ -w "$KMSG" ] || { log "$KMSG is not writable; cannot mark the kernel log"; exit 1; }
 card_ready || { log "no sdm660 card in $ASOUND_DIR/cards; run audio-up first"; exit 1; }
 LEVEL=$(adsp_restart_level) || { log "adsp subsystem not found under $SUBSYS_DIR"; exit 1; }
-[ "$LEVEL" = related ] || { log "adsp restart_level is '$LEVEL', not 'related' (audio-up sets it); refusing -- a DSP fault under a new topology would panic the kernel"; exit 1; }
+# $LEVEL stays verbatim from here on: it is what gets logged and written to
+# restart_level.txt. Only the comparison is normalised.
+[ "$(normalize_level "$LEVEL")" = related ] || { log "adsp restart_level reads '$LEVEL', which is not RELATED (audio-up sets it); refusing -- a DSP fault under a new topology would panic the kernel"; exit 1; }
+log "adsp restart_level reads '$LEVEL' (RELATED; a DSP fault will restart the subsystem, not panic the kernel)"
+if [ -z "$CARD" ]; then
+	CARD=$(find_card)
+	[ -n "$CARD" ] || { log "could not read the sdm660 card number from $ASOUND_DIR/cards"; exit 1; }
+fi
+# speaker-test-tone reads CARD from the environment the same way, so both it
+# and tert-tx-hold -D work on the card this run actually found.
+export CARD
 
-OUT_DIR="$RUN_DIR/spk-protect-probe-$(date +%Y%m%d-%H%M%S 2>/dev/null || echo unknown)-$$"
+# One id per invocation, shared by the evidence directory and the kernel
+# markers, so a second run in the same boot writes its own windows.
+RUN_ID="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo unknown)-$$"
+MARKER="spk-protect-probe[$RUN_ID]"
+TOPOLOGY_SENTINEL="$RUN_DIR/spk-protect-probe.topology-installed"
+PRE_INSTALLED=0
+PRE_STATE=
+if [ -e "$TOPOLOGY_SENTINEL" ]; then
+	PRE_INSTALLED=1
+	# What the earlier run actually recorded: maybe (install started,
+	# completion unknown), yes (installed and live) or neutralised
+	# (installed, then topology 0 written so nothing is sent). Anything
+	# unreadable is treated as the worst case.
+	PRE_STATE=$(sed -n 's/^state: \([a-z]*\)$/\1/p' "$TOPOLOGY_SENTINEL" 2>/dev/null | head -n 1)
+	case "$PRE_STATE" in
+	maybe | yes | neutralised) ;;
+	*) PRE_STATE=yes ;;
+	esac
+	if [ "$FORCE" -ne 1 ]; then
+		log "a topology was already installed in this boot ($TOPOLOGY_SENTINEL):"
+		sed 's/^/  /' "$TOPOLOGY_SENTINEL" 2>/dev/null >&2
+		log "refusing: it cannot be removed from userspace (AFE_TOPOLOGY_CAL_TYPE has dealloc=NULL), so phase 1 would NOT be a baseline and every phase would be measuring the post-topology state. Reboot to get a clean device, or pass -F to run anyway with every phase labelled as not topology-free."
+		exit 1
+	fi
+	log "WARNING: -F given and this boot already has topology state '$PRE_STATE'; NO phase in this run is a baseline and the summary will say so on every one"
+	TOPOLOGY_INSTALLED=1
+	TOPOLOGY_STATE=$PRE_STATE
+fi
+
+OUT_DIR="$RUN_DIR/spk-protect-probe-$RUN_ID"
 mkdir -p "$OUT_DIR" || { log "cannot create $OUT_DIR"; exit 1; }
 echo "$LEVEL" > "$OUT_DIR/restart_level.txt"
 trap cleanup EXIT HUP INT TERM
@@ -412,10 +769,16 @@ else
 fi
 "$AFE_DEBUG" status > "$OUT_DIR/afe-debug-status.txt" 2>&1 || true
 
-run_phase baseline 0 0
-run_phase tx 1 0
+# Order matters and is not negotiable: both topology-free phases first, the
+# irreversible one last. Nothing may be added after tx-topo -- a phase there
+# would run against the installed topology and could not be a baseline. See
+# the header.
+run_phase baseline 0 none
+run_phase tx 1 none
 run_phase tx-topo 1 1
-run_phase restored 0 0
+# Not "restored": an explicit neutralisation whose own kernel window has to
+# show `AFE set topology id 0x0 ... ret -22` and no 0x112fc send.
+run_phase neutralised 0 neutralise
 
 snapshot after
 summarize

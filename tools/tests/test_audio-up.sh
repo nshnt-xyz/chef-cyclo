@@ -229,5 +229,13 @@ case "$el" in
 esac
 if [ "$(awk -v e="$el" 'BEGIN { print (e >= 1.5 && e < 1.7) ? 1 : 0 }')" = 1 ]; then ok; else bad "elapsed_s for a t0 1.5 s ago must be ~1.50, got '$el'"; fi
 
-echo "PASS: $pass/$((pass + fail)) checks passed"
-[ "$fail" -eq 0 ]
+# A failing run must SAY so rather than print "PASS:" regardless and leave
+# the exit status as the only signal -- the last line of a suite's output is
+# what a reader (and `make test`'s log) actually sees. Exit behaviour is
+# unchanged: 0 only when nothing failed.
+if [ "$fail" -eq 0 ]; then
+	echo "PASS: $pass/$((pass + fail)) checks passed"
+else
+	echo "FAILED: $fail of $((pass + fail)) checks failed ($pass passed)" >&2
+	exit 1
+fi

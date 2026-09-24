@@ -458,5 +458,14 @@ ASOUND_DIR="$FIXROOT/asound" RUN_DIR="$FIXROOT/run" LOGFILE="$LOGFILE" \
 	PATH="$STUBDIR:$PATH" sh "$SCRIPT" -a 0 >/dev/null 2>&1 || true
 if grep -q -- '-a -6 ' "$LOGFILE"; then ok; else bad "an -a louder than -6 dBFS must be clamped to -6 before reaching wavtone"; fi
 
-echo "PASS: $pass/$((pass + fail)) checks passed"
-[ "$fail" -eq 0 ]
+# A failing run must SAY so. This used to print "PASS: n/m checks passed"
+# whatever happened and rely on the exit status alone, so a failure was
+# invisible to anyone reading the output (and to `make test`'s log, where
+# the aborting suite's last line is what gets read). The exit status is
+# unchanged: 0 only when nothing failed.
+if [ "$fail" -eq 0 ]; then
+	echo "PASS: $pass/$((pass + fail)) checks passed"
+else
+	echo "FAILED: $fail of $((pass + fail)) checks failed ($pass passed)" >&2
+	exit 1
+fi

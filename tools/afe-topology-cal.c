@@ -12,19 +12,39 @@
  * possible ioctl: AFE_TOPOLOGY_CAL_TYPE carries only a 16-byte cal_info and
  * needs no ION memory (cal_size 0, mem_handle -1).
  *
- * The kernel's audio_calibration.c frees EVERY installed cal block when the
- * last /dev/msm_audio_cal file descriptor closes (audio_cal_release ->
- * dealloc_all_clients), so this process stays resident, holding the fd,
- * until SIGTERM/SIGINT/SIGHUP; closing the fd on exit restores the pre-state
- * without any explicit deallocation. Nothing here is persistent and nothing
- * but the one (or two) SET ioctl is ever written.
+ * *** THIS IS NOT REVERSIBLE WITHOUT A REBOOT. ***
+ * An earlier version of this file claimed that closing /dev/msm_audio_cal
+ * frees the block and restores the pre-state. That was wrong, and the
+ * 2026-09-22 live run disproved it: the probe's 4th phase still logged
+ * "AFE set topology id 0x112fc enable for port 0x1004 ret 0" with this
+ * helper long dead and no fd open. audio_cal_release() does call
+ * dealloc_all_clients(), but call_deallocs() begins with
+ *     if (client_info_node->callbacks->dealloc == NULL) continue;
+ * and q6afe.c registers AFE_TOPOLOGY_CAL_TYPE as
+ *     {NULL, NULL, NULL, afe_set_cal, NULL, NULL}
+ * -- dealloc is NULL, so the block is skipped and never freed. The same
+ * NULL makes AUDIO_DEALLOCATE_CALIBRATION a no-op for this cal type, so
+ * userspace has no way to remove it at all. Once installed, the topology is
+ * sent by afe_send_port_topology_id() at every later RX port start for the
+ * rest of the boot. It lives in RAM only, so a reboot clears it -- that is
+ * the only verified reset. (Overwriting buffer 0 with topology 0 would make
+ * afe_get_cal_topology_id() fail and afe_send_port_topology_id() skip the
+ * send, which looks equivalent from the port's point of view, but the block
+ * still exists and nothing has tested that path on a device; do not treat it
+ * as a restore.)
+ *
+ * This process therefore stays resident for a different reason than it used
+ * to: not to hold the state up, but to hold the flock and to give the
+ * driving script one lifecycle to scope the experiment with. Its exit
+ * changes nothing in the kernel. Nothing here is persistent across a reboot
+ * and nothing but the one (or two) SET ioctl is ever written.
  *
  * Only one instance may run at a time: the device fd is flock()ed. The
  * kernel matches cal blocks by buffer_number only (cal_utils_match_buf_num;
  * hence RX = buffer 0, TX = buffer 1 below), so a second installer would
- * silently overwrite the first block's topology and neither instance's exit
- * would release it until both had closed; refusing the second instance
- * keeps "helper exited => state restored" true.
+ * silently overwrite the first block's topology with no way to put the old
+ * one back; refusing the second instance keeps the experiment's state
+ * attributable to one process.
  *
  * The struct layout below mirrors kernel/include/uapi/linux/
  * msm_audio_calibration.h (audio_cal_afe_top and what it nests). It is
@@ -47,6 +67,12 @@
 #include <unistd.h>
 
 #define AFE_TOP_DEFAULT_DEVICE "/dev/msm_audio_cal"
+/* Shared with initramfs/usr/bin/spk-protect-probe. Written by whichever of
+ * us learns first that a topology block exists in this boot, so the fact
+ * survives the probe being killed, the helper being killed, or the helper
+ * being run by hand outside the probe. tmpfs, so it dies with the topology
+ * at reboot. Best-effort: failing to write it never fails the install. */
+#define AFE_TOP_DEFAULT_SENTINEL "/run/spk-protect-probe.topology-installed"
 #define AFE_TOP_DEFAULT_RX_TOPOLOGY 0x000112FCU	/* stock speaker AFE topology */
 #define AFE_TOP_DEFAULT_RX_ACDB_ID 14		/* SPKR_PHONE_SPKR_MONO */
 #define AFE_TOP_DEFAULT_RATE 48000
@@ -109,9 +135,15 @@ struct afe_top_block {
 
 struct afe_top_config {
 	const char *device;
+	/* NULL or "" disables the sentinel write (host tests, -S ""). */
+	const char *sentinel;
 	struct afe_top_block rx;
 	int install_tx;
 	struct afe_top_block tx;
+	/* Neutralise mode (-N): overwrite the RX block (buffer 0) with
+	 * topology 0 and exit, instead of installing a topology and staying
+	 * resident. See afe_top_neutralise_is_sound() for why this works. */
+	int neutralise;
 };
 
 struct afe_top_syscalls {
@@ -176,6 +208,41 @@ static const struct afe_top_syscalls system_calls = {
 	.close_device = system_close_device,
 };
 
+/* A neutralising RX block: topology EXACTLY 0, RX path, buffer 0. Kept
+ * separate from block_is_valid() on purpose -- an install must never be
+ * allowed to send topology 0 by accident, because that silently produces a
+ * port with no topology instead of the one the caller asked for.
+ *
+ * Why topology 0 neutralises, from the kernel source (4.4 vendor tree):
+ *   - cal_utils_set_cal() memcpy's cal_info into the block matched by
+ *     buffer_number and validates nothing inside it, so 0 can be written;
+ *     audio_cal_shared_ioctl() checks only size/cal_type/buffer_number.
+ *   - afe_find_cal_topo_id_by_port() matches on `path` alone, so it returns
+ *     this same buffer-0 RX block for the speaker port.
+ *   - afe_get_cal_topology_id() then hits `if (!afe_top_info->topology)`,
+ *     logs "invalid topology id" and returns -EINVAL with topology_id 0.
+ *   - afe_send_port_topology_id() does `if (ret || !topology_id) goto done;`
+ *     so NO AFE_PARAM_ID_SET_TOPOLOGY is sent at the next port start, and
+ *     all four of its call sites discard its return value, so the port
+ *     still starts normally.
+ *   - afe_close() clears this_afe.topology[port_index] (with the sample
+ *     rate and acdb id), so the per-port cache that afe_get_topology()
+ *     reads resets when the port closes.
+ * What this is NOT: a delete. The cal block still exists and is still
+ * matched; AFE_TOPOLOGY_CAL_TYPE has dealloc=NULL so nothing can remove it.
+ * And it does not un-tell the DSP about a topology it was already sent
+ * earlier in the boot -- it only stops the kernel sending one again. Treat
+ * a neutralised phase as "no SET_TOPOLOGY was sent", never as "this device
+ * is in its pre-topology state".
+ */
+static int neutralise_block_is_valid(const struct afe_top_block *block)
+{
+	return block->topology == 0 && block->path == AFE_TOP_PATH_RX &&
+	       block->acdb_id >= 0 && block->acdb_id <= AFE_TOP_MAX_ACDB_ID &&
+	       block->sample_rate >= AFE_TOP_MIN_RATE &&
+	       block->sample_rate <= AFE_TOP_MAX_RATE;
+}
+
 static int block_is_valid(const struct afe_top_block *block)
 {
 	return block->topology >= 1 && block->topology <= AFE_TOP_MAX_TOPOLOGY &&
@@ -191,7 +258,8 @@ static int block_is_valid(const struct afe_top_block *block)
 static int afe_top_build_msg(const struct afe_top_block *block,
 			     struct afe_top_cal_msg *msg)
 {
-	if (!block || !msg || !block_is_valid(block)) {
+	if (!block || !msg ||
+	    !(block_is_valid(block) || neutralise_block_is_valid(block))) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -218,7 +286,80 @@ static int afe_top_build_msg(const struct afe_top_block *block,
 	return 0;
 }
 
-static int install_block(int fd, const struct afe_top_block *block,
+/* Records, on tmpfs, that this boot now has an AFE topology block. Called
+ * immediately after a SET succeeds -- never before, because unlike the
+ * probe's own conservative pre-latch we know here exactly whether the ioctl
+ * returned. The block cannot be freed by anything in userspace
+ * (AFE_TOPOLOGY_CAL_TYPE has dealloc=NULL), so this outlives us on purpose.
+ * Best-effort by design: a read-only or missing /run must not turn a
+ * successful install into a failure, so every error is swallowed. */
+static void write_sentinel(const struct afe_top_config *config,
+			   const struct afe_top_block *block, FILE *errors)
+{
+	FILE *f;
+	int had_prior_state = 0;
+
+	if (!config->sentinel || !config->sentinel[0])
+		return;
+	/* Did anything record a topology state in this boot before us? Only
+	 * used to keep the neutralise wording honest (see below). */
+	f = fopen(config->sentinel, "r");
+	if (f) {
+		char line[128];
+
+		while (fgets(line, sizeof(line), f)) {
+			if (strncmp(line, "state: ", 7) == 0) {
+				had_prior_state = 1;
+				break;
+			}
+		}
+		fclose(f);
+	}
+	f = fopen(config->sentinel, "w");
+	if (!f) {
+		fprintf(errors, "afe-topology-cal: note: could not record the install in %s: %s (the block is installed regardless)\n",
+			config->sentinel, strerror(errno));
+		return;
+	}
+	if (block->topology == 0) {
+		fprintf(f, "state: neutralised\n");
+		if (had_prior_state)
+			fprintf(f, "An AFE topology block was installed in this boot and then\n"
+				   "NEUTRALISED (buffer 0 rewritten with topology 0), so the kernel\n"
+				   "sends no SET_TOPOLOGY at the next port start. The block itself\n"
+				   "still exists and always will.\n");
+		else
+			/* Standalone -N with nothing recorded beforehand: we know
+			 * buffer 0 now reads topology 0, and nothing more. Whether
+			 * a topology was ever installed in this boot -- by an
+			 * earlier run, by hand, or not at all -- is not ours to
+			 * assert. Saying so would manufacture a prior install out
+			 * of thin air, which is exactly the kind of claim this
+			 * file exists to stop. */
+			fprintf(f, "Buffer 0 (RX) was NEUTRALISED here: it now carries topology 0,\n"
+				   "so the kernel sends no SET_TOPOLOGY at the next port start.\n"
+				   "No prior install was recorded in this boot before this write, so\n"
+				   "whether a topology had already been installed is NOT known from\n"
+				   "this file. A cal block exists either way and can never be removed.\n");
+	} else {
+		fprintf(f, "state: yes\n");
+		fprintf(f, "An AFE topology block WAS installed in this boot and is still being\n"
+			   "sent at every RX port start.\n");
+	}
+	fprintf(f, "written by afe-topology-cal (%s topology 0x%08x acdb_id %d rate %d)\n",
+		block->path == AFE_TOP_PATH_TX ? "TX" : "RX", block->topology,
+		block->acdb_id, block->sample_rate);
+	fprintf(f, "It cannot be removed from userspace: AFE_TOPOLOGY_CAL_TYPE is registered\n"
+		   "with dealloc=NULL (q6afe.c), so audio_calibration.c's call_deallocs()\n"
+		   "skips it and closing /dev/msm_audio_cal does not free it.\n"
+		   "REBOOT to return to the pre-topology state.\n");
+	if (fclose(f) != 0)
+		fprintf(errors, "afe-topology-cal: note: %s may be incomplete: %s\n",
+			config->sentinel, strerror(errno));
+}
+
+static int install_block(int fd, const struct afe_top_config *config,
+			 const struct afe_top_block *block,
 			 const struct afe_top_syscalls *calls, FILE *out,
 			 FILE *errors)
 {
@@ -239,15 +380,25 @@ static int install_block(int fd, const struct afe_top_block *block,
 		errno = saved_errno;
 		return -1;
 	}
-	fprintf(out, "afe-topology-cal: installed %s topology 0x%08x acdb_id %d rate %d (cal_type %d, path %d, no shared memory)\n",
-		block->path == AFE_TOP_PATH_TX ? "TX" : "RX", block->topology,
-		block->acdb_id, block->sample_rate, AFE_TOP_CAL_TYPE,
-		block->path);
+	/* The SET returned 0: the block now exists (or now reads topology 0)
+	 * for the rest of the boot. Record that before anything else -- this
+	 * is the only point at which we know the ioctl actually succeeded. */
+	write_sentinel(config, block, errors);
+	if (block->topology == 0)
+		fprintf(out, "afe-topology-cal: neutralised the %s block: buffer 0 now carries topology 0x00000000 acdb_id %d rate %d, so afe_get_cal_topology_id() rejects it and no SET_TOPOLOGY is sent at the next port start (the block itself still exists and cannot be removed)\n",
+			block->path == AFE_TOP_PATH_TX ? "TX" : "RX",
+			block->acdb_id, block->sample_rate);
+	else
+		fprintf(out, "afe-topology-cal: installed %s topology 0x%08x acdb_id %d rate %d (cal_type %d, path %d, no shared memory)\n",
+			block->path == AFE_TOP_PATH_TX ? "TX" : "RX",
+			block->topology, block->acdb_id, block->sample_rate,
+			AFE_TOP_CAL_TYPE, block->path);
 	return 0;
 }
 
 /* Exit codes: 2 usage/range, 3 open, 4 another instance holds the device,
- * 5 ioctl failure (fd closed, nothing left installed by us), 6 signal wait
+ * 5 ioctl failure (fd closed; note that an RX block installed before a TX
+ * failure stays installed -- nothing here can roll back), 6 signal wait
  * failure. 0 after a termination signal released the block(s). */
 static int afe_topology_cal_run(const struct afe_top_config *config,
 				const struct afe_top_syscalls *calls,
@@ -260,7 +411,11 @@ static int afe_topology_cal_run(const struct afe_top_config *config,
 	if (!config || !config->device || !calls || !calls->open_device ||
 	    !calls->lock_device || !calls->device_ioctl ||
 	    !calls->wait_for_signal || !calls->close_device || !out ||
-	    !errors || !block_is_valid(&config->rx) ||
+	    !errors ||
+	    (config->neutralise
+		     ? (!neutralise_block_is_valid(&config->rx) ||
+			config->install_tx)
+		     : !block_is_valid(&config->rx)) ||
 	    config->rx.path != AFE_TOP_PATH_RX ||
 	    (config->install_tx && (!block_is_valid(&config->tx) ||
 				    config->tx.path != AFE_TOP_PATH_TX))) {
@@ -286,16 +441,29 @@ static int afe_topology_cal_run(const struct afe_top_config *config,
 		return 4;
 	}
 
-	if (install_block(fd, &config->rx, calls, out, errors) < 0 ||
+	if (install_block(fd, config, &config->rx, calls, out, errors) < 0 ||
 	    (config->install_tx &&
-	     install_block(fd, &config->tx, calls, out, errors) < 0)) {
-		/* Closing may free a partially installed RX block (if this is
-		 * the last fd), which is exactly the restore we want. */
+	     install_block(fd, config, &config->tx, calls, out, errors) < 0)) {
+		/* Closing frees nothing for this cal type (dealloc=NULL, see
+		 * the header): if the RX block went in and the TX block then
+		 * failed, the RX topology stays installed until reboot. The
+		 * close is just fd hygiene, not a rollback. */
 		(void)calls->close_device(fd);
 		return 5;
 	}
 
-	fprintf(out, "afe-topology-cal: resident, holding %s open; SIGTERM/SIGINT releases the block%s\n",
+	if (config->neutralise) {
+		/* Nothing to hold up: the write has already taken effect and
+		 * no fd keeps it alive (or could free it). Exit at once so a
+		 * caller can treat this as a plain command. */
+		if (calls->close_device(fd) < 0)
+			fprintf(errors, "afe-topology-cal: close after neutralising failed: %s\n",
+				strerror(errno));
+		fprintf(out, "afe-topology-cal: neutralised and exiting; the next RX port start will send no SET_TOPOLOGY. This is NOT a delete and NOT a return to the pre-topology state -- the block still exists and the DSP was already told the old topology earlier in this boot.\n");
+		return 0;
+	}
+
+	fprintf(out, "afe-topology-cal: resident, holding %s open (flock only); SIGTERM/SIGINT exits but does NOT remove the block%s -- AFE_TOPOLOGY_CAL_TYPE has dealloc=NULL, so it stays installed until reboot\n",
 		config->device, config->install_tx ? "s" : "");
 	fflush(out);
 	sig = calls->wait_for_signal();
@@ -309,7 +477,7 @@ static int afe_topology_cal_run(const struct afe_top_config *config,
 	if (calls->close_device(fd) < 0)
 		fprintf(errors, "afe-topology-cal: close after signal %d failed: %s\n",
 			sig, strerror(errno));
-	fprintf(out, "afe-topology-cal: released on signal %d (device closed; kernel frees the block%s when the last fd closes)\n",
+	fprintf(out, "afe-topology-cal: exiting on signal %d (device closed); the topology block%s REMAINS INSTALLED -- the kernel cannot free it (dealloc=NULL) and neither can any ioctl; reboot to clear it\n",
 		sig, config->install_tx ? "s" : "");
 	return 0;
 }
@@ -348,6 +516,7 @@ static void afe_top_default_config(struct afe_top_config *config)
 {
 	memset(config, 0, sizeof(*config));
 	config->device = AFE_TOP_DEFAULT_DEVICE;
+	config->sentinel = AFE_TOP_DEFAULT_SENTINEL;
 	config->rx.topology = AFE_TOP_DEFAULT_RX_TOPOLOGY;
 	config->rx.acdb_id = AFE_TOP_DEFAULT_RX_ACDB_ID;
 	config->rx.path = AFE_TOP_PATH_RX;
@@ -365,14 +534,23 @@ static void usage(FILE *to)
 	fprintf(to,
 		"usage: afe-topology-cal [-d DEVICE] [-r RX_TOPOLOGY_HEX] [-a RX_ACDB_ID] [-s RATE]\n"
 		"                        [-t TX_TOPOLOGY_HEX [-A TX_ACDB_ID]]\n"
+		"       afe-topology-cal -N [-d DEVICE] [-a RX_ACDB_ID] [-s RATE]\n"
 		"  -d DEVICE            calibration device (default %s)\n"
+		"  -S PATH              record the install in PATH (default /run/spk-protect-probe.\n"
+		"                       topology-installed); -S '' disables the record\n"
 		"  -r RX_TOPOLOGY_HEX   RX (speaker) AFE topology, 1..7fffffff (default %08x)\n"
 		"  -a RX_ACDB_ID        informational ACDB device id for the RX block (default %d)\n"
 		"  -s RATE              sample rate for both blocks, %d..%d (default %d)\n"
 		"  -t TX_TOPOLOGY_HEX   also install a TX block with this topology (default: none)\n"
 		"  -A TX_ACDB_ID        ACDB device id for the TX block (default 0)\n"
-		"Installs the block(s) with one AUDIO_SET_CALIBRATION each, then stays\n"
-		"resident; SIGTERM/SIGINT closes the device, which frees them again.\n",
+		"  -N                   NEUTRALISE: rewrite buffer 0 (RX) with topology 0 and\n"
+		"                       exit, so the next RX port start sends no SET_TOPOLOGY.\n"
+		"                       Not a delete: the block stays (dealloc=NULL) and the\n"
+		"                       DSP is not untold a topology it already received.\n"
+		"                       Refuses -r and -t.\n"
+		"Without -N: installs the block(s) with one AUDIO_SET_CALIBRATION each, then\n"
+		"stays resident holding an flock. Exiting does NOT remove them -- the kernel\n"
+		"cannot free this cal type. Reboot, or -N, is how you stop them being sent.\n",
 		AFE_TOP_DEFAULT_DEVICE, AFE_TOP_DEFAULT_RX_TOPOLOGY,
 		AFE_TOP_DEFAULT_RX_ACDB_ID, AFE_TOP_MIN_RATE, AFE_TOP_MAX_RATE,
 		AFE_TOP_DEFAULT_RATE);
@@ -383,18 +561,23 @@ int main(int argc, char **argv)
 	struct afe_top_config config;
 	int opt;
 	int32_t rate;
+	int saw_r = 0;
 
 	afe_top_default_config(&config);
-	while ((opt = getopt(argc, argv, "d:r:a:s:t:A:h")) != -1) {
+	while ((opt = getopt(argc, argv, "d:S:r:a:s:t:A:Nh")) != -1) {
 		switch (opt) {
 		case 'd':
 			config.device = optarg;
+			break;
+		case 'S':
+			config.sentinel = optarg;
 			break;
 		case 'r':
 			if (parse_hex_u32(optarg, &config.rx.topology) < 0) {
 				fprintf(stderr, "afe-topology-cal: invalid -r '%s' (hex topology id)\n", optarg);
 				return 2;
 			}
+			saw_r = 1;
 			break;
 		case 'a':
 			if (parse_dec_i32(optarg, &config.rx.acdb_id) < 0) {
@@ -423,6 +606,9 @@ int main(int argc, char **argv)
 				return 2;
 			}
 			break;
+		case 'N':
+			config.neutralise = 1;
+			break;
 		case 'h':
 			usage(stdout);
 			return 0;
@@ -434,6 +620,21 @@ int main(int argc, char **argv)
 	if (optind != argc) {
 		usage(stderr);
 		return 2;
+	}
+	if (config.neutralise) {
+		if (saw_r || config.install_tx) {
+			fprintf(stderr, "afe-topology-cal: -N takes no topology: it writes topology 0 to buffer 0 (RX). Drop -r/-t.\n");
+			return 2;
+		}
+		config.rx.topology = 0;
+		if (!neutralise_block_is_valid(&config.rx)) {
+			fprintf(stderr, "afe-topology-cal: -N acdb_id %d / rate %d out of range (rate %d..%d)\n",
+				config.rx.acdb_id, config.rx.sample_rate,
+				AFE_TOP_MIN_RATE, AFE_TOP_MAX_RATE);
+			return 2;
+		}
+		return afe_topology_cal_run(&config, &system_calls, stdout,
+					    stderr);
 	}
 	if (!block_is_valid(&config.rx)) {
 		fprintf(stderr, "afe-topology-cal: RX topology 0x%08x / acdb_id %d / rate %d out of range (topology 1..%x, rate %d..%d)\n",
