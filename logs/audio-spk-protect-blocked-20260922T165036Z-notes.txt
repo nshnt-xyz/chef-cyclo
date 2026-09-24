@@ -1,0 +1,82 @@
+=== chef-cyclo spk-protect-probe live attempt, blocked at precondition ===
+date_utc: 2026-09-22T16:50:36Z
+boot.img sha256: 6084de390a1a5beab9b26a993c713aec0d514e024c83163b0bd1ce1293045995
+initramfs sha256: 92daeda3e2ca5ac374d7c6d8db7c32705d62f698d264035fdf29253edbee13a2
+result: spk-protect-probe refused (rc=1) at the restart_level precondition; NO tone played, no helper started, afe-debug never switched on
+
+--- restart_level as the kernel reports it ---
+venus: SYSTEM
+a512_zap: SYSTEM
+adsp: RELATED
+modem: SYSTEM
+
+--- probe refusal (verbatim) ---
+spk-protect-probe: adsp restart_level is 'RELATED', not 'related' (audio-up sets it); refusing -- a DSP fault under a new topology would panic the kernel
+PROBE_RC=1
+
+--- audio-up log ---
+audio-up: mounted active modem_a read-only
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: kernel/elf_loader -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: tms/servreg -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemuw.jsn: wlan/fw -> msm/modem/wlan_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/adspr.jsn: tms/servreg -> msm/adsp/root_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/modemr.jsn: tms/servreg -> msm/modem/root_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/modemr.jsn: tms/pdr_enabled -> msm/modem/root_pd (instance 180)
+[SERVREG-LOC] jsn: /firmware/image/adsps.jsn: tms/servreg -> msm/adsp/sensor_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/adspua.jsn: tms/servreg -> msm/adsp/audio_pd (instance 74)
+[SERVREG-LOC] jsn: /firmware/image/adspua.jsn: avs/audio -> msm/adsp/audio_pd (instance 74)
+[SERVREG-LOC] loaded 9 (domain,service) entries from /firmware/image
+[SERVREG-LOC] published service 0x40 instance 0x101 (9 entries loaded)
+[SERVREG-LOC] GET_DOMAIN_LIST "wlan/fw" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+audio-up: booting adsp
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "tms/pdr_enabled" offset 0 => 1/1 domain(s)
+[SERVREG-LOC] GET_DOMAIN_LIST "tms/pddump_disabled" offset 0 => 0/0 domain(s) (no match)
+[SERVREG-LOC] GET_DOMAIN_LIST "avs/audio" offset 0 => 1/1 domain(s)
+audio-up: adsp up, card 0 'sdm660sndcard' 1.59s after boot_adsp, MultiMedia1 playback pcm device 0
+audio-up: supervising the servreg-locator this process started (TERM stops the locator only; the adsp stays up)
+
+--- mixer status + /proc/asound ---
+card:  0 [sdm660sndcard  ]: sdm660-snd-card - sdm660-snd-card
+MultiMedia1 playback: card 0 device 0
+TERT_MI2S_RX Audio Mixer MultiMedia1: Off 
+DAC Playback Volume: 15 (range 0->15) 
+TAS2560_ALGO_FF_MODULE: > DISABLE, ENABLE,  
+
+ 0 [sdm660sndcard  ]: sdm660-snd-card - sdm660-snd-card
+                      sdm660-snd-card
+
+00-00: MultiMedia1 (*) :  : playback 1 : capture 1
+00-01: MultiMedia2 (*) :  : playback 1 : capture 1
+00-02: VoiceMMode1 (*) :  : playback 1 : capture 1
+00-03: VoIP (*) :  : playback 1 : capture 1
+00-04: ULL (*) :  : playback 1
+00-05: INT4 MI2S_RX Hostless (*) :  : playback 1
+00-06: AFE-PROXY RX msm-stub-rx-6 :  : playback 1
+00-07: AFE-PROXY TX msm-stub-tx-7 :  : capture 1
+00-09: AUXPCM Hostless (*) :  : playback 1 : capture 1
+00-10: SLIMBUS_1 Hostless (*) :  : playback 1 : capture 1
+00-11: INT3 MI2S_TX Hostless (*) :  : capture 1
+00-12: SLIMBUS_7 Hostless (*) :  : playback 1 : capture 1
+00-13: MultiMedia5 (*) :  : playback 1 : capture 1
+00-14: Listen 1 Audio Service (*) :  : capture 1
+00-17: MM_NOIRQ (*) :  : playback 1 : capture 1
+00-18: HDMI_RX_HOSTLESS (*) :  : playback 1
+00-19: VoiceMMode2 (*) :  : playback 1 : capture 1
+00-20: Listen 2 Audio Service (*) :  : capture 1
+00-21: Listen 3 Audio Service (*) :  : capture 1
+00-22: Listen 4 Audio Service (*) :  : capture 1
+00-23: Listen 5 Audio Service (*) :  : capture 1
+00-24: Listen 6 Audio Service (*) :  : capture 1
+00-25: Listen 7 Audio Service (*) :  : capture 1
+00-26: Listen 8 Audio Service (*) :  : capture 1
+00-27: MultiMedia9 (*) :  : playback 1 : capture 1
+00-33: MM_NOIRQ_2 (*) :  : playback 1 : capture 1
+00-34: SLIMBUS8_HOSTLESS Capture (*) :  : capture 1
+00-35: Primary MI2S_RX Hostless (*) :  : playback 1
+00-36: Secondary MI2S_RX Hostless (*) :  : playback 1
+00-37: Tertiary MI2S_RX Hostless (*) :  : playback 1
+00-38: INT0 MI2S_RX Hostless (*) :  : playback 1
+00-39: MultiMedia6 (*) :  : playback 1 : capture 1
+00-40: TERT MI2S_TX Hostless (*) :  : capture 1
