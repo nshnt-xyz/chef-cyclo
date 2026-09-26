@@ -744,7 +744,7 @@ if [ -e "$TOPOLOGY_SENTINEL" ]; then
 	esac
 	if [ "$FORCE" -ne 1 ]; then
 		log "a topology was already installed in this boot ($TOPOLOGY_SENTINEL):"
-		sed 's/^/  /' "$TOPOLOGY_SENTINEL" 2>/dev/null >&2
+		sed 's/^/  /' "$TOPOLOGY_SENTINEL" >&2 2>/dev/null
 		log "refusing: it cannot be removed from userspace (AFE_TOPOLOGY_CAL_TYPE has dealloc=NULL), so phase 1 would NOT be a baseline and every phase would be measuring the post-topology state. Reboot to get a clean device, or pass -F to run anyway with every phase labelled as not topology-free."
 		exit 1
 	fi

@@ -545,6 +545,13 @@ case "$(cat "$FIX/err")" in
 *"a topology was already installed in this boot"*"phase 1 would NOT be a baseline"*) ok ;;
 *) bad "the refusal must explain that phase 1 would not be a baseline, got: $(cat "$FIX/err")" ;;
 esac
+# ...and must quote the sentinel it refused on. The 2026-09-26 live run
+# printed only "(...topology-installed):" and nothing after it: the
+# redirection sent the sentinel's contents to /dev/null.
+case "$(cat "$FIX/err")" in
+*"topology-installed):"*"  state: "*"dealloc=NULL"*"refusing:"*) ok ;;
+*) bad "the refusal must quote the sentinel's recorded state before refusing, got: $(cat "$FIX/err")" ;;
+esac
 eq "the refused second run touches nothing" "$ARGV_BEFORE" "$(wc -l < "$FIX/argv")"
 # -F runs anyway, and then NO phase may be presented as a baseline.
 if run_probe -F; then ok; else bad "-F must allow a second run: $(cat "$FIX/err")"; fi
