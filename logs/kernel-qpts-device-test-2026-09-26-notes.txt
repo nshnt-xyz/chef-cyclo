@@ -1,0 +1,34 @@
+Kernel QPTS30.61-18-10 device smoke test, 2026-09-26
+
+Branch: chef-cyclo/kernel-qpts30.61-18-10 (9d396c5)
+Kernel: nshnt-xyz/kernel-msm chef-cyclo-qpts30.61-18-10 (cbd2b3acf)
+Stock phone: QPTS30.61-18-16-19, slot _a, 4.4.192-perf+
+New Image.gz-dtb SHA-256: 576f1e1d963d68340ea431183751dad3e3c9b48b40415aa52fcb391c85b7215b
+Shared initramfs SHA-256: d23c765349dce52c23edaecf876e1cebfe8a941cff10528bfa1c119a194a105e
+New test boot image SHA-256: 2b5b0e010395470da33f64454660e4d990ff3c50ecd1bd6fdb8fc5ebd9d970a1
+Old kernel + same ramdisk control SHA-256: 80ac455d39aa43b04deb6d84ab7dea73db52c86c56e45ade3b968248fd099140
+
+All boots were ephemeral fastboot boot. Nothing flashed. The existing ramdisk
+already contains the in-progress powerd service; it was not rebuilt for this
+test. New kernel boot #1 brought up USB NCM, telnet, display/touch and hci0;
+one Read Local Name command (0x0c14) timed out after ~60 s idle and later LE
+scan commands timed out. Killing btattach caused bt-up to reattach; subsequent
+BLE scans returned advertisements, including after the UART suspended. The
+control boot (old kernel, same ramdisk) returned the local name after 90 s
+idle and scanned. New kernel boot #2 returned the local name both immediately
+and after 82 s idle, and scanned; no timeouts or crash in that run. One flaky
+boot is not enough to establish a source/config regression.
+
+Read-only host transcripts retained locally (not committed):
+  /tmp/opencode/chef-qpts-device-smoke.txt
+  /tmp/opencode/chef-qpts-device-dmesg.txt
+  /tmp/opencode/chef-qpts-device-dmesg-repeat.txt
+  /tmp/opencode/chef-qpts-scan-restart.txt
+  /tmp/opencode/chef-qpts-idle-scan.txt
+  /tmp/opencode/chef-old-idle-control.txt
+  /tmp/opencode/chef-old-scan-control.txt
+  /tmp/opencode/chef-new-idle-repeat.txt
+  /tmp/opencode/chef-new-final.txt
+
+Not tested: modem/GPS bring-up, audio playback, long-term suspend or BLE
+stability. Finished on stock Android (ADB fingerprint and uname verified).
