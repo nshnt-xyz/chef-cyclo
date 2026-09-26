@@ -31,7 +31,12 @@ struct rmtfs_iovec_entry {
 
 struct rmtfs_open_req {
 	uint32_t path_len;
-	char path[256];
+	/* rmtfs_open_req_ei allows a 256-byte string (the IDL gives no
+	 * smaller bound) and the qmi.c string decoder then writes its NUL
+	 * at path[256], so the buffer needs 257 bytes. Upstream's
+	 * path[256] let a maximal path from the modem overwrite one byte
+	 * past req.path on rmtfs_open()'s stack. */
+	char path[257];
 };
 
 struct rmtfs_open_resp {

@@ -7,6 +7,7 @@
 OUT := rmtfs
 TEST_OUT := tests/test-storage
 TEST_SHAREDMEM_OUT := tests/test-sharedmem
+TEST_QMI_OUT := tests/test-qmi-rmtfs
 
 CFLAGS += -Wall -g -O2 -static
 LDFLAGS += -lqrtr -lpthread -static
@@ -18,7 +19,7 @@ $(OUT): $(OBJS)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 clean:
-	rm -f $(OUT) $(OBJS) $(TEST_OUT) $(TEST_SHAREDMEM_OUT)
+	rm -f $(OUT) $(OBJS) $(TEST_OUT) $(TEST_SHAREDMEM_OUT) $(TEST_QMI_OUT)
 
 $(TEST_OUT): tests/test_storage.c storage.c util.c rmtfs.h util.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -I../qrtr -o $@ tests/test_storage.c storage.c util.c
@@ -30,6 +31,14 @@ $(TEST_OUT): tests/test_storage.c storage.c util.c rmtfs.h util.h
 $(TEST_SHAREDMEM_OUT): tests/test_sharedmem.c sharedmem.c rmtfs.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DRMTFS_TEST_HOOKS -I. -I../qrtr -o $@ tests/test_sharedmem.c sharedmem.c
 
-test: $(TEST_OUT) $(TEST_SHAREDMEM_OUT)
+# The open-request decode under ASan/UBSan: the 256-byte path case only
+# fails loudly with it (a one-byte NUL overrun past req.path).
+$(TEST_QMI_OUT): tests/test_qmi_rmtfs.c qmi_rmtfs.c qmi_rmtfs.h ../qrtr/qmi.c ../qrtr/logging.c
+	$(CC) $(CPPFLAGS) -Wall -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
+		-fno-sanitize-recover=all -I. -I../qrtr -o $@ tests/test_qmi_rmtfs.c qmi_rmtfs.c \
+		../qrtr/qmi.c ../qrtr/logging.c
+
+test: $(TEST_OUT) $(TEST_SHAREDMEM_OUT) $(TEST_QMI_OUT)
 	./$(TEST_OUT)
 	./$(TEST_SHAREDMEM_OUT)
+	./$(TEST_QMI_OUT)
