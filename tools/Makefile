@@ -16,7 +16,8 @@
 # tools/rmtfs/ and tools/servreg-locator/ each have their own Makefile and
 # `test` target (`make -C tools/rmtfs test`, `make -C tools/servreg-locator
 # test`) and are deliberately not folded into this one's -- run all three to
-# get full GPS test coverage.
+# get full GPS test coverage. The same goes for the sensors daemon,
+# tools/sensord/ (`make -C tools/sensord test`).
 #
 # Native (host) build + tests:
 #   make && make test

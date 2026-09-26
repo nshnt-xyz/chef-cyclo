@@ -1,0 +1,425 @@
+# QMI IDL dump of the stock sensor services, 2026-09-26.
+# Produced by: python3 tools/sns-idl-dump.py libsensor1.so SMGR REG2 TIME2 SAM_AMD SAM_TAP
+# (libsensor1.so from stock/partitions/vendor_a.img /lib64; REG2/TIME2 in /bin/sensors.qti decode identically).
+# Our interpretation of each message is in tools/sensord/sns_msgs.h.
+
+# sns-idl-dump of libsensor1.so (sha256 e2fa2798017558bd374ae8bf63bddb313d0e18503e74302c18c1df81a9dbf66f)
+# @N = C struct offset in the generated vendor struct (only meaningful for
+# *_len/*_valid bookkeeping); wire order is TLV order, fields packed little endian.
+
+========================================================================
+SNS_SMGR_SVC_qmi_idl_service_object_v01
+service 0x100 idl v1.27 (lib 6) max_msg_len 1676, 15 req / 15 resp / 7 ind
+msg 0x00 req  max_len 0     c_size 1     (sns_common msg 0) no TLVs
+msg 0x00 resp max_len 5     c_size 2     (sns_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x01 req  max_len 0     c_size 1     (sns_common msg 2) no TLVs
+msg 0x01 resp max_len 17    c_size 12    (sns_common msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u16
+msg 0x02 req  max_len 261   c_size 272   (self msg 0)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @2    u16
+    TLV 0x04 mandatory @4    u8
+    TLV 0x05 mandatory @12   struct sns_smgr_common#0[<=10] (len u32 at +8, wire len u8)
+    TLV 0x10 optional  @220  u8[<=10] (len u32 at +216, wire len u8) (valid u8 at 212)
+    TLV 0x11 optional  @231  u8 (valid u8 at 230)
+    TLV 0x12 optional  @240  u16[<=10] (len u32 at +236, wire len u8) (valid u8 at 232)
+    TLV 0x13 optional  @264  struct sns_common#1 (valid u8 at 260)
+msg 0x02 resp max_len 37    c_size 28    (self msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @2    u8
+    TLV 0x04 mandatory @3    u8
+    TLV 0x05 mandatory @8    struct sns_smgr_common#1[<=10] (len u32 at +4, wire len u8)
+msg 0x03 ind  max_len 271   c_size 296   (self msg 2)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @2    u16
+    TLV 0x04 mandatory @8    struct sns_smgr_common#2[<=10] (len u32 at +4, wire len u8)
+    TLV 0x10 optional  @256  u32[<=10] (len u32 at +252, wire len u8) (valid u8 at 248)
+msg 0x04 req  max_len 91    c_size 88    (self msg 3)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @2    u8
+    TLV 0x04 mandatory @8    u32[<=3] (len u32 at +4, wire len u8)
+    TLV 0x05 mandatory @24   u32[<=3] (len u32 at +20, wire len u8)
+    TLV 0x10 optional  @44   u32[<=9] (len u32 at +40, wire len u8) (valid u8 at 36)
+    TLV 0x11 optional  @84   u32 (valid u8 at 80)
+msg 0x04 resp max_len 5     c_size 2     (self msg 4)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x05 req  max_len 0     c_size 1     (self msg 5) no TLVs
+msg 0x05 resp max_len 369   c_size 488   (self msg 6)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @8    struct sns_smgr_common#3[<=20] (len u32 at +4, wire len u8)
+msg 0x06 req  max_len 4     c_size 1     (self msg 7)
+    TLV 0x01 mandatory @0    u8
+msg 0x06 resp max_len 1049  c_size 1104  (self msg 8)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    struct sns_smgr_common#5
+    TLV 0x10 optional  @412  u32[<=3] (len u32 at +408, wire len u8) (valid u8 at 404)
+    TLV 0x11 optional  @428  u32 (valid u8 at 424)
+    TLV 0x12 optional  @440  u64[<=3] (len u32 at +436, wire len u8) (valid u8 at 432)
+    TLV 0x13 optional  @472  struct sns_smgr_common#6[<=3] (len u32 at +468, wire len u8) (valid u8 at 464)
+    TLV 0x14 optional  @1092 u32[<=3] (len u32 at +1088, wire len u8) (valid u8 at 1084)
+msg 0x07 req  max_len 0     c_size 1     (self msg 9) no TLVs
+msg 0x07 resp max_len 189   c_size 188   (self msg 10)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @8    struct sns_smgr_common#7[<=20] (len u32 at +4, wire len u8)
+msg 0x08 req  max_len 8     c_size 2     (self msg 14)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+msg 0x08 resp max_len 5     c_size 2     (self msg 15)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x09 ind  max_len 288   c_size 328   (self msg 16)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @8    struct sns_smgr_common#8[<=20] (len u32 at +4, wire len u8)
+msg 0x0a req  max_len 8     c_size 2     (self msg 17)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+msg 0x0a resp max_len 5     c_size 2     (self msg 18)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x0b req  max_len 12    c_size 3     (self msg 19)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @2    u8
+msg 0x0b resp max_len 9     c_size 3     (self msg 20)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @2    u8
+msg 0x0c ind  max_len 77    c_size 80    (self msg 21)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @4    u32
+    TLV 0x10 optional  @16   u16[<=5] (len u32 at +12, wire len u8) (valid u8 at 8)
+    TLV 0x11 optional  @32   u32[<=5] (len u32 at +28, wire len u8) (valid u8 at 26)
+    TLV 0x12 optional  @60   u32[<=5] (len u32 at +56, wire len u8) (valid u8 at 52)
+msg 0x0d req  max_len 23    c_size 12    (self msg 11)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @4    u32
+    TLV 0x10 optional  @9    u8 (valid u8 at 8)
+    TLV 0x11 optional  @11   u8 (valid u8 at 10)
+msg 0x0d resp max_len 27    c_size 12    (self msg 12)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @2    u8
+    TLV 0x04 mandatory @3    u8
+    TLV 0x05 mandatory @4    u32
+    TLV 0x06 mandatory @8    u32
+msg 0x0d ind  max_len 26    c_size 16    (self msg 13)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u32
+    TLV 0x10 optional  @13   u8 (valid u8 at 12)
+msg 0x21 req  max_len 71    c_size 68    (self msg 22)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @12   struct sns_smgr_common#9[<=5] (len u32 at +8, wire len u8)
+    TLV 0x10 optional  @56   struct sns_common#1 (valid u8 at 52)
+    TLV 0x11 optional  @65   u8 (valid u8 at 64)
+msg 0x21 resp max_len 37    c_size 32    (self msg 23)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+    TLV 0x11 optional  @5    u8 (valid u8 at 4)
+    TLV 0x12 optional  @12   struct sns_smgr_common#1[<=10] (len u32 at +8, wire len u8) (valid u8 at 6)
+msg 0x22 ind  max_len 1676  c_size 1676  (sns_smgr_common msg 0)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @8    struct sns_smgr_common#11[<=5] (len u32 at +4, wire len u8)
+    TLV 0x03 mandatory @72   struct sns_smgr_common#10[<=100] (len u32 at +68, wire len u8)
+    TLV 0x10 optional  @1673 u8 (valid u8 at 1672)
+msg 0x23 req  max_len 28    c_size 16    (self msg 24)
+    TLV 0x01 mandatory @0    u16
+    TLV 0x02 mandatory @2    u8
+    TLV 0x03 mandatory @3    u8
+    TLV 0x04 mandatory @4    u32[2]
+    TLV 0x10 optional  @13   u8 (valid u8 at 12)
+msg 0x23 resp max_len 14    c_size 8     (self msg 25)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @4    u16 (valid u8 at 2)
+    TLV 0x11 optional  @7    u8 (valid u8 at 6)
+msg 0x24 ind  max_len 1623  c_size 1616  (self msg 26)
+    TLV 0x01 mandatory @0    u16
+    TLV 0x02 mandatory @4    u32
+    TLV 0x03 mandatory @8    u32
+    TLV 0x04 mandatory @16   struct sns_smgr_common#10[<=100] (len u32 at +12, wire len u8)
+msg 0x25 ind  max_len 19    c_size 8     (self msg 27)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @2    u8
+    TLV 0x04 mandatory @4    u32
+msg 0x26 req  max_len 12    c_size 3     (self msg 28)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+    TLV 0x03 mandatory @2    u8
+msg 0x26 resp max_len 16    c_size 16    (self msg 29)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @8    u64 (valid u8 at 2)
+msg 0x27 req  max_len 7     c_size 4     (self msg 30)
+    TLV 0x01 mandatory @0    u32
+msg 0x27 resp max_len 5     c_size 2     (self msg 31)
+    TLV 0x02 mandatory @0    struct sns_common#0
+
+========================================================================
+SNS_REG2_SVC_qmi_idl_service_object_v02
+service 0x10f idl v2.48 (lib 6) max_msg_len 275, 7 req / 7 resp / 0 ind
+msg 0x00 req  max_len 0     c_size 1     (sns_common msg 0) no TLVs
+msg 0x00 resp max_len 5     c_size 2     (sns_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x01 req  max_len 0     c_size 1     (sns_common msg 2) no TLVs
+msg 0x01 resp max_len 17    c_size 12    (sns_common msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u16
+msg 0x02 req  max_len 5     c_size 2     (self msg 0)
+    TLV 0x01 mandatory @0    u16
+msg 0x02 resp max_len 22    c_size 16    (self msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @2    u16
+    TLV 0x04 mandatory @8    u8[<=8] (len u32 at +4, wire len u8)
+msg 0x03 req  max_len 17    c_size 16    (self msg 2)
+    TLV 0x01 mandatory @0    u16
+    TLV 0x02 mandatory @8    u8[<=8] (len u32 at +4, wire len u8)
+msg 0x03 resp max_len 5     c_size 2     (self msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x04 req  max_len 5     c_size 2     (self msg 4)
+    TLV 0x01 mandatory @0    u16
+msg 0x04 resp max_len 271   c_size 264   (self msg 5)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @2    u16
+    TLV 0x04 mandatory @8    u8[<=256] (len u32 at +4, wire len u16)
+msg 0x05 req  max_len 266   c_size 264   (self msg 6)
+    TLV 0x01 mandatory @0    u16
+    TLV 0x02 mandatory @8    u8[<=256] (len u32 at +4, wire len u16)
+msg 0x05 resp max_len 5     c_size 2     (self msg 7)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x06 req  max_len 275   c_size 272   (self msg 8)
+    TLV 0x01 mandatory @4    u8[<=256] (len u32 at +0, wire len u16)
+    TLV 0x10 optional  @262  u16 (valid u8 at 260)
+    TLV 0x11 optional  @266  u16 (valid u8 at 264)
+    TLV 0x12 optional  @269  u8 (valid u8 at 268)
+msg 0x06 resp max_len 271   c_size 268   (self msg 9)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @4    u16 (valid u8 at 2)
+    TLV 0x11 optional  @12   u8[<=256] (len u32 at +8, wire len u16) (valid u8 at 6)
+
+========================================================================
+SNS_TIME2_SVC_qmi_idl_service_object_v02
+service 0x118 idl v2.5 (lib 6) max_msg_len 48, 3 req / 3 resp / 1 ind
+msg 0x00 req  max_len 0     c_size 1     (sns_common msg 0) no TLVs
+msg 0x00 resp max_len 5     c_size 2     (sns_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x01 req  max_len 0     c_size 1     (sns_common msg 2) no TLVs
+msg 0x01 resp max_len 17    c_size 12    (sns_common msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u16
+msg 0x02 req  max_len 4     c_size 2     (self msg 0)
+    TLV 0x10 optional  @1    u8 (valid u8 at 0)
+msg 0x02 resp max_len 48    c_size 56    (self msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @4    u32 (valid u8 at 2)
+    TLV 0x11 optional  @16   u64 (valid u8 at 8)
+    TLV 0x12 optional  @28   u32 (valid u8 at 24)
+    TLV 0x13 optional  @36   u32 (valid u8 at 32)
+    TLV 0x14 optional  @48   u64 (valid u8 at 40)
+msg 0x03 ind  max_len 36    c_size 32    (self msg 2)
+    TLV 0x01 mandatory @0    u32
+    TLV 0x02 mandatory @8    u64
+    TLV 0x03 mandatory @16   u32
+    TLV 0x10 optional  @24   u64 (valid u8 at 20)
+
+========================================================================
+SNS_SAM_AMD_SVC_qmi_idl_service_object_v01
+service 0x104 idl v1.5 (lib 6) max_msg_len 86, 6 req / 6 resp / 2 ind
+msg 0x00 req  max_len 0     c_size 1     (sns_common msg 0) no TLVs
+msg 0x00 resp max_len 5     c_size 2     (sns_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x01 req  max_len 0     c_size 1     (sns_common msg 2) no TLVs
+msg 0x01 resp max_len 17    c_size 12    (sns_common msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u16
+msg 0x02 req  max_len 26    c_size 28    (sns_sam_qmd msg 0)
+    TLV 0x01 mandatory @0    u32
+    TLV 0x10 optional  @8    struct sns_sam_qmd#0 (valid u8 at 4)
+    TLV 0x11 optional  @20   struct sns_common#1 (valid u8 at 16)
+msg 0x02 resp max_len 9     c_size 3     (sns_sam_qmd msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @2    u8
+msg 0x03 req  max_len 4     c_size 1     (sns_sam_qmd msg 2)
+    TLV 0x01 mandatory @0    u8
+msg 0x03 resp max_len 9     c_size 3     (sns_sam_qmd msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @2    u8
+msg 0x04 req  max_len 4     c_size 1     (sns_sam_qmd msg 5)
+    TLV 0x01 mandatory @0    u8
+msg 0x04 resp max_len 23    c_size 12    (sns_sam_qmd msg 6)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @2    u8
+    TLV 0x04 mandatory @4    u32
+    TLV 0x05 mandatory @8    u32
+msg 0x05 ind  max_len 18    c_size 12    (sns_sam_qmd msg 4)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+    TLV 0x03 mandatory @8    u32
+msg 0x06 ind  max_len 8     c_size 2     (sns_sam_qmd msg 7)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+msg 0x24 req  max_len 0     c_size 1     (sns_sam_common msg 0) no TLVs
+msg 0x24 resp max_len 86    c_size 64    (sns_sam_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u32
+    TLV 0x05 mandatory @12   u32
+    TLV 0x06 mandatory @16   u32
+    TLV 0x07 mandatory @20   u32
+    TLV 0x08 mandatory @24   u32
+    TLV 0x09 mandatory @28   u32
+    TLV 0x0a mandatory @32   u32
+    TLV 0x0b mandatory @36   u32
+    TLV 0x10 optional  @48   u64 (valid u8 at 40)
+    TLV 0x11 optional  @60   u32 (valid u8 at 56)
+
+========================================================================
+SNS_SAM_TAP_SVC_qmi_idl_service_object_v01
+service 0x11a idl v1.4 (lib 6) max_msg_len 86, 6 req / 6 resp / 2 ind
+msg 0x00 req  max_len 0     c_size 1     (sns_common msg 0) no TLVs
+msg 0x00 resp max_len 5     c_size 2     (sns_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x01 req  max_len 0     c_size 1     (sns_common msg 2) no TLVs
+msg 0x01 resp max_len 17    c_size 12    (sns_common msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u16
+msg 0x02 req  max_len 29    c_size 32    (self msg 0)
+    TLV 0x01 mandatory @0    u32
+    TLV 0x10 optional  @8    u32 (valid u8 at 4)
+    TLV 0x11 optional  @16   u32 (valid u8 at 12)
+    TLV 0x12 optional  @24   struct sns_common#1 (valid u8 at 20)
+msg 0x02 resp max_len 9     c_size 4     (self msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x03 req  max_len 4     c_size 1     (self msg 2)
+    TLV 0x01 mandatory @0    u8
+msg 0x03 resp max_len 9     c_size 4     (self msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x04 req  max_len 4     c_size 1     (self msg 5)
+    TLV 0x01 mandatory @0    u8
+msg 0x04 resp max_len 23    c_size 20    (self msg 6)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+    TLV 0x11 optional  @8    u32 (valid u8 at 4)
+    TLV 0x12 optional  @16   u32 (valid u8 at 12)
+msg 0x05 ind  max_len 18    c_size 12    (self msg 4)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+    TLV 0x03 mandatory @8    u32
+msg 0x06 ind  max_len 8     c_size 2     (self msg 7)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+msg 0x24 req  max_len 0     c_size 1     (sns_sam_common msg 0) no TLVs
+msg 0x24 resp max_len 86    c_size 64    (sns_sam_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u32
+    TLV 0x05 mandatory @12   u32
+    TLV 0x06 mandatory @16   u32
+    TLV 0x07 mandatory @20   u32
+    TLV 0x08 mandatory @24   u32
+    TLV 0x09 mandatory @28   u32
+    TLV 0x0a mandatory @32   u32
+    TLV 0x0b mandatory @36   u32
+    TLV 0x10 optional  @48   u64 (valid u8 at 40)
+    TLV 0x11 optional  @60   u32 (valid u8 at 56)
+
+========================================================================
+Referenced structs
+
+struct sns_common#0 (c_size 2)
+    @0    u8
+    @1    u8
+struct sns_smgr_common#0 (c_size 20)
+    @0    u8
+    @1    u8
+    @2    u8
+    @3    u8
+    @4    u16
+    @6    u8
+    @7    u8
+    @8    u8
+    @9    u8
+    @10   u8
+    @12   u32[2]
+struct sns_common#1 (c_size 8)
+    @0    u32
+    @4    u8
+struct sns_smgr_common#1 (c_size 2)
+    @0    u8
+    @1    u8
+struct sns_smgr_common#2 (c_size 24)
+    @0    u8
+    @1    u8
+    @4    u32[3]
+    @16   u32
+    @20   u8
+    @21   u8
+    @22   u8
+struct sns_smgr_common#3 (c_size 24)
+    @0    u8
+    @8    u8[<=16] (len u32 at +4, wire len u8)
+struct sns_smgr_common#5 (c_size 400)
+    @4    struct sns_smgr_common#4[<=3] (len u32 at +0, wire len u8)
+struct sns_smgr_common#6 (c_size 204)
+    @4    u16[<=100] (len u32 at +0, wire len u8)
+struct sns_smgr_common#7 (c_size 9)
+    @0    u8
+    @1    u8
+    @2    u8
+    @3    u8
+    @4    u8
+    @5    u8
+    @6    u8
+    @7    u8
+    @8    u8
+struct sns_smgr_common#8 (c_size 16)
+    @0    u8
+    @1    u8
+    @4    u32
+    @8    u32
+    @12   u32
+struct sns_smgr_common#9 (c_size 8)
+    @0    u8
+    @1    u8
+    @2    u8
+    @3    u8
+    @4    u16
+    @6    u16
+struct sns_smgr_common#11 (c_size 12)
+    @0    u8
+    @1    u8
+    @2    u8
+    @3    u8
+    @4    u32
+    @8    u32
+struct sns_smgr_common#10 (c_size 16)
+    @0    u32[3]
+    @12   u16
+    @14   u8
+    @15   u8
+struct sns_sam_qmd#0 (c_size 8)
+    @0    u32
+    @4    u32
+struct sns_smgr_common#4 (c_size 132)
+    @0    u8
+    @1    u8
+    @8    u8[<=80] (len u32 at +4, wire len u8)
+    @92   u8[<=20] (len u32 at +88, wire len u8)
+    @112  u32
+    @116  u16
+    @118  u16
+    @120  u16
+    @124  u32
+    @128  u32

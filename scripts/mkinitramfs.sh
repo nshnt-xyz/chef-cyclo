@@ -6,8 +6,9 @@
 # feed nmea-broker, the button daemon buttond, the battery daemon powerd
 # and the ADSP bring-up +
 # speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
-# TAS2560 calibration-control writer) and the speaker-protection experiment
-# (afe-debug, spk-protect-probe, afe-topology-cal, tert-tx-hold) on top.
+# TAS2560 calibration-control writer), the speaker-protection experiment
+# (afe-debug, spk-protect-probe, afe-topology-cal, tert-tx-hold) and the
+# sensors bring-up (sensors-up, sensord and its registry map) on top.
 #
 # VARIANT=ride additionally lays the initramfs-ride/ overlay on top (the
 # unattended GPS ride logger, its inittab entries and the HTTP extraction
@@ -34,7 +35,8 @@ mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
 cp -a initramfs/. "$ROOT"/
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
-    "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe
+    "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
+    "$ROOT"/usr/bin/sensors-up
 if [ "$VARIANT" = ride ]; then
     for f in initramfs-ride/etc/inittab initramfs-ride/usr/bin/ride-logger \
              initramfs-ride/usr/share/ride/www/cgi-bin/index.cgi \
@@ -260,6 +262,47 @@ echo "built $ROOT/usr/bin/afe-topology-cal"
 "$MUSLCC" -Wall -Wextra -O2 -static \
     -o "$ROOT/usr/bin/tert-tx-hold" tools/tert-tx-hold.c
 echo "built $ROOT/usr/bin/tert-tx-hold"
+
+# Sensors (tools/sensord/sensord.c, docs/next-steps/sensors-plan.md):
+# sensord is the REG2 registry server + SMGR client behind
+# /run/sensord.sock, started by initramfs/usr/bin/sensors-up (manual
+# opt-in, not in inittab). Same transport/codec as servreg-locator.
+for f in tools/sensord/sensord.c tools/sensord/sns_msgs.c tools/sensord/sns_reg.c \
+         initramfs/usr/bin/sensors-up; do
+    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
+done
+"$MUSLCC" -Wall -Wextra -Wno-cpp -O2 -static $KHDR -I tools/sensord -I "$QRTR_DIR" -I tools \
+    -o "$ROOT/usr/bin/sensord" \
+    tools/sensord/sensord.c tools/sensord/sns_msgs.c tools/sensord/sns_reg.c \
+    "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" tools/msmipc.c
+echo "built $ROOT/usr/bin/sensord"
+
+# sensord's registry map: which sns.reg bytes are which REG2 item/group is
+# compiled into the stock sensors.qti, not stored in sns.reg. Extracted at
+# build time from the stock vendor image with debugfs (read-only, no
+# mount), like the Bluetooth firmware; vendor data, so never committed.
+# The registry contents themselves are read on the device from persist by
+# sensors-up. Any failure here (no vendor image, no debugfs/python3, a
+# vendor build whose tables sns-reg-map.py cannot find) only warns: the
+# image is built without a map and sensors-up/sensord refuse to start
+# (sensors are opt-in; nothing else depends on them).
+VENDOR_IMG=stock/partitions/vendor_a.img
+MAPTMP=$(mktemp -d)
+MAPOUT="$ROOT/usr/share/sensord/sns_reg.map"
+if [ -r "$VENDOR_IMG" ] && command -v debugfs >/dev/null 2>&1 && \
+   debugfs -R "dump /bin/sensors.qti $MAPTMP/sensors.qti" "$VENDOR_IMG" >/dev/null 2>&1 && \
+   [ -s "$MAPTMP/sensors.qti" ]; then
+    mkdir -p "$ROOT/usr/share/sensord"
+    if python3 tools/sns-reg-map.py "$MAPTMP/sensors.qti" > "$MAPTMP/sns_reg.map"; then
+        mv "$MAPTMP/sns_reg.map" "$MAPOUT"
+        echo "wrote $MAPOUT ($(grep -c '^item ' "$MAPOUT") items)"
+    else
+        echo "warning: sns-reg-map.py failed on $VENDOR_IMG's sensors.qti; image has no sensor registry map (sensors-up will refuse)" >&2
+    fi
+else
+    echo "warning: no sensors.qti from $VENDOR_IMG; image has no sensor registry map (sensors-up will refuse)" >&2
+fi
+rm -rf "$MAPTMP"
 
 # newc format, everything owned by root, reproducible ordering.
 ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \

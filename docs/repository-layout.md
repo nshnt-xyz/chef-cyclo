@@ -18,9 +18,11 @@ Paths below are relative to the repository root.
 | `tools/buttond.c` | [Button gesture daemon](features/buttons-and-power-off.md) and socket client. |
 | `tools/powerd.c` | [Battery daemon](features/battery-and-charging.md): low-battery/over-temperature shutdown, charge throttle, `/run/power` state and log, `powerd status`. |
 | `tools/rmtfs/` | BSD upstream port serving EFS with RAM-shadow writes. |
-| `tools/msmipc.{c,h}`, `tools/irsc.c`, `tools/qrtr/` | AF_MSM_IPC transport adapter, IRSC gate, and shared QMI support. |
+| `tools/msmipc.{c,h}`, `tools/irsc.c`, `tools/qrtr/` | AF_MSM_IPC transport adapter, IRSC gate, and shared QMI support (`qrtr/qmi.c` carries local decoder bounds checks). |
 | `tools/qmux.{c,h}`, `tools/qmuxd-lite.c` | libqmi/QMUX bridge to the modem. |
 | `tools/servreg-locator/` | Modem service-registry lookup server, QMI service 0x40 instance 0x101. |
+| `tools/sensord/`, `initramfs/usr/bin/sensors-up` | [On-board sensors](features/sensors.md): REG2 registry server (RAM copy of persist's `sns.reg`), ADSP SMGR client and `/run/sensord.sock` claim/release API; the bring-up script (persist `blockdev --setro`, copy, `audio-up` if needed). Host tests in `tools/sensord/tests/`. |
+| `tools/sns-idl-dump.py`, `tools/sns-reg-map.py` | Read-only decoders for the stock Sensors1 QMI IDL tables and for the `sns.reg` layout compiled into `sensors.qti` (run by `mkinitramfs.sh` to generate `/usr/share/sensord/sns_reg.map`). |
 | `tools/tftp/` | Bounded TFTP/RFS server; read-only firmware and RAM-shadow writable data. |
 | `tools/nmea-broker.c` | Checksum-filtered UDP feed to gpsd, optional logging/tee, initial GPS clock step. See [GPS](features/gps.md). |
 | `tools/wavtone.c` | Deterministic PCM WAV sine-tone generator for the speaker test. See [Audio](features/audio.md). |

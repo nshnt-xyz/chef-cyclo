@@ -1,0 +1,66 @@
+non-data lines: []
+== STEP 1: FLAT FACE UP on the table (10 s)
+  accel n= 374 mean x=  +0.070 y=  +0.009 z= +10.094 |v|=10.094
+  gyro  n= 450 mean x=  -0.039 y=  -0.008 z=  -0.019 |v|=0.044  peak |z|=0.88 int_z=-0.17 rad
+  magn  n= 149 mean x=  +0.072 y=  +0.489 z=  +0.199 |v|=0.533
+  lux: {'illuminance': 252}
+  prox: 
+== STEP 2: FLAT FACE DOWN on the table (10 s)
+  accel n= 375 mean x=  +0.501 y=  -0.151 z=  -9.503 |v|=9.517
+  gyro  n= 450 mean x=  +0.033 y=  -0.350 z=  -0.012 |v|=0.351  peak |z|=1.53 int_z=-0.10 rad
+  magn  n= 150 mean x=  +0.543 y=  +0.583 z=  +0.306 |v|=0.854
+  lux: {'illuminance': 10} {'illuminance': 0} {'illuminance': 0}
+  prox: {'near': 1, 'proximity': 762}
+== STEP 3: UPRIGHT portrait, top edge up, screen facing you (10 s)
+  accel n= 374 mean x=  -0.773 y=  +9.109 z=  +3.677 |v|=9.853
+  gyro  n= 450 mean x=  +0.040 y=  +0.113 z=  -0.125 |v|=0.174  peak |z|=3.67 int_z=-1.13 rad
+  magn  n= 150 mean x=  +0.100 y=  +0.244 z=  +0.225 |v|=0.347
+  lux: {'illuminance': 21} {'illuminance': 24} {'illuminance': 18} {'illuminance': 11} {'illuminance': 14} {'illuminance': 12}
+  prox: {'near': 0, 'proximity': 762}
+== STEP 4: LANDSCAPE, right edge down, screen facing you (10 s)
+  accel n= 375 mean x=  -5.502 y=  +0.052 z=  +3.439 |v|=6.488
+  gyro  n= 450 mean x=  +0.054 y=  +0.009 z=  -0.170 |v|=0.179  peak |z|=6.03 int_z=-1.53 rad
+  magn  n= 150 mean x=  +0.324 y=  +0.036 z=  +0.191 |v|=0.378
+  lux: {'illuminance': 6} {'illuminance': 15} {'illuminance': 16} {'illuminance': 42} {'illuminance': 10} {'illuminance': 4} {'illuminance': 6} {'illuminance': 5}
+  prox: {'near': 1, 'proximity': 762} {'near': 0, 'proximity': 762} {'near': 1, 'proximity': 762}
+== STEP 5: FLAT FACE UP, slowly spin one full turn on the table (15 s)
+  accel n= 626 mean x=  -1.749 y=  +1.278 z=  +8.619 |v|=8.887
+  gyro  n= 701 mean x=  -0.044 y=  -0.069 z=  -0.334 |v|=0.343  peak |z|=4.12 int_z=-4.68 rad
+  magn  n= 250 mean x=  -0.043 y=  +0.004 z=  +0.069 |v|=0.081
+  lux: {'illuminance': 9} {'illuminance': 269} {'illuminance': 286} {'illuminance': 18} {'illuminance': 30} {'illuminance': 295} {'illuminance': 321} {'illuminance': 247}
+  prox: {'near': 0, 'proximity': 748}
+== STEP 6: FLAT FACE UP, cover the top of the screen with your hand (6 s)
+  accel n= 175 mean x=  -0.704 y=  +2.954 z=  +9.601 |v|=10.070
+  gyro  n= 250 mean x=  -0.005 y=  -0.001 z=  -0.022 |v|=0.023  peak |z|=0.33 int_z=-0.11 rad
+  magn  n=  70 mean x=  -0.322 y=  -0.010 z=  -0.010 |v|=0.323
+  lux: {'illuminance': 13} {'illuminance': 0}
+  prox: {'near': 1, 'proximity': 748}
+== STEP 7: remove your hand, leave it face up (6 s)
+  accel n= 175 mean x=  +0.063 y=  +2.788 z=  +9.678 |v|=10.071
+  gyro  n= 250 mean x=  +0.007 y=  +0.001 z=  +0.028 |v|=0.029  peak |z|=0.36 int_z=+0.14 rad
+  magn  n=  70 mean x=  -0.317 y=  -0.020 z=  +0.004 |v|=0.318
+  lux: {'illuminance': 274} {'illuminance': 305}
+  prox: {'near': 0, 'proximity': 748}
+accel: n=3595 mean dt 20.00 ms max 39.9 ms nonmono 0
+gyro: n=3595 mean dt 20.00 ms max 39.9 ms nonmono 0
+magn: n=1439 mean dt 50.02 ms max 100.0 ms nonmono 0
+spin: magn heading swept +559 deg (min..max span 567), |B| mean 0.344 gauss
+lux all: [17, 16, 18, 28, 21, 246, 326, 252, 10, 0, 0, 21, 24, 18, 11, 14, 12, 6, 15, 16, 42, 10, 4, 6, 5, 9, 269, 286, 18, 30, 295, 321, 247, 319, 66, 287, 314, 264, 315, 292, 319, 13, 0, 274, 305]
+prox all: [{'sensor': 'proximity', 't': 761619508881, 'near': 0, 'proximity': 762}, {'sensor': 'proximity', 't': 778954557493, 'near': 1, 'proximity': 762}, {'sensor': 'proximity', 't': 786946942618, 'near': 0, 'proximity': 762}, {'sensor': 'proximity', 't': 800523322033, 'near': 1, 'proximity': 762}, {'sensor': 'proximity', 't': 801399169996, 'near': 0, 'proximity': 762}, {'sensor': 'proximity', 't': 805778570738, 'near': 1, 'proximity': 762}, {'sensor': 'proximity', 't': 810486209731, 'near': 0, 'proximity': 748}, {'sensor': 'proximity', 't': 826407222168, 'near': 1, 'proximity': 748}, {'sensor': 'proximity', 't': 829198632029, 'near': 0, 'proximity': 748}]
+step5 window 15.0s: gyro z integral -269 deg; magn hard-iron centre x=+0.007 y=-0.030 G, horizontal field r=0.319 G; offset-corrected magn heading sweep +548 deg
+step1->2: accel says gravity moved 179 deg; gyro total rotation 179 deg; gyro-predicted gravity vs measured err 0 deg
+step2->3: accel says gravity moved 113 deg; gyro total rotation 151 deg; gyro-predicted gravity vs measured err 2 deg
+step3->4: accel says gravity moved 82 deg; gyro total rotation 97 deg; gyro-predicted gravity vs measured err 9 deg
+magn during spin: z mean 0.082 std 0.103; x range -0.335..0.361; y range -0.351..0.345
+horizontal |B| min 0.121 max 0.374
+t+ 0.0s gyro dpsi     +1  magn dhead     -1  mxy=(+0.36,-0.10) z=+0.18
+t+ 1.5s gyro dpsi     +1  magn dhead     -1  mxy=(+0.33,-0.10) z=+0.17
+t+ 3.0s gyro dpsi    +35  magn dhead    +61  mxy=(+0.32,-0.10) z=+0.18
+t+ 4.5s gyro dpsi    +51  magn dhead    +18  mxy=(+0.10,+0.11) z=+0.27
+t+ 6.0s gyro dpsi    -29  magn dhead   +137  mxy=(+0.11,+0.23) z=+0.26
+t+ 7.5s gyro dpsi   -111  magn dhead   +100  mxy=(-0.28,-0.14) z=+0.05
+t+ 9.0s gyro dpsi   -102  magn dhead   +116  mxy=(+0.25,-0.25) z=+0.02
+t+10.5s gyro dpsi   -111  magn dhead   +112  mxy=(+0.10,+0.33) z=-0.03
+t+12.0s gyro dpsi     -4  magn dhead     -1  mxy=(-0.31,-0.03) z=+0.01
+t+13.5s gyro dpsi     -0  magn dhead     -3  mxy=(-0.32,-0.03) z=-0.01
+accel during spin mean [-2.7  1.1  7.9] std [4.14 2.12 2.93]

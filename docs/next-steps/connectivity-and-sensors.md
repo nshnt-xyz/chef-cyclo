@@ -35,6 +35,8 @@ ADSP bring-up, the ALSA card and mmap tone playback through the TAS2560 loudspea
 
 After a ride, upload the recording ([bike-computer application](ui-and-ride-app.md#bike-computer-application)) from the phone itself over [Wi-Fi](#wi-fi): Strava's v3 API takes a FIT/GPX/TCX file at `POST /api/v3/uploads` with an OAuth2 token, so we need our own API application (client id/secret), a one-time browser authorisation done on the host, and the refresh token kept on writable storage ([persistent storage](storage-and-boot.md#persistent-storage)). Queue uploads while offline and flush when associated; show the result (activity id/URL) on the panel. Fallback plan: pull a finished GPX/FIT recording over USB/HTTP and upload from the host. USB/HTTP extraction is already verified for raw GPS logs; a Strava-ready recording/exporter remains to be built.
 
-## SLPI sensors
+<a id="slpi-sensors"></a>
 
-Accelerometer/gyro/magnetometer/ALS/proximity sit behind the sensor DSP (SLPI/SSC) — another subsystem bring-up like the modem (PIL, firmware, its own QMI services). Would give wake-on-tap, a compass for the map, and auto-brightness. Not before the app works without them.
+## On-board sensors
+
+Accelerometer, gyroscope, magnetometer, ambient light and proximity work through `sensord` (live-verified 2026-09-26; there is no SLPI on SDM636, the sensor core runs inside the ADSP). How to use them: [On-board sensors](../features/sensors.md). Remaining work (wake-on-motion/tap through the DSP algorithms, a tilt-compensated compass after a magnetometer calibration check, ALS backlight policy, inittab plus a power measurement, an optional iio-sensor-proxy D-Bus facade): [Sensors plan](sensors-plan.md#remaining-work).

@@ -1,0 +1,261 @@
+#!/bin/sh
+# Bring up the on-board sensors: copy the sensors registry (sns.reg) out
+# of the persist partition into RAM, start sensord (which serves that copy
+# to the ADSP as QMI REG2 and is the SMGR client behind
+# /run/sensord.sock), boot the ADSP through audio-up if nothing has yet,
+# and wait for the ADSP's sensor manager (QMI service 0x100) to register.
+# See tools/sensord/sensord.c and docs/next-steps/sensors-plan.md.
+#
+# persist is device-unique and irreplaceable (factory calibration, the
+# registry itself). Before mounting it, this script marks the block
+# device itself read-only (blockdev --setro) and refuses to go on unless
+# --getro reads back 1: a mount -o ro,noload alone is not enough, because
+# ext4 still runs orphan cleanup on a read-only mount and writes the
+# device if the superblock has an orphan list (kernel/fs/ext4/super.c
+# ext4_orphan_cleanup(): it only skips when bdev_read_only()). The flag is
+# never cleared; nothing on this image writes persist. Then it mounts
+# ro,noload (noload is still needed: a read-only device with a journal to
+# replay fails to mount without it), copies the one file, and unmounts
+# before doing anything else. If persist is already mounted somewhere, it
+# copies from there and leaves that mount alone. sensord gets the copy under /run and never writes even
+# that (DSP registry writes stay in its RAM).
+#
+# Order: sensord's REG2 server is published *before* the ADSP boots, the
+# way stock's sensors.qti (class core) is up before the sensor PD reads
+# its configuration. If the ADSP is already up (audio-up ran first), the
+# registry comes late; sensord does not mind, and whether SMGR still
+# registers in that order is one of the things the first live run shows.
+# audio-up is reused unchanged for the ADSP boot (either order works: it
+# is skipped when the ADSP is already ONLINE or audio-up is running).
+#
+# Manual opt-in only (not in inittab), like audio-up/gps-up: run it from
+# the telnet shell as `setsid sensors-up &`. It stays resident to
+# supervise sensord; TERM stops sensord only (the ADSP stays up, as with
+# audio-up, and an audio-up this script started keeps running).
+set -u
+
+LOCK=/run/sensors-up.lock
+SENSORD_PID=
+AUDIO_PID=
+PERSIST_MOUNTED=0
+
+# Overridable for tools/sensord/tests/test_sensors-up.sh; unset in
+# production. SENSORD_ARGS is passed through (e.g. "-v -t" or "-P").
+SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
+PROC_MOUNTS=${PROC_MOUNTS:-/proc/mounts}
+DUMP_SERVERS=${DUMP_SERVERS:-/sys/kernel/debug/msm_ipc_router/dump_servers}
+SUBSYS_DIR=${SUBSYS_DIR:-/sys/bus/msm_subsys/devices}
+RUN_DIR=${RUN_DIR:-/run/sensors}
+PERSIST_MNT=${PERSIST_MNT:-$RUN_DIR/persist-ro}
+PERSIST_FSTYPE=${PERSIST_FSTYPE:-ext4}
+REG_PATH_IN_PERSIST=${REG_PATH_IN_PERSIST:-sensors/sns.reg}
+REG_MAP=${REG_MAP:-/usr/share/sensord/sns_reg.map}
+AUDIO_UP=${AUDIO_UP:-audio-up}
+AUDIO_LOCK=${AUDIO_LOCK:-/run/audio-up.lock}
+SENSORD=${SENSORD:-sensord}
+SENSORD_ARGS=${SENSORD_ARGS:--v}
+SMGR_WAIT=${SMGR_WAIT:-120}	# 0.5 s steps: 60 s
+REG_COPY="$RUN_DIR/sns.reg"
+
+# part() is audio-up's (itself copied from gps-up); keep in sync by hand.
+part() {
+	for u in "$SYSFS_BLOCK"/*/uevent; do
+		grep -q "^PARTNAME=$1\$" "$u" 2>/dev/null && { basename "$(dirname "$u")"; return; }
+	done
+}
+
+server_present() {
+	# Same dump_servers column format as audio-up/gps-up (0x%08x, lower
+	# case, so "10f" matches 0x0000010f).
+	grep -Eq "^0x0*$1[[:space:]]*[|]" "$DUMP_SERVERS" 2>/dev/null
+}
+
+find_subsys() {
+	for s in "$SUBSYS_DIR"/subsys*; do
+		[ -r "$s/name" ] || continue
+		[ "$(cat "$s/name" 2>/dev/null)" = "$1" ] || continue
+		echo "$s"
+		return 0
+	done
+	return 1
+}
+
+adsp_online() {
+	s=$(find_subsys adsp) || return 1
+	[ "$(cat "$s/state" 2>/dev/null)" = ONLINE ]
+}
+
+# Where persist is mounted already (first match in /proc/mounts), if at all.
+persist_mountpoint() {
+	awk -v dev="/dev/$1" '$1 == dev { print $2; exit }' "$PROC_MOUNTS" 2>/dev/null
+}
+
+# Byte size the registry map expects ("size N" line).
+map_size() {
+	awk '$1 == "size" { print $2; exit }' "$REG_MAP" 2>/dev/null
+}
+
+file_size() {
+	wc -c < "$1" 2>/dev/null | tr -d ' '
+}
+
+# Copy sns.reg from persist to $REG_COPY. persist is only ever mounted
+# read-only, noload, and unmounted before this returns.
+copy_registry() {
+	persist=$(part persist)
+	[ -n "$persist" ] || { log "persist partition not found"; return 1; }
+	want=$(map_size)
+	[ -n "$want" ] || { log "registry map $REG_MAP missing or has no size line"; return 1; }
+	mkdir -p "$RUN_DIR"
+	rm -f "$REG_COPY.tmp"
+	src_mnt=$(persist_mountpoint "$persist")
+	if [ -n "$src_mnt" ]; then
+		log "persist already mounted at $src_mnt; copying from there, leaving it mounted"
+		cp "$src_mnt/$REG_PATH_IN_PERSIST" "$REG_COPY.tmp" || { log "copy from $src_mnt failed"; return 1; }
+	else
+		blockdev --setro "/dev/$persist" || { log "blockdev --setro /dev/$persist failed; not mounting"; return 1; }
+		ro=$(blockdev --getro "/dev/$persist" 2>/dev/null)
+		if [ "$ro" != 1 ]; then
+			log "/dev/$persist is not read-only after setro (getro=${ro:-?}); not mounting"
+			return 1
+		fi
+		log "/dev/$persist set read-only at the block layer (blockdev --getro = 1)"
+		mkdir -p "$PERSIST_MNT"
+		mount -t "$PERSIST_FSTYPE" -o ro,noload "/dev/$persist" "$PERSIST_MNT" || {
+			log "read-only mount of /dev/$persist failed"
+			return 1
+		}
+		PERSIST_MOUNTED=1
+		cp "$PERSIST_MNT/$REG_PATH_IN_PERSIST" "$REG_COPY.tmp"
+		rc=$?
+		umount "$PERSIST_MNT" && PERSIST_MOUNTED=0
+		if [ "$PERSIST_MOUNTED" -ne 0 ]; then
+			log "could not unmount persist from $PERSIST_MNT; refusing to continue"
+			return 1
+		fi
+		rmdir "$PERSIST_MNT" 2>/dev/null
+		[ "$rc" -eq 0 ] || { log "copy of $REG_PATH_IN_PERSIST from persist failed"; return 1; }
+	fi
+	got=$(file_size "$REG_COPY.tmp")
+	if [ "$got" != "$want" ]; then
+		log "sns.reg is ${got:-?} bytes, the map expects $want; not starting sensord"
+		rm -f "$REG_COPY.tmp"
+		return 1
+	fi
+	chmod 0400 "$REG_COPY.tmp"
+	mv -f "$REG_COPY.tmp" "$REG_COPY"
+	log "registry copied to $REG_COPY ($got bytes; persist untouched)"
+}
+
+# wait_for <predicate...>: 0.5 s steps up to $LIMIT, failing early if
+# sensord has died.
+wait_for() {
+	i=0
+	while ! "$@"; do
+		if [ -n "$SENSORD_PID" ] && ! kill -0 "$SENSORD_PID" 2>/dev/null; then
+			log "sensord exited while waiting"
+			return 1
+		fi
+		[ "$i" -lt "$LIMIT" ] || return 1
+		sleep 0.5
+		i=$((i + 1))
+	done
+}
+
+uptime_s() {
+	cut -d ' ' -f 1 /proc/uptime 2>/dev/null || echo 0
+}
+
+elapsed_s() {
+	awk -v t0="$1" -v t1="$(uptime_s)" 'BEGIN { printf "%.2f", t1 - t0 }'
+}
+
+child_running() {
+	[ -r "/proc/$1/stat" ] || return 1
+	awk '{ exit ($3 == "Z") }' "/proc/$1/stat"
+}
+
+log() {
+	[ -w /dev/kmsg ] && echo "sensors-up: $*" > /dev/kmsg 2>/dev/null
+	echo "sensors-up: $*"
+}
+
+dump_diagnostics() {
+	command -v dmesg >/dev/null 2>&1 || return
+	dmesg 2>/dev/null | grep -Ei 'adsp|sensor|ssc|smgr|subsys|pil|servloc|sysmon' | tail -n 40 \
+		| while IFS= read -r line; do log "dmesg: $line"; done
+}
+
+cleanup() {
+	status=$?
+	trap - EXIT HUP INT TERM
+	[ -n "$SENSORD_PID" ] && kill "$SENSORD_PID" 2>/dev/null
+	[ -n "$SENSORD_PID" ] && wait "$SENSORD_PID" 2>/dev/null
+	# Only reachable between mount and umount if cp itself was killed.
+	[ "$PERSIST_MOUNTED" -eq 1 ] && umount "$PERSIST_MNT" 2>/dev/null
+	rm -f "$REG_COPY.tmp"
+	rmdir "$LOCK" 2>/dev/null
+	exit "$status"
+}
+
+[ "${SENSORS_UP_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
+
+if ! mkdir "$LOCK" 2>/dev/null; then
+	log "already running (or stale $LOCK remains)"
+	exit 1
+fi
+trap cleanup EXIT HUP INT TERM
+
+mkdir -p /sys/kernel/debug
+mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
+[ -r "$DUMP_SERVERS" ] || { log "IPC-router debugfs dump_servers is unavailable"; exit 1; }
+
+case " $SENSORD_ARGS " in
+*" -R "*) NO_REG2=1; log "SENSORD_ARGS has -R: not copying or serving the registry" ;;
+*) NO_REG2=0; copy_registry || exit 1 ;;
+esac
+
+if ! irsc; then
+	log "irsc failed; refusing to start clients that could block in IPC router security"
+	exit 1
+fi
+
+# shellcheck disable=SC2086 # SENSORD_ARGS is a flag list
+"$SENSORD" $SENSORD_ARGS -r "$REG_COPY" -m "$REG_MAP" &
+SENSORD_PID=$!
+if [ "$NO_REG2" -eq 0 ]; then
+	LIMIT=20
+	wait_for server_present 10f || { log "sensord did not publish REG2 (0x10f)"; exit 1; }
+	log "REG2 (0x10f) served by sensord pid $SENSORD_PID"
+fi
+
+if adsp_online; then
+	log "adsp already ONLINE; its sensor PD read (or will read) the registry late"
+elif [ -d "$AUDIO_LOCK" ]; then
+	log "audio-up is running; waiting for it to bring the adsp up"
+else
+	log "starting $AUDIO_UP to boot the adsp"
+	"$AUDIO_UP" &
+	AUDIO_PID=$!
+fi
+
+T0=$(uptime_s)
+LIMIT=$SMGR_WAIT
+if wait_for server_present 100; then
+	log "SMGR (0x100) registered $(elapsed_s "$T0")s after the adsp check"
+else
+	log "SMGR (0x100) not registered after $((SMGR_WAIT / 2)) s; sensord keeps polling"
+	dump_diagnostics
+fi
+
+log "supervising sensord pid $SENSORD_PID${AUDIO_PID:+ (audio-up pid $AUDIO_PID left running)}"
+while :; do
+	if ! child_running "$SENSORD_PID"; then
+		wait "$SENSORD_PID" 2>/dev/null
+		rc=$?
+		SENSORD_PID=
+		log "sensord exited ($rc)"
+		exit 1
+	fi
+	sleep 1
+done

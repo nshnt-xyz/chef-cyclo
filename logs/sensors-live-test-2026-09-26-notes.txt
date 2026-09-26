@@ -1,0 +1,63 @@
+# sensord live test, 2026-09-26 (fastboot boot, nothing flashed)
+Image: out/boot.img 23426ea2... booted; sensord replaced in place by the lookup-fixed build 3c66f275... (image 9be00201... contains it). Kernel 4.4.192-cyclo+ #15 (QPTS perf config).
+Host evidence dir: ~/chef-cyclo-evidence/sensors-live-20260926T141411Z (pull-guided.tgz, pull-final.tgz, session transcripts).
+
+## Baseline
+/sys/block/mmcblk0/mmcblk0p38/uevent
+ 259       6 mmcblk0p38 0 0 0 0 0 0 0 0 0 0 0
+0
+
+## S0 audio-up only (no REG2)
+ADSP ONLINE, card up 1.01 s after boot_adsp. Sensor-range services for 70 s: 5 (0x107, 0x108, 0x118 inst 0xa02, 0x132, 0x164); SMGR 0x100 never registered. No SSR.
+
+## S1 sensors-up (REG2 late, ADSP already up)
+sensors-up: /dev/mmcblk0p38 set read-only at the block layer (blockdev --getro = 1)
+sensors-up: registry copied to /run/sensors/sns.reg (27426 bytes; persist untouched)
+sensord: registry /run/sensors/sns.reg loaded: 27426 bytes, 108 groups, 2561 items (RAM copy; DSP writes stay in RAM)
+sensord: serving service 0x10f inst 0x0002
+sensord: reg2: group write 20 from 5:83 (RAM only) (126 bytes): 01 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00 00 00 5c 00 01 00 e0 fe ff ff 0d 01 00 00 e0 fe ff ff ec 00 01 00 69 ff ff ff 0d 01 00 00 69 ff ...
+[  114.949146,0] sensors-up: /dev/mmcblk0p38 set read-only at the block layer (blockdev --getro = 1)
+[  115.002805,0] sensors-up: registry copied to /run/sensors/sns.reg (27426 bytes; persist untouched)
+[  115.008487,1] sensord: registry /run/sensors/sns.reg loaded: 27426 bytes, 108 groups, 2561 items (RAM copy; DSP writes stay in RAM)
+[  115.009196,2] sensord: serving service 0x10f inst 0x0002
+[  115.191988,2] sensord: reg2: group write 20 from 5:83 (RAM only) (126 bytes): 01 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00 00 00 5c 00 01 00 e0 fe ff ff 0d 01 00 00 e0 fe ff ff ec 00 01 00 69 ff ff ff 0d 01 00 00 69 ff ...
+[  115.508345,0] sensors-up: REG2 (0x10f) served by sensord pid 1025
+[  115.513616,0] sensors-up: adsp already ONLINE; its sensor PD read (or will read) the registry late
+DSP read 75 groups + 1 item within ~0.5 s; SMGR 0x100 inst 0x3201 registered; sensor services 5 -> 50. TIME2 apps server not needed.
+BUG found live: sensord looked up 0x100 with instance 0x3201 + lookup_mask 0, which on this kernel (ipc_router_core.c:3648) only matches instance 0. Fixed (lookup instance 0, filter 0x3201), fake_ipc now emulates the kernel rule.
+
+## S1 retry with fixed sensord
+sensord: lookup 0x100 (all instances): 0x3201@5:87
+sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+
+## S2 at rest (phone propped)
+{"sensor":"accel","t":667817617363,"x":8.42253,"y":0.173035,"z":5.33611}
+{"sensor":"accel","t":667837518195,"x":8.41057,"y":0.180222,"z":5.29539}
+{"sensor":"accel","t":667857376004,"x":8.39619,"y":0.185013,"z":5.35046}
+{"sensor":"accel","t":672814085824,"x":8.40578,"y":0.189804,"z":5.33371}
+250 samples, mean dt ms 20.0661 max dt ms 39.667 non-monotonic 0
+|a| 9.97 m/s^2; mean dt 20.07 ms; last t within 16 ms of /proc/uptime.
+
+## S3 guided run (see guided-analysis.txt)
+Face up z=+10.09, face down z=-9.50, portrait y=+9.11, landscape right-edge-down x negative. Gyro quaternion integration predicts measured gravity within 0-2 deg (face up->down 179 vs 179 deg). Clean part of the flat spin: gyro -111/-102/-111 deg vs magn heading +100/+116/+112 deg per 1.5 s. Lux ~250-320 room, 0 covered/face down. Proximity near=1 face down/covered, 0 otherwise; raw proximity field constant (762/748). Timing: accel/gyro 3595 samples mean 20.00 ms, magn 50.02 ms, 0 non-monotonic, max gap 2 periods.
+
+## S4 idle
+All rates 0; sensord CPU ticks over 60 s idle: 0; every add report has a matching delete; SMGR still registered.
+
+## S5 restart + audio coexistence
+sensord TERM -> 'sensord exited (0)', sensors-up re-copied the registry (setro again) and reached smgr ready. 1500 accel samples at 50 Hz during speaker-test-tone: max gap 39.7 ms, 0 non-monotonic; tone rc 0; subsystem states unchanged, no SSR.
+
+## persist no-write proof
+mmcblk0p38 diskstats at start: all 0; after S1: 15 reads 0 writes; final: 24 reads, 0 writes. blockdev --getro = 1 before each mount; not mounted at the end.
+Stock after reboot: sns.reg sha256 f6fa3236... identical to the pre-session stock read; 44 stock sensors running.
+
+## Open
+- Magnetometer z does not flip face up (+0.20 G) vs face down (+0.31 G): possible z offset / calibration state (SMGR 'calibration 0' = full cal?); needs a calibration check before a tilt-compensated compass.
+- REG2 0x06 never seen; TIME2 apps server never needed; timestamps via /dev/sensors matched uptime.

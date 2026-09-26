@@ -27,9 +27,21 @@
  * OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/* Vendored unchanged from https://github.com/linux-msm/qrtr (lib/qmi.c):
+/* Vendored from https://github.com/linux-msm/qrtr (lib/qmi.c):
  * transport-independent QMI TLV encode/decode, works on any struct
- * qrtr_packet regardless of the socket family beneath it. */
+ * qrtr_packet regardless of the socket family beneath it.
+ *
+ * Local changes (chef-cyclo), both in the decode path only:
+ *  - bounds checks: qmi_decode() rejects a TLV header or a TLV length
+ *    that runs past the input, a count prefix that does not fit, and an
+ *    element count whose bytes do not fit in the TLV/remaining input;
+ *    the string decoder checks its length prefix too, and an array of
+ *    structs must hold as many elements as its count says at every
+ *    nesting level (upstream checked that only below the top). Upstream trusted
+ *    peers for all of these and over-read on malformed input (found by
+ *    ASan against sensord's REG2/SMGR decoders, see
+ *    tools/sensord/tests/test_sns_msgs.c's truncation cases).
+ *  - loop counters made unsigned (-Wsign-compare under -Wextra). */
 #include <errno.h>
 #include <libqrtr.h>
 #include <stdint.h>
@@ -242,7 +254,8 @@ static int qmi_encode_struct_elem(struct qmi_elem_info *ei_array,
 				  uint32_t elem_len, uint32_t out_buf_len,
 				  int enc_level)
 {
-	int i, rc, encoded_bytes = 0;
+	uint32_t i;
+	int rc, encoded_bytes = 0;
 	struct qmi_elem_info *temp_ei = ei_array;
 
 	for (i = 0; i < elem_len; i++) {
@@ -517,7 +530,8 @@ static int qmi_decode_struct_elem(struct qmi_elem_info *ei_array,
 				  uint32_t elem_len, uint32_t tlv_len,
 				  int dec_level)
 {
-	int i, rc, decoded_bytes = 0;
+	uint32_t i, decoded_bytes = 0;
+	int rc;
 	struct qmi_elem_info *temp_ei = ei_array;
 
 	for (i = 0; i < elem_len && decoded_bytes < tlv_len; i++) {
@@ -530,15 +544,16 @@ static int qmi_decode_struct_elem(struct qmi_elem_info *ei_array,
 		decoded_bytes += rc;
 	}
 
-	if ((dec_level <= 2 && decoded_bytes != tlv_len) ||
-	    (dec_level > 2 && (i < elem_len || decoded_bytes > tlv_len))) {
-		LOGW("%s: Fault in decoding: dl(%d), db(%d), tl(%u), i(%d), el(%u)\n",
+	if (i < elem_len ||
+	    (dec_level <= 2 && decoded_bytes != tlv_len) ||
+	    (dec_level > 2 && decoded_bytes > tlv_len)) {
+		LOGW("%s: Fault in decoding: dl(%d), db(%u), tl(%u), i(%u), el(%u)\n",
 		     __func__, dec_level, decoded_bytes, tlv_len,
 		     i, elem_len);
 		return -EFAULT;
 	}
 
-	return decoded_bytes;
+	return (int)decoded_bytes;
 }
 
 /**
@@ -573,9 +588,12 @@ static int qmi_decode_string_elem(struct qmi_elem_info *ei_array,
 	} else {
 		string_len_sz = temp_ei->elem_len <= 256 ?
 				sizeof(uint8_t) : sizeof(uint16_t);
+		if (tlv_len < string_len_sz)
+			return -EFAULT;
 		rc = qmi_decode_basic_elem(&string_len, buf_src,
 					   1, string_len_sz);
 		decoded_bytes += rc;
+		tlv_len -= string_len_sz;
 	}
 
 	if (string_len > temp_ei->elem_len) {
@@ -654,11 +672,20 @@ static int qmi_decode(struct qmi_elem_info *ei_array, void *out_c_struct,
 			return decoded_bytes;
 
 		if (dec_level == 1) {
+			if (in_buf_len - decoded_bytes < TLV_TYPE_SIZE + TLV_LEN_SIZE) {
+				LOGW("%s: Truncated TLV header\n", __func__);
+				return -EINVAL;
+			}
 			tlv_pointer = buf_src;
 			QMI_ENCDEC_DECODE_TLV(&tlv_type,
 					      &tlv_len, tlv_pointer);
 			buf_src = (void*)((char*)buf_src + (TLV_TYPE_SIZE + TLV_LEN_SIZE));
 			decoded_bytes += (TLV_TYPE_SIZE + TLV_LEN_SIZE);
+			if (tlv_len > in_buf_len - decoded_bytes) {
+				LOGW("%s: TLV 0x%x length %u past the input\n",
+				     __func__, tlv_type, tlv_len);
+				return -EINVAL;
+			}
 			temp_ei = find_ei(ei_array, tlv_type);
 			if (!temp_ei && tlv_type < OPTIONAL_TLV_TYPE_START) {
 				LOGW("%s: Inval element info\n", __func__);
@@ -686,6 +713,11 @@ static int qmi_decode(struct qmi_elem_info *ei_array, void *out_c_struct,
 		if (temp_ei->data_type == QMI_DATA_LEN) {
 			data_len_sz = temp_ei->elem_size == sizeof(uint8_t) ?
 					sizeof(uint8_t) : sizeof(uint16_t);
+			if (tlv_len < data_len_sz) {
+				LOGW("%s: Truncated array count\n", __func__);
+				return -EINVAL;
+			}
+			data_len_value = 0;
 			rc = qmi_decode_basic_elem(&data_len_value, buf_src,
 						   1, data_len_sz);
 			memcpy(buf_dst, &data_len_value, sizeof(uint32_t));
@@ -713,6 +745,11 @@ static int qmi_decode(struct qmi_elem_info *ei_array, void *out_c_struct,
 		case QMI_SIGNED_1_BYTE_ENUM:
 		case QMI_SIGNED_2_BYTE_ENUM:
 		case QMI_SIGNED_4_BYTE_ENUM:
+			if ((uint64_t)data_len_value * temp_ei->elem_size > tlv_len) {
+				LOGW("%s: %u elements of %u bytes past the input\n",
+				     __func__, data_len_value, temp_ei->elem_size);
+				return -EINVAL;
+			}
 			rc = qmi_decode_basic_elem(buf_dst, buf_src,
 						   data_len_value,
 						   temp_ei->elem_size);

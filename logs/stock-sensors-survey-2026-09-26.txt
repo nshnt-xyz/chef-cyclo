@@ -1,0 +1,548 @@
+# Stock sensor survey, 2026-09-26 (rooted stock Android, read-only; adb + Magisk su via base64 pipe)
+
+## Processes
+sensors.qti (pid 1197, system), android.hardware.sensors@1.0-service, vendor.qti.hardware.sensorscalibrate@1.0-service, pd-mapper, 2x adsprpcd (media).
+sscrpcd (vendor.sensors) NOT running. /dev/msm_dsps absent; /dev/sensors present (crw-rw---- system system 230,0 = sensors_ssc.c DSPS slow-timer ioctl only).
+props: ro.hardware.sensors=chef_sprout, init.svc.vendor.sensors.qti=running, init.svc.vendor-sensor-sh=stopped
+
+## /mnt/vendor/persist/sensors (persist = /dev/block/mmcblk0p38)
+sensors_settings = '1'; registry/registry/ empty; sns.reg 27426 bytes, mode 0700 system, mtime 2026-09-26 18:54 (rewritten at runtime).
+live sns.reg sha256 a7c415930101f67a47543d98e02a13dd7b0c79c98d9424a6309f8f28d2eea339
+backup (stock/partitions/persist.img) sns.reg sha256 bdb861df93467094755cbba1e42ac07f481ae25bdf2cacc03098bad8ffcde27c
+cmp: only bytes 0x700..0x70b differ (three 32-bit words, runtime calibration).
+
+## QMI servers (msm_ipc_router/dump_servers, sensor-related rows; node 1 = apps, 5 = ADSP, 0 = modem)
+svc 0x040 inst 0x0101 node 1 port 0x34
+svc 0x100 inst 0x3201 node 5 port 0x59
+svc 0x140 inst 0x3201 node 5 port 0x70
+svc 0x120 inst 0x3201 node 5 port 0x8b
+svc 0x141 inst 0x3201 node 5 port 0x71
+svc 0x042 inst 0x4a01 node 5 port 0x3
+svc 0x042 inst 0xb401 node 0 port 0x1
+svc 0x164 inst 0x3201 node 5 port 0x30
+svc 0x104 inst 0x3201 node 5 port 0x5e
+svc 0x105 inst 0x3201 node 5 port 0x5f
+svc 0x165 inst 0x3201 node 5 port 0x79
+svc 0x125 inst 0x3201 node 5 port 0x7c
+svc 0x166 inst 0x3201 node 5 port 0x57
+svc 0x107 inst 0x0001 node 5 port 0x4f
+svc 0x167 inst 0x3201 node 5 port 0x7a
+svc 0x108 inst 0x0001 node 5 port 0x50
+svc 0x168 inst 0x3201 node 5 port 0x6a
+svc 0x128 inst 0x3201 node 5 port 0x83
+svc 0x169 inst 0x3201 node 5 port 0x58
+svc 0x129 inst 0x3202 node 5 port 0x6d
+svc 0x12a inst 0x3201 node 5 port 0x7d
+svc 0x16a inst 0x3201 node 5 port 0x7f
+svc 0x16b inst 0x3201 node 5 port 0x7e
+svc 0x12b inst 0x3201 node 5 port 0x81
+svc 0x12c inst 0x3201 node 5 port 0x5b
+svc 0x16c inst 0x3201 node 5 port 0x73
+svc 0x10d inst 0x3202 node 5 port 0x5a
+svc 0x16d inst 0x3201 node 5 port 0x84
+svc 0x12e inst 0x3201 node 5 port 0x6c
+svc 0x16e inst 0x3201 node 5 port 0x89
+svc 0x10f inst 0x0002 node 1 port 0x3c
+svc 0x12f inst 0x3201 node 5 port 0x6b
+svc 0x16f inst 0x3201 node 5 port 0x80
+svc 0x170 inst 0x3201 node 5 port 0x74
+svc 0x171 inst 0x3201 node 5 port 0x72
+svc 0x131 inst 0x3201 node 5 port 0x75
+svc 0x111 inst 0x3201 node 5 port 0x78
+svc 0x132 inst 0x0001 node 5 port 0x4d
+svc 0x112 inst 0x3201 node 5 port 0x82
+svc 0x173 inst 0x3201 node 5 port 0x66
+svc 0x113 inst 0x3201 node 5 port 0x67
+svc 0x134 inst 0x3201 node 5 port 0x64
+svc 0x114 inst 0x3201 node 5 port 0x77
+svc 0x174 inst 0x3201 node 5 port 0x7b
+svc 0x115 inst 0x3201 node 5 port 0x60
+svc 0x136 inst 0x3201 node 5 port 0x69
+svc 0x117 inst 0x3201 node 5 port 0x68
+svc 0x118 inst 0x0a02 node 5 port 0x4c
+svc 0x118 inst 0x3202 node 1 port 0x3e
+svc 0x119 inst 0x3201 node 5 port 0x61
+svc 0x139 inst 0x3201 node 5 port 0x76
+svc 0x13a inst 0x3202 node 5 port 0x6e
+svc 0x11b inst 0x3201 node 5 port 0x62
+svc 0x13e inst 0x3201 node 5 port 0x65
+svc 0x11f inst 0x3201 node 5 port 0x63
+svc 0x13f inst 0x3201 node 5 port 0x6f
+
+## dumpsys sensorservice
+Captured at: 18:54:31.315
+Sensor Device:
+Total 44 h/w sensors, 44 running:
+0x00000006) active-count = 1; sampling_period(ms) = {200.0}, selected = 200.00 ms; batching_period(ms) = {0.0}, selected = 0.00 ms
+0x00000014) active-count = 2; sampling_period(ms) = {1.0, 1.0}, selected = 1.00 ms; batching_period(ms) = {0.0, 0.0}, selected = 0.00 ms
+0x00000021) active-count = 1; sampling_period(ms) = {1.0}, selected = 1.00 ms; batching_period(ms) = {0.0}, selected = 0.00 ms
+0x00000022) active-count = 1; sampling_period(ms) = {1.0}, selected = 1.00 ms; batching_period(ms) = {0.0}, selected = 0.00 ms
+0x00000023) active-count = 2; sampling_period(ms) = {66.7, 1.0}, selected = 1.00 ms; batching_period(ms) = {0.0, 0.0}, selected = 0.00 ms
+0x00000024) active-count = 1; sampling_period(ms) = {200.0}, selected = 200.00 ms; batching_period(ms) = {0.0}, selected = 0.00 ms
+0x0000002b) active-count = 1; sampling_period(ms) = {200.0}, selected = 200.00 ms; batching_period(ms) = {0.0}, selected = 0.00 ms
+0x0000002c) active-count = 1; sampling_period(ms) = {200.0}, selected = 200.00 ms; batching_period(ms) = {0.0}, selected = 0.00 ms
+Sensor List:
+0x00000001) BMI160 Accelerometer      | BOSCH           | ver: 2062701 | type: android.sensor.accelerometer(1) | perm: n/a | flags: 0x00000000
+	continuous | minRate=1.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (40960, 3000) events | non-wakeUp | 
+0x00000002) AK09918 Magnetometer      | AKM             | ver: 1 | type: android.sensor.magnetic_field(2) | perm: n/a | flags: 0x00000000
+	continuous | minRate=1.00Hz | maxRate=50.00Hz | FIFO (max,reserved) = (40960, 600) events | non-wakeUp | 
+0x00000003) AK09918 Magnetometer Uncalibrated | AKM             | ver: 1 | type: android.sensor.magnetic_field_uncalibrated(14) | perm: n/a | flags: 0x00000000
+	continuous | minRate=1.00Hz | maxRate=50.00Hz | FIFO (max,reserved) = (40960, 600) events | non-wakeUp | 
+0x00000004) BMI160 Gyroscope          | BOSCH           | ver: 2062701 | type: android.sensor.gyroscope(4) | perm: n/a | flags: 0x00000000
+	continuous | minRate=1.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (40960, 0) events | non-wakeUp | 
+0x00000005) BMI160 Gyroscope Uncalibrated | BOSCH           | ver: 2062701 | type: android.sensor.gyroscope_uncalibrated(16) | perm: n/a | flags: 0x00000000
+	continuous | minRate=1.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (40960, 0) events | non-wakeUp | 
+0x00000006) EPL259x ALS/PS PROX       | Eminent         | ver: 2 | type: android.sensor.proximity(8) | perm: n/a | flags: 0x00000003
+	on-change | minRate=0.02Hz | minDelay=0us | FIFO (max,reserved) = (41912, 100) events | wakeUp | 
+0x00000007) EPL259x ALS/PS ALS        | Eminent         | ver: 1 | type: android.sensor.light(5) | perm: n/a | flags: 0x00000002
+	on-change | minRate=0.02Hz | minDelay=0us | FIFO (max,reserved) = (40960, 0) events | non-wakeUp | 
+0x00000008) BMI160 Accelerometer -Wakeup Secondary | BOSCH           | ver: 2062701 | type: android.sensor.accelerometer(1) | perm: n/a | flags: 0x00000001
+	continuous | minRate=1.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (40960, 0) events | wakeUp | 
+0x00000009) AK09918 Magnetometer -Wakeup Secondary | AKM             | ver: 1 | type: android.sensor.magnetic_field(2) | perm: n/a | flags: 0x00000001
+	continuous | minRate=1.00Hz | maxRate=50.00Hz | FIFO (max,reserved) = (40960, 0) events | wakeUp | 
+0x0000000a) AK09918 Magnetometer Uncalibrated -Wakeup Secondary | AKM             | ver: 1 | type: android.sensor.magnetic_field_uncalibrated(14) | perm: n/a | flags: 0x00000001
+	continuous | minRate=1.00Hz | maxRate=50.00Hz | FIFO (max,reserved) = (40960, 0) events | wakeUp | 
+0x0000000b) BMI160 Gyroscope -Wakeup Secondary | BOSCH           | ver: 2062701 | type: android.sensor.gyroscope(4) | perm: n/a | flags: 0x00000001
+	continuous | minRate=1.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (40960, 0) events | wakeUp | 
+0x0000000c) BMI160 Gyroscope Uncalibrated -Wakeup Secondary | BOSCH           | ver: 2062701 | type: android.sensor.gyroscope_uncalibrated(16) | perm: n/a | flags: 0x00000001
+	continuous | minRate=1.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (40960, 0) events | wakeUp | 
+0x0000000d) EPL259x ALS/PS PROX -Non Wakeup Secondary | Eminent         | ver: 2 | type: android.sensor.proximity(8) | perm: n/a | flags: 0x00000002
+	on-change | minRate=0.02Hz | minDelay=0us | FIFO (max,reserved) = (41912, 100) events | non-wakeUp | 
+0x0000000e) EPL259x ALS/PS ALS -Wakeup Secondary | Eminent         | ver: 1 | type: android.sensor.light(5) | perm: n/a | flags: 0x00000003
+	on-change | minRate=0.02Hz | minDelay=0us | FIFO (max,reserved) = (40960, 0) events | wakeUp | 
+0x0000000f) Gravity                   | QTI             | ver: 2 | type: android.sensor.gravity(9) | perm: n/a | flags: 0x00000000
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (27941, 150) events | non-wakeUp | 
+0x00000010) Linear Acceleration       | QTI             | ver: 2 | type: android.sensor.linear_acceleration(10) | perm: n/a | flags: 0x00000000
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (27941, 150) events | non-wakeUp | 
+0x00000011) Rotation Vector           | QTI             | ver: 2 | type: android.sensor.rotation_vector(11) | perm: n/a | flags: 0x00000000
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (35924, 150) events | non-wakeUp | 
+0x00000012) Step Detector             | QTI             | ver: 2 | type: android.sensor.step_detector(18) | perm: android.permission.ACTIVITY_RECOGNITION | flags: 0x00000006
+	special-trigger | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (41912, 100) events | non-wakeUp | 
+0x00000013) Step Counter              | QTI             | ver: 2 | type: android.sensor.step_counter(19) | perm: android.permission.ACTIVITY_RECOGNITION | flags: 0x00000002
+	on-change | minRate=0.00Hz | minDelay=0us | FIFO (max,reserved) = (41912, 100) events | non-wakeUp | 
+0x00000014) Significant Motion Detector | QTI             | ver: 2 | type: android.sensor.significant_motion(17) | perm: n/a | flags: 0x00000005
+	one-shot | maxDelay=0us | minDelay=-1us | no batching | wakeUp | 
+0x00000015) Game Rotation Vector      | QTI             | ver: 2 | type: android.sensor.game_rotation_vector(15) | perm: n/a | flags: 0x00000000
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (35924, 300) events | non-wakeUp | 
+0x00000016) GeoMagnetic Rotation Vector | QTI             | ver: 2 | type: android.sensor.geomagnetic_rotation_vector(20) | perm: n/a | flags: 0x00000000
+	continuous | minRate=5.00Hz | maxRate=50.00Hz | FIFO (max,reserved) = (19344, 150) events | non-wakeUp | 
+0x00000017) Tilt Detector             | QTI             | ver: 2 | type: android.sensor.tilt_detector(22) | perm: n/a | flags: 0x00000007
+	special-trigger | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (125736, 150) events | wakeUp | 
+0x00000018) Android Stationary Detector | QTI             | ver: 2 | type: android.sensor.stationary_detect(29) | perm: n/a | flags: 0x00000005
+	one-shot | maxDelay=0us | minDelay=-1us | no batching | wakeUp | 
+0x00000019) Android Motion Detector   | QTI             | ver: 2 | type: android.sensor.motion_detect(30) | perm: n/a | flags: 0x00000005
+	one-shot | maxDelay=0us | minDelay=-1us | no batching | wakeUp | 
+0x0000001a) Gravity -Wakeup Secondary | QTI             | ver: 2 | type: android.sensor.gravity(9) | perm: n/a | flags: 0x00000001
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (27941, 150) events | wakeUp | 
+0x0000001b) Linear Acceleration -Wakeup Secondary | QTI             | ver: 2 | type: android.sensor.linear_acceleration(10) | perm: n/a | flags: 0x00000001
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (27941, 150) events | wakeUp | 
+0x0000001c) Rotation Vector -Wakeup Secondary | QTI             | ver: 2 | type: android.sensor.rotation_vector(11) | perm: n/a | flags: 0x00000001
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (35924, 150) events | wakeUp | 
+0x0000001d) Step Detector -Wakeup Secondary | QTI             | ver: 2 | type: android.sensor.step_detector(18) | perm: android.permission.ACTIVITY_RECOGNITION | flags: 0x00000007
+	special-trigger | maxDelay=0us | minDelay=0us | FIFO (max,reserved) = (41912, 100) events | wakeUp | 
+0x0000001e) Step Counter -Wakeup Secondary | QTI             | ver: 2 | type: android.sensor.step_counter(19) | perm: android.permission.ACTIVITY_RECOGNITION | flags: 0x00000003
+	on-change | minRate=0.00Hz | minDelay=0us | FIFO (max,reserved) = (41912, 100) events | wakeUp | 
+0x0000001f) Game Rotation Vector -Wakeup Secondary | QTI             | ver: 2 | type: android.sensor.game_rotation_vector(15) | perm: n/a | flags: 0x00000001
+	continuous | minRate=5.00Hz | maxRate=200.00Hz | FIFO (max,reserved) = (35924, 300) events | wakeUp | 
+0x00000020) GeoMagnetic Rotation Vector -Wakeup Secondary | QTI             | ver: 2 | type: android.sensor.geomagnetic_rotation_vector(20) | perm: n/a | flags: 0x00000001
+	continuous | minRate=5.00Hz | maxRate=50.00Hz | FIFO (max,reserved) = (19344, 150) events | wakeUp | 
+0x00000021) Chop Chop Gesture         | Motorola        | ver: 2 | type: com.motorola.sensor.chopchop(65546) | perm: n/a | flags: 0x00000007
+	special-trigger | maxDelay=0us | minDelay=0us | no batching | wakeUp | 
+0x00000022) Moto Glance Gesture       | Motorola        | ver: 2 | type: com.motorola.sensor.glance(65548) | perm: n/a | flags: 0x00000007
+	special-trigger | maxDelay=0us | minDelay=0us | no batching | wakeUp | 
+0x00000023) Camera Gesture            | Motorola        | ver: 2 | type: com.motorola.sensor.camera_activate(65540) | perm: n/a | flags: 0x00000007
+	special-trigger | maxDelay=0us | minDelay=0us | no batching | wakeUp | 
+0x00000024) Stowed                    | Motorola        | ver: 2 | type: com.motorola.sensor.stowed(65539) | perm: n/a | flags: 0x00000003
+	on-change | minRate=0.00Hz | minDelay=0us | no batching | wakeUp | 
+0x00000025) Display Rotate            | Motorola        | ver: 2 | type: android.sensor.device_orientation(27) | perm: n/a | flags: 0x00000002
+	on-change | minRate=0.00Hz | minDelay=0us | no batching | non-wakeUp | 
+0x00000026) Flatup                    | Motorola        | ver: 2 | type: com.motorola.sensor.flat_up(65537) | perm: n/a | flags: 0x00000003
+	on-change | minRate=0.00Hz | minDelay=0us | no batching | wakeUp | 
+0x00000027) Flatdown                  | Motorola        | ver: 2 | type: com.motorola.sensor.flat_down(65538) | perm: n/a | flags: 0x00000003
+	on-change | minRate=0.00Hz | minDelay=0us | no batching | wakeUp | 
+0x00000028) LTS Gesture               | Motorola        | ver: 1 | type: com.motorola.sensor.lts(65553) | perm: n/a | flags: 0x00000006
+	special-trigger | maxDelay=0us | minDelay=0us | no batching | non-wakeUp | 
+0x00000029) FTM Gesture               | Motorola        | ver: 2 | type: com.motorola.sensor.ftm(65554) | perm: n/a | flags: 0x00000003
+	on-change | minRate=0.00Hz | minDelay=0us | no batching | wakeUp | 
+0x0000002a) Off Body                  | Motorola        | ver: 2 | type: com.motorola.sensor.offbody(65560) | perm: n/a | flags: 0x00000003
+	on-change | minRate=0.00Hz | minDelay=0us | no batching | wakeUp | 
+0x0000002b) capsense_bottom           | semtech         | ver: 1 | type: com.motorola.sensor.capsense(65552) | perm: n/a | flags: 0x00000002
+	on-change | minRate=0.10Hz | minDelay=0us | no batching | non-wakeUp | 
+0x0000002c) capsense_top              | semtech         | ver: 1 | type: com.motorola.sensor.capsense(65552) | perm: n/a | flags: 0x00000002
+	on-change | minRate=0.10Hz | minDelay=0us | no batching | non-wakeUp | 
+0x5f636779) Corrected Gyroscope Sensor | AOSP            | ver: 1 | type: android.sensor.gyroscope(4) | perm: n/a | flags: 0x00000000
+	continuous | maxDelay=0us | maxRate=200.00Hz | no batching | non-wakeUp | 
+0x5f676172) Game Rotation Vector Sensor | AOSP            | ver: 3 | type: android.sensor.game_rotation_vector(15) | perm: n/a | flags: 0x00000000
+	continuous | maxDelay=0us | maxRate=200.00Hz | no batching | non-wakeUp | 
+0x5f676273) Gyroscope Bias (debug)    | AOSP            | ver: 1 | type: android.sensor.accelerometer(1) | perm: n/a | flags: 0x00000000
+	continuous | maxDelay=0us | maxRate=200.00Hz | no batching | non-wakeUp | 
+0x5f67656f) GeoMag Rotation Vector Sensor | AOSP            | ver: 3 | type: android.sensor.geomagnetic_rotation_vector(20) | perm: n/a | flags: 0x00000000
+	continuous | maxDelay=0us | maxRate=200.00Hz | no batching | non-wakeUp | 
+0x5f677276) Gravity Sensor            | AOSP            | ver: 3 | type: android.sensor.gravity(9) | perm: n/a | flags: 0x00000000
+	continuous | maxDelay=0us | maxRate=200.00Hz | no batching | non-wakeUp | 
+0x5f6c696e) Linear Acceleration Sensor | AOSP            | ver: 3 | type: android.sensor.linear_acceleration(10) | perm: n/a | flags: 0x00000000
+	continuous | maxDelay=0us | maxRate=200.00Hz | no batching | non-wakeUp | 
+0x5f726f76) Rotation Vector Sensor    | AOSP            | ver: 3 | type: android.sensor.rotation_vector(11) | perm: n/a | flags: 0x00000000
+	continuous | maxDelay=0us | maxRate=200.00Hz | no batching | non-wakeUp | 
+0x5f797072) Orientation Sensor        | AOSP            | ver: 1 | type: android.sensor.orientation(3) | perm: n/a | flags: 0x00000000
+	continuous | maxDelay=0us | maxRate=200.00Hz | no batching | non-wakeUp | 
+Fusion States:
+9-axis fusion disabled (0 clients), gyro-rate= 200.00Hz, q=< 0, 0, 0, 0 > (0), b=< 0, 0, 0 >
+game fusion(no mag) disabled (0 clients), gyro-rate= 200.00Hz, q=< 0, 0, 0, 0 > (0), b=< 0, 0, 0 >
+geomag fusion (no gyro) disabled (0 clients), gyro-rate= 200.00Hz, q=< 0, 0, 0, 0 > (0), b=< 0, 0, 0 >
+Recent Sensor events:
+capsense_bottom: last 7 events
+	 1 (ts=1790424221.224954844, wall=17:33:41.240) 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 2 (ts=1790424260.923753023, wall=17:34:20.924) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 3 (ts=1790426531.664816856, wall=18:12:11.665) 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 4 (ts=1790426962.205868959, wall=18:19:22.207) 2.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 5 (ts=1790426968.485637903, wall=18:19:28.487) 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 6 (ts=1790427860.983472824, wall=18:34:20.984) 2.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 7 (ts=1790428607.341755867, wall=18:46:47.342) 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+Flatdown: last 10 events
+	 1 (ts=49.908848997, wall=17:34:44.891) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 2 (ts=49.908935901, wall=17:49:31.179) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 3 (ts=49.909024085, wall=18:04:20.678) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 4 (ts=49.909034961, wall=18:06:23.874) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 5 (ts=49.909050896, wall=18:06:25.217) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 6 (ts=49.909058986, wall=18:10:44.880) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 7 (ts=49.909098042, wall=18:19:21.556) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 8 (ts=49.909196499, wall=18:34:20.350) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 9 (ts=49.909275645, wall=18:46:46.732) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	10 (ts=49.909274735, wall=18:49:28.128) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+Flatup: last 10 events
+	 1 (ts=47.136293895, wall=17:34:20.580) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 2 (ts=47.136270791, wall=17:34:45.060) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 3 (ts=47.136379812, wall=17:49:31.304) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 4 (ts=47.136452284, wall=18:04:20.814) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 5 (ts=47.136489053, wall=18:06:23.984) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 6 (ts=47.136490547, wall=18:10:45.041) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 7 (ts=47.136558964, wall=18:19:21.736) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 8 (ts=47.136651809, wall=18:34:20.571) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	 9 (ts=47.136706616, wall=18:46:46.897) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+	10 (ts=47.136745091, wall=18:49:28.250) 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 
+Display Rotate: last 1 events
+	 1 (ts=24.937687370, wall=16:49:22.461) 1.00, 
+Stowed: last 1 events
+	 1 (ts=23.189696264, wall=16:49:20.690) 0.00, 0.00, 0.00, 0.00, -0.00, 0.00, 7050085737168896.00, 0.00, 16659399678361600.00, 62345822578147328.00, 0.00, 0.00, -0.00, 0.00, 7050085737168896.00, 0.00, 
+Rotation Vector: last 10 events
+	 1 (ts=5837.883832448, wall=18:26:15.328) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	 2 (ts=5837.903790944, wall=18:26:15.348) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	 3 (ts=5837.923718923, wall=18:26:15.367) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	 4 (ts=5837.943646902, wall=18:26:15.387) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	 5 (ts=5837.963605398, wall=18:26:15.407) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	 6 (ts=5837.983533376, wall=18:26:15.427) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	 7 (ts=5838.003461355, wall=18:26:15.447) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	 8 (ts=5838.023419851, wall=18:26:15.467) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	 9 (ts=5838.043347829, wall=18:26:15.487) -0.03, -0.48, -0.06, 0.87, 3.14, 
+	10 (ts=5838.063306325, wall=18:26:15.507) -0.03, -0.48, -0.06, 0.87, 3.14, 
+Linear Acceleration: last 10 events
+	 1 (ts=5837.883832448, wall=18:26:15.327) -0.00, -0.00, 0.00, 
+	 2 (ts=5837.903790944, wall=18:26:15.347) -0.02, 0.01, -0.02, 
+	 3 (ts=5837.923718923, wall=18:26:15.367) -0.01, 0.01, -0.00, 
+	 4 (ts=5837.943646902, wall=18:26:15.387) -0.01, -0.00, -0.00, 
+	 5 (ts=5837.963605398, wall=18:26:15.407) -0.01, -0.01, -0.00, 
+	 6 (ts=5837.983533376, wall=18:26:15.427) -0.00, 0.01, -0.00, 
+	 7 (ts=5838.003461355, wall=18:26:15.447) -0.00, -0.00, 0.01, 
+	 8 (ts=5838.023419851, wall=18:26:15.467) 0.01, -0.00, 0.02, 
+	 9 (ts=5838.043347829, wall=18:26:15.487) -0.01, 0.00, 0.01, 
+	10 (ts=5838.063306325, wall=18:26:15.507) 0.00, -0.01, -0.01, 
+EPL259x ALS/PS ALS: last 35 events
+	 1 (ts=23.189700365, wall=16:49:20.608) 2.00, 0.00, 0.00, 
+	 2 (ts=26.972867670, wall=16:49:24.389) 1.00, 0.00, 0.00, 
+	 3 (ts=37.140117103, wall=16:49:54.497) 1.00, 0.00, 0.00, 
+	 4 (ts=61.019150601, wall=16:49:58.436) 2.00, 0.00, 0.00, 
+	 5 (ts=61.784043179, wall=16:49:59.201) 5.00, 0.00, 0.00, 
+	 6 (ts=64.843633427, wall=16:50:02.604) 3.00, 0.00, 0.00, 
+	 7 (ts=65.990941777, wall=16:50:03.408) 3.00, 0.00, 0.00, 
+	 8 (ts=66.591863408, wall=16:50:04.009) 5.00, 0.00, 0.00, 
+	 9 (ts=67.083562627, wall=16:50:04.502) 8.00, 0.00, 0.00, 
+	10 (ts=67.083546772, wall=16:50:21.424) 8.00, 0.00, 0.00, 
+	11 (ts=85.656361713, wall=16:50:23.073) 4.00, 0.00, 0.00, 
+	12 (ts=86.093342914, wall=16:50:23.514) 3.00, 0.00, 0.00, 
+	13 (ts=89.315313813, wall=16:50:26.731) 4.00, 0.00, 0.00, 
+	14 (ts=90.299719330, wall=16:50:27.718) 2.00, 0.00, 0.00, 
+	15 (ts=91.773453832, wall=16:50:29.189) 3.00, 0.00, 0.00, 
+	16 (ts=92.538254858, wall=16:50:29.954) 5.00, 0.00, 0.00, 
+	17 (ts=92.975281549, wall=16:50:30.392) 8.00, 0.00, 0.00, 
+	18 (ts=447.854648111, wall=16:58:50.792) 6.00, 0.00, 0.00, 
+	19 (ts=801.394351071, wall=17:04:48.559) 5.00, 0.00, 0.00, 
+	20 (ts=1854.565841491, wall=17:19:56.706) 0.00, 0.00, 0.00, 
+	21 (ts=2717.634690209, wall=17:34:20.604) 1.00, 0.00, 0.00, 
+	22 (ts=2724.054385397, wall=17:34:21.472) 0.00, 0.00, 0.00, 
+	23 (ts=2726.194246141, wall=17:34:45.085) 0.00, 0.00, 0.00, 
+	24 (ts=3593.863673270, wall=17:49:31.362) 0.00, 0.00, 0.00, 
+	25 (ts=4510.419056073, wall=18:04:20.865) 0.00, 0.00, 0.00, 
+	26 (ts=4595.309508873, wall=18:06:24.061) 0.00, 0.00, 0.00, 
+	27 (ts=4650.678215935, wall=18:06:28.099) 0.00, 0.00, 0.00, 
+	28 (ts=4651.665856316, wall=18:06:29.087) 1.00, 0.00, 0.00, 
+	29 (ts=4652.269371941, wall=18:06:29.687) 0.00, 0.00, 0.00, 
+	30 (ts=4900.673198775, wall=18:10:45.089) 0.00, 0.00, 0.00, 
+	31 (ts=4911.647350387, wall=18:10:49.069) 0.00, 0.00, 0.00, 
+	32 (ts=5352.917347245, wall=18:19:21.802) 0.00, 0.00, 0.00, 
+	33 (ts=6211.684885368, wall=18:34:20.591) 0.00, 0.00, 0.00, 
+	34 (ts=7027.059848457, wall=18:46:46.949) 0.00, 0.00, 0.00, 
+	35 (ts=7225.932456399, wall=18:49:28.317) 0.00, 0.00, 0.00, 
+EPL259x ALS/PS PROX: last 1 events
+	 1 (ts=23.440091791, wall=16:49:24.307) 5.00, 0.00, 0.00, 
+BMI160 Accelerometer: last 10 events
+	 1 (ts=359.287141170, wall=16:54:56.724) 8.34, 0.18, 5.32, 
+	 2 (ts=359.307038631, wall=16:54:56.744) 8.43, 0.19, 5.36, 
+	 3 (ts=359.326905574, wall=16:54:56.763) 8.41, 0.19, 5.34, 
+	 4 (ts=359.346742000, wall=16:54:56.782) 8.38, 0.17, 5.35, 
+	 5 (ts=359.366547908, wall=16:54:56.802) 8.39, 0.16, 5.34, 
+	 6 (ts=359.386353816, wall=16:54:56.821) 8.41, 0.19, 5.33, 
+	 7 (ts=359.406159724, wall=16:54:56.844) 8.40, 0.16, 5.34, 
+	 8 (ts=359.425996150, wall=16:54:56.861) 8.39, 0.16, 5.35, 
+	 9 (ts=359.445802058, wall=16:54:56.881) 8.41, 0.19, 5.34, 
+	10 (ts=359.465638484, wall=16:54:56.901) 8.41, 0.18, 5.34, 
+Active sensors:
+EPL259x ALS/PS PROX (handle=0x00000006, connections=1)
+Significant Motion Detector (handle=0x00000014, connections=2)
+Chop Chop Gesture (handle=0x00000021, connections=1)
+Moto Glance Gesture (handle=0x00000022, connections=1)
+Camera Gesture (handle=0x00000023, connections=2)
+Stowed (handle=0x00000024, connections=1)
+capsense_bottom (handle=0x0000002b, connections=1)
+capsense_top (handle=0x0000002c, connections=1)
+Socket Buffer size = 984 events
+WakeLock Status: not held 
+Mode : NORMAL
+Sensor Privacy: disabled
+8 active connections
+Connection Number: 0 
+	Operating Mode: NORMAL
+	 com.motorola.motodisplay.c0.r.h | WakeLockRefCount 0 | uid 10120 | cache size 0 | max cache size 0
+	 Moto Glance Gesture 0x00000022 | status: active | pending flush events 0 
+Connection Number: 1 
+	Operating Mode: NORMAL
+	 dhed | WakeLockRefCount 0 | uid 10105 | cache size 0 | max cache size 0
+	 Significant Motion Detector 0x00000014 | status: active | pending flush events 0 
+Connection Number: 2 
+	Operating Mode: NORMAL
+	 b.a.a.c1.c.h | WakeLockRefCount 0 | uid 10074 | cache size 0 | max cache size 0
+	 Chop Chop Gesture 0x00000021 | status: active | pending flush events 0 
+Connection Number: 3 
+	Operating Mode: NORMAL
+	 com.android.keyguard.KeyguardUpdateMonitor | WakeLockRefCount 0 | uid 10125 | cache size 0 | max cache size 0
+	 Stowed 0x00000024 | status: active | pending flush events 0 
+Connection Number: 4 
+	Operating Mode: NORMAL
+	 com.motorola.actions.qc.QuickCaptureService | WakeLockRefCount 0 | uid 10074 | cache size 0 | max cache size 0
+	 Camera Gesture 0x00000023 | status: active | pending flush events 0 
+Connection Number: 5 
+	Operating Mode: NORMAL
+	 com.android.server.GestureLauncherService | WakeLockRefCount 0 | uid 1000 | cache size 0 | max cache size 0
+	 Camera Gesture 0x00000023 | status: active | pending flush events 0 
+Connection Number: 6 
+	Operating Mode: NORMAL
+	 fznf | WakeLockRefCount 0 | uid 10105 | cache size 0 | max cache size 0
+	 Significant Motion Detector 0x00000014 | status: active | pending flush events 0 
+Connection Number: 7 
+	Operating Mode: NORMAL
+	 hidl_client_pid_1662 | WakeLockRefCount 0 | uid 1000 | cache size 0 | max cache size 0
+	 EPL259x ALS/PS PROX 0x00000006 | status: active | pending flush events 0 
+	 capsense_bottom 0x0000002b | status: active | pending flush events 0 
+	 capsense_top 0x0000002c | status: active | pending flush events 0 
+0 direct connections
+Previous Registrations:
+18:49:34 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+18:49:34 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+18:49:34 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:49:34 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:49:33 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:49:28 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:49:28 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:49:28 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:49:28 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:49:28 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager samplingPeriod=20000us batchingPeriod=0us
+18:49:28 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:49:28 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors samplingPeriod=200000us batchingPeriod=0us
+18:49:28 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:49:28 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:49:28 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:49:28 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:49:28 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers
+18:49:28 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers samplingPeriod=200000us batchingPeriod=0us
+18:49:28 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:49:28 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:49:28 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:49:28 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:46:53 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+18:46:53 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+18:46:53 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:46:53 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:46:51 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:46:46 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:46:46 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:46:46 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:46:46 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:46:46 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:46:46 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager samplingPeriod=20000us batchingPeriod=0us
+18:46:46 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors samplingPeriod=200000us batchingPeriod=0us
+18:46:46 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:46:46 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:46:46 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:46:46 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:46:46 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers
+18:46:46 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers samplingPeriod=200000us batchingPeriod=0us
+18:46:46 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:46:46 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:46:46 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:46:46 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:34:26 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+18:34:26 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+18:34:26 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:34:26 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:34:25 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:34:20 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:34:20 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:34:20 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:34:20 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager samplingPeriod=20000us batchingPeriod=0us
+18:34:20 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:34:20 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:34:20 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors samplingPeriod=200000us batchingPeriod=0us
+18:34:20 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:34:20 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:34:20 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:34:20 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:34:20 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers
+18:34:20 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers samplingPeriod=200000us batchingPeriod=0us
+18:34:20 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:34:20 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:34:20 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:34:20 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:26:15 - 0x00000010 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b
+18:26:15 - 0x00000011 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b
+18:26:14 + 0x00000011 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b samplingPeriod=20000us batchingPeriod=0us
+18:26:14 + 0x00000010 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b samplingPeriod=20000us batchingPeriod=0us
+18:24:47 - 0x00000010 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b
+18:24:47 - 0x00000011 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b
+18:24:46 + 0x00000011 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b samplingPeriod=20000us batchingPeriod=0us
+18:24:46 + 0x00000010 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b samplingPeriod=20000us batchingPeriod=0us
+18:19:28 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+18:19:27 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+18:19:27 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:19:27 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:19:26 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:19:21 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:19:21 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:19:21 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:19:21 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager samplingPeriod=20000us batchingPeriod=0us
+18:19:21 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:19:21 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:19:21 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors samplingPeriod=200000us batchingPeriod=0us
+18:19:21 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:19:21 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:19:21 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:19:21 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers
+18:19:21 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:19:21 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers samplingPeriod=200000us batchingPeriod=0us
+18:19:21 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:19:21 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:19:21 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:19:21 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:10:51 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+18:10:51 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+18:10:51 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:10:51 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:10:50 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:10:45 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:10:45 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:10:45 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:10:45 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:10:45 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager samplingPeriod=20000us batchingPeriod=0us
+18:10:45 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:10:45 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors samplingPeriod=200000us batchingPeriod=0us
+18:10:45 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:10:45 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:10:45 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:10:45 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:10:45 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers
+18:10:45 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers samplingPeriod=200000us batchingPeriod=0us
+18:10:44 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:10:44 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:10:44 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:10:44 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:06:31 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+18:06:31 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+18:06:31 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:06:31 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:06:30 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:06:25 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:06:25 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:06:24 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:06:24 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:06:24 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:06:24 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager samplingPeriod=20000us batchingPeriod=0us
+18:06:24 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:06:24 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:06:24 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors samplingPeriod=200000us batchingPeriod=0us
+18:06:23 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:06:23 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:06:23 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:06:23 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:06:23 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers
+18:06:23 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers samplingPeriod=200000us batchingPeriod=0us
+18:06:23 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:06:23 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:06:23 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:06:23 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:04:27 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+18:04:27 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+18:04:27 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:04:27 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:04:25 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+18:04:20 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:04:20 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:04:20 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:04:20 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager samplingPeriod=20000us batchingPeriod=0us
+18:04:20 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:04:20 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:04:20 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors samplingPeriod=200000us batchingPeriod=0us
+18:04:20 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:04:20 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:04:20 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:04:20 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+18:04:20 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers
+18:04:20 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers samplingPeriod=200000us batchingPeriod=0us
+18:04:20 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:04:20 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:04:20 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+18:04:20 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+18:03:49 - 0x00000011 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b
+18:03:49 - 0x00000010 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b
+18:03:39 + 0x00000011 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b samplingPeriod=20000us batchingPeriod=0us
+18:03:39 + 0x00000010 pid=12207 uid=10105 package=com.google.ccc.abuse.droidguard.events.b samplingPeriod=20000us batchingPeriod=0us
+17:49:37 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+17:49:37 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+17:49:37 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+17:49:37 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+17:49:36 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+17:49:31 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+17:49:31 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+17:49:31 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+17:49:31 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+17:49:31 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager samplingPeriod=20000us batchingPeriod=0us
+17:49:31 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+17:49:31 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors samplingPeriod=200000us batchingPeriod=0us
+17:49:31 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+17:49:31 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+17:49:31 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+17:49:31 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+17:49:31 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers
+17:49:31 + 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeTriggers samplingPeriod=200000us batchingPeriod=0us
+17:49:31 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+17:49:31 + 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+17:49:31 - 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+17:49:31 + 0x00000027 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+17:34:51 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.classifier.brightline.BrightLineFalsingManager
+17:34:51 - 0x00000006 pid= 2693 uid=10125 package=com.android.systemui.doze.DozeSensors
+17:34:51 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+17:34:51 - 0x00000024 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+17:34:50 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m
+17:34:45 - 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+17:34:45 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us
+17:34:45 + 0x00000007 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.m samplingPeriod=0us batchingPeriod=0us
+17:34:45 - 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g
+17:34:45 + 0x00000026 pid= 3244 uid=10120 package=com.motorola.motodisplay.c0.g samplingPeriod=0us batchingPeriod=0us

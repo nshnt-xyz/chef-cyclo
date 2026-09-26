@@ -51,3 +51,12 @@ tools/tftp/tests/test-e2e
 tools/tftp/tests/test-translate-san
 tools/tftp/tests/test-protocol-san
 tools/tftp/tests/test-e2e-san
+tools/sensord/sensord
+tools/sensord/tests/test-sns-msgs
+tools/sensord/tests/test-sns-reg
+tools/sensord/tests/test-sensord
+tools/sensord/tests/sensord-fake
+tools/sensord/tests/fake_smgr
+tools/sensord/tests/test-sns-msgs-san
+tools/sensord/tests/test-sensord-san
+tools/__pycache__/
