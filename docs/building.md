@@ -15,7 +15,7 @@ Use a Linux host with the kernel submodule checked out, the verified device-spec
 ```sh
 scripts/setup-toolchain.sh   # once: fetches AOSP GCC 4.9 aarch64 into toolchain/ (gitignored)
 . scripts/env.sh             # defines kmake and chef_defconfig
-chef_defconfig               # sdm660_defconfig + moto-sdm660.config + moto-sdm660-chef.config + chef-cyclo.config -> out/kernel/.config
+chef_defconfig               # sdm660-perf_defconfig + moto-sdm660.config + moto-sdm660-chef.config + chef-cyclo.config -> out/kernel/.config
 kmake -j$(nproc)             # Image.gz-dtb comes out in out/kernel/arch/arm64/boot/
 scripts/mkrootfs.sh          # Alpine aarch64 musl/busybox/dbus/BlueZ -> out/rootfs (once, or after changing the package list)
 scripts/mkinitramfs.sh       # out/rootfs + initramfs/ overlay + btprobe + BT firmware -> out/initramfs.cpio.gz
@@ -23,7 +23,7 @@ scripts/mkboot.sh            # -> out/boot.img (header values from stock boot_a.
 fastboot boot out/boot.img   # nothing is flashed; Power+VolDown to get back to Android
 ```
 
-The kernel config combines `sdm660_defconfig`, `moto-sdm660.config`, `moto-sdm660-chef.config`, and the project fragment `kernel-config/chef-cyclo.config`. `chef_defconfig` writes `out/kernel/.config`.
+The kernel config combines stock Android's `sdm660-perf_defconfig`, `moto-sdm660.config`, `moto-sdm660-chef.config`, and the project fragment `kernel-config/chef-cyclo.config`. `chef_defconfig` writes `out/kernel/.config`. The stock `/proc/config.gz` matches the first three inputs exactly; the project fragment adds the standalone-Linux requirements.
 
 `mkrootfs.sh` builds an Alpine aarch64 root with musl, BusyBox, D-Bus, BlueZ, QMI tools, gpsd, and tinyalsa. Rerun it when the package list changes; roots created before the 2026-09-19 gpsd addition, or before the same-day tinyalsa addition, need rebuilding.
 
@@ -57,7 +57,7 @@ After boot, connect through [USB networking](features/usb-networking.md). The ba
 
 - **`skip_initramfs` is appended by the bootloader** at runtime (with `root=/dev/mmcblk0p67 rootwait ro init=/init`); it is not in the boot image header, so it can't be stripped. Our kernel ignores it (as TWRP's does).
 
-- **Motorola's config stack has three parts**: `sdm660_defconfig` + `moto-sdm660.config` + `moto-sdm660-chef.config`, followed by our project fragment. Missing the middle Motorola fragment silently drops `BOOTINFO` (build breaks in `cpuinfo.c`); the Novatek touch driver comes from the chef fragment.
+- **Motorola's production config stack has three parts**: `sdm660-perf_defconfig` + `moto-sdm660.config` + `moto-sdm660-chef.config`, followed by our project fragment. The non-perf `sdm660_defconfig` enables many debug and fault-injection options that stock Android does not use. Missing the middle Motorola fragment silently drops `BOOTINFO` (build breaks in `cpuinfo.c`); the Novatek touch driver comes from the chef fragment.
 
 - **Old tree on a new host:** `scripts/gcc-wrapper.py` is python2-only on its warning path and aborts on *any* warning → bypass with `CC=`; bundled dtc needs `-fcommon`; the Makefile's `PYTHON`/`HOSTCFLAGS` use `=` so they must be overridden on the make command line, not the environment. All in `kmake`.
 
