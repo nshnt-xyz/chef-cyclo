@@ -1,0 +1,706 @@
+# Stock Android power-management survey, 2026-09-26
+# Device ZF6223WZGL, stock QPTS30.61-18-16-19 + Magisk root, USB-C to host (USB_CDP), read-only root reads via base64|su -c sh.
+# Binaries (batt_health, motorola.hardware.health, hvdcp_opti, thermal-engine) were extracted read-only from stock/partitions/vendor_a.img with debugfs.
+
+## Power-relevant processes
+ 1142 system       android.system.suspend@1.0-service android.system.suspend@1.0-service
+ 1153 system       android.hardware.health@2.0-service android.hardware.health@2.0-service
+ 1156 system       android.hardware.power@1.0-service android.hardware.power@1.0-service
+ 1157 system       android.hardware.thermal@1.0-service android.hardware.thermal@1.0-service
+ 1164 system       motorola.hardware.health@1.0-service motorola.hardware.health@1.0-service
+ 1168 system       vendor.qti.esepowermanager@1.0-service vendor.qti.esepowermanager@1.0-service
+ 1171 root         vendor.qti.hardware.perf@2.0-service vendor.qti.hardware.perf@2.0-service
+ 1370 root         thermal-engine              thermal-engine
+ 1408 system       perfservice                 perfservice
+ 3300 vendor_pwric batt_health                 batt_health
+[init.svc.qti_esepowermanager_service]: [running]
+[init.svc.thermal-engine]: [running]
+[init.svc.vendor.batt_health]: [running]
+[init.svc.vendor.power-hal-1-0]: [running]
+[init.svc.vendor.thermal-hal-1-0]: [running]
+[persist.vendor.radio.add_power_save]: [1]
+[ro.boot.powerup_reason]: [0x00004000]
+[ro.boottime.qti_esepowermanager_service]: [15706916354]
+[ro.boottime.thermal-engine]: [16538195707]
+[ro.boottime.vendor.batt_health]: [26896634187]
+[ro.boottime.vendor.power-hal-1-0]: [15679691924]
+[ro.boottime.vendor.thermal-hal-1-0]: [15681773643]
+[ro.product.model]: [motorola one power]
+[ro.product.odm.model]: [motorola one power]
+[ro.product.system.model]: [motorola one power]
+[ro.product.vendor.model]: [motorola one power]
+[ro.vendor.bluetooth.wipower]: [false]
+[ro.vendor.boot.powerup_reason]: [0x00004000]
+[vendor.power.pasr.enabled]: [true]
+
+## Power-relevant props
+---props
+[init.svc.data-mmi-carrier-sh]: [stopped]
+[init.svc.mmi-carrier-sh]: [stopped]
+[init.svc.post-mmi-carrier-sh]: [stopped]
+[init.svc.qti_esepowermanager_service]: [running]
+[init.svc.setup_shutdown]: [stopped]
+[init.svc.thermal-engine]: [running]
+[init.svc.vendor.batt_health]: [running]
+[init.svc.vendor.mmi-block-perm]: [stopped]
+[init.svc.vendor.mmi-boot-sh]: [stopped]
+[init.svc.vendor.mmi-touch-sh]: [stopped]
+[init.svc.vendor.mmi-usb-sh]: [stopped]
+[init.svc.vendor.power-hal-1-0]: [running]
+[init.svc.vendor.thermal-hal-1-0]: [running]
+[persist.vendor.mmi.misc_dev_path]: [/dev/block/mmcblk0p48]
+[persist.vendor.radio.add_power_save]: [1]
+[persist.vendor.radio.mcfg_ver_num]: [0x08010809,0x08010809]
+[persist.vendor.radio.mcfg_version]: [IDEA_VOLTE,IDEA_VOLTE]
+[ro.boot.powerup_reason]: [0x00004000]
+[ro.boottime.data-mmi-carrier-sh]: [14868262104]
+[ro.boottime.mmi-carrier-sh]: [12455125666]
+[ro.boottime.post-mmi-carrier-sh]: [15520744564]
+[ro.boottime.qti_esepowermanager_service]: [15706916354]
+[ro.boottime.setup_shutdown]: [17133470610]
+[ro.boottime.thermal-engine]: [16538195707]
+[ro.boottime.vendor.batt_health]: [26896634187]
+[ro.boottime.vendor.mmi-block-perm]: [16556245449]
+[ro.boottime.vendor.mmi-boot-sh]: [15805162145]
+[ro.boottime.vendor.mmi-touch-sh]: [15815426104]
+[ro.boottime.vendor.mmi-usb-sh]: [17096079096]
+[ro.boottime.vendor.power-hal-1-0]: [15679691924]
+[ro.boottime.vendor.thermal-hal-1-0]: [15681773643]
+[ro.product.model]: [motorola one power]
+[ro.product.odm.model]: [motorola one power]
+[ro.product.system.model]: [motorola one power]
+[ro.product.vendor.model]: [motorola one power]
+[ro.vendor.bluetooth.wipower]: [false]
+[ro.vendor.boot.powerup_reason]: [0x00004000]
+[vendor.peripheral.shutdown_critical_list]: [modem ]
+[vendor.power.pasr.enabled]: [true]
+[exit=0]
+
+## power_supply sysfs (while charging from host CDP)
+=== battery /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/battery
+age=100
+battery_charging_enabled=1
+capacity=79
+charge_counter=3862139
+charge_done=0
+charge_rate=Normal
+charge_type=Fast
+charger_temp=345
+charger_temp_max=812
+constant_charge_current_max=3000000
+current_max=3000000
+current_now=103027
+current_qnovo=-22
+die_health=Cool
+dp_dm=0
+fcc_stepper_enable=0
+health=Good
+input_current_limited=1
+input_suspend=0
+num_system_temp_levels=8
+parallel_disable=0
+present=1
+rerun_aicl=0
+set_ship_mode=0
+status=Charging
+step_charging_enabled=0
+sw_jeita_enabled=0
+system_temp_level=0
+technology=Li-ion
+temp=320
+type=Battery
+uevent=POWER_SUPPLY_NAME=battery
+POWER_SUPPLY_INPUT_SUSPEND=0
+POWER_SUPPLY_STATUS=Charging
+POWER_SUPPLY_HEALTH=Good
+POWER_SUPPLY_PRESENT=1
+POWER_SUPPLY_CHARGE_TYPE=Fast
+POWER_SUPPLY_CAPACITY=79
+POWER_SUPPLY_
+voltage_max=-22
+voltage_now=4106923
+voltage_qnovo=-22
+=== bms /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qpnp,fg/power_supply/bms
+battery_type=JK50atl_india_4v4_5000mAh
+capacity=79
+capacity_raw=203
+cc_step=0
+cc_step_sel=0
+charge_counter=3862092
+charge_counter_shadow=3846121
+charge_full=5004000
+charge_full_design=5004000
+charge_now=0
+charge_now_raw=1805564
+constant_charge_voltage=4389899
+current_now=10253
+cycle_count=0
+cycle_count_id=1
+debug_battery=0
+fg_reset_clock=0
+resistance=167968
+resistance_id=325000
+soc_reporting_ready=1
+temp=320
+temp_cold=-200
+temp_cool=0
+temp_hot=600
+temp_warm=450
+time_to_empty_avg=113077
+time_to_full_avg=16052
+type=BMS
+uevent=POWER_SUPPLY_NAME=bms
+POWER_SUPPLY_CAPACITY=79
+POWER_SUPPLY_CAPACITY_RAW=203
+POWER_SUPPLY_TEMP=320
+POWER_SUPPLY_TEMP_COLD=-200
+POWER_SUPPLY_TEMP_COOL=0
+POWER_SUPPLY_TEMP_WARM=450
+POWER_SUPPLY_TEMP_HOT
+voltage_max_design=4400000
+voltage_now=4120106
+voltage_ocv=4102057
+=== dc /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/dc
+current_max=500000
+input_suspend=0
+online=0
+present=0
+real_type=Wipower
+type=Wipower
+uevent=POWER_SUPPLY_NAME=dc
+POWER_SUPPLY_INPUT_SUSPEND=0
+POWER_SUPPLY_PRESENT=0
+POWER_SUPPLY_ONLINE=0
+POWER_SUPPLY_CURRENT_MAX=500000
+POWER_SUPPLY_REAL_TYPE=Wipower
+POWER_SUPPLY_VOLTAGE_NOW=0
+voltage_now=0
+=== main /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/main
+constant_charge_current_max=3000000
+current_max=922614928
+fcc_delta=0
+input_current_settled=150000
+input_voltage_settled=5000000
+type=Main
+uevent=POWER_SUPPLY_NAME=main
+POWER_SUPPLY_VOLTAGE_MAX=4200000
+POWER_SUPPLY_CONSTANT_CHARGE_CURRENT_MAX=3000000
+POWER_SUPPLY_TYPE=Main
+POWER_SUPPLY_INPUT_CURRENT_SETTLED=150000
+POWER_SUPPLY_INPUT_VOLTAGE_SET
+voltage_max=4200000
+=== pc_port /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/pc_port
+current_max=150000
+online=0
+type=USB
+uevent=POWER_SUPPLY_NAME=pc_port
+POWER_SUPPLY_TYPE=USB
+POWER_SUPPLY_ONLINE=0
+POWER_SUPPLY_VOLTAGE_MAX=5000000
+POWER_SUPPLY_CURRENT_MAX=150000
+voltage_max=5000000
+=== usb /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/usb
+boost_current=0
+ctm_current_max=-22
+current_max=1500000
+hw_current_max=1500000
+input_current_now=144531
+input_current_settled=150000
+num_system_temp_levels=0
+online=1
+pd_active=0
+pd_allowed=1
+pd_current_max=-22
+pd_voltage_max=5000000
+pd_voltage_min=5000000
+pe_start=1
+pr_swap=0
+present=1
+real_type=USB_CDP
+sdp_current_max=-22
+system_temp_level=0
+type=USB_PD
+typec_cc_orientation=2
+typec_mode=Source attached (default current)
+typec_power_role=sink
+uevent=POWER_SUPPLY_NAME=usb
+POWER_SUPPLY_PRESENT=1
+POWER_SUPPLY_ONLINE=1
+POWER_SUPPLY_VOLTAGE_MAX=5000000
+POWER_SUPPLY_VOLTAGE_NOW=4355468
+POWER_SUPPLY_PD_CURRENT_MAX=-22
+POWER_SUPPLY_CURRENT_MAX=1500000
+PO
+voltage_max=5000000
+voltage_now=4355468
+=== usbeb /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/usbeb
+current_max=500000
+online=0
+present=0
+type=USB_DCP
+uevent=POWER_SUPPLY_NAME=usbeb
+POWER_SUPPLY_PRESENT=0
+POWER_SUPPLY_ONLINE=0
+POWER_SUPPLY_CURRENT_MAX=500000
+=== wireless /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/wireless
+current_max=500000
+num_system_temp_levels=0
+online=0
+present=0
+system_temp_level=0
+type=Wireless
+uevent=POWER_SUPPLY_NAME=wireless
+POWER_SUPPLY_PRESENT=0
+POWER_SUPPLY_ONLINE=0
+POWER_SUPPLY_CURRENT_MAX=500000
+POWER_SUPPLY_SYSTEM_TEMP_LEVEL=0
+POWER_SUPPLY_NUM_SYSTEM_TEMP_LEVELS=0
+=== battery/device
+driver
+driver_override
+extcon
+factory_charge_upper
+factory_image_mode
+force_demo_mode
+force_max_chrg_temp
+force_thermreg_die_disable
+force_thermreg_skin_disable
+modalias
+of_node
+power
+power_supply
+regulator
+subsystem
+uevent
+=== mod params
+battery
+cfg80211
+leds_qpnp_wled
+qpnp_fg_gen3
+qpnp_power_on
+qpnp_qnovo
+qpnp_regulator
+qpnp_rtc
+qpnp_smb2
+qpnp_smbcharger_mmi
+smb138x_charger
+smb_lib
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_attach_start_soc=100
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_attach_stop_soc=100
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_low_start_soc=16
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_low_stop_soc=100
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_on_sw=1
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_rechrg_start_soc=70
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_rechrg_stop_soc=80
+/sys/module/qpnp_fg_gen3/parameters/debug_mask=0
+/sys/module/qpnp_fg_gen3/parameters/profile_dump=N
+/sys/module/qpnp_fg_gen3/parameters/restart=0
+/sys/module/qpnp_fg_gen3/parameters/sram_dump_en=N
+/sys/module/qpnp_fg_gen3/parameters/sram_dump_period_ms=20000
+/sys/module/smb_lib/parameters/factory_kill_disable=0
+/sys/module/smb_lib/parameters/force_eb_fifty=0
+/sys/module/smb_lib/parameters/usr_rst_sw_disable=0
+=== persist
+/mnt/vendor/persist/batt_health:
+total 20
+drwxrwxr-x  2 vendor_pwric vendor_pwric 4096 2018-08-07 20:56 .
+drwxrwx--x 33 root         system       4096 2019-12-14 15:58 ..
+-rw-r-----  1 vendor_pwric vendor_pwric    8 2019-06-21 05:01 age
+
+/mnt/vendor/persist/bms:
+total 16
+drwx------  2 root system 4096 1970-01-01 05:31 .
+drwxrwx--x 33 root system 4096 2019-12-14 15:58 ..
+
+/mnt/vendor/persist/chargeonly:
+total 20
+drwxrwx---  2 system system 4096 1970-01-01 05:31 .
+drwxrwx--x 33 root   system 4096 2019-12-14 15:58 ..
+-rw-rw----  1 system system    1 2026-09-26 13:51 cooldown
+
+/mnt/vendor/persist/hvdcp_opti:
+total 16
+drwxrwx---  2 root system 4096 1970-02-02 13:06 .
+drwxrwx--x 33 root system 4096 2019-12-14 15:58 ..
+/data/vendor/power_supply_logger:
+total 16
+drwxr-x---  2 vendor_pwric log  4096 1971-11-29 02:00 .
+drwxrwx--x 54 root         root 4096 2021-09-22 22:55 ..
+
+/data/vendor_de/power_supply_logger:
+total 12
+drwxrwx--- 2 root log  4096 1971-11-29 02:00 .
+drwxrwx--x 4 root root 4096 1971-11-29 02:00 ..
+[exit=0]
+
+## LEDs while charging (screen on)
+/sys/class/leds/blue b=0 max=255 trig=[none]
+/sys/class/leds/charging b=0 max=255 trig=[none]
+/sys/class/leds/green b=0 max=255 trig=[none]
+/sys/class/leds/lcd-backlight b=0 max=255 trig=[none]
+/sys/class/leds/led:flash_0 b=0 max=1500 trig=[flash0_trigger]
+/sys/class/leds/led:flash_1 b=0 max=1500 trig=[flash1_trigger]
+/sys/class/leds/led:flash_2 b=0 max=750 trig=[flash2_trigger]
+/sys/class/leds/led:switch_0 b=0 max=255 trig=[switch0_trigger]
+/sys/class/leds/led:switch_1 b=0 max=255 trig=[switch1_trigger]
+/sys/class/leds/led:torch_0 b=0 max=500 trig=[torch0_trigger]
+/sys/class/leds/led:torch_1 b=0 max=500 trig=[torch1_trigger]
+/sys/class/leds/led:torch_2 b=0 max=500 trig=[torch2_trigger]
+/sys/class/leds/mmc0:: b=0 max=255 trig=[mmc0]
+/sys/class/leds/mmc1:: b=0 max=255 trig=[mmc1]
+/sys/class/leds/torch-light0 b=0 max=255 trig=[none]
+/sys/class/leds/torch-light0_1 b=0 max=255 trig=[none]
+/sys/class/leds/torch-light1 b=0 max=255 trig=[none]
+/sys/class/leds/wled b=0 max=4095 trig=[bkl-trigger]
+[none] bkl-trigger switch0_trigger flash0_trigger flash1_trigger torch0_trigger torch1_trigger switch1_trigger flash2_trigger torch2_trigger dc-online usb-online wireless-online usbeb-online main-online pc_port-online battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid rfkill0 mmc0 mmc1 bms-online rfkill1 
+Charging
+USB_CDP
+[exit=0]
+
+[FRONT_TEMP]
+algo_type        virtual
+trip_sensor      msm_therm
+thresholds       -18000
+thresholds_clr   -20000
+sensors          msm_therm chg_therm batt_temp
+weights          110       85        110
+offsets          -2000     -2000     -2000
+sampling         10000
+math             0
+sys_temp
+
+[REPORT-FRONT-TEMP]
+algo_type        monitor
+sampling         300000
+sensor           FRONT_TEMP
+thresholds       45000
+thresholds_clr   43000
+actions          report
+action_info      1
+
+[BACK_TEMP]
+algo_type        virtual
+trip_sensor      msm_therm
+thresholds       -18000
+thresholds_clr   -20000
+sensors          msm_therm chg_therm batt_temp
+weights          110       85        110
+offsets          -1000     -1000     -1000
+sampling         10000
+math             0
+sys_temp
+
+[REPORT-BACK-TEMP]
+algo_type        monitor
+sampling         300000
+sensor           BACK_TEMP
+thresholds       45000
+thresholds_clr   43000
+actions          report
+action_info      1
+
+[SS-BATT-BATT]
+algo_type        ss
+sampling         5000
+sensor           batt_therm
+device           battery
+set_point        44000
+set_point_clr    42000
+
+[SS-CHG-BATT]
+algo_type        monitor
+sampling         1000
+sensor           msm_therm
+thresholds       36000 37000 39000 42000 44000
+thresholds_clr   35000 36000 38000 41000 43000
+actions          battery battery battery battery battery
+action_info      7 5 4 2 1
+
+
+[VIRT-MSM-GPU]
+algo_type        virtual
+trip_sensor      msm_therm
+thresholds       43000
+thresholds_clr   40000
+sensors          tsens_tz_sensor8
+weights          1
+sampling         1000
+math             0
+
+[Mon-GPU-BATT]
+algo_type        monitor
+sampling         5000
+sensor           VIRT-CHG-GPU
+actions          battery
+thresholds       48000
+thresholds_clr   44000
+action_info	 1
+
+[SS-MSM-CLUSTER11]
+algo_type        ss
+sampling         1000
+sensor           msm_therm
+device           cluster1
+set_point        40000
+set_point_clr    38000
+device_perf_floor 1401600
+
+
+[SS-MSM-CLUSTER12]
+algo_type        ss
+sampling         1000
+sensor           msm_therm
+device           cluster1
+set_point        43000
+set_point_clr    40000
+device_perf_floor 1113600
+
+[SS-MSM-CLUSTER01]
+algo_type        ss
+sampling         1000
+sensor           msm_therm
+device           cluster0
+set_point        40000
+set_point_clr    38000
+device_perf_floor 1401600
+
+[VIRT-GPU-MSM]
+algo_type        virtual
+trip_sensor      tsens_tz_sensor8
+thresholds       47000
+thresholds_clr   42000
+sensors          msm_therm
+weights          1
+sampling         5000
+math             0
+
+[SS-MSM-CLUSTER02]
+algo_type        ss
+sampling         1000
+sensor           VIRT-GPU-MSM
+device           cluster0
+set_point        43000
+set_point_clr    40000
+device_perf_floor 902400
+
+[CPU5_HOTPLUG_MONITOR]
+algo_type        monitor
+sampling         1000
+sensor           msm_therm
+thresholds       50000
+thresholds_clr   48000
+actions          hotplug_5
+action_info      1
+
+[CPU1_HOTPLUG_MONITOR]
+algo_type        monitor
+sampling         1000
+sensor           msm_therm
+thresholds       53000
+thresholds_clr   51000
+actions          hotplug_1
+action_info      1
+
+[CPU6_HOTPLUG_MONITOR]
+algo_type        monitor
+sampling         1000
+sensor           msm_therm
+thresholds       55000
+thresholds_clr   54000
+actions          hotplug_6
+action_info      1
+
+[CPU2_HOTPLUG_MONITOR]
+algo_type        monitor
+sampling         1000
+sensor           msm_therm
+thresholds       55000
+thresholds_clr   54000
+actions          hotplug_2
+action_info      1
+
+=== thermal-engine.conf
+# File empty by default.
+# Replace contents of this file with custom configuration.
+=== dumpsys battery
+Current Battery Service state:
+  AC powered: true
+  USB powered: false
+  Wireless powered: false
+  MOD powered: false
+  Max charging current: 1500000
+  Max charging voltage: 5000000
+  Charge counter: 3862039
+  status: 2
+  health: 2
+  present: true
+  level: 79
+  scale: 100
+  voltage: 4130
+  temperature: 320
+  technology: Li-ion
+  mod level: -1
+  mod status: 1
+  mod flag: 0
+  mod type: 0
+  mod power source: 0
+=== settings
+null
+0
+=== ls hw rc
+flags_health_check.rc
+android.hardware.health@2.0-service.rc
+android.hardware.power@1.0-service.rc
+android.hardware.thermal@1.0-service.rc
+motorola.hardware.health@1.0-service.rc
+vendor.qti.esepowermanager@1.0-service.rc
+service health-hal-2-0 /vendor/bin/hw/android.hardware.health@2.0-service
+    class hal
+    user system
+    group system
+    capabilities WAKE_ALARM
+    file /dev/kmsg w
+service vendor.mot.health-hal-1-0 /vendor/bin/hw/motorola.hardware.health@1.0-service
+    class hal
+    user system
+    group systemservice vendor.mot.health-hal-1-0 /vendor/bin/hw/motorola.hardware.health@1.0-service
+    class hal
+    user system
+    group system=== thermal zones
+/sys/class/thermal/thermal_zone0 pcm_therm 22600
+/sys/class/thermal/thermal_zone1 battery 32000
+/sys/class/thermal/thermal_zone10 tsens_tz_sensor0 337
+/sys/class/thermal/thermal_zone11 tsens_tz_sensor1 337
+/sys/class/thermal/thermal_zone12 tsens_tz_sensor2 334
+/sys/class/thermal/thermal_zone13 tsens_tz_sensor3 324
+/sys/class/thermal/thermal_zone14 tsens_tz_sensor4 327
+/sys/class/thermal/thermal_zone15 tsens_tz_sensor5 331
+/sys/class/thermal/thermal_zone16 tsens_tz_sensor6 324
+/sys/class/thermal/thermal_zone17 tsens_tz_sensor7 327
+/sys/class/thermal/thermal_zone18 tsens_tz_sensor8 318
+/sys/class/thermal/thermal_zone19 tsens_tz_sensor9 318
+/sys/class/thermal/thermal_zone2 chg_therm 30
+/sys/class/thermal/thermal_zone20 tsens_tz_sensor10 331
+/sys/class/thermal/thermal_zone21 tsens_tz_sensor11 324
+/sys/class/thermal/thermal_zone22 tsens_tz_sensor12 337
+/sys/class/thermal/thermal_zone23 tsens_tz_sensor13 321
+/sys/class/thermal/thermal_zone24 limits_sensor-00 
+/sys/class/thermal/thermal_zone25 limits_sensor-01 
+/sys/class/thermal/thermal_zone26 front_temp 27948
+/sys/class/thermal/thermal_zone27 back_temp 28974
+/sys/class/thermal/thermal_zone28 bms 32000
+/sys/class/thermal/thermal_zone29 GLM_soc 0
+/sys/class/thermal/thermal_zone3 pa_therm0 30
+/sys/class/thermal/thermal_zone30 LLM_cp1- 0
+/sys/class/thermal/thermal_zone31 LLM_cp0- 0
+/sys/class/thermal/thermal_zone4 pm660_tz 30795
+/sys/class/thermal/thermal_zone5 pm660l_tz 37000
+/sys/class/thermal/thermal_zone6 msm_therm 30
+/sys/class/thermal/thermal_zone7 quiet_therm 30
+/sys/class/thermal/thermal_zone8 xo_therm 30
+/sys/class/thermal/thermal_zone9 chg_therm 30
+[exit=0]
+
+## init rc excerpts
+8-
+9:on moto-charger
+10-    setprop ro.board.platform msm8998
+11-    load_system_props
+12-    trigger firmware_mounts_complete
+13-    setprop sys.usb.config charging
+14-    start  qcom-post-boot
+15-    start vendor.gbmodinstall
+16-    start vendor.charge_only_mode
+--
+226-#
+227:service thermal-engine /system/vendor/bin/thermal-engine
+228-   class main
+229-   user root
+230-   socket thermal-send-client stream 0666 system system
+231-   socket thermal-recv-client stream 0660 system system
+232-   socket thermal-recv-passive-client stream 0666 system system
+233-   socket thermal-send-rule stream 0660 system system
+234-   group root system
+--
+469-
+470:on charger
+471-    start vendor.hvdcp_opti
+472-    setprop sys.usb.configfs 1
+473-    start power_off_alarm
+474-
+475-#
+476-#service nqs /system/bin/nqs
+477-#    class late_start
+--
+820-
+821:on charger
+822-    trigger early-fs
+823-    trigger fs
+824-    trigger post-fs
+825-    trigger late-fs
+826-    trigger post-fs-data
+827-    trigger moto-charger
+828-    class_stop main
+--
+836-
+837:service vendor.batt_health /vendor/bin/batt_health
+838-    class late_start
+839-    user vendor_pwric
+840-    group vendor_pwric cache net_admin log
+841-    disabled
+842-
+843-on property:sys.boot_completed=1
+844-    start vendor.batt_health
+--
+986-
+987:service vendor.charge_only_mode /vendor/bin/charge_only_mode
+988-    user root
+989-    group graphics system input
+990-    disabled
+991-
+992:service vendor.thermal-com /vendor/bin/thermal-engine --minimode
+993-    class main
+994-    user root
+995-    disabled
+996-
+997-service vendor.adspd /vendor/bin/adspd
+998-   class main
+999-   socket adspdsock stream 0660 system audio
+--
+1975-
+1976:service hvdcp /system/bin/hvdcp
+1977-    class core
+1978-    user root
+1979-    disabled
+1980-
+1981:on property:persist.usb.hvdcp.detect=true
+1982-    start hvdcp
+1983-
+1984:on property:persist.usb.hvdcp.detect=false
+1985-    stop hvdcp
+1986-
+1987-#service charger_monitor /system/bin/charger_monitor
+1988-#    user root
+1989-#    group root
+1990-#    disabled
+1991-
+--
+2958-# property when the power button is held.
+2959:on property:sys.boot_from_charger_mode=1
+2960-    class_stop charger
+2961-    trigger late-init
+2962-
+2963-on load_persist_props_action
+2964-    load_persist_props
+2965-    start logd
+2966-    start logd-reinit
+--
+3428-
+3429:on charger
+3430-    class_start charger
+3431-
+3432-on property:vold.decrypt=trigger_load_persist_props
+3433-    load_persist_props
+3434-    start logd
+3435-    start logd-reinit
+3436-

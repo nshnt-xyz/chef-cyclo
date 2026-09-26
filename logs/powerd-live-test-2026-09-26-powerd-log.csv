@@ -1,0 +1,96 @@
+uptime,utc,reason,status,source,usb_type,capacity,voltage_mv,current_ma,temp_c,health,charge_type,ocv_mv,charge_full_uah,charge_counter_uah,cycle_count,soc_ready,usb_current_max_ma,usb_input_ma,usb_voltage_mv,input_settled_ma,profile_fcc_ma,typec_mode,pc_port_online,dc_online,system_temp_level,throttle_level,alert
+4.2,1970-01-09T21:59:29Z,start,Discharging,battery,Unknown,80,4078,357,32.0,Good,Fast,4106,5004000,3871615,0,1,0,27,4492,25,3000,Source attached (default current),0,0,0,0,none
+5.2,1970-01-09T21:59:30Z,uevent,Charging,usb,USB_CDP,80,4080,334,32.0,Good,Fast,4106,5004000,3871476,0,1,1500,27,4492,25,3000,Source attached (default current),0,0,0,0,none
+6.3,1970-01-09T21:59:31Z,uevent,Charging,usb,USB_CDP,80,4080,334,32.0,Good,Fast,4106,5004000,3871476,0,1,1500,27,4511,25,3000,Source attached (default current),0,0,0,0,none
+7.3,1970-01-09T21:59:32Z,uevent,Charging,usb,USB_CDP,80,4083,304,32.0,Good,Fast,4106,5004000,3871349,0,1,1500,27,4492,25,3000,Source attached (default current),0,0,0,0,none
+8.3,1970-01-09T21:59:33Z,uevent,Charging,usb,USB_CDP,80,4082,312,32.0,Good,Fast,4106,5004000,3871220,0,1,1500,27,4492,25,3000,Source attached (default current),0,0,0,0,none
+9.3,1970-01-09T21:59:34Z,uevent,Charging,usb,USB_CDP,80,4082,312,32.0,Good,Fast,4106,5004000,3871220,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+10.3,1970-01-09T21:59:35Z,uevent,Charging,usb,USB_CDP,80,4100,150,32.0,Good,Fast,4106,5004000,3871157,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+11.3,1970-01-09T21:59:36Z,uevent,Charging,usb,USB_CDP,80,4100,152,32.0,Good,Fast,4106,5004000,3871094,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+12.3,1970-01-09T21:59:37Z,uevent,Charging,usb,USB_CDP,80,4100,152,32.0,Good,Fast,4106,5004000,3871094,0,1,1500,162,4335,175,3000,Source attached (default current),0,0,0,0,none
+13.4,1970-01-09T21:59:38Z,uevent,Charging,usb,USB_CDP,80,4099,151,32.0,Good,Fast,4106,5004000,3871031,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+14.4,1970-01-09T21:59:39Z,uevent,Charging,usb,USB_CDP,80,4100,149,32.0,Good,Fast,4106,5004000,3870968,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+44.5,1970-01-09T22:00:09Z,tick,Charging,usb,USB_CDP,80,4099,149,32.0,Good,Fast,4106,5004000,3869698,0,1,1500,167,4316,175,3000,Source attached (default current),0,0,0,0,none
+61.4,1970-01-09T22:00:26Z,uevent,Charging,usb,USB_CDP,80,4099,150,32.0,Good,Fast,4106,5004000,3868923,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+62.4,1970-01-09T22:00:27Z,uevent,Charging,usb,USB_CDP,80,4099,150,32.0,Good,Fast,4106,5004000,3868923,0,1,1500,162,4335,175,3000,Source attached (default current),0,0,0,0,none
+87.9,1970-01-09T22:00:52Z,uevent,Discharging,battery,USB,80,4098,152,32.0,Good,N/A,4106,5004000,3869592,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+147.9,1970-01-09T22:01:52Z,poll,Discharging,battery,USB,80,4072,334,33.0,Good,N/A,4106,5004000,3864264,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+147.9,1970-01-09T22:01:52Z,uevent,Discharging,battery,USB,80,4072,334,33.0,Good,N/A,4106,5004000,3864264,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+195.1,1970-01-09T22:02:39Z,uevent,Discharging,battery,USB,80,4071,309,34.0,Good,N/A,4104,5004000,3860106,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+208.0,1970-01-09T22:02:52Z,uevent,Discharging,battery,USB,80,4072,311,34.0,Good,N/A,4106,5004000,3859063,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+215.7,1970-01-09T22:03:01Z,uevent,Discharging,battery,USB,80,4072,310,34.0,Good,N/A,4106,5004000,3858288,0,1,0,196,5000,25,3000,Source attached (high current),0,0,0,0,none
+216.8,1970-01-09T22:03:02Z,uevent,Not charging,usb,USB_DCP,80,4072,310,34.0,Good,N/A,4106,5004000,3858288,0,1,1500,0,0,0,3000,Source attached (high current),0,0,0,0,none
+217.8,1970-01-09T22:03:03Z,uevent,Discharging,battery,USB,80,4072,291,34.0,Good,N/A,4106,5004000,3863330,0,1,0,282,4902,500,3000,Source attached (high current),0,0,0,0,none
+219.0,1970-01-09T22:03:04Z,uevent,Charging,usb,USB_DCP,80,4106,-11,34.0,Good,Fast,4125,5004000,3863334,0,1,1500,474,4902,500,3000,Source attached (high current),0,0,0,0,none
+220.4,1970-01-09T22:03:06Z,uevent,Charging,usb,USB_DCP,80,4130,-192,34.0,Good,Fast,4125,5004000,3863415,0,1,1500,474,4902,500,3000,Source attached (high current),0,0,0,0,none
+221.7,1970-01-09T22:03:07Z,uevent,Charging,usb,USB_DCP,80,4131,-196,34.0,Good,Fast,4125,5004000,3863496,0,1,1500,474,4902,500,3000,Source attached (high current),0,0,0,0,none
+223.4,1970-01-09T22:03:09Z,uevent,Charging,usb,USB_DCP,80,4132,-194,34.0,Good,Fast,4125,5004000,3863577,0,1,1500,474,4804,925,3000,Source attached (high current),0,0,0,0,none
+225.1,1970-01-09T22:03:10Z,uevent,Charging,usb,USB_PD,80,4133,-197,33.0,Good,Fast,4125,5004000,3863659,0,1,3000,1019,4902,1150,3000,Source attached (high current),0,0,0,0,none
+226.2,1970-01-09T22:03:11Z,uevent,Charging,usb,USB_PD,80,4199,-788,33.0,Good,Taper,4125,5004000,3863987,0,1,3000,1002,4902,1150,3000,Source attached (high current),0,0,0,0,none
+227.2,1970-01-09T22:03:12Z,uevent,Charging,usb,USB_PD,80,4199,-788,33.0,Good,Taper,4125,5004000,3863987,0,1,3000,993,4902,1150,3000,Source attached (high current),0,0,0,0,none
+257.2,1970-01-09T22:03:42Z,tick,Charging,usb,USB_PD,80,4200,-644,34.0,Good,Taper,4124,5004000,3870070,0,1,3000,871,4921,1150,3000,Source attached (high current),0,0,0,0,none
+285.5,1970-01-09T22:04:10Z,uevent,Charging,usb,USB_PD,80,4200,-600,34.0,Good,Taper,4127,5004000,3874961,0,1,3000,830,4921,1150,3000,Source attached (high current),0,0,0,0,none
+296.1,1970-01-09T22:04:21Z,uevent,Charging,usb,USB_PD,80,4200,-590,34.0,Good,Taper,4129,5004000,3876695,0,1,3000,816,4941,1150,3000,Source attached (high current),0,0,0,0,none
+306.6,1970-01-09T22:04:31Z,uevent,Charging,usb,USB_PD,80,4200,-583,34.0,Good,Fast,4128,5004000,3878401,0,1,3000,2326,4667,2500,3000,Source attached (high current),0,0,0,0,none
+308.3,1970-01-09T22:04:33Z,uevent,Charging,usb,USB_PD,80,4357,-1999,34.0,Good,Fast,4128,5004000,3879233,0,1,3000,2311,4687,2575,3000,Source attached (high current),0,0,0,0,none
+312.0,1970-01-09T22:04:37Z,uevent,Charging,usb,USB_PD,80,4361,-1986,36.0,Good,Fast,4128,5004000,3881724,0,1,3000,2294,4687,2575,3000,Source attached (high current),0,0,0,0,none
+320.9,1970-01-09T22:04:45Z,uevent,Charging,usb,USB_PD,80,4367,-1963,38.0,Good,Fast,4130,5004000,3886674,0,1,3000,2271,4687,2575,3000,Source attached (high current),0,0,0,0,none
+339.0,1970-01-09T22:05:04Z,uevent,Charging,usb,USB_PD,80,4375,-1934,39.0,Good,Fast,4134,5004000,3896432,0,1,3000,2239,4687,2575,3000,Source attached (high current),0,0,0,0,none
+354.1,1970-01-09T22:05:19Z,tick,Charging,usb,USB_PD,81,4379,-1921,40.0,Good,Fast,4134,5004000,3904486,0,1,3000,2230,4687,2575,3000,Source attached (high current),0,0,0,0,none
+366.5,1970-01-09T22:05:31Z,uevent,Charging,usb,USB_PD,81,4382,-1915,40.0,Good,Fast,4137,5004000,3910903,0,1,3000,2221,4687,2575,3000,Source attached (high current),0,0,0,0,none
+396.6,1970-01-09T22:06:01Z,tick,Charging,usb,USB_PD,81,4386,-1901,40.0,Good,Fast,4142,5004000,3926837,0,1,3000,2203,4687,2575,3000,Source attached (high current),0,0,0,0,none
+401.4,1970-01-09T22:06:06Z,uevent,Charging,usb,USB_PD,81,4387,-1898,40.0,Good,Fast,4143,5004000,3930010,0,1,3000,2203,4707,2575,3000,Source attached (high current),0,0,0,0,none
+413.6,1970-01-09T22:06:18Z,uevent,Charging,usb,USB_PD,82,4389,-1893,40.0,Good,Fast,4144,5004000,3936356,0,1,3000,2221,4707,2575,3000,Source attached (high current),0,0,0,0,none
+427.0,1970-01-09T22:06:32Z,uevent,Charging,usb,USB_PD,82,4389,-1884,40.0,Good,Fast,4145,5004000,3943478,0,1,3000,2194,4707,2575,3000,Source attached (high current),0,0,0,0,none
+443.9,1970-01-09T22:06:48Z,uevent,Charging,usb,USB_PD,82,4392,-1883,40.0,Good,Taper,4147,5004000,3952164,0,1,3000,2185,4707,2575,3000,Source attached (high current),0,0,0,0,none
+473.9,1970-01-09T22:07:18Z,tick,Charging,usb,USB_PD,82,4393,-1871,41.0,Good,Taper,4151,5004000,3967548,0,1,3000,2158,4707,2575,3000,Source attached (high current),0,0,0,0,none
+487.5,1970-01-09T22:07:32Z,uevent,Charging,usb,USB_PD,82,4394,-1857,41.0,Good,Taper,4154,5004000,3974580,0,1,3000,2149,4707,2575,3000,Source attached (high current),0,0,0,0,none
+500.2,1970-01-09T22:07:45Z,uevent,Charging,usb,USB_PD,82,4393,-1847,41.0,Good,Taper,4154,5004000,3981565,0,1,3000,2135,4707,2575,3000,Source attached (high current),0,0,0,0,none
+520.2,1970-01-09T22:08:05Z,tick,Charging,usb,USB_PD,83,4393,-1830,41.0,Good,Taper,4154,5004000,3991591,0,1,3000,2189,4707,2575,3000,Source attached (high current),0,0,0,0,none
+547.9,1970-01-09T22:08:32Z,uevent,Charging,usb,USB_PD,83,4393,-1806,41.0,Good,Taper,4159,5004000,4006084,0,1,3000,2089,4707,2575,3000,Source attached (high current),0,0,0,0,none
+577.9,1970-01-09T22:09:02Z,tick,Charging,usb,USB_PD,83,4393,-1783,41.0,Good,Taper,4162,5004000,4021138,0,1,3000,2058,4726,2575,3000,Source attached (high current),0,0,0,0,none
+602.9,1970-01-09T22:09:28Z,tick,Charging,usb,USB_PD,84,4394,-1763,41.0,Good,Taper,4166,5004000,4033461,0,1,3000,2036,4726,2575,3000,Source attached (high current),0,0,0,0,none
+606.3,1970-01-09T22:09:31Z,uevent,Charging,usb,USB_PD,84,4394,-1761,41.0,Good,Taper,4164,5004000,4034939,0,1,3000,2036,4726,2575,3000,Source attached (high current),0,0,0,0,none
+608.3,1970-01-09T22:09:33Z,uevent,Charging,usb,USB_PD,84,4394,-1759,41.0,Good,Taper,4165,5004000,4035678,0,1,3000,2032,4726,2575,3000,Source attached (high current),0,0,0,0,none
+638.3,1970-01-09T22:10:03Z,tick,Charging,usb,USB_PD,84,4394,-1737,42.0,Good,Taper,4168,5004000,4050344,0,1,3000,2004,4726,2575,3000,Source attached (high current),0,0,0,0,none
+668.4,1970-01-09T22:10:33Z,tick,Charging,usb,USB_PD,84,4394,-1712,42.0,Good,Taper,4172,5004000,4064813,0,1,3000,1982,4746,2575,3000,Source attached (high current),0,0,0,0,none
+669.3,1970-01-09T22:10:34Z,uevent,Charging,usb,USB_PD,84,4393,-1712,42.0,Good,Taper,4172,5004000,4065532,0,1,3000,1982,4746,2575,3000,Source attached (high current),0,0,0,0,none
+699.3,1970-01-09T22:11:04Z,tick,Charging,usb,USB_PD,84,4394,-1688,42.0,Good,Taper,4175,5004000,4079799,0,1,3000,1954,4746,2575,3000,Source attached (high current),0,0,0,0,none
+709.9,1970-01-09T22:11:15Z,uevent,Charging,usb,USB_PD,84,4394,-1678,42.0,Good,Taper,4176,5004000,4084744,0,1,3000,2009,4746,2575,3000,Source attached (high current),0,0,0,0,none
+729.5,1970-01-09T22:11:34Z,uevent,Charging,usb,USB_PD,85,4394,-1664,42.0,Good,Taper,4178,5004000,4093871,0,1,3000,1927,4746,2575,3000,Source attached (high current),0,0,0,0,none
+759.5,1970-01-09T22:12:04Z,tick,Charging,usb,USB_PD,85,4393,-1640,42.0,Good,Taper,4180,5004000,4107487,0,1,3000,1900,4746,2575,3000,Source attached (high current),0,0,0,0,none
+789.5,1970-01-09T22:12:34Z,tick,Charging,usb,USB_PD,85,4393,-1618,42.0,Good,Taper,4183,5004000,4121176,0,1,3000,1873,4765,2575,3000,Source attached (high current),0,0,0,0,none
+790.5,1970-01-09T22:12:35Z,uevent,Charging,usb,USB_PD,85,4393,-1616,42.0,Good,Taper,4183,5004000,4121855,0,1,3000,1873,4765,2575,3000,Source attached (high current),0,0,0,0,none
+820.5,1970-01-09T22:13:05Z,tick,Charging,usb,USB_PD,85,4393,-1594,42.0,Good,Taper,4186,5004000,4135344,0,1,3000,1855,4765,2575,3000,Source attached (high current),0,0,1,0,none
+827.7,1970-01-09T22:13:12Z,uevent,Charging,usb,USB_PD,85,4393,-1588,42.0,Good,Taper,4187,5004000,4138686,0,1,3000,1846,4765,2575,3000,Source attached (high current),0,0,2,0,none
+837.7,1970-01-09T22:13:23Z,tick,Charging,usb,USB_PD,85,4386,-1520,42.0,Good,Taper,4188,5004000,4142629,0,1,3000,1770,4882,2575,3000,Source attached (high current),0,0,3,0,none
+838.8,1970-01-09T22:13:24Z,uevent,Charging,usb,USB_PD,85,4386,-1519,42.0,Good,Fast,4188,5004000,4143267,0,1,3000,1450,4785,2575,3000,Source attached (high current),0,0,4,0,none
+848.8,1970-01-09T22:13:34Z,tick,Charging,usb,USB_PD,85,4318,-894,41.0,Good,Fast,4187,5004000,4146420,0,1,3000,1125,4902,2575,3000,Source attached (high current),0,0,5,0,none
+850.4,1970-01-09T22:13:35Z,uevent,Charging,usb,USB_PD,85,4296,-687,41.0,Good,Fast,4187,5004000,4146709,0,1,3000,920,4902,2575,3000,Source attached (high current),0,0,6,0,none
+860.4,1970-01-09T22:13:45Z,tick,Charging,usb,USB_PD,85,4245,-273,40.0,Good,Fast,4188,5004000,4148209,0,1,3000,542,4941,2575,3000,Source attached (high current),0,0,7,0,none
+890.4,1970-01-09T22:14:15Z,tick,Charging,usb,USB_PD,85,4234,-273,39.0,Good,Fast,4189,5004000,4150512,0,1,3000,538,4941,2575,3000,Source attached (high current),0,0,7,0,none
+911.5,1970-01-09T22:14:36Z,uevent,Charging,usb,USB_PD,85,4230,-274,39.0,Good,Fast,4187,5004000,4152126,0,1,3000,542,4941,2575,3000,Source attached (high current),0,0,7,0,none
+941.5,1970-01-09T22:15:06Z,tick,Charging,usb,USB_PD,85,4229,-274,39.0,Good,Fast,4187,5004000,4154429,0,1,3000,538,4941,2575,3000,Source attached (high current),0,0,7,0,none
+971.3,1970-01-09T22:15:36Z,uevent,Charging,usb,USB_PD,85,4228,-275,39.0,Good,Fast,4186,5004000,4156736,0,1,3000,538,4941,2575,3000,Source attached (high current),0,0,7,0,none
+1001.4,1970-01-09T22:16:06Z,tick,Charging,usb,USB_PD,85,4228,-272,39.0,Good,Fast,4186,5004000,4159156,0,1,3000,538,4941,2575,3000,Source attached (high current),0,0,7,0,none
+1031.4,1970-01-09T22:16:36Z,tick,Charging,usb,USB_PD,85,4228,-276,39.0,Good,Fast,4186,5004000,4161462,0,1,3000,542,4921,2575,3000,Source attached (high current),0,0,7,0,none
+1031.9,1970-01-09T22:16:37Z,uevent,Charging,usb,USB_PD,85,4228,-276,39.0,Good,Fast,4186,5004000,4161462,0,1,3000,542,4941,2575,3000,Source attached (high current),0,0,7,0,none
+1062.0,1970-01-09T22:17:07Z,tick,Charging,usb,USB_PD,85,4228,-274,39.0,Good,Fast,4186,5004000,4163770,0,1,3000,538,4941,2575,3000,Source attached (high current),0,0,7,0,none
+1065.6,1970-01-09T22:17:10Z,uevent,Discharging,battery,USB,85,4228,-274,39.0,Good,N/A,4186,5004000,4135183,0,1,0,0,0,0,3000,Nothing attached,0,0,7,0,none
+1066.6,1970-01-09T22:17:11Z,uevent,Discharging,battery,USB,85,4164,314,39.0,Good,N/A,4166,5004000,4135051,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+1125.6,1970-01-09T22:18:10Z,uevent,Discharging,battery,USB,85,4151,317,39.0,Good,N/A,4165,5004000,4129808,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+1185.6,1970-01-09T22:19:10Z,poll,Discharging,battery,USB,85,4147,313,39.0,Good,N/A,4166,5004000,4124312,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+1185.7,1970-01-09T22:19:10Z,uevent,Discharging,battery,USB,85,4147,313,39.0,Good,N/A,4166,5004000,4124312,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+1195.5,1970-01-09T22:19:21Z,uevent,Not charging,unknown,USB,85,4145,318,39.0,Good,N/A,4166,5004000,4123376,0,1,0,162,4316,175,3000,Source attached (default current),0,0,0,0,none
+1196.7,1970-01-09T22:19:22Z,uevent,Charging,usb,USB_CDP,85,4145,318,39.0,Good,Fast,4166,5004000,4123376,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1198.2,1970-01-09T22:19:23Z,uevent,Charging,usb,USB_CDP,85,4154,232,39.0,Good,Fast,4166,5004000,4123278,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1201.8,1970-01-09T22:19:26Z,uevent,Charging,usb,USB_CDP,85,4158,208,38.0,Good,Fast,4166,5004000,4123004,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1202.8,1970-01-09T22:19:28Z,uevent,Charging,usb,USB_CDP,85,4157,206,38.0,Good,Fast,4166,5004000,4122917,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1203.8,1970-01-09T22:19:29Z,uevent,Charging,usb,USB_CDP,85,4157,206,38.0,Good,Fast,4166,5004000,4122917,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1205.0,1970-01-09T22:19:30Z,uevent,Charging,usb,USB_CDP,85,4156,206,38.0,Good,Fast,4164,5004000,4122831,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1206.0,1970-01-09T22:19:31Z,uevent,Charging,usb,USB_CDP,85,4158,206,38.0,Good,Fast,4164,5004000,4122744,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1208.1,1970-01-09T22:19:33Z,uevent,Charging,usb,USB_CDP,85,4158,205,38.0,Good,Fast,4164,5004000,4122657,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1219.0,1970-01-09T22:19:44Z,uevent,Charging,usb,USB_CDP,85,4155,229,38.0,Good,Fast,4164,5004000,4121980,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1220.0,1970-01-09T22:19:45Z,uevent,Charging,usb,USB_CDP,85,4158,205,38.0,Good,Fast,4164,5004000,4121894,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1249.0,1970-01-09T22:20:14Z,uevent,Charging,usb,USB_CDP,85,4157,210,38.0,Good,Fast,4164,5004000,4120139,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none
+1250.0,1970-01-09T22:20:15Z,uevent,Charging,usb,USB_CDP,85,4157,210,38.0,Good,Fast,4164,5004000,4120139,0,1,1500,117,4394,125,3000,Source attached (default current),0,0,0,0,none

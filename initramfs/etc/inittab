@@ -15,6 +15,10 @@
 # way down through this init (::shutdown, SIGTERM to all, RB_POWER_OFF).
 # The PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look.
 ::respawn:/usr/bin/buttond
+# Battery: low-battery warn (15 %) / critical (5 %) and a clean poweroff when
+# empty and unpowered or at 68 C, the power_supply log + state in /run/power
+# (`powerd status`), and the 44/42 C charge throttle on system_temp_level.
+::respawn:/usr/bin/powerd
 ::ctrlaltdel:/sbin/reboot
 ::shutdown:/bin/umount -a -r
 ::restart:/sbin/init

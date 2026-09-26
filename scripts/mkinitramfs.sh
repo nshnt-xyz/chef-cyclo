@@ -3,7 +3,8 @@
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
 # the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
 # display/touch probe fbtouch, the on-device log screen fblog, the gpsd
-# feed nmea-broker, the button daemon buttond and the ADSP bring-up +
+# feed nmea-broker, the button daemon buttond, the battery daemon powerd
+# and the ADSP bring-up +
 # speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
 # TAS2560 calibration-control writer) and the speaker-protection experiment
 # (afe-debug, spk-protect-probe, afe-topology-cal, tert-tx-hold) on top.
@@ -205,6 +206,15 @@ echo "built $ROOT/usr/bin/nmea-broker"
 [ -f tools/buttond.c ] || { echo "missing required source: tools/buttond.c" >&2; exit 1; }
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/buttond" tools/buttond.c
 echo "built $ROOT/usr/bin/buttond"
+
+# Battery daemon (tools/powerd.c, docs/features/battery-and-charging.md):
+# low-battery warn/critical and clean shutdown (BatteryService clone),
+# power_supply CSV log + state file under /run/power, and the 44/42 C
+# charge throttle on battery/system_temp_level (thermal-engine SS-BATT-BATT
+# clone). Started from both inittabs (respawn). Plain libc.
+[ -f tools/powerd.c ] || { echo "missing required source: tools/powerd.c" >&2; exit 1; }
+"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/powerd" tools/powerd.c
+echo "built $ROOT/usr/bin/powerd"
 
 # ADSP bring-up + speaker test tone (docs/features/audio.md): audio-up
 # (initramfs/usr/bin/audio-up) and speaker-test-tone

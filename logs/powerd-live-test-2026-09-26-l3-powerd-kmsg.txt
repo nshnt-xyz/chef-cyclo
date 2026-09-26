@@ -1,0 +1,14 @@
+powerd: TEST OVERRIDE: shutdown-cmd throttle-set=30 throttle-clear=29
+powerd: ready: /sys/class/power_supply -> /run/powertest/l3, warn 15 %, critical 5 %, off at 0 % / 3300 mV / 68.0 C, throttle on
+powerd: start: Charging, 85 %, 4.39 V, battery 42.0 C, source usb USB_PD
+powerd: charge throttle level 1 of 7 (battery 42.0 C, above set point)
+powerd: charge throttle level 2 of 7 (battery 42.0 C, above set point)
+powerd: charge throttle level 3 of 7 (battery 42.0 C, above set point)
+powerd: charge throttle level 4 of 7 (battery 42.0 C, above set point)
+powerd: charge throttle level 5 of 7 (battery 42.0 C, above set point)
+powerd: charge throttle level 6 of 7 (battery 41.0 C, above set point)
+powerd: charge throttle level 7 of 7 (battery 40.0 C, above set point)
+powerd: unplugged: on battery (85 %, 4.22 V)
+powerd: status Charging -> Discharging
+powerd: charge throttle level 0 of 7 (battery 39.0 C, unplugged)
+powerd: exiting

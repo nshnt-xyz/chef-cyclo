@@ -29,6 +29,8 @@ tools/nmea-broker
 tools/tests/test-nmea-broker
 tools/buttond
 tools/tests/test-buttond
+tools/powerd
+tools/tests/test-powerd
 tools/wavtone
 tools/tests/test-wavtone
 tools/tas2560-send-cal

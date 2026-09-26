@@ -16,6 +16,7 @@ Paths below are relative to the repository root.
 | `tools/fbdev.h` | Shared framebuffer lifecycle and advisory screen-lock contract. |
 | `tools/fbtouch.c`, `tools/fblog/` | [Display/touch probe and on-device log screen](features/display-and-touch.md); generated public-domain X11 font included. |
 | `tools/buttond.c` | [Button gesture daemon](features/buttons-and-power-off.md) and socket client. |
+| `tools/powerd.c` | [Battery daemon](features/battery-and-charging.md): low-battery/over-temperature shutdown, charge throttle, `/run/power` state and log, `powerd status`. |
 | `tools/rmtfs/` | BSD upstream port serving EFS with RAM-shadow writes. |
 | `tools/msmipc.{c,h}`, `tools/irsc.c`, `tools/qrtr/` | AF_MSM_IPC transport adapter, IRSC gate, and shared QMI support. |
 | `tools/qmux.{c,h}`, `tools/qmuxd-lite.c` | libqmi/QMUX bridge to the modem. |

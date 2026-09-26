@@ -183,6 +183,10 @@ while True:
 STUB
 chmod 755 "$T/bin"/stub-*
 printf '%s\n' 42 > "$T/capacity"; printf '%s\n' Discharging > "$T/status"
+# sysfs fallback values (no powerd) and a powerd state file for case 1
+printf '%s\n' 3987000 > "$T/voltage_now"; printf '%s\n' -412000 > "$T/current_now"; printf '%s\n' 315 > "$T/temp"
+mkdir -p "$T/usbpsy" "$T/pcpsy"; printf '%s\n' 0 > "$T/usbpsy/online"; printf '%s\n' 0 > "$T/pcpsy/online"
+printf 'uptime=10.0\nstatus=Charging\nsource=usb\nvoltage_mv=4106\ncurrent_ma=103\ntemp_c=32.0\n' > "$T/power-state.powerd"
 
 # --- per-case environment ----------------------------------------------------
 reset_tree() {
@@ -203,7 +207,7 @@ exec 8> "$T/kmsg" 9> "$T/vib"
 start_logger() {
 	RIDE_DIR=$T/ride RIDE_QMICLI=$T/bin/stub-qmicli RIDE_GPS_UP=$T/bin/stub-gps-up \
 	RIDE_QMUX_SOCKET=$T/qmux_socket RIDE_KMSG=$T/kmsg RIDE_VIBRATOR=$T/vib RIDE_FBLOG_OFF=$T/fblog.off \
-	RIDE_BATTERY=$T RIDE_SETTLE_S=0 RIDE_SOCKET_WAIT_S=3 RIDE_READY_TRIES=3 RIDE_QMI_TIMEOUT_S=5 \
+	RIDE_BATTERY=$T RIDE_USB_PSY=$T/usbpsy RIDE_PC_PSY=$T/pcpsy RIDE_POWER_STATE=${POWER_STATE:-$T/no-power-state} RIDE_SETTLE_S=0 RIDE_SOCKET_WAIT_S=3 RIDE_READY_TRIES=3 RIDE_QMI_TIMEOUT_S=5 \
 	RIDE_STALL_S=2 RIDE_SCREEN_OFF_AFTER_S=${SCREEN_OFF:-2} RIDE_FOLLOW_MAX_FAST_FAILS=3 RIDE_FOLLOW_FAST_S=5 \
 	RIDE_HEARTBEAT_S=1 $SH "$LOGGER" > "$T/logger.out" 2>&1 &
 	LOGGER_PID=$!
@@ -224,7 +228,7 @@ echo "test_ride-logger: logger under '$SH'"
 
 # --- 1. happy path + HTTP ----------------------------------------------------
 reset_tree ok
-start_logger
+POWER_STATE=$T/power-state.powerd start_logger
 wait_for "1: status LOGGING" 15 '[ "$(status)" = LOGGING ]'
 check "1: bring-up order in events.log" '
 	awk "/gps-up-start/{a=NR} /qmux-socket/{b=NR} /bridge-ready/{c=NR} /loc-cid 7/{d=NR} /nmea-types-set gga\\|rmc\\|gsv\\|gsa\\|vtg/{e=NR} /loc-start session=1/{f=NR} /follow-start n=1/{g=NR}
@@ -245,7 +249,8 @@ check "1: nmea.log carries no non-NMEA lines" '! grep -qv "^[0-9][0-9]*\.[0-9]* 
 check "1: positions.log summarises reports" 'grep -q "^[0-9][0-9.]* status=in-progress lat=0.000000 lon=0.000000 alt_msl=-18.000000 speed=n/a heading=91.5 unc_m=7070360.000000 tech=cellular utc_ms=1789727728930 sats=n/a$" "$T/ride/positions.log" && grep -q "status=success lat=48.117300 lon=11.516667 alt_msl=-18.000000 speed=3.400000 heading=91.5 unc_m=12.500000 tech=satellite utc_ms=1789727728930 sats=8$" "$T/ride/positions.log"'
 sleep 0.3
 check "1: kmsg announces the fixes" 'grep -q "^ride: GPS FIX (GGA quality 1, 08 sats)" "$T/kmsg.log" && grep -q "^ride: POSITION FIX lat=48.117300 lon=11.516667" "$T/kmsg.log"'
-wait_for "1: heartbeat with counters" 5 'grep -q "heartbeat nmea=[1-9][0-9]* pos=[1-9][0-9]* gga_fix=[1-9][0-9]* pos_ok=[1-9][0-9]* batt=42%" "$T/ride/events.log"'
+wait_for "1: heartbeat with counters" 5 'grep -q "heartbeat nmea=[1-9][0-9]* pos=[1-9][0-9]* gga_fix=[1-9][0-9]* pos_ok=[1-9][0-9]* batt=42% power=Charging,usb,4106mV,103mA,32.0C$" "$T/ride/events.log"'
+check "1: meta.txt has the powerd power line" 'grep -q "^power: Charging,usb,4106mV,103mA,32.0C " "$T/ride/meta.txt"'
 wait_for "1: screen idled after the delay" 5 '[ -e "$T/fblog.off" ] && ev "screen-off"'
 check "1: kmsg says how to wake the screen" 'grep -q "^ride: idling the screen now (wake: rm $T/fblog.off; kill" "$T/kmsg.log"'
 
@@ -297,14 +302,18 @@ check "2: exit 0 on TERM" '[ "$rc" = 0 ]'
 check "2: STOPPED (signal)" '[ "$(status)" = "STOPPED (signal)" ]'
 check "2: gps-up got TERM, loc stopped" '[ -e "$T/gps-up.term" ] && [ -e "$T/loc-stop.calls" ]'
 check "2: screen never idled with RIDE_SCREEN_OFF_AFTER_S=0" '! ev "screen-off"'
+check "2: sysfs power fallback without powerd (unplugged)" 'grep -q "^power: Discharging,battery,3987mV,-412mA,31.5C " "$T/ride/meta.txt" && grep -q "power=Discharging,battery,3987mV,-412mA,31.5C$" "$T/ride/events.log"'
 check "2: no stub processes left" 'no_stubs_left'
 
 # --- 3. gps-up dies before the socket ------------------------------------------
 reset_tree die-early
+printf '%s\n' 1 > "$T/pcpsy/online"	# SDP host port: usb/online 0, pc_port/online 1
 start_logger
 wait_logger 15
 sleep 0.3
+printf '%s\n' 0 > "$T/pcpsy/online"
 check "3: exit 1" '[ "$rc" = 1 ]'
+check "3: sysfs fallback sees an SDP input on pc_port" 'grep -q "^power: Discharging,usb,3987mV" "$T/ride/meta.txt"'
 check "3: FAILED status names gps-up" 'case "$(status)" in "FAILED: gps-up exited (rc 3) before the qmux socket"*) true ;; *) false ;; esac'
 check "3: kmsg FAILED line and evidence hint" 'grep -q "^ride: FAILED: gps-up exited" "$T/kmsg.log" && grep -q "^ride: evidence stays in" "$T/kmsg.log"'
 check "3: three long buzzes" '[ "$(grep -c "^600$" "$T/vib.log")" = 3 ]'

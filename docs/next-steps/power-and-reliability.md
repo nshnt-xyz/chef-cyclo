@@ -6,7 +6,12 @@ These are plans, not implemented behavior. Package versions and candidate approa
 
 ## Battery and charging
 
-`power_supply/battery` is already readable (the ride image logs capacity % and status in its heartbeat and `meta.txt`), but nothing is verified beyond that: does charging actually run under our kernel with no Android charger daemon (current limits, USB vs. wall, the PMIC's default input limit), does `status` flip to Charging/Discharging/Full correctly, what does a full ride drain look like (the terrace run is the only data point), and low-battery behaviour — warn on the panel, then a clean shutdown before the PMIC cuts power. Also the fuel gauge: check whether capacity is sane without Android's `qcom,qpnp-fg` userspace helper, and whether the battery-swap on 2026-09-15 needs a profile reload.
+Done 2026-09-26 ([feature guide](../features/battery-and-charging.md), [plan](battery-and-charging-plan.md)): the kernel charges on its own under our image, the fuel gauge is sane with the right profile and no helper, status flips correctly, and `powerd` provides the low-battery warn/shutdown, the charge throttle and a `/run/power` log. Remaining:
+
+- **Ride drain (plan step L5):** ride image with GPS on, unplugged for at least 1 h, then pull `/run/power/log.csv` for %/h and mean current.
+- **`Full` and recharge restart (Q4):** needs a long charge to 100 %.
+- **Off-mode charging under our image:** needs a standalone boot. Today power-off with USB attached returns to Android's charger.
+- **Persistent cycle/age and power logs:** need writable storage. Until then a low-battery shutdown on the ride image loses the RAM ride log.
 
 ## Suspend and idle power
 

@@ -1,0 +1,315 @@
+## uptime 25.85 201.64 utc 1970-01-09T21:59:50Z
+Linux (none) 4.4.192-cyclo+ #15 SMP PREEMPT Sat Sep 26 15:53:01 IST 2026 aarch64 Linux
+=== battery /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/battery
+age=100 
+battery_charging_enabled=1 
+capacity=80 
+charge_counter=3870459 
+charge_done=0 
+charge_rate=Normal 
+charge_type=Fast 
+charger_temp=359 
+charger_temp_max=812 
+constant_charge_current_max=3000000 
+current_max=3000000 
+current_now=152831 
+current_qnovo=-22 
+die_health=Cool 
+dp_dm=0 
+fcc_stepper_enable=0 
+health=Good 
+input_current_limited=1 
+input_suspend=0 
+num_system_temp_levels=8 
+parallel_disable=0 
+present=1 
+rerun_aicl=0 
+set_ship_mode=0 
+status=Charging 
+step_charging_enabled=0 
+sw_jeita_enabled=0 
+system_temp_level=0 
+technology=Li-ion 
+temp=320 
+type=Battery 
+voltage_max=-22 
+voltage_now=4100331 
+voltage_qnovo=-22 
+=== bms /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qpnp,fg/power_supply/bms
+battery_type=JK50atl_india_4v4_5000mAh 
+capacity=80 
+capacity_raw=204 
+cc_step=0 
+cc_step_sel=0 
+charge_counter=3870459 
+charge_counter_shadow=3869955 
+charge_full=5004000 
+charge_full_design=5004000 
+charge_now=0 
+charge_now_raw=1793258 
+constant_charge_voltage=4389899 
+current_now=152831 
+cycle_count=0 
+cycle_count_id=1 
+debug_battery=0 
+fg_reset_clock=0 
+resistance=164550 
+resistance_id=325000 
+soc_reporting_ready=1 
+temp=320 
+temp_cold=-200 
+temp_cool=0 
+temp_hot=600 
+temp_warm=450 
+time_to_empty_avg=75210 
+time_to_full_avg=-1 
+type=BMS 
+voltage_max_design=4400000 
+voltage_now=4100331 
+voltage_ocv=4106939 
+=== dc /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/dc
+current_max=500000 
+input_suspend=0 
+online=0 
+present=0 
+real_type=Wipower 
+type=Wipower 
+voltage_now=0 
+=== main /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/main
+constant_charge_current_max=3000000 
+current_max=1954248464 
+fcc_delta=0 
+input_current_settled=175000 
+input_voltage_settled=5000000 
+type=Main 
+voltage_max=4200000 
+=== pc_port /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/pc_port
+current_max=175000 
+online=0 
+type=USB 
+voltage_max=5000000 
+=== usb /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/usb
+boost_current=0 
+ctm_current_max=-22 
+current_max=1500000 
+hw_current_max=1500000 
+input_current_now=167114 
+input_current_settled=175000 
+num_system_temp_levels=0 
+online=1 
+pd_active=0 
+pd_allowed=1 
+pd_current_max=-22 
+pd_voltage_max=5000000 
+pd_voltage_min=5000000 
+pe_start=1 
+pr_swap=0 
+present=1 
+real_type=USB_CDP 
+sdp_current_max=-22 
+system_temp_level=0 
+type=USB_PD 
+typec_cc_orientation=2 
+typec_mode=Source attached (default current) 
+typec_power_role=sink 
+voltage_max=5000000 
+voltage_now=4335937 
+=== usbeb /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/usbeb
+current_max=500000 
+online=0 
+present=0 
+type=USB_DCP 
+=== wireless /sys/devices/soc/800f000.qcom,spmi/spmi-0/spmi0-00/800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2/power_supply/wireless
+current_max=500000 
+num_system_temp_levels=0 
+online=0 
+present=0 
+system_temp_level=0 
+type=Wireless 
+=== battery/device
+factory_charge_upper=75
+factory_image_mode=0
+force_demo_mode=0
+force_max_chrg_temp=0
+force_thermreg_die_disable=cat: can't open '/sys/class/power_supply/battery/device/force_thermreg_die_disable': Permission denied
+force_thermreg_skin_disable=cat: can't open '/sys/class/power_supply/battery/device/force_thermreg_skin_disable': Permission denied
+=== thermal zones
+/sys/class/thermal/thermal_zone0 pcm_therm 22600
+/sys/class/thermal/thermal_zone1 battery 32000
+/sys/class/thermal/thermal_zone10 tsens_tz_sensor0 356
+/sys/class/thermal/thermal_zone11 tsens_tz_sensor1 350
+/sys/class/thermal/thermal_zone12 tsens_tz_sensor2 350
+/sys/class/thermal/thermal_zone13 tsens_tz_sensor3 347
+/sys/class/thermal/thermal_zone14 tsens_tz_sensor4 350
+/sys/class/thermal/thermal_zone15 tsens_tz_sensor5 353
+/sys/class/thermal/thermal_zone16 tsens_tz_sensor6 347
+/sys/class/thermal/thermal_zone17 tsens_tz_sensor7 356
+/sys/class/thermal/thermal_zone18 tsens_tz_sensor8 340
+/sys/class/thermal/thermal_zone19 tsens_tz_sensor9 340
+/sys/class/thermal/thermal_zone2 chg_therm 31
+/sys/class/thermal/thermal_zone20 tsens_tz_sensor10 343
+/sys/class/thermal/thermal_zone21 tsens_tz_sensor11 343
+/sys/class/thermal/thermal_zone22 tsens_tz_sensor12 363
+/sys/class/thermal/thermal_zone23 tsens_tz_sensor13 337
+/sys/class/thermal/thermal_zone24 limits_sensor-00 cat: read error: Invalid argument
+/sys/class/thermal/thermal_zone25 limits_sensor-01 cat: read error: Invalid argument
+/sys/class/thermal/thermal_zone26 front_temp 0
+/sys/class/thermal/thermal_zone27 back_temp 0
+/sys/class/thermal/thermal_zone28 bms 32000
+/sys/class/thermal/thermal_zone29 GLM_soc 0
+/sys/class/thermal/thermal_zone3 pa_therm0 30
+/sys/class/thermal/thermal_zone30 LLM_cp1- 0
+/sys/class/thermal/thermal_zone31 LLM_cp0- 0
+/sys/class/thermal/thermal_zone4 pm660_tz 32053
+/sys/class/thermal/thermal_zone5 pm660l_tz 37000
+/sys/class/thermal/thermal_zone6 msm_therm 31
+/sys/class/thermal/thermal_zone7 quiet_therm 31
+/sys/class/thermal/thermal_zone8 xo_therm 31
+/sys/class/thermal/thermal_zone9 chg_therm 31
+=== module params
+/sys/module/qpnp_fg_gen3/parameters/debug_mask=0
+/sys/module/qpnp_fg_gen3/parameters/profile_dump=N
+/sys/module/qpnp_fg_gen3/parameters/restart=0
+/sys/module/qpnp_fg_gen3/parameters/sram_dump_en=N
+/sys/module/qpnp_fg_gen3/parameters/sram_dump_period_ms=20000
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_attach_start_soc=100
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_attach_stop_soc=100
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_low_start_soc=16
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_low_stop_soc=100
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_on_sw=1
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_rechrg_start_soc=70
+/sys/module/qpnp_smbcharger_mmi/parameters/eb_rechrg_stop_soc=80
+/sys/module/smb_lib/parameters/factory_kill_disable=0
+/sys/module/smb_lib/parameters/force_eb_fifty=0
+/sys/module/smb_lib/parameters/usr_rst_sw_disable=0
+/sys/module/qpnp_smb2/parameters/audio_headset_drp_wait_ms=100
+/sys/module/qpnp_smb2/parameters/debug_mask=128
+/sys/module/qpnp_smb2/parameters/try_sink_enabled=1
+/sys/module/qpnp_smb2/parameters/weak_chg_icl_ua=500000
+=== charging led
+brightness=0
+trigger=[none] bkl-trigger switch0_trigger flash0_trigger flash1_trigger torch0_trigger torch1_trigger switch1_trigger flash2_trigger torch2_trigger dc-online usb-online wireless-online usbeb-online main-online pc_port-online battery-charging-or-full battery-charging battery-full battery-charging-blink-full-solid rfkill0 mmc0 mmc1 bms-online rfkill1 
+=== powerd
+  581 root      0:01 /usr/bin/fblog
+  582 root      0:00 /usr/bin/buttond
+  586 root      0:00 /usr/bin/powerd
+uptime=24.5
+status=Charging
+source=usb
+online=1
+usb_type=USB_CDP
+capacity=80
+voltage_mv=4097
+current_ma=174
+temp_c=32.0
+health=Good
+charge_type=Fast
+ocv_mv=4106
+charge_full_uah=5004000
+charge_counter_uah=3870522
+cycle_count=0
+soc_ready=1
+usb_current_max_ma=1500
+usb_input_ma=162
+usb_voltage_mv=4335
+input_settled_ma=175
+profile_fcc_ma=3000
+typec_mode=Source attached (default current)
+throttle_level=0
+system_temp_level=0
+num_system_temp_levels=8
+alert=none
+shutdown_reason=
+overrides=
+=== powerd log.csv
+uptime,utc,reason,status,source,usb_type,capacity,voltage_mv,current_ma,temp_c,health,charge_type,ocv_mv,charge_full_uah,charge_counter_uah,cycle_count,soc_ready,usb_current_max_ma,usb_input_ma,usb_voltage_mv,input_settled_ma,profile_fcc_ma,typec_mode,pc_port_online,dc_online,system_temp_level,throttle_level,alert
+4.2,1970-01-09T21:59:29Z,start,Discharging,battery,Unknown,80,4078,357,32.0,Good,Fast,4106,5004000,3871615,0,1,0,27,4492,25,3000,Source attached (default current),0,0,0,0,none
+5.2,1970-01-09T21:59:30Z,uevent,Charging,usb,USB_CDP,80,4080,334,32.0,Good,Fast,4106,5004000,3871476,0,1,1500,27,4492,25,3000,Source attached (default current),0,0,0,0,none
+6.3,1970-01-09T21:59:31Z,uevent,Charging,usb,USB_CDP,80,4080,334,32.0,Good,Fast,4106,5004000,3871476,0,1,1500,27,4511,25,3000,Source attached (default current),0,0,0,0,none
+7.3,1970-01-09T21:59:32Z,uevent,Charging,usb,USB_CDP,80,4083,304,32.0,Good,Fast,4106,5004000,3871349,0,1,1500,27,4492,25,3000,Source attached (default current),0,0,0,0,none
+8.3,1970-01-09T21:59:33Z,uevent,Charging,usb,USB_CDP,80,4082,312,32.0,Good,Fast,4106,5004000,3871220,0,1,1500,27,4492,25,3000,Source attached (default current),0,0,0,0,none
+9.3,1970-01-09T21:59:34Z,uevent,Charging,usb,USB_CDP,80,4082,312,32.0,Good,Fast,4106,5004000,3871220,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+10.3,1970-01-09T21:59:35Z,uevent,Charging,usb,USB_CDP,80,4100,150,32.0,Good,Fast,4106,5004000,3871157,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+11.3,1970-01-09T21:59:36Z,uevent,Charging,usb,USB_CDP,80,4100,152,32.0,Good,Fast,4106,5004000,3871094,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+12.3,1970-01-09T21:59:37Z,uevent,Charging,usb,USB_CDP,80,4100,152,32.0,Good,Fast,4106,5004000,3871094,0,1,1500,162,4335,175,3000,Source attached (default current),0,0,0,0,none
+13.4,1970-01-09T21:59:38Z,uevent,Charging,usb,USB_CDP,80,4099,151,32.0,Good,Fast,4106,5004000,3871031,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+14.4,1970-01-09T21:59:39Z,uevent,Charging,usb,USB_CDP,80,4100,149,32.0,Good,Fast,4106,5004000,3870968,0,1,1500,167,4335,175,3000,Source attached (default current),0,0,0,0,none
+=== kmsg powerd lines
+[    4.195985,0] powerd: ready: /sys/class/power_supply -> /run/power, warn 15 %, critical 5 %, off at 0 % / 3300 mV / 68.0 C, throttle on
+[    4.977197,0] powerd: start: Discharging, 80 %, 4.07 V, battery 32.0 C, source battery
+[    6.123899,0] powerd: power source usb (USB_CDP, 1500 mA max, typec Source attached (default current))
+[    6.123927,0] powerd: status Discharging -> Charging
+=== dmesg FG/PMI/SMB
+[    0.000000,0] Kernel command line: rcupdate.rcu_expedited=1 console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 sched_enable_hmp=1 sched_enable_power_aware=1 service_locator.enable=1 swiotlb=1 loop.max_part=7 androidboot.hab.csv=39 androidboot.hab.product=chef androidboot.hab.cid=50 buildvariant=user quiet root=/dev/mmcblk0p67 androidboot.verifiedbootstate=orange androidboot.keymaster=1 androidboot.bootdevice=c0c4000.sdhci androidboot.serialno=ZF6223WZGL androidboot.device=chef androidboot.revision=pvt androidboot.hwrev=0xC000 androidboot.radio=APAC androidboot.powerup_reason=0x00004000 androidboot.bootreason=reboot msm_poweroff.download_mode=0 androidboot.wifimacaddr=30:4B:07:6F:0D:76,30:4B:07:6F:0D:77 androidboot.btmacaddr=30:4B:07:6F:0D:75 androidboot.bootloader=MBM-3.0-chef_retail-06369b83c90-210922 androidboot.carrier=retin androidboot.build_vars=black androidboot.hardware.sku=XT1942-2 androidboot.secure_hardware=1 androidboot.cid=0x0032 androidboot.write_protect=0 androidboot.veritymode=disabled androidboot.bl_state=2 androidboot.mode=normal androidboot.baseband=msm mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi androidboot.slot_suffix=_a skip_initramfs rootwait ro init=/init androidboot.dtb_idx=-1347440721 androidboot.dualsim=true
+[    0.285097,5] qcom,qpnp-misc 800f000.qcom,spmi:qcom,pm660@0:qcom,misc@900: probe successful
+[    0.286715,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800: PMIC@SID0 Power-on reason: Triggered from Hard Reset and 'cold' boot
+[    0.286737,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660@0:qcom,power-on@800: PMIC@SID0: Power-off reason: Triggered from PS_HOLD (PS_HOLD/MSM controlled shutdown)
+[    0.287062,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: No PON config. specified
+[    0.287102,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: PMIC@SID2 Power-on reason: Triggered from PON1 (secondary PMIC) and 'cold' boot
+[    0.287123,5] qcom,qpnp-power-on 800f000.qcom,spmi:qcom,pm660l@2:qcom,power-on@800: PMIC@SID2: Power-off reason: Triggered from GP1 (Keypad_Reset1)
+[    0.692668,4] mdss_dsi_find_panel_of_node: cmdline:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi panel_name:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0
+[    0.726502,6] mmi_storage_info :EMMC: 64GB SAMSUNG DH6DMB FV=
+[    0.726540,6] mmi_unit_info (SMEM) for modem: version = 0x03, device = 'chef', radio = 0x0, radio_str = 'APAC', system_rev = 0xc000, system_serial = 0x00000000130bc260, machine = '', barcode = 'ZF6223WZGL', baseband = '', carrier = 'retin', pu_reason = 0x00004000
+[    0.810715,5] qpnp-pdphy 800f000.qcom,spmi:qcom,pm660@0:qcom,usb-pdphy@1700: GPIO info and name mismatch
+[    0.810927,5] qpnp-pdphy 800f000.qcom,spmi:qcom,pm660@0:qcom,usb-pdphy@1700: usbpd_create failed: -517
+[    1.655083,0] qcom,qpnp-rtc 800f000.qcom,spmi:qcom,pm660@0:qcom,pm660_rtc: rtc core: registered qpnp_rtc as rtc0
+[    1.655116,0] qcom,qpnp-rtc 800f000.qcom,spmi:qcom,pm660@0:qcom,pm660_rtc: Disable Shipmode alarm
+[    2.847950,4] PMI: parse_mmi_dt: mmi temp zones: Num: 5
+[    2.847960,4] PMI: parse_mmi_dt: mmi temp zones: Zone 0, Temp 0 C, Step Volt 4200 mV, Full Rate 620 mA, Taper Rate 0 mA
+[    2.847969,4] PMI: parse_mmi_dt: mmi temp zones: Zone 1, Temp 10 C, Step Volt 4200 mV, Full Rate 1550 mA, Taper Rate 620 mA
+[    2.847978,4] PMI: parse_mmi_dt: mmi temp zones: Zone 2, Temp 15 C, Step Volt 0 mV, Full Rate 1550 mA, Taper Rate 1550 mA
+[    2.847986,4] PMI: parse_mmi_dt: mmi temp zones: Zone 3, Temp 45 C, Step Volt 4200 mV, Full Rate 3000 mA, Taper Rate 2000 mA
+[    2.847994,4] PMI: parse_mmi_dt: mmi temp zones: Zone 4, Temp 60 C, Step Volt 4200 mV, Full Rate 1550 mA, Taper Rate 0 mA
+[    2.848009,4] PMI: mmi_init: Error getting mmi dt items
+[    2.848016,4] PMI: parse_mmi_dt_gpio: No GPIOS defined.
+[    2.848023,4] PMI: mmi_init: IRQ for Warn doesn't exist
+[    2.848548,4] qcom,qpnp-smb2 800f000.qcom,spmi:qcom,pm660@0:qcom,qpnp-smb2: Couldn't find bob regulator
+[    2.851011,4] PMI: smblib_check_ov_condition: Couldn't get current voltage, rc=-61
+[    2.851624,4] PMI: mmi_chrg_rate_check: Normal Charger Detected
+[    2.857718,5] PMI: mmi_heartbeat_work: Error getting Batt Voltage rc = -22
+[    2.857956,5] QPNP SMB2 probed successfully usb:present=1 type=0 batt:present = 1 health = 0 charge = 3
+[    2.858284,4] PMI: mmi_heartbeat_work: Error getting Batt Voltage rc = -22
+[    2.860410,4] PMI: mmi_heartbeat_work: Error getting Batt Voltage rc = -22
+[    2.892040,5] qpnp_coincell_charger_show_state: enabled=N, voltage=2500 mV, resistance=2100 ohm
+[    3.121831,1] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.166405,1] Invalid index Defaulting curr to 0<3>[    3.168188,1] qpnp-pdphy 800f000.qcom,spmi:qcom,pm660@0:qcom,usb-pdphy@1700: GPIO info and name mismatch
+[    3.178273,4] FG: fg_gen3_probe: battery SOC:80 voltage: 4077870uV temp: 320 id: 0KOhms
+[    3.183534,4] FG: fg_psy_get_property: unsupported property 4
+[    3.185366,4] FG: fg_get_time_to_full_locked: battery profile is not loaded
+[    3.726999,4] FG: fg_get_mmi_battid: Battsn = SB18C29743
+[    3.727009,4] qcom,fg-gen3 800f000.qcom,spmi:qcom,pm660@0:qpnp,fg: Default Serial Number SB18C28956
+[    3.727021,4] qcom,fg-gen3 800f000.qcom,spmi:qcom,pm660@0:qpnp,fg: Battery Match Found using qcom,jk50_atl_india_5000mah
+[    3.737194,0] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.751710,0] msm-dwc3 a800000.ssusb: charger detection in progress
+[    3.751991,0] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.770296,2] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.781674,2] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.790238,6] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.790663,5] qcom,qpnp-rtc 800f000.qcom,spmi:qcom,pm660@0:qcom,pm660_rtc: setting system clock to 1970-01-09 21:59:28 UTC (770368)
+[    3.798308,6] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.806243,6] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.814222,6] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.823416,6] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.832089,6] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    3.840677,6] pmic_analog_codec 800f000.qcom,spmi:qcom,pm660l@3:analog-codec@f000: Adsp is not loaded yet 0
+[    4.163744,4] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[    4.163750,4] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[    4.163755,4] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[    4.204107,3] PMI: smblib_update_usb_type: APSD=CDP PD=0
+[    4.590160,4] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[    4.590167,4] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[    4.590175,4] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[    4.977197,0] powerd: start: Discharging, 80 %, 4.07 V, battery 32.0 C, source battery
+[    6.030190,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[    6.030199,2] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[    6.030207,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[    7.353522,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 500 mA, USBC CL -22 mA, DC 900 mA
+[    7.353531,2] PMI: mmi_heartbeat_work: Step State = NONE, EB State DISCONN
+[    7.353539,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4400000, CDIS = 0, FCC = 2000000, USBICL = 500000, DCICL = 500000
+[    8.963714,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[    8.963723,2] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[    8.963730,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[    9.496846,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[    9.496855,2] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[    9.496864,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[   13.469207,0] PMI: smblib_update_usb_type: APSD=CDP PD=0

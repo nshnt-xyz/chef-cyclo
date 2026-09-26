@@ -2,7 +2,8 @@
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
 # qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
 # log screen fblog (fblog/, binary fblog/fblog), the gpsd feed nmea-broker,
-# the side-button gesture daemon buttond, the WAV tone generator wavtone
+# the side-button gesture daemon buttond, the battery daemon powerd, the
+# WAV tone generator wavtone
 # and atomic TAS2560 calibration-control writer tas2560-send-cal
 # (for the speaker test, initramfs/usr/bin/speaker-test-tone), the two
 # resident speaker-protection experiment helpers afe-topology-cal and
@@ -34,11 +35,11 @@ LDFLAGS ?=
 INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond wavtone tas2560-send-cal \
+BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond powerd wavtone tas2560-send-cal \
        afe-topology-cal tert-tx-hold
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog \
-            tests/test-nmea-broker tests/test-buttond tests/test-wavtone \
+            tests/test-nmea-broker tests/test-buttond tests/test-powerd tests/test-wavtone \
             tests/test-tas2560-send-cal tests/test-afe-topology-cal tests/test-tert-tx-hold
 
 .PHONY: all test test-shell clean
@@ -112,6 +113,19 @@ buttond: buttond.c
 tests/test-buttond: tests/test_buttond.c buttond.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
+# Battery daemon (powerd.c): BatteryService low-battery/over-temperature
+# shutdown policy, batt_health-style power_supply CSV log under /run/power
+# and the thermal-engine SS-BATT-BATT charge throttle on
+# battery/system_temp_level. Plain libc + <linux/netlink.h>. The test
+# includes the .c with POWERD_NO_MAIN against a fake sysfs tree with
+# injected hooks; tests/test_powerd.sh runs the host binary end to end with
+# -x so nothing powers off.
+powerd: powerd.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+tests/test-powerd: tests/test_powerd.c powerd.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
 # WAV sine-tone generator for the speaker test (tools/wavtone.c): tinyalsa's
 # tinyplay only plays WAV files, so this writes one at the requested
 # frequency/duration/dBFS. Only libc's <math.h>, so no kernel include paths;
@@ -163,6 +177,7 @@ test: $(TEST_BIN) test-shell
 	./tests/test-fblog
 	./tests/test-nmea-broker
 	./tests/test-buttond
+	./tests/test-powerd
 	./tests/test-wavtone
 	./tests/test-tas2560-send-cal
 	./tests/test-afe-topology-cal
@@ -174,7 +189,8 @@ test: $(TEST_BIN) test-shell
 # product of this directory, but this is the natural place to run them
 # alongside the rest of the GPS test suite. See tests/test_gps-up.sh and
 # tests/test_ride-logger.sh.
-test-shell:
+test-shell: powerd
+	sh tests/test_powerd.sh
 	sh tests/test_gps-up.sh
 	sh tests/test_ride-logger.sh
 	sh tests/test_audio-up.sh
@@ -184,5 +200,5 @@ test-shell:
 	sh tests/test_acdb-afe-topology.sh
 
 clean:
-	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond wavtone \
+	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond powerd wavtone \
 		tas2560-send-cal afe-topology-cal tert-tx-hold $(TEST_BIN)

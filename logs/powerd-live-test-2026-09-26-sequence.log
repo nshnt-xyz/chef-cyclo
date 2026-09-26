@@ -1,0 +1,12 @@
+71.87 READY (USB_CDP). Unplug the host cable now and keep it out 2 min.
+87.93 unplugged (1) at 87. Plug the WALL charger in 2 min.
+207.73 2 min done: plug the WALL charger now.
+219.79 plugged USB_DCP at 219. Leave it ~14 min (10 min L0b, then L3).
+819.64 L3: test powerd, throttle set point 30 C (was 44)
+1059.80 L3 done. Unplug the wall charger now and keep it out 2 min.
+1065.83 unplugged (2) at 1065 after 846 s plugged
+1082.84 L3 powerd stopped; system_temp_level 0
+1185.54 2 min done: replug the HOST cable now.
+1198.60 replugged USB_CDP at 1198. Sequence done; sampling 60 s more.
+1260.60 system_temp_level is 0 after the L3 powerd stopped
+1260.62 samplers stopped; evidence in /run/powertest

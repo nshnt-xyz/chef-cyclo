@@ -1,0 +1,105 @@
+2026-09-26T10:45:45Z
+motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0:user/release-keys
+--- efs daemons (must be exactly one of each)
+radio         1172     1  110844   1104 0                   0 S rmt_storage
+vendor_rfs    1173     1   37836   1120 0                   0 S tftp_server
+--- power_supply (root, read-only)
+=== battery
+status=Charging
+capacity=80
+charge_type=Fast
+current_now=-53710
+voltage_now=4132557
+temp=320
+health=Good
+charge_counter=3870318
+current_max=3000000
+constant_charge_current_max=3000000
+system_temp_level=0
+num_system_temp_levels=8
+=== bms
+capacity=80
+current_now=-53710
+voltage_now=4132557
+temp=320
+charge_counter=3870289
+voltage_ocv=4106451
+charge_full=5004000
+charge_full_design=5004000
+cycle_count=0
+soc_reporting_ready=1
+battery_type=JK50atl_india_4v4_5000mAh
+resistance=168212
+=== usb
+voltage_now=4394531
+real_type=USB_CDP
+online=1
+current_max=1500000
+input_current_now=94951
+input_current_settled=125000
+system_temp_level=0
+num_system_temp_levels=0
+=== main
+current_max=1770339472
+input_current_settled=125000
+constant_charge_current_max=3000000
+=== dc
+voltage_now=0
+real_type=Wipower
+online=0
+current_max=500000
+=== uptime 2594.45 18597.10
+[exit=0]
+##### after
+2026-09-26T11:19:24Z
+motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0:user/release-keys
+--- efs daemons (must be exactly one of each)
+radio         1151     1  110844   1984 0                   0 S rmt_storage
+vendor_rfs    1153     1   37836   1972 0                   0 S tftp_server
+--- power_supply (root, read-only)
+=== battery
+status=Charging
+capacity=87
+charge_type=Fast
+current_now=771972
+voltage_now=4082753
+temp=370
+health=Good
+charge_counter=4161452
+current_max=3000000
+constant_charge_current_max=3000000
+system_temp_level=3
+num_system_temp_levels=8
+=== bms
+capacity=87
+current_now=771972
+voltage_now=4082753
+temp=370
+charge_counter=4161452
+voltage_ocv=4173346
+charge_full=5004000
+charge_full_design=5004000
+cycle_count=0
+soc_reporting_ready=1
+battery_type=JK50atl_india_4v4_5000mAh
+resistance=135985
+=== usb
+voltage_now=4355468
+real_type=USB_CDP
+online=1
+current_max=1500000
+input_current_now=144531
+input_current_settled=150000
+system_temp_level=0
+num_system_temp_levels=0
+=== main
+current_max=-1294877552
+input_current_settled=150000
+constant_charge_current_max=1500000
+=== dc
+voltage_now=0
+real_type=Wipower
+online=0
+current_max=500000
+=== uptime 29.73 141.54
+[exit=0]

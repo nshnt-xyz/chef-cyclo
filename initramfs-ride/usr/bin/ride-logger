@@ -9,11 +9,13 @@
 # restarting the follower (never gps-up) if it dies or stalls. Everything
 # lands under /run/ride (RAM only -- gone at power-off, see README):
 #
-#   meta.txt        boot/image/battery facts, start uptime + wallclock
+#   meta.txt        boot/image/battery/power facts, start uptime + wallclock
 #   events.log      "<uptime> <utc> <event>": milestones for time-to-first-fix
 #                   (gps-up-start, qmux-socket, loc-start, first-nmea,
 #                   first-gga-fix, first-rmc-valid, first-position-fix), a
-#                   heartbeat with counters every 60 s, follower restarts,
+#                   heartbeat with counters and power state (powerd's
+#                   /run/power/state, sysfs fallback) every 60 s, follower
+#                   restarts,
 #                   stop/failure reasons
 #   nmea.log        "<uptime> <sentence>" for every NMEA line (cut -d' ' -f2-
 #                   gives the pristine sentence stream)
@@ -55,6 +57,9 @@ VIB=${RIDE_VIBRATOR:-/sys/class/timed_output/vibrator/enable}
 FBLOG_OFF=${RIDE_FBLOG_OFF:-/run/fblog.off}
 UPTIME=${RIDE_UPTIME:-/proc/uptime}
 BATT=${RIDE_BATTERY:-/sys/class/power_supply/battery}
+USB_PSY=${RIDE_USB_PSY:-/sys/class/power_supply/usb}
+PC_PSY=${RIDE_PC_PSY:-/sys/class/power_supply/pc_port}
+POWER_STATE=${RIDE_POWER_STATE:-/run/power/state}
 NMEA_TYPES=${RIDE_NMEA_TYPES:-gga|rmc|gsv|gsa|vtg}
 SETTLE_S=${RIDE_SETTLE_S:-3}
 SOCKET_WAIT_S=${RIDE_SOCKET_WAIT_S:-240}
@@ -82,6 +87,25 @@ up() { cut -d' ' -f1 "$UPTIME"; }
 up_int() { cut -d. -f1 "$UPTIME"; }
 now() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
 batt() { cat "$BATT/capacity" 2>/dev/null || echo '?'; }
+# "status,source,<mV>mV,<mA>mA,<C>C" from powerd's state file, or straight
+# from sysfs when powerd is not running (same units; current sign as the
+# kernel reports it).
+power() {
+	if [ -r "$POWER_STATE" ]; then
+		awk -F= '{ v[$1] = $2 }
+			END { printf "%s,%s,%smV,%smA,%sC\n", v["status"], v["source"], v["voltage_mv"], v["current_ma"], v["temp_c"] }' "$POWER_STATE"
+		return
+	fi
+	src=battery
+	# an SDP port reads usb/online 0 and shows up on pc_port/online instead
+	{ [ "$(cat "$USB_PSY/online" 2>/dev/null)" = 1 ] || [ "$(cat "$PC_PSY/online" 2>/dev/null)" = 1 ]; } && src=usb
+	awk -v st="$(cat "$BATT/status" 2>/dev/null)" -v src="$src" \
+		-v uv="$(cat "$BATT/voltage_now" 2>/dev/null)" -v ua="$(cat "$BATT/current_now" 2>/dev/null)" \
+		-v dc="$(cat "$BATT/temp" 2>/dev/null)" 'BEGIN {
+			printf "%s,%s,%smV,%smA,%sC\n", st == "" ? "na" : st, src,
+				uv == "" ? "na" : int(uv / 1000), ua == "" ? "na" : int(ua / 1000),
+				dc == "" ? "na" : sprintf("%.1f", dc / 10) }'
+}
 log() {
 	echo "ride: $*" > "$KMSG" 2>/dev/null
 	echo "$(up) $*"
@@ -216,7 +240,7 @@ follow_reader() {
 		if [ $((ti - last_hb)) -ge "$HEARTBEAT_S" ]; then
 			last_hb=$ti
 			echo "nmea=$n_nmea pos=$n_pos gga_fix=$n_gga_fix pos_ok=$n_pos_ok" > "$D/counters.tmp" && mv "$D/counters.tmp" "$D/counters"
-			event "heartbeat nmea=$n_nmea pos=$n_pos gga_fix=$n_gga_fix pos_ok=$n_pos_ok batt=$(batt)%"
+			event "heartbeat nmea=$n_nmea pos=$n_pos gga_fix=$n_gga_fix pos_ok=$n_pos_ok batt=$(batt)% power=$(power)"
 		fi
 	done
 	echo "nmea=$n_nmea pos=$n_pos gga_fix=$n_gga_fix pos_ok=$n_pos_ok" > "$D/counters.tmp" && mv "$D/counters.tmp" "$D/counters"
@@ -327,6 +351,7 @@ event "logger-start"
 	echo "cmdline: $(cat /proc/cmdline 2>/dev/null)"
 	echo "hostname: $(cat /etc/hostname 2>/dev/null)"
 	echo "battery: capacity=$(batt)% status=$(cat "$BATT/status" 2>/dev/null)"
+	echo "power: $(power) (status,source,voltage,current,battery temp; powerd log: /run/power/log.csv)"
 	echo "qmicli: $("$QMICLI" --version 2>/dev/null | head -n1)"
 	echo "qmux socket: $SOCK"
 	echo "nmea types requested: $NMEA_TYPES"
