@@ -1,0 +1,35 @@
+chef-cyclo spk-protect-probe live run, 2026-09-26 (ephemeral fastboot boot, no flash, no persist write)
+boot.img 40f4dead7f01f414abd3ccdc0abfaa954e4b7b084451d6e007457c97e91d6141 / initramfs bb33c4d11810db3ef7b5a92ad3709bba6ee4d048a4dd0b3cbd94dd83a70fd8fe (branch audio/spk-protect-hardening @ a0ee363)
+on-device spk-protect-probe and audio-up sha256 prefixes match the tree (29212c28..., f9291181...)
+fastboot boot 07:25:06Z, USB network up 07:25:36Z; audio-up: card 0 'sdm660sndcard' 1.59 s after boot_adsp, adsp restart_level RELATED
+single invocation, default topology 0x112FC, speaker-test-tone defaults (-20 dBFS, vol 10, -d 3); LISTEN sent 07:27:04Z, probe start ~07:27:24Z, probe rc=0 ~07:28:15Z
+device evidence dir: /run/spk-protect-probe-19700109-183638-892 (device clock unset -> 1970 date in the run id)
+all four phases tone_rc=0, tinyplay finished, window=ok
+USER AUDIBILITY: user reported "heard all 4"
+
+OPERATOR NOTE: audio-up was first run in the foreground of a telnet command; it stays up supervising the servreg-locator it started,
+the command timed out, and closing the session SIGHUP'd it ("Hangup"; the locator died with it). The ADSP and card stayed up (no unload path).
+servreg-locator was restarted detached by hand (setsid servreg-locator -v) before the probe; audio-up was NOT re-run (it would rewrite boot_adsp).
+Run audio-up detached (setsid ... </dev/null &) from a scripted telnet session.
+
+RESULTS (all windows ok, so empty sections are real):
+- baseline / tx / tx-topo: same pattern as 2026-09-22 (image 4b1c6e7d). FF get-param reply PL#0[0x2] PL#1[0x1000fc00] (ADSP_EBADPARAM);
+  tx starts AFE port 0x1005 and afe_spk_prot_prepare param 0x1022c fails -22; tx-topo: SET_TOPOLOGY 0x112fc on 0x1004 ret 0, then the
+  first TAS RX set fails EBADPARAM ("Sending Rx-Enable failed", tas2560-send-cal rc=6 EINVAL), no get-param.
+- neutralised (NEW, first live run of afe-topology-cal -N): kernel window shows
+    afe_find_cal_topo_id_by_port: top_id:0 acdb_id:14 afe_port:4100
+    afe_get_cal_topology_id: invalid topology id : [14, 0]
+    afe_send_port_topology_id: AFE set topology id 0x0  enable for port 0x1004 ret -22
+  and no "0x112fc ... ret 0". So -N does stop SET_TOPOLOGY at the next RX port start, as designed.
+  RX side then behaves like baseline again: TAS RX sets accepted (calibration helper rc 0), FF set sent, get-param reply PL#0[0x2]
+  (EBADPARAM) and readback 0 -- unlike the 2026-09-22 "restored" phase, where 0x112fc was still sent and the TAS module was rejected.
+  Not a baseline claim: the cal block still exists and the DSP had already been sent 0x112FC in this boot.
+- sentinel after the run: "state: neutralised" with the neutralised wording. A second plain spk-protect-probe in the same boot was
+  refused, rc=1, before touching anything.
+- DEFECT found: the refusal is meant to quote the sentinel but printed only "(.../spk-protect-probe.topology-installed):" and nothing
+  after it. spk-protect-probe line 747 redirected `2>/dev/null >&2`, which points stdout at /dev/null. Fixed after the run (`>&2 2>/dev/null`)
+  with a new host check; not re-run live.
+
+post-run cleanup verified: no tert-tx-hold/afe-topology-cal/tinyplay/speaker-test-tone running, no q6afe/tas2560 dyndbg site enabled,
+TERT_MI2S_RX Audio Mixer MultiMedia1 = Off, no factory/persist mount, no process holding /dev/msm_audio_cal.
+dmesg: no DSP crash, no subsystem restart. Rebooted to stock 07:29:11Z; stock fingerprint motorola/chef/chef_sprout:10/QPTS30.61-18-16-19/da2f0 came back.
