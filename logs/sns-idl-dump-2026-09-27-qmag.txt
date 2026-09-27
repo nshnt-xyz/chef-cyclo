@@ -1,0 +1,109 @@
+# QMAG_CAL (0x140) and MAG_CAL (0x110) IDL, 2026-09-27, for the magnetometer
+# calibration check (docs/next-steps/sensors-plan.md section 7). Produced by:
+#   debugfs -R "dump /lib64/libsensor1.so /tmp/libsensor1.so" stock/partitions/vendor_a.img
+#   python3 tools/sns-idl-dump.py /tmp/libsensor1.so SAM_QMAG_CAL SAM_MAG_CAL
+# Note on msg 0x02 req (enable): directory max_len 0 and C size 2 with the
+# optional u32 at offset 1 do not fit together; sensord never sends TLV 0x10.
+# The ADSP registers 0x140 inst 0x3201 (stock dump_servers); 0x110 is not registered.
+#
+# sns-idl-dump of libsensor1.so (sha256 e2fa2798017558bd374ae8bf63bddb313d0e18503e74302c18c1df81a9dbf66f)
+# @N = C struct offset in the generated vendor struct (only meaningful for
+# *_len/*_valid bookkeeping); wire order is TLV order, fields packed little endian.
+
+========================================================================
+SNS_SAM_QMAG_CAL_SVC_qmi_idl_service_object_v01
+service 0x140 idl v1.0 (lib 6) max_msg_len 86, 6 req / 6 resp / 2 ind
+msg 0x00 req  max_len 0     c_size 1     (sns_common msg 0) no TLVs
+msg 0x00 resp max_len 5     c_size 2     (sns_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x01 req  max_len 0     c_size 1     (sns_common msg 2) no TLVs
+msg 0x01 resp max_len 17    c_size 12    (sns_common msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u16
+msg 0x02 req  max_len 0     c_size 2     (sns_sam_cal msg 0)
+    TLV 0x10 optional  @1    u32 (valid u8 at 0)
+msg 0x02 resp max_len 9     c_size 4     (sns_sam_cal msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x03 req  max_len 4     c_size 1     (sns_sam_cal msg 2)
+    TLV 0x01 mandatory @0    u8
+msg 0x03 resp max_len 9     c_size 4     (sns_sam_cal msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x05 ind  max_len 33    c_size 24    (sns_sam_cal msg 4)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+    TLV 0x03 mandatory @8    u32[3]
+    TLV 0x04 mandatory @20   u32
+msg 0x06 ind  max_len 8     c_size 2     (sns_sam_cal msg 5)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+msg 0x20 req  max_len 11    c_size 8     (sns_sam_cal msg 6)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+msg 0x20 resp max_len 9     c_size 4     (sns_sam_cal msg 7)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x24 req  max_len 0     c_size 1     (sns_sam_common msg 0) no TLVs
+msg 0x24 resp max_len 86    c_size 64    (sns_sam_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u32
+    TLV 0x05 mandatory @12   u32
+    TLV 0x06 mandatory @16   u32
+    TLV 0x07 mandatory @20   u32
+    TLV 0x08 mandatory @24   u32
+    TLV 0x09 mandatory @28   u32
+    TLV 0x0a mandatory @32   u32
+    TLV 0x0b mandatory @36   u32
+    TLV 0x10 optional  @48   u64 (valid u8 at 40)
+    TLV 0x11 optional  @60   u32 (valid u8 at 56)
+
+========================================================================
+SNS_SAM_MAG_CAL_SVC_qmi_idl_service_object_v01
+service 0x110 idl v1.2 (lib 6) max_msg_len 44, 5 req / 5 resp / 2 ind
+msg 0x00 req  max_len 0     c_size 1     (sns_common msg 0) no TLVs
+msg 0x00 resp max_len 5     c_size 2     (sns_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x01 req  max_len 0     c_size 1     (sns_common msg 2) no TLVs
+msg 0x01 resp max_len 17    c_size 12    (sns_common msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u16
+msg 0x02 req  max_len 14    c_size 12    (self msg 0)
+    TLV 0x01 mandatory @0    u32
+    TLV 0x10 optional  @8    u32 (valid u8 at 4)
+msg 0x02 resp max_len 9     c_size 4     (self msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x03 req  max_len 4     c_size 1     (self msg 2)
+    TLV 0x01 mandatory @0    u8
+msg 0x03 resp max_len 9     c_size 4     (self msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x04 req  max_len 4     c_size 1     (self msg 5)
+    TLV 0x01 mandatory @0    u8
+msg 0x04 resp max_len 44    c_size 44    (self msg 6)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+    TLV 0x11 optional  @8    u32 (valid u8 at 4)
+    TLV 0x12 optional  @16   struct table_0x1ae00#0 (valid u8 at 12)
+msg 0x05 ind  max_len 39    c_size 36    (self msg 4)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+    TLV 0x03 mandatory @8    struct table_0x1ae00#0
+msg 0x06 ind  max_len 8     c_size 2     (self msg 7)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+
+========================================================================
+Referenced structs
+
+struct sns_common#0 (c_size 2)
+    @0    u8
+    @1    u8
+struct table_0x1ae00#0 (c_size 28)
+    @0    u32[3]
+    @12   u32[3]
+    @24   u8

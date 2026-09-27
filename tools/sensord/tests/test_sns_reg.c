@@ -1,17 +1,30 @@
 /* sns_reg.c tests: map parsing and validation, loading the registry
- * copy (exact size only), item/group reads and RAM-only writes. Uses
+ * copy (exact size only), item/group reads, RAM writes and the atomic
+ * write-back onto a RAM filesystem. Uses
  * tests/fixtures/sns_reg.map and data it generates; no device data. */
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/vfs.h>
 #include <unistd.h>
 
 #include "sns_reg.h"
 
 static int failures;
-static char tmpdir[] = "/tmp/test-sns-reg.XXXXXX";
+/* The write-back only works on a RAM filesystem: use /tmp if it is one,
+ * else /dev/shm; with neither, the success cases are skipped. */
+static char tmpdir[64];
+static int ram_tmp;
+
+static int is_ram(const char *dir)
+{
+	struct statfs sf;
+
+	return statfs(dir, &sf) == 0 && ((unsigned long)sf.f_type == 0x01021994UL ||
+					 (unsigned long)sf.f_type == 0x858458f6UL);
+}
 
 #define CHECK(cond) do { \
 	if (!(cond)) { \
@@ -126,16 +139,79 @@ static void test_readonly_source(const char *map)
 	sns_reg_free(&r);
 }
 
+/* Write-back: content, the original mode, an atomic rename (new inode,
+ * no temp left), and refusals that leave the file alone: not a regular
+ * file, and not on a RAM filesystem (the test directory is on disk). */
+static void test_save(const char *map)
+{
+	struct sns_reg r;
+	struct stat a, b;
+	const char *p;
+	uint8_t g[16], back[1024];
+	char tmp[320], disk[256];
+	FILE *f;
+	int i;
+
+	if (!ram_tmp) {
+		printf("test-sns-reg: neither /tmp nor /dev/shm is tmpfs; write-back success cases skipped\n");
+		return;
+	}
+	p = make_reg("save.reg", 1024);
+	memset(&r, 0, sizeof(r));
+	CHECK(sns_reg_load_map(&r, map, NULL) == 0);
+	CHECK(sns_reg_load_data(&r, p, 0, NULL) == 0);
+	chmod(p, 0400);
+	CHECK(stat(p, &a) == 0);
+	for (i = 0; i < 16; i++)
+		g[i] = (uint8_t)(0xa0 + i);
+	CHECK(sns_reg_write(&r, 1, 1000, g, sizeof(g)) == 0);
+	CHECK(sns_reg_save(&r, p) == 0);
+	CHECK(stat(p, &b) == 0);
+	CHECK((b.st_mode & 07777) == 0400 && b.st_size == 1024);
+	CHECK(a.st_ino != b.st_ino);	/* replaced by rename, not rewritten */
+	snprintf(tmp, sizeof(tmp), "%s.tmp", p);
+	CHECK(access(tmp, F_OK) != 0);
+	f = fopen(p, "rb");
+	CHECK(f && fread(back, 1, sizeof(back), f) == sizeof(back));
+	if (f)
+		fclose(f);
+	CHECK(memcmp(back, g, 16) == 0 && back[16] == (uint8_t)(16 * 7 + 3));
+	/* a stale temp from an interrupted save does not block the next */
+	f = fopen(tmp, "wb");
+	if (f)
+		fclose(f);
+	CHECK(sns_reg_save(&r, p) == 0 && access(tmp, F_OK) != 0);
+
+	CHECK(sns_reg_save(&r, tmpdir) == -EINVAL);		/* a directory */
+	CHECK(sns_reg_save(&r, "/nonexistent/sns.reg") == -ENOENT);
+	/* on disk (this source tree): refused, file untouched, no temp */
+	snprintf(disk, sizeof(disk), "tests/save-disk-%d.reg", (int)getpid());
+	f = fopen(disk, "wb");
+	if (f) {
+		fwrite("x", 1, 1, f);
+		fclose(f);
+	}
+	CHECK(sns_reg_save(&r, disk) == -EXDEV);
+	CHECK(stat(disk, &b) == 0 && b.st_size == 1);
+	snprintf(tmp, sizeof(tmp), "%s.tmp", disk);
+	CHECK(access(tmp, F_OK) != 0);
+	unlink(disk);
+	sns_reg_free(&r);
+}
+
 int main(int argc, char **argv)
 {
 	const char *map = argc > 1 ? argv[1] : "tests/fixtures/sns_reg.map";
 	char cmd[300];
 
+	ram_tmp = is_ram("/tmp") ? 1 : is_ram("/dev/shm") ? 2 : 0;
+	snprintf(tmpdir, sizeof(tmpdir), "%s/test-sns-reg.XXXXXX", ram_tmp == 2 ? "/dev/shm" : "/tmp");
 	if (!mkdtemp(tmpdir))
 		return 1;
 	test_map_errors();
 	test_fixture(map);
 	test_readonly_source(map);
+	test_save(map);
 	snprintf(cmd, sizeof(cmd), "rm -rf %s", tmpdir);
 	if (system(cmd))
 		failures++;

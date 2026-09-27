@@ -36,7 +36,7 @@ cp -a initramfs/. "$ROOT"/
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
-    "$ROOT"/usr/bin/sensors-up
+    "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run
 if [ "$VARIANT" = ride ]; then
     for f in initramfs-ride/etc/inittab initramfs-ride/usr/bin/ride-logger \
              initramfs-ride/usr/share/ride/www/cgi-bin/index.cgi \

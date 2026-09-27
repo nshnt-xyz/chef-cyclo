@@ -15,8 +15,20 @@
  * and "DELETE report R", and streams samples for each active report:
  * accel (SMGR frame) 0.5, 1.0, -9.80665 -> sensord x=1, y=0.5, z=9.80665;
  * light 123.5 lux; proximity near with raw 42. SIGUSR1 simulates a DSP
- * restart: the SMGR port closes, every report is forgotten and the
- * service comes back on a new port a second later. */
+ * restart: the SMGR and QMAG ports close, every report and QMAG instance
+ * is forgotten and the services come back on new ports a second later.
+ * SIGUSR2 restarts only SMGR (QMAG stays), so sensord has a live QMAG
+ * instance to disable when it notices SMGR is gone.
+ *
+ * QMAG_CAL (0x140 inst 0x3201, beside a 0x3202 decoy): prints "QMAG
+ * ATTR", "QMAG ENABLE period none|N instance I" and "QMAG DISABLE
+ * instance I [unknown]"; while an instance is on it sends a report
+ * indication every 100 ms, bias (SMGR frame) 0.125, -0.25, 0.375 gauss
+ * -> sensord device frame x=-0.25, y=0.125, z=-0.375, accuracy rising
+ * 0..3, and one error indication (error 2) after the fifth report.
+ * $FAKE_QMAG_ENABLE_DELAY_MS delays every ENABLE response (the instance
+ * exists at once, reports start only after the response), for sensord's
+ * no-resend and disable-at-exit rules. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <poll.h>
@@ -35,12 +47,14 @@
 
 #define Q16(x) ((int32_t)((x) * 65536.0))
 
-static volatile sig_atomic_t g_stop, g_restart;
+static volatile sig_atomic_t g_stop, g_restart, g_restart_smgr;
 
 static void on_sig(int sig)
 {
 	if (sig == SIGUSR1)
 		g_restart = 1;
+	else if (sig == SIGUSR2)
+		g_restart_smgr = 1;
 	else
 		g_stop = 1;
 }
@@ -405,10 +419,162 @@ static void stream(int sock)
 	}
 }
 
+/* ------------------------------------------------------ QMAG server */
+
+static struct {
+	bool on;
+	uint8_t instance, next_instance;
+	uint32_t node, port;
+	unsigned sent;
+	int64_t next;
+	/* a delayed ENABLE response */
+	int64_t reply_at;
+	uint16_t reply_txn;
+	uint8_t reply_instance;
+} qm = { .next_instance = 7 };
+
+static int64_t enable_delay_ns(void)
+{
+	const char *e = getenv("FAKE_QMAG_ENABLE_DELAY_MS");
+
+	return e ? atoll(e) * 1000000LL : 0;
+}
+
+static void qmag_enable_reply(int sock, uint16_t txn, uint8_t instance)
+{
+	struct sns_sam_instance_resp r;
+
+	memset(&r, 0, sizeof(r));
+	r.instance_valid = 1;
+	r.instance = instance;
+	reply(sock, qm.node, qm.port, SNS_SAM_ENABLE, txn, &r, sns_sam_instance_resp_ei);
+}
+
+static void qmag_request(int sock, struct qrtr_packet *pkt, uint32_t node, uint32_t port)
+{
+	const uint8_t *h = pkt->data;
+	unsigned int msg, t;
+	uint16_t txn = (uint16_t)(h[1] | h[2] << 8);
+
+	if (qmi_decode_header(pkt, &msg) < 0 || h[0] != QMI_REQUEST)
+		return;
+	if (msg == SNS_SAM_GET_ATTR) {
+		struct sns_sam_attr_resp r;
+		int i;
+
+		memset(&r, 0, sizeof(r));
+		for (i = 0; i < 9; i++)
+			r.attr[i] = (uint32_t)(100 + i);
+		r.attr[5] = 10u << 16;	/* min sample rate 10 Hz */
+		r.suid_valid = 1;
+		r.suid = 0x1122334455667788ULL;
+		printf("QMAG ATTR\n");
+		reply(sock, node, port, msg, txn, &r, sns_sam_attr_resp_ei);
+	} else if (msg == SNS_SAM_ENABLE) {
+		struct sns_sam_enable_req q;
+		struct sns_sam_instance_resp r;
+
+		memset(&q, 0, sizeof(q));
+		memset(&r, 0, sizeof(r));
+		qmi_decode_message(&q, &t, pkt, QMI_REQUEST, (int)msg, sns_sam_enable_req_ei);
+		qm.on = true;
+		qm.instance = qm.next_instance++;
+		qm.node = node;
+		qm.port = port;
+		qm.sent = 0;
+		qm.next = now_ns() + 100000000LL + enable_delay_ns();
+		if (q.period_valid)
+			printf("QMAG ENABLE period %u instance %u\n", q.period_q16, qm.instance);
+		else
+			printf("QMAG ENABLE period none instance %u\n", qm.instance);
+		(void)r;
+		if (enable_delay_ns()) {
+			qm.reply_at = now_ns() + enable_delay_ns();
+			qm.reply_txn = txn;
+			qm.reply_instance = qm.instance;
+		} else {
+			qmag_enable_reply(sock, txn, qm.instance);
+		}
+	} else if (msg == SNS_SAM_DISABLE) {
+		struct sns_sam_disable_req q = { 0 };
+		struct sns_sam_instance_resp r;
+		bool known;
+
+		memset(&r, 0, sizeof(r));
+		qmi_decode_message(&q, &t, pkt, QMI_REQUEST, (int)msg, sns_sam_disable_req_ei);
+		known = qm.on && q.instance == qm.instance;
+		printf("QMAG DISABLE instance %u%s\n", q.instance, known ? "" : " unknown");
+		if (known) {
+			qm.on = false;
+			r.instance_valid = 1;
+			r.instance = q.instance;
+		} else {
+			r.resp.result = SNS_RESULT_FAILURE;
+			r.resp.err = SNS_ERR_BAD_PARAM;
+		}
+		reply(sock, node, port, msg, txn, &r, sns_sam_instance_resp_ei);
+	}
+	fflush(stdout);
+}
+
+static void qmag_stream(int sock)
+{
+	DEFINE_QRTR_PACKET(out, 256);
+
+	if (qm.reply_at && now_ns() >= qm.reply_at) {
+		qm.reply_at = 0;
+		printf("QMAG ENABLE REPLY instance %u\n", qm.reply_instance);
+		fflush(stdout);
+		qmag_enable_reply(sock, qm.reply_txn, qm.reply_instance);
+	}
+
+	if (!qm.on || now_ns() < qm.next)
+		return;
+	qm.next = now_ns() + 100000000LL;
+	qm.sent++;
+	{
+		struct sns_sam_qmag_ind ind;
+
+		memset(&ind, 0, sizeof(ind));
+		ind.instance = qm.instance;
+		ind.timestamp = ticks();
+		ind.bias[0] = Q16(0.125);
+		ind.bias[1] = Q16(-0.25);
+		ind.bias[2] = Q16(0.375);
+		ind.accuracy = qm.sent / 3 > 3 ? 3 : qm.sent / 3;
+		if (qmi_encode_message(&out, QMI_INDICATION, SNS_SAM_REPORT_IND, 0, &ind,
+				       sns_sam_qmag_ind_ei) >= 0)
+			qrtr_sendto(sock, qm.node, qm.port, out.data, (unsigned)out.data_len);
+	}
+	if (qm.sent == 5) {
+		struct sns_sam_error_ind e = { .error = 2, .instance = qm.instance };
+
+		if (qmi_encode_message(&out, QMI_INDICATION, SNS_SAM_ERROR_IND, 0, &e,
+				       sns_sam_error_ind_ei) >= 0)
+			qrtr_sendto(sock, qm.node, qm.port, out.data, (unsigned)out.data_len);
+	}
+}
+
+static void serve_one(int sock, void (*handle)(int, struct qrtr_packet *, uint32_t, uint32_t))
+{
+	char buf[2048];
+	struct qrtr_packet pkt;
+	struct sockaddr_qrtr sq = { 0 };
+	uint32_t node, port;
+	int rc = qrtr_recvfrom(sock, buf, sizeof(buf), &node, &port);
+
+	if (rc > 0) {
+		sq.sq_node = node;
+		sq.sq_port = port;
+		qrtr_decode(&pkt, buf, (size_t)rc, &sq);
+		handle(sock, &pkt, node, port);
+	}
+}
+
 static int serve(void)
 {
-	int sock = -1, decoy;
-	int64_t republish = 0;
+	int sock = -1, qsock = -1, decoy, qdecoy;
+	int64_t republish = 0, qrepublish = 0;
 
 	if (reg2_checks())
 		return 1;
@@ -418,17 +584,34 @@ static int serve(void)
 	decoy = qrtr_open(0);
 	if (decoy < 0 || qrtr_publish(decoy, SNS_SMGR_SVC, 2, 0x32) < 0)
 		return 1;
+	qdecoy = qrtr_open(0);
+	if (qdecoy < 0 || qrtr_publish(qdecoy, SNS_QMAG_SVC, 2, 0x32) < 0)
+		return 1;
 	while (!g_stop) {
-		struct pollfd pfd;
+		struct pollfd pfd[2];
 
-		if (g_restart) {
-			g_restart = 0;
+		if (g_restart || g_restart_smgr) {
 			if (sock >= 0)
 				qrtr_close(sock);
 			sock = -1;
 			memset(reports, 0, sizeof(reports));
 			republish = now_ns() + 1000000000LL;
-			printf("RESTART\n");
+			if (g_restart) {
+				if (qsock >= 0)
+					qrtr_close(qsock);
+				qsock = -1;
+				qm.on = false;
+				qrepublish = republish;
+			}
+			printf("%s\n", g_restart ? "RESTART" : "RESTART SMGR");
+			fflush(stdout);
+			g_restart = g_restart_smgr = 0;
+		}
+		if (qsock < 0 && now_ns() >= qrepublish) {
+			qsock = qrtr_open(0);
+			if (qsock < 0 || qrtr_publish(qsock, SNS_QMAG_SVC, SNS_QMAG_VERS, SNS_QMAG_INST) < 0)
+				return 1;
+			printf("QMAG UP\n");
 			fflush(stdout);
 		}
 		if (sock < 0 && now_ns() >= republish) {
@@ -438,31 +621,23 @@ static int serve(void)
 			printf("SMGR UP\n");
 			fflush(stdout);
 		}
-		if (sock < 0) {
-			usleep(10000);
-			continue;
+		pfd[0] = (struct pollfd){ .fd = sock, .events = POLLIN };
+		pfd[1] = (struct pollfd){ .fd = qsock, .events = POLLIN };
+		if (poll(pfd, 2, 5) > 0) {
+			if (sock >= 0 && (pfd[0].revents & POLLIN))
+				serve_one(sock, smgr_request);
+			if (qsock >= 0 && (pfd[1].revents & POLLIN))
+				serve_one(qsock, qmag_request);
 		}
-		pfd.fd = sock;
-		pfd.events = POLLIN;
-		if (poll(&pfd, 1, 5) > 0) {
-			char buf[2048];
-			struct qrtr_packet pkt;
-			struct sockaddr_qrtr sq = { 0 };
-			uint32_t node, port;
-			int rc = qrtr_recvfrom(sock, buf, sizeof(buf), &node, &port);
-
-			if (rc > 0) {
-				sq.sq_node = node;
-				sq.sq_port = port;
-				qrtr_decode(&pkt, buf, (size_t)rc, &sq);
-				smgr_request(sock, &pkt, node, port);
-			}
-		}
-		stream(sock);
+		if (sock >= 0)
+			stream(sock);
+		if (qsock >= 0)
+			qmag_stream(qsock);
 		{
 			char buf[64];
 
-			if (qrtr_recvfrom(decoy, buf, sizeof(buf), NULL, NULL) > 0) {
+			if (qrtr_recvfrom(decoy, buf, sizeof(buf), NULL, NULL) > 0 ||
+			    qrtr_recvfrom(qdecoy, buf, sizeof(buf), NULL, NULL) > 0) {
 				printf("DECOY got a message\n");
 				fflush(stdout);
 			}
@@ -470,7 +645,10 @@ static int serve(void)
 	}
 	if (sock >= 0)
 		qrtr_close(sock);
+	if (qsock >= 0)
+		qrtr_close(qsock);
 	qrtr_close(decoy);
+	qrtr_close(qdecoy);
 	return 0;
 }
 
@@ -525,6 +703,7 @@ int main(int argc, char **argv)
 	signal(SIGINT, on_sig);
 	signal(SIGTERM, on_sig);
 	signal(SIGUSR1, on_sig);
+	signal(SIGUSR2, on_sig);
 	if (argc == 4 && strcmp(argv[1], "mkreg") == 0)
 		return mkreg(argv[2], atol(argv[3]));
 	if (argc >= 2 && strcmp(argv[1], "serve") == 0) {

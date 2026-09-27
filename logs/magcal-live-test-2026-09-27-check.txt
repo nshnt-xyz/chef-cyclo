@@ -1,0 +1,210 @@
+# mag-cal-check.py output for the 2026-09-27 live run 2 (regenerated after review round 3).
+# Tool: tools/mag-cal-check.py sha256 66f9caf9a54f227d... (outlier rejection, per-face |B|, guarded ellipsoid).
+# Command: python3 tools/mag-cal-check.py ~/chef-cyclo-evidence/magcal-live-20260927T084431Z/run/sensortest/magcal-19700110T205653
+# Input path below is shown relative to the evidence directory.
+mag-cal-check: run/sensortest/magcal-19700110T205653, 7 magn capture(s), 20534 accel, 20533 gyro samples, steps: run/sensortest/magcal-19700110T205653/steps.txt
+== a-magn-factory: 3809 samples
+  sphere fit: offset (+0.3894, +0.2180, +0.2404) G, radius 0.3790 G; 8/8 octants covered
+  ellipsoid fit: offset (+0.3977, +0.2076, +0.2563) G, radius 0.3743 G, W rows (0.9699, 0.0473, 0.0423) (0.0473, 0.9573, 0.0314) (0.0423, 0.0314, 1.0823)
+  correction used: ellipsoid
+  outliers: 6 of 3809 samples dropped (|B - centre| outside median +-50%); fits and |B| below use the rest
+  |B| raw:       mean 0.6383 std 0.1914 min 0.2075 max 0.8871 spread 60.1%
+  |B| sphere:    mean 0.3779 std 0.0283 min 0.2150 max 0.4905 spread 21.2%
+  |B| ellipsoid: mean 0.3702 std 0.0253 min 0.2209 max 0.4738 spread 18.4%
+  |B| all samples: raw mean 0.6386 std 0.1933 min 0.1022 max 1.7999 spread 60.1%
+  |B| all samples: fit mean 0.3710 std 0.0375 min 0.2209 max 1.6917 spread 18.4%
+  |B| stationary per face raw: 0.6294..0.8510 G (range 28.8% of median): face_up 0.6294 (n 330), face_down 0.8078 (n 174), top_down 0.8510 (n 174), left_down 0.7196 (n 113), right_down 0.7688 (n 174)
+  |B| stationary per face fit: 0.3619..0.3877 G (range 6.9% of median): face_up 0.3820 (n 330), face_down 0.3877 (n 174), top_down 0.3749 (n 174), left_down 0.3619 (n 113), right_down 0.3714 (n 174)
+  faces raw: up n=330 z +0.2204, down n=174 z +0.2760, sum +0.4964 G
+  faces fit: up n=330 z -0.0363, down n=174 z +0.0366, sum +0.0002 G
+  heading raw over a.turn (28.7 s): gyro yaw +480.6 deg, heading +58.2 deg, max err 177.0, rms 49.9
+  heading fit over a.turn (28.7 s): gyro yaw +480.6 deg, heading +471.6 deg, max err 12.0, rms 5.4
+  gyro bias (+0.0007, -0.0002, +0.0003) rad/s
+  dip after fit (stationary samples, + = field points down): median +6.1 deg, std 1.5, n 1667
+    step a.up       n= 199 raw (+0.0701, +0.4778, +0.2206) fit (-0.3065, +0.2421, -0.0440) |fit| 0.3932
+    step a.down     n= 200 raw (+0.4711, +0.5951, +0.2756) fit (+0.0903, +0.3751, +0.0361) |fit| 0.3876
+    step a.top      n= 200 raw (+0.0388, +0.2109, +0.2313) fit (-0.3490, -0.0145, -0.0421) |fit| 0.3520
+    step a.bottom   n= 200 raw (+0.7802, +0.2361, +0.2433) fit (+0.3717, +0.0450, +0.0029) |fit| 0.3746
+    step a.left     n= 200 raw (+0.3556, +0.5865, +0.2178) fit (-0.0245, +0.3596, -0.0316) |fit| 0.3619
+    step a.right    n= 200 raw (+0.4181, +0.5922, +0.2557) fit (+0.0379, +0.3692, +0.0123) |fit| 0.3715
+    step a.fig8     n= 600 raw (+0.3259, +0.2511, +0.3588) fit (-0.0633, +0.0415, +0.1093) |fit| 0.3593
+    step a.turn     n= 600 raw (+0.3694, +0.3647, +0.2283) fit (-0.0212, +0.1482, -0.0266) |fit| 0.3791
+  VERDICT a-magn-factory as delivered: FAIL (|B| spread 60.1% >= 5%; z up+down +0.496 G (|.| >= 0.03); heading error 177.0 deg >= 5)
+  VERDICT a-magn-factory after fit: FAIL (|B| spread 18.4% >= 5%; heading error 12.0 deg >= 5)
+== a-magn-full: 3809 samples
+  sphere fit: offset (-0.0072, -0.0164, -0.0165) G, radius 0.3787 G; 8/8 octants covered
+  ellipsoid fit: offset (+0.0021, -0.0220, -0.0139) G, radius 0.3829 G, W rows (0.9930, 0.0396, 0.0554) (0.0396, 0.9886, 0.0420) (0.0554, 0.0420, 1.0250)
+  correction used: sphere (ellipsoid rejected: face up+down z +0.039 G vs sphere +0.020)
+  outliers: 6 of 3809 samples dropped (|B - centre| outside median +-50%); fits and |B| below use the rest
+  |B| raw:       mean 0.3703 std 0.0298 min 0.2314 max 0.4929 spread 20.7%
+  |B| sphere:    mean 0.3777 std 0.0278 min 0.2176 max 0.4946 spread 21.1%
+  |B| ellipsoid: mean 0.3788 std 0.0258 min 0.2325 max 0.4773 spread 19.6%
+  |B| all samples: raw mean 0.3711 std 0.0411 min 0.2314 max 1.7343 spread 20.9%
+  |B| all samples: fit mean 0.3785 std 0.0396 min 0.2176 max 1.7466 spread 21.1%
+  |B| stationary per face raw: 0.3496..0.3860 G (range 10.0% of median): face_up 0.3860 (n 330), face_down 0.3630 (n 174), top_down 0.3860 (n 174), left_down 0.3496 (n 113), right_down 0.3613 (n 174)
+  |B| stationary per face fit: 0.3657..0.3942 G (range 7.5% of median): face_up 0.3942 (n 330), face_down 0.3819 (n 174), top_down 0.3932 (n 174), left_down 0.3657 (n 113), right_down 0.3803 (n 174)
+  faces raw: up n=330 z -0.0340, down n=174 z +0.0213, sum -0.0127 G
+  faces fit: up n=330 z -0.0176, down n=174 z +0.0378, sum +0.0202 G
+  heading raw over a.turn (28.7 s): gyro yaw +480.6 deg, heading +468.8 deg, max err 13.8, rms 6.8
+  heading fit over a.turn (28.7 s): gyro yaw +480.6 deg, heading +467.9 deg, max err 15.1, rms 6.6
+  gyro bias (+0.0007, -0.0002, +0.0003) rad/s
+  dip after fit (stationary samples, + = field points down): median +3.0 deg, std 2.4, n 1667
+    step a.up       n= 199 raw (-0.3248, +0.2369, -0.0341) fit (-0.3176, +0.2533, -0.0176) |fit| 0.4067
+    step a.down     n= 200 raw (+0.0762, +0.3541, +0.0209) fit (+0.0835, +0.3706, +0.0374) |fit| 0.3818
+    step a.top      n= 200 raw (-0.3561, -0.0300, -0.0233) fit (-0.3488, -0.0136, -0.0069) |fit| 0.3493
+    step a.bottom   n= 200 raw (+0.3853, -0.0048, -0.0114) fit (+0.3926, +0.0116, +0.0050) |fit| 0.3929
+    step a.left     n= 200 raw (-0.0551, +0.3449, +0.0103) fit (-0.0479, +0.3613, +0.0267) |fit| 0.3656
+    step a.right    n= 200 raw (+0.0101, +0.3576, +0.0502) fit (+0.0173, +0.3740, +0.0667) |fit| 0.3804
+    step a.fig8     n= 600 raw (-0.0750, +0.0226, +0.1047) fit (-0.0678, +0.0390, +0.1212) |fit| 0.3670
+    step a.turn     n= 600 raw (-0.0315, +0.1362, -0.0258) fit (-0.0242, +0.1526, -0.0093) |fit| 0.3930
+  VERDICT a-magn-full as delivered: FAIL (|B| spread 20.7% >= 5%; heading error 13.8 deg >= 5)
+  VERDICT a-magn-full after fit: FAIL (|B| spread 21.1% >= 5%; heading error 15.1 deg >= 5)
+== a-magn-raw: 3809 samples
+  sphere fit: offset (+0.3889, +0.2209, +0.2445) G, radius 0.3777 G; 8/8 octants covered
+  ellipsoid fit: offset (+0.3964, +0.2103, +0.2601) G, radius 0.3729 G, W rows (0.9694, 0.0430, 0.0433) (0.0430, 0.9554, 0.0289) (0.0433, 0.0289, 1.0846)
+  correction used: ellipsoid
+  outliers: 6 of 3809 samples dropped (|B - centre| outside median +-50%); fits and |B| below use the rest
+  |B| raw:       mean 0.6401 std 0.1913 min 0.2077 max 0.8883 spread 60.0%
+  |B| sphere:    mean 0.3767 std 0.0279 min 0.2158 max 0.4902 spread 21.1%
+  |B| ellipsoid: mean 0.3688 std 0.0252 min 0.2194 max 0.4726 spread 18.5%
+  |B| all samples: raw mean 0.6404 std 0.1932 min 0.1022 max 1.8085 spread 60.1%
+  |B| all samples: fit mean 0.3696 std 0.0375 min 0.2194 max 1.6957 spread 18.5%
+  |B| stationary per face raw: 0.6315..0.8502 G (range 28.3% of median): face_up 0.6315 (n 330), face_down 0.8107 (n 174), top_down 0.8502 (n 174), left_down 0.7222 (n 113), right_down 0.7716 (n 174)
+  |B| stationary per face fit: 0.3607..0.3861 G (range 6.8% of median): face_up 0.3806 (n 330), face_down 0.3861 (n 174), top_down 0.3735 (n 174), left_down 0.3607 (n 113), right_down 0.3699 (n 174)
+  faces raw: up n=330 z +0.2230, down n=174 z +0.2787, sum +0.5017 G
+  faces fit: up n=330 z -0.0386, down n=174 z +0.0346, sum -0.0040 G
+  heading raw over a.turn (28.7 s): gyro yaw +480.6 deg, heading +58.0 deg, max err 179.5, rms 50.1
+  heading fit over a.turn (28.7 s): gyro yaw +480.6 deg, heading +471.7 deg, max err 11.9, rms 5.3
+  gyro bias (+0.0007, -0.0002, +0.0003) rad/s
+  dip after fit (stationary samples, + = field points down): median +6.2 deg, std 1.5, n 1667
+    step a.up       n= 199 raw (+0.0714, +0.4784, +0.2234) fit (-0.3051, +0.2411, -0.0462) |fit| 0.3917
+    step a.down     n= 200 raw (+0.4714, +0.5975, +0.2783) fit (+0.0902, +0.3736, +0.0342) |fit| 0.3860
+    step a.top      n= 200 raw (+0.0391, +0.2118, +0.2333) fit (-0.3475, -0.0147, -0.0446) |fit| 0.3508
+    step a.bottom   n= 200 raw (+0.7779, +0.2402, +0.2436) fit (+0.3704, +0.0445, -0.0005) |fit| 0.3732
+    step a.left     n= 200 raw (+0.3564, +0.5882, +0.2205) fit (-0.0242, +0.3582, -0.0338) |fit| 0.3607
+    step a.right    n= 200 raw (+0.4187, +0.5943, +0.2585) fit (+0.0380, +0.3678, +0.0103) |fit| 0.3700
+    step a.fig8     n= 600 raw (+0.3250, +0.2537, +0.3609) fit (-0.0629, +0.0413, +0.1074) |fit| 0.3579
+    step a.turn     n= 600 raw (+0.3692, +0.3668, +0.2301) fit (-0.0209, +0.1475, -0.0292) |fit| 0.3779
+  VERDICT a-magn-raw as delivered: FAIL (|B| spread 60.0% >= 5%; z up+down +0.502 G (|.| >= 0.03); heading error 179.5 deg >= 5)
+  VERDICT a-magn-raw after fit: FAIL (|B| spread 18.5% >= 5%; heading error 11.9 deg >= 5)
+== q-magn-factory: 4408 samples
+  sphere fit: offset (+0.3918, +0.2042, +0.2331) G, radius 0.3784 G; 8/8 octants covered
+  ellipsoid fit: offset (+0.4470, +0.2386, -0.1195) G, radius 0.5350 G, W rows (1.2467, 0.0081, 0.1126) (0.0081, 1.2709, 0.0814) (0.1126, 0.0814, 0.6464)
+  correction used: sphere (ellipsoid rejected: W eigenvalues 0.617..1.297 outside 0.80..1.25; centre 0.359 G from the sphere's (> 0.05); face up+down z +0.484 G vs sphere +0.023)
+  outliers: 5 of 4408 samples dropped (|B - centre| outside median +-50%); fits and |B| below use the rest
+  |B| raw:       mean 0.6098 std 0.1895 min 0.0998 max 0.8987 spread 56.8%
+  |B| sphere:    mean 0.3771 std 0.0319 min 0.2351 max 0.6051 spread 24.5%
+  |B| ellipsoid: mean 0.5286 std 0.0345 min 0.3229 max 0.7318 spread 19.2%
+  |B| all samples: raw mean 0.6100 std 0.1902 min 0.0998 max 1.7154 spread 56.8%
+  |B| all samples: fit mean 0.3772 std 0.0369 min 0.1056 max 1.5234 spread 24.8%
+  |B| stationary per face raw: 0.3136..0.8559 G (range 80.9% of median): face_up 0.6764 (n 213), face_down 0.6647 (n 174), top_up 0.3136 (n 96), top_down 0.8559 (n 174), left_down 0.7326 (n 174), right_down 0.4892 (n 174)
+  |B| stationary per face fit: 0.3529..0.3962 G (range 11.2% of median): face_up 0.3917 (n 213), face_down 0.3833 (n 174), top_up 0.3529 (n 96), top_down 0.3962 (n 174), left_down 0.3893 (n 174), right_down 0.3779 (n 174)
+  faces raw: up n=213 z +0.2218, down n=174 z +0.2674, sum +0.4892 G
+  faces fit: up n=213 z -0.0114, down n=174 z +0.0343, sum +0.0229 G
+  heading raw over q.turn (28.7 s): gyro yaw +625.6 deg, heading +123.9 deg, max err 178.4, rms 85.1
+  heading fit over q.turn (28.7 s): gyro yaw +625.6 deg, heading +613.3 deg, max err 14.5, rms 6.3
+  gyro bias (+0.0007, -0.0002, +0.0003) rad/s
+  dip after fit (stationary samples, + = field points down): median +3.0 deg, std 2.7, n 1781
+    step q.fig8     n=1199 raw (+0.3421, +0.2486, +0.3382) fit (-0.0497, +0.0444, +0.1050) |fit| 0.3610
+    step q.up       n= 200 raw (+0.4155, +0.5835, +0.2191) fit (+0.0237, +0.3793, -0.0141) |fit| 0.3804
+    step q.down     n= 200 raw (+0.2497, +0.5577, +0.2671) fit (-0.1421, +0.3535, +0.0339) |fit| 0.3829
+    step q.top      n= 200 raw (+0.0385, +0.1977, +0.2407) fit (-0.3533, -0.0064, +0.0076) |fit| 0.3536
+    step q.bottom   n= 200 raw (+0.7869, +0.2324, +0.2442) fit (+0.3951, +0.0282, +0.0111) |fit| 0.3964
+    step q.left     n= 200 raw (+0.3561, +0.5915, +0.2445) fit (-0.0358, +0.3873, +0.0113) |fit| 0.3893
+    step q.right    n= 200 raw (+0.3937, -0.1735, +0.2329) fit (+0.0019, -0.3776, -0.0002) |fit| 0.3777
+    step q.turn     n= 600 raw (+0.3920, +0.2051, +0.2282) fit (+0.0002, +0.0009, -0.0049) |fit| 0.4006
+  VERDICT q-magn-factory as delivered: FAIL (|B| spread 56.8% >= 5%; z up+down +0.489 G (|.| >= 0.03); heading error 178.4 deg >= 5)
+  VERDICT q-magn-factory after fit: FAIL (|B| spread 24.5% >= 5%; heading error 14.5 deg >= 5)
+== q-magn-full: 4408 samples
+  sphere fit: offset (-0.0091, -0.0244, -0.0210) G, radius 0.3784 G; 8/8 octants covered
+  ellipsoid fit: offset (+0.0461, +0.0101, -0.3734) G, radius 0.5349 G, W rows (1.2466, 0.0081, 0.1126) (0.0081, 1.2708, 0.0813) (0.1126, 0.0813, 0.6465)
+  correction used: sphere (ellipsoid rejected: W eigenvalues 0.617..1.297 outside 0.80..1.25; centre 0.358 G from the sphere's (> 0.05); face up+down z +0.484 G vs sphere +0.023)
+  outliers: 5 of 4408 samples dropped (|B - centre| outside median +-50%); fits and |B| below use the rest
+  |B| raw:       mean 0.3724 std 0.0369 min 0.2082 max 0.6007 spread 26.4%
+  |B| sphere:    mean 0.3771 std 0.0319 min 0.2351 max 0.6051 spread 24.6%
+  |B| ellipsoid: mean 0.5285 std 0.0345 min 0.3228 max 0.7318 spread 19.2%
+  |B| all samples: raw mean 0.3726 std 0.0412 min 0.0988 max 1.5057 spread 26.5%
+  |B| all samples: fit mean 0.3772 std 0.0369 min 0.1056 max 1.5234 spread 24.8%
+  |B| stationary per face raw: 0.3634..0.4029 G (range 10.6% of median): face_up 0.3745 (n 213), face_down 0.3634 (n 174), top_up 0.3634 (n 96), top_down 0.3861 (n 174), left_down 0.3660 (n 174), right_down 0.4029 (n 174)
+  |B| stationary per face fit: 0.3529..0.3962 G (range 11.2% of median): face_up 0.3917 (n 213), face_down 0.3833 (n 174), top_up 0.3529 (n 96), top_down 0.3962 (n 174), left_down 0.3893 (n 174), right_down 0.3779 (n 174)
+  faces raw: up n=213 z -0.0324, down n=174 z +0.0133, sum -0.0191 G
+  faces fit: up n=213 z -0.0114, down n=174 z +0.0343, sum +0.0229 G
+  heading raw over q.turn (28.7 s): gyro yaw +625.6 deg, heading +618.3 deg, max err 9.5, rms 4.0
+  heading fit over q.turn (28.7 s): gyro yaw +625.6 deg, heading +613.3 deg, max err 14.5, rms 6.3
+  gyro bias (+0.0007, -0.0002, +0.0003) rad/s
+  dip after fit (stationary samples, + = field points down): median +3.0 deg, std 2.7, n 1781
+    step q.fig8     n=1199 raw (-0.0587, +0.0200, +0.0840) fit (-0.0497, +0.0444, +0.1050) |fit| 0.3610
+    step q.up       n= 200 raw (+0.0146, +0.3549, -0.0351) fit (+0.0237, +0.3793, -0.0141) |fit| 0.3804
+    step q.down     n= 200 raw (-0.1512, +0.3291, +0.0129) fit (-0.1421, +0.3535, +0.0339) |fit| 0.3829
+    step q.top      n= 200 raw (-0.3624, -0.0308, -0.0134) fit (-0.3533, -0.0064, +0.0076) |fit| 0.3536
+    step q.bottom   n= 200 raw (+0.3860, +0.0038, -0.0099) fit (+0.3951, +0.0282, +0.0111) |fit| 0.3964
+    step q.left     n= 200 raw (-0.0449, +0.3630, -0.0097) fit (-0.0358, +0.3874, +0.0113) |fit| 0.3893
+    step q.right    n= 200 raw (-0.0072, -0.4020, -0.0212) fit (+0.0019, -0.3776, -0.0002) |fit| 0.3777
+    step q.turn     n= 600 raw (-0.0089, -0.0235, -0.0259) fit (+0.0002, +0.0009, -0.0049) |fit| 0.4006
+  VERDICT q-magn-full as delivered: FAIL (|B| spread 26.4% >= 5%; heading error 9.5 deg >= 5)
+  VERDICT q-magn-full after fit: FAIL (|B| spread 24.6% >= 5%; heading error 14.5 deg >= 5)
+== q-magn-qmag: 4408 samples
+  sphere fit: offset (-0.0091, -0.0244, -0.0210) G, radius 0.3784 G; 8/8 octants covered
+  ellipsoid fit: offset (+0.0461, +0.0101, -0.3737) G, radius 0.5350 G, W rows (1.2467, 0.0081, 0.1126) (0.0081, 1.2709, 0.0814) (0.1126, 0.0814, 0.6464)
+  correction used: sphere (ellipsoid rejected: W eigenvalues 0.617..1.297 outside 0.80..1.25; centre 0.359 G from the sphere's (> 0.05); face up+down z +0.484 G vs sphere +0.023)
+  outliers: 5 of 4408 samples dropped (|B - centre| outside median +-50%); fits and |B| below use the rest
+  |B| raw:       mean 0.3724 std 0.0369 min 0.2082 max 0.6007 spread 26.4%
+  |B| sphere:    mean 0.3771 std 0.0319 min 0.2351 max 0.6051 spread 24.6%
+  |B| ellipsoid: mean 0.5286 std 0.0345 min 0.3229 max 0.7319 spread 19.2%
+  |B| all samples: raw mean 0.3726 std 0.0412 min 0.0988 max 1.5057 spread 26.5%
+  |B| all samples: fit mean 0.3772 std 0.0369 min 0.1056 max 1.5234 spread 24.8%
+  |B| stationary per face raw: 0.3634..0.4029 G (range 10.6% of median): face_up 0.3745 (n 213), face_down 0.3634 (n 174), top_up 0.3634 (n 96), top_down 0.3861 (n 174), left_down 0.3660 (n 174), right_down 0.4029 (n 174)
+  |B| stationary per face fit: 0.3529..0.3962 G (range 11.2% of median): face_up 0.3917 (n 213), face_down 0.3833 (n 174), top_up 0.3529 (n 96), top_down 0.3962 (n 174), left_down 0.3893 (n 174), right_down 0.3779 (n 174)
+  faces raw: up n=213 z -0.0324, down n=174 z +0.0133, sum -0.0191 G
+  faces fit: up n=213 z -0.0114, down n=174 z +0.0343, sum +0.0229 G
+  heading raw over q.turn (28.7 s): gyro yaw +625.6 deg, heading +618.3 deg, max err 9.5, rms 4.0
+  heading fit over q.turn (28.7 s): gyro yaw +625.6 deg, heading +613.3 deg, max err 14.5, rms 6.3
+  gyro bias (+0.0007, -0.0002, +0.0003) rad/s
+  dip after fit (stationary samples, + = field points down): median +3.0 deg, std 2.7, n 1781
+    step q.fig8     n=1199 raw (-0.0588, +0.0200, +0.0840) fit (-0.0497, +0.0444, +0.1050) |fit| 0.3610
+    step q.up       n= 200 raw (+0.0146, +0.3549, -0.0351) fit (+0.0237, +0.3793, -0.0141) |fit| 0.3804
+    step q.down     n= 200 raw (-0.1512, +0.3291, +0.0129) fit (-0.1421, +0.3535, +0.0339) |fit| 0.3829
+    step q.top      n= 200 raw (-0.3624, -0.0308, -0.0134) fit (-0.3533, -0.0064, +0.0076) |fit| 0.3536
+    step q.bottom   n= 200 raw (+0.3860, +0.0038, -0.0099) fit (+0.3951, +0.0282, +0.0111) |fit| 0.3964
+    step q.left     n= 200 raw (-0.0449, +0.3630, -0.0097) fit (-0.0358, +0.3873, +0.0113) |fit| 0.3893
+    step q.right    n= 200 raw (-0.0072, -0.4020, -0.0212) fit (+0.0019, -0.3776, -0.0002) |fit| 0.3778
+    step q.turn     n= 600 raw (-0.0089, -0.0235, -0.0259) fit (+0.0002, +0.0009, -0.0049) |fit| 0.4006
+  VERDICT q-magn-qmag as delivered: FAIL (|B| spread 26.4% >= 5%; heading error 9.5 deg >= 5)
+  VERDICT q-magn-qmag after fit: FAIL (|B| spread 24.6% >= 5%; heading error 14.5 deg >= 5)
+== q-magn-raw: 4408 samples
+  sphere fit: offset (+0.3910, +0.2067, +0.2359) G, radius 0.3774 G; 8/8 octants covered
+  ellipsoid fit: offset (+0.4411, +0.2366, -0.0807) G, radius 0.5209 G, W rows (1.2338, 0.0025, 0.1109) (0.0025, 1.2544, 0.0753) (0.1109, 0.0753, 0.6606)
+  correction used: sphere (ellipsoid rejected: W eigenvalues 0.631..1.276 outside 0.80..1.25; centre 0.322 G from the sphere's (> 0.05); face up+down z +0.446 G vs sphere +0.023)
+  outliers: 5 of 4408 samples dropped (|B - centre| outside median +-50%); fits and |B| below use the rest
+  |B| raw:       mean 0.6107 std 0.1896 min 0.0991 max 0.8991 spread 56.7%
+  |B| sphere:    mean 0.3761 std 0.0318 min 0.2353 max 0.6060 spread 24.4%
+  |B| ellipsoid: mean 0.5146 std 0.0345 min 0.3088 max 0.7171 spread 19.6%
+  |B| all samples: raw mean 0.6108 std 0.1903 min 0.0991 max 1.7257 spread 56.7%
+  |B| all samples: fit mean 0.3762 std 0.0368 min 0.1061 max 1.5305 spread 24.5%
+  |B| stationary per face raw: 0.3157..0.8550 G (range 80.1% of median): face_up 0.6788 (n 213), face_down 0.6675 (n 174), top_up 0.3157 (n 96), top_down 0.8550 (n 174), left_down 0.7354 (n 174), right_down 0.4857 (n 174)
+  |B| stationary per face fit: 0.3519..0.3948 G (range 11.2% of median): face_up 0.3910 (n 213), face_down 0.3816 (n 174), top_up 0.3519 (n 96), top_down 0.3948 (n 174), left_down 0.3884 (n 174), right_down 0.3775 (n 174)
+  faces raw: up n=213 z +0.2242, down n=174 z +0.2705, sum +0.4947 G
+  faces fit: up n=213 z -0.0117, down n=174 z +0.0346, sum +0.0229 G
+  heading raw over q.turn (28.7 s): gyro yaw +625.6 deg, heading +123.4 deg, max err 178.7, rms 85.3
+  heading fit over q.turn (28.7 s): gyro yaw +625.6 deg, heading +613.9 deg, max err 14.0, rms 6.1
+  gyro bias (+0.0007, -0.0002, +0.0003) rad/s
+  dip after fit (stationary samples, + = field points down): median +3.1 deg, std 2.7, n 1781
+    step q.fig8     n=1199 raw (+0.3413, +0.2512, +0.3401) fit (-0.0496, +0.0445, +0.1042) |fit| 0.3600
+    step q.up       n= 200 raw (+0.4161, +0.5854, +0.2216) fit (+0.0251, +0.3787, -0.0143) |fit| 0.3799
+    step q.down     n= 200 raw (+0.2507, +0.5591, +0.2701) fit (-0.1403, +0.3524, +0.0342) |fit| 0.3812
+    step q.top      n= 200 raw (+0.0387, +0.1987, +0.2427) fit (-0.3523, -0.0081, +0.0068) |fit| 0.3526
+    step q.bottom   n= 200 raw (+0.7846, +0.2365, +0.2446) fit (+0.3936, +0.0298, +0.0087) |fit| 0.3950
+    step q.left     n= 200 raw (+0.3568, +0.5933, +0.2473) fit (-0.0341, +0.3866, +0.0114) |fit| 0.3883
+    step q.right    n= 200 raw (+0.3910, -0.1705, +0.2325) fit (+0.0001, -0.3773, -0.0034) |fit| 0.3774
+    step q.turn     n= 600 raw (+0.3910, +0.2074, +0.2293) fit (+0.0001, +0.0007, -0.0066) |fit| 0.3994
+  VERDICT q-magn-raw as delivered: FAIL (|B| spread 56.7% >= 5%; z up+down +0.495 G (|.| >= 0.03); heading error 178.7 deg >= 5)
+  VERDICT q-magn-raw after fit: FAIL (|B| spread 24.4% >= 5%; heading error 14.0 deg >= 5)
+== a-magn-factory minus a-magn-full over 190 s: median (+0.4009, +0.2409, +0.2541) G, IQR (0.0061, 0.0124, 0.0005), last 30% median (+0.4009, +0.2285, +0.2541) G
+== a-magn-factory minus a-magn-raw over 190 s: median (-0.0003, -0.0019, -0.0026) G, IQR (0.0012, 0.0016, 0.0009), last 30% median (-0.0003, -0.0020, -0.0025) G
+== a-magn-full minus a-magn-raw over 190 s: median (-0.3992, -0.2415, -0.2565) G, IQR (0.0068, 0.0123, 0.0028), last 30% median (-0.4012, -0.2306, -0.2566) G
+== q-magn-factory minus q-magn-full over 220 s: median (+0.4009, +0.2285, +0.2541) G, IQR (0.0000, 0.0000, 0.0000), last 30% median (+0.4009, +0.2285, +0.2541) G
+== q-magn-factory minus q-magn-qmag over 220 s: median (+0.4009, +0.2285, +0.2541) G, IQR (0.0000, 0.0000, 0.0000), last 30% median (+0.4009, +0.2285, +0.2541) G
+== q-magn-factory minus q-magn-raw over 220 s: median (-0.0001, -0.0019, -0.0020) G, IQR (0.0031, 0.0018, 0.0023), last 30% median (+0.0024, -0.0029, +0.0001) G
+== q-magn-full minus q-magn-qmag over 220 s: median (-0.0000, -0.0000, +0.0000) G, IQR (0.0000, 0.0000, 0.0000), last 30% median (-0.0000, +0.0000, +0.0000) G
+== q-magn-full minus q-magn-raw over 220 s: median (-0.4010, -0.2305, -0.2561) G, IQR (0.0031, 0.0018, 0.0023), last 30% median (-0.3985, -0.2314, -0.2540) G
+== q-magn-qmag minus q-magn-raw over 220 s: median (-0.4010, -0.2305, -0.2561) G, IQR (0.0031, 0.0018, 0.0023), last 30% median (-0.3985, -0.2314, -0.2540) G

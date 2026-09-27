@@ -1,8 +1,10 @@
 /* sns_reg: the sensors registry sensord serves as REG2 (0x10f), held in
  * RAM. See sns-reg-map.py for the file layout and where the map comes
- * from. The backing file (a copy of persist's sns.reg that sensors-up
- * made under /run) is only ever read; writes the DSP sends land in the
- * RAM copy and are reported back to the caller for logging. */
+ * from. The backing file is a copy of persist's sns.reg that sensors-up
+ * made under /run; writes the DSP sends land in the RAM copy, and
+ * sns_reg_save() can write that back over the /run copy (only ever onto
+ * a RAM filesystem), so the copy keeps what the DSP wrote for the rest
+ * of the boot. persist itself is never written. */
 #ifndef CHEF_CYCLO_SNS_REG_H
 #define CHEF_CYCLO_SNS_REG_H
 
@@ -39,6 +41,13 @@ const struct sns_reg_span *sns_reg_find(const struct sns_reg_span *v, size_t n, 
 
 /* Copy out an item/group. Returns its size, or -1 (unknown id). */
 int sns_reg_read(struct sns_reg *r, int group, uint16_t id, uint8_t *out, size_t outsz);
+
+/* Write the RAM registry back to path: path.tmp (created with path's
+ * mode), fsync, rename over path. Refuses (-EXDEV) unless path and the
+ * temp file are both on tmpfs or ramfs, so it can never reach persist or any other disk, and
+ * (-EINVAL) unless path is an existing regular file. 0 or -errno; a
+ * failure leaves path as it was. */
+int sns_reg_save(const struct sns_reg *r, const char *path);
 
 /* Overwrite an item/group (or its first len bytes) in RAM. Returns 0,
  * -ENOENT (unknown id) or -EINVAL (empty, or longer than the entry). */

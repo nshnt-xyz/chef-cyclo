@@ -368,6 +368,125 @@ static void test_smgr_report(void)
 	      ind.item[0].quality == 1);
 }
 
+/* The BUFFERING item's calibration byte (4th item byte): -c factory = 1,
+ * raw = 2, as the stock HAL's uncalibrated sensors send 1. */
+static void test_smgr_calibration(void)
+{
+	struct sns_smgr_buf_req q;
+	static const uint8_t f_tlv[] = {
+		0x01, 0x01, 0x00, 0x03,
+		0x02, 0x01, 0x00, 0x01,
+		0x03, 0x04, 0x00, 0x00, 0x00, 0x14, 0x00,
+		0x04, 0x09, 0x00, 0x01, 0x14, 0x00, 0x03, 0x01, 0x14, 0x00, 0x01, 0x00 };
+	uint8_t r_tlv[sizeof(f_tlv)];
+
+	memset(&q, 0, sizeof(q));
+	q.report_id = 3;
+	q.action = SNS_SMGR_ACTION_ADD;
+	q.report_rate_q16 = 20u << 16;
+	q.n_items = 1;
+	q.item[0].sensor_id = SNS_SMGR_ID_MAG;
+	q.item[0].decimation = 3;
+	q.item[0].calibration = SNS_SMGR_CAL_FACTORY;
+	q.item[0].sampling_rate_hz = 20;
+	q.item[0].sample_quality = 1;
+	expect_encoded("buffering magn factory", QMI_REQUEST, SNS_SMGR_BUFFERING, 9, &q,
+		       sns_smgr_buf_req_ei, f_tlv, sizeof(f_tlv));
+	memcpy(r_tlv, f_tlv, sizeof(r_tlv));
+	r_tlv[22] = 0x02;
+	q.item[0].calibration = SNS_SMGR_CAL_RAW;
+	expect_encoded("buffering magn raw", QMI_REQUEST, SNS_SMGR_BUFFERING, 9, &q,
+		       sns_smgr_buf_req_ei, r_tlv, sizeof(r_tlv));
+}
+
+/* QMAG_CAL (0x140), against logs/sns-idl-dump-2026-09-27-qmag.txt. */
+static void test_qmag(void)
+{
+	struct sns_sam_enable_req en;
+	struct sns_sam_disable_req dis = { .instance = 7 };
+	struct sns_sam_instance_resp ir;
+	struct sns_sam_qmag_ind ind;
+	struct sns_sam_error_ind err;
+	struct sns_sam_attr_resp attr;
+	/* enable: optional TLV 0x10 u32 only */
+	static const uint8_t en_tlv[] = { 0x10, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00 };
+	static const uint8_t dis_tlv[] = { 0x01, 0x01, 0x00, 0x07 };
+	static const uint8_t ir_tlv[] = { 0x02, 0x02, 0x00, 0x00, 0x00, 0x10, 0x01, 0x00, 0x07 };
+	static const uint8_t ir_fail[] = { 0x02, 0x02, 0x00, 0x01, 0x05 };
+	/* report: 01 u8 instance, 02 u32 ts, 03 u32[3] bias (no count), 04 u32 */
+	static const uint8_t ind_tlv[] = {
+		0x01, 0x01, 0x00, 0x07,
+		0x02, 0x04, 0x00, 0x78, 0x56, 0x34, 0x12,
+		0x03, 0x0c, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0xff, 0xff, 0x9a, 0x19, 0x00, 0x00,
+		0x04, 0x04, 0x00, 0x03, 0x00, 0x00, 0x00 };
+	static const uint8_t err_tlv[] = { 0x01, 0x01, 0x00, 0x02, 0x02, 0x01, 0x00, 0x07 };
+	uint8_t attr_tlv[5 + 9 * 7 + 11 + 7];
+	size_t o = 0;
+	int i;
+
+	/* default: no TLV at all (the IDL's max_len for it is 0) */
+	memset(&en, 0, sizeof(en));
+	expect_encoded("qmag enable, no period", QMI_REQUEST, SNS_SAM_ENABLE, 1, &en,
+		       sns_sam_enable_req_ei, NULL, 0);
+	/* What TLV 0x10 would look like; sensord never sends it. */
+	en.period_valid = 1;
+	en.period_q16 = 65536;
+	expect_encoded("qmag enable, period", QMI_REQUEST, SNS_SAM_ENABLE, 2, &en,
+		       sns_sam_enable_req_ei, en_tlv, sizeof(en_tlv));
+	expect_encoded("qmag disable", QMI_REQUEST, SNS_SAM_DISABLE, 3, &dis, sns_sam_disable_req_ei,
+		       dis_tlv, sizeof(dis_tlv));
+	expect_encoded("qmag attributes", QMI_REQUEST, SNS_SAM_GET_ATTR, 4, NULL, sns_empty_ei, NULL, 0);
+
+	memset(&ir, 0, sizeof(ir));
+	CHECK(decode(QMI_RESPONSE, SNS_SAM_ENABLE, ir_tlv, sizeof(ir_tlv), &ir,
+		     sns_sam_instance_resp_ei) >= 0);
+	CHECK(ir.resp.result == 0 && ir.instance_valid && ir.instance == 7);
+	memset(&ir, 0, sizeof(ir));
+	CHECK(decode(QMI_RESPONSE, SNS_SAM_ENABLE, ir_fail, sizeof(ir_fail), &ir,
+		     sns_sam_instance_resp_ei) >= 0);
+	CHECK(ir.resp.result == 1 && ir.resp.err == 5 && !ir.instance_valid);
+
+	memset(&ind, 0, sizeof(ind));
+	CHECK(decode(QMI_INDICATION, SNS_SAM_REPORT_IND, ind_tlv, sizeof(ind_tlv), &ind,
+		     sns_sam_qmag_ind_ei) >= 0);
+	CHECK(ind.instance == 7 && ind.timestamp == 0x12345678 && ind.accuracy == 3);
+	CHECK(ind.bias[0] == 0x8000 && ind.bias[1] == -0x8000 && ind.bias[2] == 0x199a);
+
+	memset(&err, 0, sizeof(err));
+	CHECK(decode(QMI_INDICATION, SNS_SAM_ERROR_IND, err_tlv, sizeof(err_tlv), &err,
+		     sns_sam_error_ind_ei) >= 0);
+	CHECK(err.error == 2 && err.instance == 7);
+
+	memcpy(attr_tlv + o, "\x02\x02\x00\x00\x00", 5);
+	o += 5;
+	for (i = 0; i < 9; i++) {
+		uint8_t t[7] = { (uint8_t)(3 + i), 4, 0, (uint8_t)(10 + i), 0, (uint8_t)i, 0 };
+
+		memcpy(attr_tlv + o, t, 7);
+		o += 7;
+	}
+	memcpy(attr_tlv + o, "\x10\x08\x00\x01\x02\x03\x04\x05\x06\x07\x08", 11);
+	o += 11;
+	memcpy(attr_tlv + o, "\x11\x04\x00\x2a\x00\x00\x00", 7);
+	o += 7;
+	memset(&attr, 0, sizeof(attr));
+	CHECK(decode(QMI_RESPONSE, SNS_SAM_GET_ATTR, attr_tlv, o, &attr, sns_sam_attr_resp_ei) >= 0);
+	CHECK(attr.attr[0] == 10 && attr.attr[3] == 0x3000d && attr.attr[8] == 0x80012);
+	CHECK(attr.suid_valid && attr.suid == 0x0807060504030201ULL);
+	CHECK(attr.reserved_valid && attr.reserved == 42);
+
+	/* truncated: bias TLV one word short */
+	{
+		uint8_t cut[sizeof(ind_tlv) - 4 - 7];
+
+		memcpy(cut, ind_tlv, 11);
+		memcpy(cut + 11, "\x03\x08\x00\x00\x80\x00\x00\x00\x80\xff\xff", 11);
+		memset(&ind, 0, sizeof(ind));
+		CHECK(decode(QMI_INDICATION, SNS_SAM_REPORT_IND, cut, sizeof(cut), &ind,
+			     sns_sam_qmag_ind_ei) < 0);
+	}
+}
+
 /* Malformed input from the DSP must be rejected without reading past it
  * (tools/qrtr/qmi.c bounds checks; run under ASan by make test). */
 static void test_truncated(void)
@@ -422,6 +541,8 @@ int main(void)
 	test_smgr_info();
 	test_smgr_buffering();
 	test_smgr_report();
+	test_smgr_calibration();
+	test_qmag();
 	test_truncated();
 	if (failures) {
 		fprintf(stderr, "test-sns-msgs: %d failure(s)\n", failures);

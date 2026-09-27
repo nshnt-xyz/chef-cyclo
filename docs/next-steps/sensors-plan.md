@@ -123,9 +123,43 @@ Done 2026-09-26: [feature guide](../features/sensors.md), feature index row, [On
 
 ## Remaining work
 
-- **Magnetometer calibration check.** Live, magnetometer z did not change sign between face up (+0.20 gauss) and face down (+0.31 gauss). Find out whether SMGR applies its calibration (calibration 0 should be full calibration), whether the registry holds a valid calibration for the AK09918, and whether a hard-iron offset has to be estimated in userspace.
-- **Tilt-compensated compass** for the map, after that check: heading from accel + magn with smoothing (stock smooths the magnetometer over 8 samples; `sensord` does not).
+- **Magnetometer calibration check: done 2026-09-27** ([results](#results-2026-09-27)). SMGR's full calibration removes a hard-iron bias the ADSP learns on its own (registry group 2980); QMAG_CAL is not needed. The DSP's registry writes are now kept in the `/run` copy for the whole boot (`sensord` writes them back, `sensors-up` reuses that copy in the same boot without touching persist; live-checked 2026-09-27). A `sensord` restart does not restart the ADSP, which keeps its calibration in memory; the `/run` copy matters when the ADSP restarts or re-reads the registry, and as the source for a future across-boot copy.
+- **Keep the learned calibration across reboots**, once the image has writable storage of its own (persist is never written): save the DSP-written registry groups (2980 magnetometer bias, 2610 gyro bias) there and merge them into the `/run` copy at `sensors-up`. Until then every boot starts uncorrected, and learning is condition-dependent (slow face-by-face holds worked, a fast 30 s figure-8 alone did not).
+- **Tilt-compensated compass** for the map, next: heading from accel + magn (calibration `full`) with smoothing (stock smooths the magnetometer over 8 samples; `sensord` does not), and a "not calibrated yet" state until the DSP has learned its bias after boot (group 2980 still zero, or face-sum/|B| checks).
 - **Wake-on-motion and tap** through the DSP's SAM services (AMD 0x104, TAP 0x11a; their IDL is already in the dump), exposed as claimable event channels.
 - **ALS backlight policy**: auto-brightness from `illuminance`, with the display owner (fblog/UI) deciding.
 - **inittab and power**: measure idle current with `sensord` up and nothing claimed, and while streaming accel at ride rates, then decide whether `sensors-up` runs at boot.
 - **Optional `net.hadess.SensorProxy` facade** (iio-sensor-proxy's D-Bus interface) if an off-the-shelf consumer ever needs it; `dbus-daemon` already runs for BlueZ.
+
+## 7. Magnetometer calibration check (research 2026-09-27)
+
+What the live run showed: face up z = +0.20 gauss, face down z = +0.31 gauss. Flipping the phone reverses z whatever the heading, so the z reading carries a fixed offset of about +0.25 gauss, and the true vertical field is about -0.05 gauss. During the clean part of the flat spin the x/y trace was a circle centred near (0.007, -0.030) gauss with radius 0.32 gauss, so x/y offsets look small.
+
+What the stock software does (read from the stock binaries and registry, not yet confirmed live):
+
+| Piece | Finding |
+|---|---|
+| `sensord` request | Calibration select 0 (full) in the BUFFERING item; 1 = factory only, 2 = raw (the stock HAL uses 1 for its "uncalibrated" sensors). |
+| Factory calibration in the registry | Items 401/402 valid = 1; hard-iron bias items 403..405 = **0**; soft-iron matrix items 406..414 close to identity (diagonal 1.0014, 1.0036, 0.9950, off-diagonal ≤ 0.0044). So "full" calibration corrects soft iron only unless a dynamic calibration adds a bias. |
+| QMAG_CAL (SAM 0x140, present on the ADSP) | Registry items 3800..3806: version 2, enable 1, sample rate 10 Hz (Q16 655360); persisted-bias slots 3807.. all 0. The DSP did **not** read this group in the live S1 run, so nothing started the algorithm. IDL: enable 0x02 (optional u32 report period), disable 0x03 (u8 instance), indication 0x05 {u8 instance, u32 timestamp, u32[3] bias, u32 accuracy}, error indication 0x06, 0x20 {u8 instance, u32}, 0x24 algorithm attributes. |
+| Stock HAL `MagneticCalibration` | Sends a 12-byte enable (report period Q16 = 65536/rate, sample rate ≥ 5 Hz) to sensor1 service 0x10 = **SAM MAG_CAL 0x110, which this ADSP does not register** (stock dump_servers has no 0x110 either). Stock may therefore run without dynamic hard-iron calibration too. |
+| Registry bytes stock rewrites at runtime (0x700..0x70b) | Items 306..308 in group 2610: small Q16 values (backup 210/-39/-369, live 162/-33/-377), consistent with a gyro bias in rad/s (≈0.3 °/s), not a magnetometer bias. |
+
+Experiment and acceptance (one `fastboot boot` session):
+
+1. Capture `magn` with calibration select full, factory and raw while the phone is moved through a figure-8 and all six faces. Expect factory and full to differ only by the soft-iron matrix.
+2. Enable QMAG_CAL (0x140) with `magn` streaming. Record its indications (bias, accuracy) and whether SMGR's full-cal output starts subtracting the bias.
+3. Offline, fit a sphere/ellipsoid to each capture. Pass for a usable calibration: after correction, |B| varies by less than 5 % across orientations, face up and face down z are equal and opposite within 0.03 gauss, and heading changes track the gyro-integrated yaw within 5° over a clean flat turn.
+4. Decide: use QMAG_CAL (stock-style, runs in the DSP) if it converges and SMGR applies it; else apply QMAG_CAL's bias in `sensord`; else estimate the hard-iron offset in `sensord` from the data. Any learned bias lives in RAM only (no persistent storage yet, and persist is never written).
+
+### Results (2026-09-27)
+
+One `fastboot boot` session, nothing flashed; session notes in `logs/magcal-live-test-2026-09-27-notes.txt` and `-kmsg.txt`; every fit, face, |B| and heading number below is from `logs/magcal-live-test-2026-09-27-check.txt` (captures a / q), tooling in the [feature guide](../features/sensors.md#magnetometer-calibration-check).
+
+1. **The ADSP learns the hard-iron bias itself and SMGR's `full` select applies it.** No client enabled anything: the DSP wrote registry group 2980 (items from about 3834) over REG2, all zero at 75 s after boot, (-0.241, -0.395, +0.255) G (SMGR frame, Q16) by 609 s, (-0.229, -0.401, +0.254) G later. Factory minus full was (+0.401, +0.229, +0.254) G in the device frame, the registry value after the axis map with the opposite sign. persist and the stock backup hold zeros in group 2980, so every boot starts uncorrected (0.74 G at rest before learning). Learning is condition-dependent: here the first nonzero write came about 35 to 50 s into the slow face-by-face holds; in a later session (`logs/regreuse-live-test-2026-09-27-notes.txt`) a fast 30 s figure-8 alone gave a 2980 write with zero bias and `full` stayed equal to `factory`. It appears to need slow, varied orientations with holds, so a UI or compass must show "not calibrated" until `full` differs from `factory` (or group 2980 is nonzero).
+2. **Acceptance, `full` as delivered:** face up + face down z -0.0127 / -0.0191 G (pass, < 0.03); heading vs gyro yaw over a 30 s flat turn max 13.8 / 9.5 deg, rms 6.8 / 4.0 deg (the 5 deg max is not met); |B| spread 20.7 / 26.4 % (std 8 / 10 % of 0.370 / 0.372 G), stationary |B| per face 0.350..0.386 / 0.363..0.403 G (the 5 % spread is not met indoors: field gradients over the movement volume and some soft iron). Residual sphere-fit offset (-0.0072, -0.0164, -0.0165) / (-0.0091, -0.0244, -0.0210) G after dropping 6 / 5 gross outliers; dip after the fit +3.0 deg. The ellipsoid fit was rejected on both (a: worse face sum; q: W eigenvalues 0.62..1.30, centre 0.36 G off), so nothing beyond the DSP's own correction is warranted.
+3. `factory` and `raw` differ from each other by < 3 mG and carry the whole offset, sphere fit (+0.389, +0.218, +0.240) to (+0.392, +0.204, +0.233) G, face sum +0.489 to +0.502 G; factory and full differ only by the learned bias (the soft-iron matrix in items 406..414 is close to identity).
+4. **QMAG_CAL (0x140):** attributes answered, empty enable accepted (instance returned), 0 report indications in 25 s still and 60 s of figure-8, disable accepted; the `-Q` capture was identical to plain `full`. Not needed; `-Q` stays a diagnostic.
+5. **Decision (step 4):** use SMGR's `full` output as delivered; no bias estimation in `sensord`. Keep the DSP's registry writes: done within a boot (`sensord` write-back to `/run`, `sensors-up` reuse, live-checked); across reboots needs writable storage (remaining work).
+
+persist: `mmcblk0p38` 9 reads, 0 writes; not mounted at the end; stock `sns.reg` SHA-256 identical before and after.

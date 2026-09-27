@@ -154,6 +154,58 @@ eq "mounted flag kept for cleanup" 1 "$PERSIST_MOUNTED"
 UMOUNT_FAIL=0
 PERSIST_MOUNTED=0
 
+# --- reuse of this boot's /run copy (sensord wrote the DSP's writes
+# back into it): no blockdev, no mount, nothing of persist touched --------
+grep -q 'NO_REG2=0; reuse_registry || copy_registry || exit 1' "$SCRIPT" || bad "reuse not tried before a fresh copy"
+BOOT_ID_FILE="$T/boot_id"
+echo aaa > "$BOOT_ID_FILE"
+SENSORS_FRESH=0
+rm -f "$RUN_DIR"/sns.reg*
+copy_registry > "$T/out" 2>&1 || bad "fresh copy for reuse: $(cat "$T/out")"
+eq "boot id recorded" aaa "$(cat "$RUN_DIR/sns.reg.boot_id")"
+eq "pristine copy" 0123456789abcdef "$(cat "$RUN_DIR/sns.reg.persist")"
+eq "pristine mode" "-r--------" "$(ls -l "$RUN_DIR/sns.reg.persist" | cut -c1-10)"
+# the DSP learned something (sensord's atomic write-back replaces the file)
+printf 'X123456789abcdeY' > "$RUN_DIR/sns.reg.new" && mv -f "$RUN_DIR/sns.reg.new" "$RUN_DIR/sns.reg"
+: > "$CALLS"
+reuse_registry > "$T/out" 2>&1 || bad "same boot not reused: $(cat "$T/out")"
+eq "reuse: no blockdev/mount/umount" 0 "$(grep -c . "$CALLS")"
+grep -q "registry reused from this boot: .*DSP writes kept: 2 bytes differ from persist's; persist not touched" "$T/out" \
+	|| bad "reuse message: $(cat "$T/out")"
+eq "reuse keeps the DSP writes" X123456789abcdeY "$(cat "$RUN_DIR/sns.reg")"
+# ... even with the persist partition gone: reuse never looks for it
+mv "$SYSFS_BLOCK/mmcblk0p38" "$T/hidden-p38"
+reuse_registry > "$T/out" 2>&1 || bad "reuse needed persist"
+mv "$T/hidden-p38" "$SYSFS_BLOCK/mmcblk0p38"
+# SENSORS_FRESH=1 forces a fresh copy
+SENSORS_FRESH=1
+if reuse_registry > "$T/out" 2>&1; then bad "SENSORS_FRESH=1 reused"; fi
+grep -q "SENSORS_FRESH=1: fresh registry copy from persist" "$T/out" || bad "SENSORS_FRESH message"
+SENSORS_FRESH=0
+# another boot: not reused, and the fresh copy restores persist's bytes
+echo bbb > "$BOOT_ID_FILE"
+if reuse_registry > "$T/out" 2>&1; then bad "copy from another boot reused"; fi
+grep -q "not from this boot" "$T/out" || bad "boot mismatch message: $(cat "$T/out")"
+: > "$CALLS"
+copy_registry > "$T/out" 2>&1 || bad "fresh copy after boot mismatch"
+eq "fresh copy goes through setro" "blockdev --setro /dev/mmcblk0p38" "$(sed -n 1p "$CALLS")"
+eq "fresh content" 0123456789abcdef "$(cat "$RUN_DIR/sns.reg")"
+eq "new boot id" bbb "$(cat "$RUN_DIR/sns.reg.boot_id")"
+# unreadable boot id: never reused
+BOOT_ID_FILE="$T/no-such-boot-id"
+if reuse_registry > "$T/out" 2>&1; then bad "reused without a boot id"; fi
+BOOT_ID_FILE="$T/boot_id"
+# wrong size: not reused
+chmod u+w "$RUN_DIR/sns.reg"
+printf 'short' > "$RUN_DIR/sns.reg"
+if reuse_registry > "$T/out" 2>&1; then bad "short copy reused"; fi
+grep -q "registry copy is 5 bytes, the map expects 16; fresh copy from persist" "$T/out" || bad "size message: $(cat "$T/out")"
+# missing copy: not reused, quietly
+rm -f "$RUN_DIR/sns.reg"
+if reuse_registry > "$T/out" 2>&1; then bad "missing copy reused"; fi
+eq "missing copy: no message" 0 "$(grep -c . "$T/out")"
+: > "$CALLS"
+
 # --- no persist partition ----------------------------------------------
 rm -rf "$SYSFS_BLOCK/mmcblk0p38"
 if copy_registry > "$T/out" 2>&1; then bad "missing persist not reported"; fi

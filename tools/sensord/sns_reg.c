@@ -3,11 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/vfs.h>
 #include <unistd.h>
 
 #include "sns_reg.h"
 
 #define SNS_REG_MAX_SIZE 0x10000
+/* statfs f_type of the RAM filesystems (<linux/magic.h>). */
+#define SNS_REG_TMPFS_MAGIC 0x01021994
+#define SNS_REG_RAMFS_MAGIC 0x858458f6
 
 static int span_cmp(const void *a, const void *b)
 {
@@ -178,5 +183,69 @@ int sns_reg_write(struct sns_reg *r, int group, uint16_t id, const uint8_t *in, 
 		return -EINVAL;
 	memcpy(r->data + s->offset, in, len);
 	r->writes++;
+	return 0;
+}
+
+static int ram_fs(const struct statfs *sf)
+{
+	return (unsigned long)sf->f_type == SNS_REG_TMPFS_MAGIC ||
+	       (unsigned long)sf->f_type == SNS_REG_RAMFS_MAGIC;
+}
+
+int sns_reg_save(const struct sns_reg *r, const char *path)
+{
+	char tmp[4096];
+	struct statfs sf;
+	struct stat st;
+	size_t n = 0;
+	int fd, err = 0;
+
+	if (!r->data || !r->size)
+		return -EINVAL;
+	if ((size_t)snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= sizeof(tmp))
+		return -ENAMETOOLONG;
+	if (lstat(path, &st) < 0)
+		return -errno;
+	if (!S_ISREG(st.st_mode))
+		return -EINVAL;
+	if (statfs(path, &sf) < 0)
+		return -errno;
+	/* The whole point of the copy is that persist is never written: only
+	 * a RAM filesystem may receive the write-back. */
+	if (!ram_fs(&sf))
+		return -EXDEV;
+	unlink(tmp);
+	fd = open(tmp, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, st.st_mode & 07777);
+	if (fd < 0)
+		return -errno;
+	/* The temp lives in path's directory, which could in theory be on
+	 * another filesystem than path (a bind-mounted file): check where it
+	 * really is before writing a byte. */
+	if (fstatfs(fd, &sf) < 0 || !ram_fs(&sf)) {
+		close(fd);
+		unlink(tmp);
+		return -EXDEV;
+	}
+	while (n < r->size) {
+		ssize_t k = write(fd, r->data + n, r->size - n);
+
+		if (k < 0 && errno == EINTR)
+			continue;
+		if (k <= 0) {
+			err = k < 0 ? errno : EIO;
+			break;
+		}
+		n += (size_t)k;
+	}
+	if (!err && fsync(fd) < 0)
+		err = errno;
+	if (close(fd) < 0 && !err)
+		err = errno;
+	if (!err && rename(tmp, path) < 0)
+		err = errno;
+	if (err) {
+		unlink(tmp);
+		return -err;
+	}
 	return 0;
 }

@@ -72,7 +72,9 @@ test: $(TEST_OUT) tests/test-sns-msgs-san tests/test-sensord-san
 	./tests/test-sensord-san
 	sh tests/test_e2e.sh
 	sh tests/test_sensors-up.sh
+	sh tests/test_magcal_run.sh
 	python3 tests/test_sns_tools.py
+	python3 tests/test_mag_cal_check.py
 
 clean:
 	rm -f $(OUT) $(TEST_OUT) tests/test-sns-msgs-san tests/test-sensord-san

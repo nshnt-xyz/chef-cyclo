@@ -1,0 +1,350 @@
+#!/bin/sh
+# Guided magnetometer calibration capture (docs/next-steps/sensors-plan.md
+# section 7): announces each step on the panel through /dev/kmsg and the
+# vibrator, records sensord JSON lines under
+# /run/sensortest/magcal-<stamp>/, and prints a one-line summary. Analyse
+# on the host with tools/mag-cal-check.py.
+#
+#   sensors-magcal-run            run it (sensors-up must be running)
+#   sensors-magcal-run --list     print the step list and exit
+#
+# Needs sensors-up running (sensord on /run/sensord.sock, SMGR ready). The
+# production sensord is not touched: extra sensord instances with -R (no
+# REG2 server, only an SMGR client, each on its own socket under the
+# output directory) supply the other calibration selects and the
+# QMAG_CAL client, and are stopped at the end or on abort (TERM: they
+# delete their SMGR reports and disable QMAG_CAL):
+#   factory   sensord -R -i 10 -c magn=factory
+#   raw       sensord -R -i 20 -c magn=raw
+#   qmag      sensord -R -i 30 -Q -v    (full calibration + QMAG_CAL)
+# (-i: own SMGR report IDs, in case the DSP keys reports by ID alone.)
+#
+# Phase a (magn full, factory and raw at the same time, from the main
+# sensord and the two helpers): six faces, a figure-8 and a slow flat
+# turn. Phase q (the qmag helper enables QMAG_CAL on its magn claim; the
+# three captures of phase a keep running): a 60 s figure-8, the six faces
+# again and a slow flat turn. accel and anglvel (50 Hz) come from the main
+# sensord throughout. About 7 minutes (the live run took 418 s).
+#
+# MODE=sequential is for the case where the DSP refuses concurrent magn
+# reports with different selects: phase a runs once per select (full,
+# factory, raw; faces and figure-8, no turn), and phase q captures only
+# the qmag helper's magn. About 11 minutes.
+#
+# Prompts (what worked live): each step is announced on the panel as
+#   ---- STEP k/N: TEXT
+#        move the phone now (G s)
+#        HOLD N s: TEXT
+# and the vibrator marks the transitions, since the panel cannot be read
+# face down: one long buzz = hold still now; two short buzzes = the step
+# is over, move to the next. The move time after the face-down step is
+# 3 s longer. The step list is printed at the start (and by --list).
+#
+# Files (sensors-magcal-run prints the directory):
+#   steps.txt                 "UPTIME STEP ID: TEXT (N s)" per step, and a
+#                             "# clock" line: uptime next to a sample "t"
+#   <phase>-accel.jsonl, <phase>-anglvel.jsonl, <phase>-magn-<cal>.jsonl
+#   q-status.jsonl            qmag helper status every 5 s during phase q
+#   sensord-<helper>.log      each helper's stderr (every QMAG report)
+#   status-*.json, dmesg.txt, sensors-up.log
+#
+# Aborting (TERM, INT, HUP) stops everything this started: captures and
+# the poller first, then the helpers by TERM (QMAG_CAL disabled, their
+# reports deleted); the main sensord keeps running with no claims left.
+#
+# Env overrides (the host test uses them): SENSORD, MAIN_SOCK, OUT_BASE,
+# KMSG, VIB, NOW_CMD, SENSORS_UP_LOG, MODE, FACE_S, FIG8_S, QFIG8_S,
+# TURN_S, GAP_S, COUNT_S, MAGN_HZ, IMU_HZ, HELPER_WAIT.
+set -u
+
+SENSORD=${SENSORD:-sensord}
+MAIN_SOCK=${MAIN_SOCK:-/run/sensord.sock}
+OUT_BASE=${OUT_BASE:-/run/sensortest}
+KMSG=${KMSG:-/dev/kmsg}
+# timed_output, as init, buttond and powerd use it: each write is a
+# one-shot duration in ms, so there is no state to contend for.
+VIB=${VIB:-/sys/class/timed_output/vibrator/enable}
+NOW_CMD=${NOW_CMD:-}
+SENSORS_UP_LOG=${SENSORS_UP_LOG:-/run/sensors-up.log}
+MODE=${MODE:-concurrent}
+# Defaults are the timings of the 2026-09-27 live run: long enough gaps
+# to read the panel and move without rushing.
+FACE_S=${FACE_S:-10}
+FIG8_S=${FIG8_S:-30}
+QFIG8_S=${QFIG8_S:-60}
+TURN_S=${TURN_S:-30}
+GAP_S=${GAP_S:-8}
+COUNT_S=${COUNT_S:-5}
+MAGN_HZ=${MAGN_HZ:-20}
+IMU_HZ=${IMU_HZ:-50}
+HELPER_WAIT=${HELPER_WAIT:-40}	# 0.5 s steps
+
+CAPS=			# capture pids of the current phase
+HELPERS=		# helper sensord pids
+POLLER=
+NAP=
+CLEANED=0
+
+# ------------------------------------------------------------ the plan
+# One line per action: P|phase|captures (start a phase's captures),
+# Q (start the qmag helper), E (stop the phase's captures),
+# S|id|seconds|text (a step).
+
+faces_plan() {
+	echo "S|$1.up|$FACE_S|FACE UP on the table, still"
+	echo "S|$1.down|$FACE_S|FACE DOWN on the table, still"
+	echo "S|$1.top|$FACE_S|UPRIGHT, top edge up, still"
+	echo "S|$1.bottom|$FACE_S|UPSIDE DOWN, top edge down"
+	echo "S|$1.left|$FACE_S|ON ITS LEFT EDGE, still"
+	echo "S|$1.right|$FACE_S|ON ITS RIGHT EDGE, still"
+}
+
+plan() {
+	if [ "$MODE" = sequential ]; then
+		for c in full factory raw; do
+			echo "P|$c|$c"
+			faces_plan "$c"
+			echo "S|$c.fig8|$FIG8_S|FIGURE-8 in the air, all ways"
+			echo "E"
+		done
+		echo "Q"
+		echo "P|q|qmag"
+	else
+		echo "P|a|full factory raw"
+		faces_plan a
+		echo "S|a.fig8|$FIG8_S|FIGURE-8 in the air, all ways"
+		echo "S|a.turn|$TURN_S|FACE UP on table, 1 slow full circle"
+		echo "E"
+		echo "Q"
+		echo "P|q|full qmag factory raw"
+	fi
+	echo "S|q.fig8|$QFIG8_S|FIGURE-8 in the air, keep going"
+	faces_plan q
+	echo "S|q.turn|$TURN_S|FACE UP on table, 1 slow full circle"
+	echo "E"
+}
+
+print_list() {
+	plan | awk -F'|' -v gap="$GAP_S" '
+		$1 == "P" { printf "part %s (magn: %s)\n", $2, $3 }
+		$1 == "S" { n++; t += $3 + gap + extra; extra = ($2 ~ /\.down$/) ? 3 : 0
+			    printf "%3d. %-9s %3s s  %s\n", n, $2, $3, $4 }
+		END { printf "%d steps, about %d s of holds and gaps\n", n, t }'
+	echo "one long buzz = step starts, hold; two short buzzes = step over, move"
+}
+
+if [ "${1:-}" = --list ]; then
+	print_list
+	exit 0
+fi
+
+# -------------------------------------------------------------- helpers
+
+now_s() {
+	if [ -n "$NOW_CMD" ]; then
+		$NOW_CMD
+	else
+		cut -d' ' -f1 /proc/uptime
+	fi
+}
+
+say() {
+	echo "magcal: $*" >> "$KMSG" 2>/dev/null
+	echo "magcal: $*"
+}
+
+buzz() {
+	[ -w "$VIB" ] && echo "$1" > "$VIB" 2>/dev/null
+	return 0
+}
+
+# Interruptible sleep: a trapped signal ends wait at once.
+nap() {
+	sleep "$1" &
+	NAP=$!
+	wait "$NAP"
+	NAP=
+}
+
+kill_wait() {
+	for p in "$@"; do kill "$p" 2>/dev/null; done
+	for p in "$@"; do wait "$p" 2>/dev/null; done
+}
+
+# Idempotent: captures and the poller first (they hold claims), then the
+# helpers by TERM, waited for by pid (each disables QMAG_CAL and deletes
+# its reports before exiting).
+cleanup() {
+	[ "$CLEANED" = 1 ] && return
+	CLEANED=1
+	# shellcheck disable=SC2086 # pid lists
+	kill_wait $NAP $CAPS $POLLER
+	CAPS=
+	POLLER=
+	NAP=
+	# shellcheck disable=SC2086
+	kill_wait $HELPERS
+	HELPERS=
+}
+
+status_ok() {
+	"$SENSORD" -S "$1" status 2>/dev/null | grep -q '"smgr":"ready"'
+}
+
+# start_helper NAME FLAGS...: a -R sensord on $O/NAME.sock, stderr to
+# $O/sensord-NAME.log. Waits for SMGR ready; 1 if it never gets there.
+start_helper() {
+	name=$1
+	shift
+	"$SENSORD" -R -S "$O/$name.sock" "$@" </dev/null 2>"$O/sensord-$name.log" &
+	HELPERS="$HELPERS $!"
+	i=0
+	while ! status_ok "$O/$name.sock"; do
+		i=$((i + 1))
+		if [ "$i" -ge "$HELPER_WAIT" ]; then
+			say "helper $name not ready; its captures are skipped"
+			return 1
+		fi
+		nap 0.5
+	done
+	return 0
+}
+
+start_poller() {
+	(
+		sp=
+		trap '[ -n "$sp" ] && kill "$sp" 2>/dev/null; exit 0' TERM
+		while :; do
+			"$SENSORD" -S "$O/qmag.sock" status >> "$O/q-status.jsonl" 2>&1
+			sleep 5 &
+			sp=$!
+			wait "$sp"
+		done
+	) </dev/null &
+	POLLER=$!
+}
+
+# cap SOCK SENSOR HZ FILE
+cap() {
+	[ -S "$1" ] || return 0
+	"$SENSORD" -S "$1" watch "$2" "$3" </dev/null >"$4" 2>&1 &
+	CAPS="$CAPS $!"
+}
+
+# phase_caps PHASE "CAL...": imu captures plus one magn capture per
+# calibration select (full: main sensord; factory/raw/qmag: the helpers).
+phase_caps() {
+	ph=$1
+	cap "$MAIN_SOCK" accel "$IMU_HZ" "$O/$ph-accel.jsonl"
+	cap "$MAIN_SOCK" anglvel "$IMU_HZ" "$O/$ph-anglvel.jsonl"
+	for c in $2; do
+		case $c in
+		full) cap "$MAIN_SOCK" magn "$MAGN_HZ" "$O/$ph-magn-full.jsonl" ;;
+		*) cap "$O/$c.sock" magn "$MAGN_HZ" "$O/$ph-magn-$c.jsonl" ;;
+		esac
+	done
+	nap 1		# reports added before the first step
+}
+
+# step ID SECONDS TEXT: a numbered header, time to move (3 s more after
+# face down, to turn the phone over and read), one long buzz, the hold,
+# two short buzzes.
+PREV=
+STEPNO=0
+STEPS=$(plan | grep -c '^S|')
+step() {
+	gap=$GAP_S
+	case $PREV in *.down) gap=$((GAP_S + 3)) ;; esac
+	PREV=$1
+	STEPNO=$((STEPNO + 1))
+	say "---- STEP $STEPNO/$STEPS: $3"
+	say "     move the phone now ($gap s)"
+	nap "$gap"
+	echo "$(now_s) STEP $1: $3 ($2 s)" >> "$O/steps.txt"
+	buzz 400
+	say "     HOLD $2 s: $3"
+	nap "$2"
+	buzz 120
+	nap 0.3
+	buzz 120
+}
+
+lines() {
+	if [ -f "$1" ]; then grep -c '^{"sensor"' "$1"; else echo 0; fi
+}
+
+# ------------------------------------------------------------------ main
+
+trap cleanup EXIT
+trap 'cleanup; exit 130' HUP INT TERM
+
+STAMP=$(date +%Y%m%dT%H%M%S)
+O="$OUT_BASE/magcal-$STAMP"
+mkdir -p "$O" || exit 1
+if ! status_ok "$MAIN_SOCK"; then
+	echo "sensors-magcal-run: no ready sensord on $MAIN_SOCK; run sensors-up first" >&2
+	exit 1
+fi
+print_list
+T0=$(now_s)
+"$SENSORD" -S "$MAIN_SOCK" status > "$O/status-main-start.json" 2>&1
+echo "# sensors-magcal-run $STAMP mode $MODE; step times: /proc/uptime" > "$O/steps.txt"
+# The clock check for the analysis: a fresh sample's CLOCK_MONOTONIC "t"
+# next to uptime (BOOTTIME); they differ by the time spent suspended.
+t=$("$SENSORD" -S "$MAIN_SOCK" get accel 50 2>/dev/null | sed -n 's/.*"t":\([0-9]*\).*/\1/p')
+echo "# clock uptime $(now_s) sample_t ${t:-none}" >> "$O/steps.txt"
+say "magnetometer check, ~5 min, output $O"
+say "keep away from metal, magnets, laptops"
+say "1 long buzz: hold still. 2 short: move on"
+start_helper factory -i 10 -c magn=factory
+start_helper raw -i 20 -c magn=raw
+
+n=$COUNT_S
+while [ "$n" -gt 0 ]; do say "starting in $n"; nap 1; n=$((n - 1)); done
+
+PLAN=$(plan)
+while IFS='|' read -r kind a b c; do
+	case $kind in
+	P)
+		say "part $a (magn: $b)"
+		phase_caps "$a" "$b"
+		;;
+	Q)
+		say "part q: dynamic calibration (QMAG_CAL)"
+		start_helper qmag -i 30 -Q -v && start_poller
+		;;
+	S)
+		step "$a" "$b" "$c"
+		;;
+	E)
+		[ -S "$O/qmag.sock" ] && "$SENSORD" -S "$O/qmag.sock" status > "$O/status-qmag-end.json" 2>&1
+		# shellcheck disable=SC2086
+		kill_wait $CAPS
+		CAPS=
+		;;
+	esac
+done <<EOF
+$PLAN
+EOF
+cleanup
+buzz 120; nap 0.3; buzz 120; nap 0.3; buzz 120
+say "DONE, thank you"
+
+"$SENSORD" -S "$MAIN_SOCK" status > "$O/status-main-end.json" 2>&1
+dmesg > "$O/dmesg.txt" 2>/dev/null
+[ -f "$SENSORS_UP_LOG" ] && cp "$SENSORS_UP_LOG" "$O/sensors-up.log"
+
+# one-line summary
+counts=
+for f in "$O"/*-magn-*.jsonl; do
+	[ -f "$f" ] || continue
+	b=$(basename "$f" .jsonl)
+	counts="$counts ${b%%-magn-*}/${b##*-magn-}=$(lines "$f")"
+done
+q=$(sed -n 's/.*"qmag":"\([a-z]*\)","qmag_instance":\(-*[0-9]*\),"qmag_enables":\([0-9]*\),"qmag_inds":\([0-9]*\),"qmag_errors":\([0-9]*\).*/state \1 instance \2 enables \3 reports \4 errors \5/p' "$O/status-qmag-end.json" 2>/dev/null)
+acc=$(sed -n 's/.*"accuracy":\([0-9]*\)}.*/\1/p' "$O/status-qmag-end.json" 2>/dev/null)
+refused=$(cat "$O"/*.jsonl 2>/dev/null | grep -c '"err"')
+nacc=0
+for f in "$O"/*-accel.jsonl; do nacc=$((nacc + $(lines "$f"))); done
+T1=$(now_s)
+echo "magcal: done in $(awk -v a="$T0" -v b="$T1" 'BEGIN { printf "%d", b - a }') s, $O; magn lines$counts; accel $nacc; qmag ${q:-no status} last accuracy ${acc:-none}; error lines $refused"

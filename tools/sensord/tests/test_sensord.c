@@ -383,11 +383,192 @@ static void test_reg2_bad_write(void)
 	pkt.data_len = sizeof(msg);
 	all_logs[0] = '\0';
 	reg2_rx(&s, &pkt, 5, 77);
-	if (!strstr(all_logs, "item write 700 from 5:77 (RAM only) rejected (0 bytes)"))
+	if (!strstr(all_logs, "item write 700 from 5:77 (RAM, /run copy) rejected (0 bytes)"))
 		fprintf(stderr, "logs: %s\n", all_logs);
-	CHECK(strstr(all_logs, "item write 700 from 5:77 (RAM only) rejected (0 bytes)"));
+	CHECK(strstr(all_logs, "item write 700 from 5:77 (RAM, /run copy) rejected (0 bytes)"));
 	CHECK(s.reg.writes == 0);
 	free(buf);
+	close(p);
+}
+
+/* Build an exact-size heap packet (ASan catches over-reads). */
+static uint8_t *mkpkt(struct qrtr_packet *pkt, uint8_t type, uint16_t msg, const uint8_t *tlv,
+		      size_t n)
+{
+	uint8_t *b = malloc(7 + n);
+
+	b[0] = type;
+	b[1] = 1;
+	b[2] = 0;
+	b[3] = (uint8_t)msg;
+	b[4] = (uint8_t)(msg >> 8);
+	b[5] = (uint8_t)n;
+	b[6] = (uint8_t)(n >> 8);
+	memcpy(b + 7, tlv, n);
+	memset(pkt, 0, sizeof(*pkt));
+	pkt->data = b;
+	pkt->data_len = 7 + n;
+	return b;
+}
+
+/* QMAG_CAL indications: stored only for our instance and port, bounds
+ * checked, and the latest bias rides along on magn lines and status. */
+static void test_qmag(void)
+{
+	static struct server s;
+	static const uint8_t ind[] = {
+		0x01, 0x01, 0x00, 0x07,
+		0x02, 0x04, 0x00, 0x10, 0x00, 0x00, 0x00,
+		0x03, 0x0c, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0xc0, 0xff, 0xff, 0x00, 0x60, 0x00, 0x00,
+		0x04, 0x04, 0x00, 0x02, 0x00, 0x00, 0x00 };
+	struct qrtr_packet pkt;
+	struct client *c;
+	char buf[4096];
+	uint8_t *b;
+	int p;
+
+	c = setup(&s, &p);
+	s.qmag.opt = true;
+	s.qmag.on = true;
+	s.qmag.instance = 7;
+	s.qmag.node = 5;
+	s.qmag.port = 9;
+	c->rate[CH_MAGN] = 10;
+	CHECK(strcmp(qmag_state_name(&s.qmag), "on") == 0);
+
+	/* from another port: ignored */
+	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, ind, sizeof(ind));
+	qmag_rx(&s, &pkt, 5, 10);
+	CHECK(!s.qmag.have_bias && s.qmag.inds == 0);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(s.qmag.have_bias && s.qmag.inds == 1 && s.qmag.accuracy == 2);
+	CHECK(s.qmag.bias[0] == 0x2000 && s.qmag.bias[1] == -0x4000 && s.qmag.bias[2] == 0x6000);
+	CHECK(strstr(last_log, "qmag report 1: instance 7 ts 16 bias raw 8192 -16384 24576"));
+	CHECK(strstr(last_log, "device x -0.25000 y 0.12500 z -0.37500 gauss, accuracy 2"));
+
+	server_publish(&s, CH_MAGN, 5, (int32_t[3]){ 0x10000, 0x20000, 0x30000 });
+	server_flush_all(&s);
+	drain(p, buf, sizeof(buf));
+	CHECK(strcmp(buf, "{\"sensor\":\"magn\",\"t\":5,\"x\":2,\"y\":1,\"z\":-3,\"bias\":[-0.25,0.125,-0.375],"
+			  "\"bias_raw\":[8192,-16384,24576],\"accuracy\":2}\n") == 0);
+	/* other channels are untouched */
+	c->rate[CH_ACCEL] = 10;
+	server_publish(&s, CH_ACCEL, 5, (int32_t[3]){ 0, 0, 0 });
+	server_flush_all(&s);
+	drain(p, buf, sizeof(buf));
+	CHECK(!strstr(buf, "bias"));
+
+	server_status_line(&s, buf, sizeof(buf));
+	CHECK(strstr(buf, "\"qmag\":\"on\",\"qmag_instance\":7,\"qmag_enables\":0,\"qmag_inds\":1,"
+			  "\"qmag_errors\":0,\"qmag_last_error\":-1,\"bias\":[-0.25,0.125,-0.375]"));
+
+	/* another instance: logged, not stored */
+	{
+		uint8_t other[sizeof(ind)];
+
+		memcpy(other, ind, sizeof(ind));
+		other[3] = 8;
+		other[29] = 3;
+		b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, other, sizeof(other));
+		qmag_rx(&s, &pkt, 5, 9);
+		free(b);
+		CHECK(s.qmag.inds == 1 && s.qmag.accuracy == 2);
+		CHECK(strstr(last_log, "qmag report for instance 8 ignored"));
+	}
+	/* truncated: the bias TLV claims 12 bytes, the packet ends first */
+	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, ind, 20);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(s.qmag.inds == 1);
+	CHECK(strstr(last_log, "qmag report indication did not decode"));
+	/* error indication */
+	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_ERROR_IND,
+		  (const uint8_t[]){ 0x01, 0x01, 0x00, 0x04, 0x02, 0x01, 0x00, 0x07 }, 8);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(s.qmag.errors == 1 && s.qmag.last_error == 4 &&
+	      strstr(last_log, "qmag error indication: error 4 for our instance 7"));
+	/* another instance's error is not ours */
+	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_ERROR_IND,
+		  (const uint8_t[]){ 0x01, 0x01, 0x00, 0x05, 0x02, 0x01, 0x00, 0x09 }, 8);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(s.qmag.errors == 1 && strstr(last_log, "instance 9 (not ours"));
+	/* mandatory TLVs missing (libqrtr would decode zeros): ignored */
+	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, ind, 4);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(s.qmag.inds == 1 && strstr(last_log, "without all of TLVs"));
+	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_ERROR_IND, (const uint8_t[]){ 0x01, 0x01, 0x00, 0x04 }, 4);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(s.qmag.errors == 1 && strstr(last_log, "malformed"));
+	/* a late ENABLE response for another instance: disabled at once
+	 * (the send fails here: no socket, which is logged) */
+	b = mkpkt(&pkt, QMI_RESPONSE, SNS_SAM_ENABLE,
+		  (const uint8_t[]){ 0x02, 0x02, 0x00, 0x00, 0x00, 0x10, 0x01, 0x00, 0x0b }, 9);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(strstr(last_log, "qmag late enable response created instance 11: disabling it"));
+	/* ... but a duplicate response for our own instance is left alone */
+	last_log[0] = '\0';
+	b = mkpkt(&pkt, QMI_RESPONSE, SNS_SAM_ENABLE,
+		  (const uint8_t[]){ 0x02, 0x02, 0x00, 0x00, 0x00, 0x10, 0x01, 0x00, 0x07 }, 9);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(!strstr(last_log, "late enable"));
+	/* a response nobody asked for changes nothing */
+	b = mkpkt(&pkt, QMI_RESPONSE, SNS_SAM_DISABLE,
+		  (const uint8_t[]){ 0x02, 0x02, 0x00, 0x00, 0x00 }, 5);
+	qmag_rx(&s, &pkt, 5, 9);
+	free(b);
+	CHECK(s.qmag.on);
+
+	/* without -Q, or with SMGR down, nothing is wanted */
+	CHECK(!qmag_wanted(&s));
+	s.qmag.opt = false;
+	CHECK(strcmp(qmag_state_name(&s.qmag), "off") == 0);
+	close(p);
+}
+
+/* Registry write-back timing: 3 s after the last DSP write, but never
+ * more than 30 s after the first unsaved one. The path does not exist,
+ * so each attempt shows up as a save error (and a failure is not fatal). */
+static void test_reg_debounce(void)
+{
+	static struct server s;
+	int p, t;
+
+	setup(&s, &p);
+	s.reg_path = "/nonexistent/sns.reg";
+	fake_now = 1000;
+	s.reg_dirty = true;
+	s.reg_dirty_since = s.reg_dirty_at = fake_now;
+	fake_now += 2999;
+	reg_tick(&s);
+	CHECK(s.reg_dirty && s.reg_save_errors == 0);
+	fake_now += 1;
+	reg_tick(&s);
+	CHECK(!s.reg_dirty && s.reg_save_errors == 1 && strstr(last_log, "write-back"));
+	/* a write every 2 s: saved at 30 s, not postponed for ever */
+	s.reg_dirty = true;
+	s.reg_dirty_since = fake_now;
+	for (t = 0; t < 40; t++) {
+		fake_now += 1000;
+		if (t % 2 == 0)
+			s.reg_dirty_at = fake_now;
+		reg_tick(&s);
+		if (!s.reg_dirty)
+			break;
+	}
+	CHECK(!s.reg_dirty && s.reg_save_errors == 2 && fake_now - s.reg_dirty_since == 30000);
+	/* no path (-R): nothing happens */
+	s.reg_path = NULL;
+	s.reg_dirty = true;
+	fake_now += 60000;
+	reg_tick(&s);
+	CHECK(s.reg_save_errors == 2);
 	close(p);
 }
 
@@ -404,6 +585,8 @@ int main(void)
 	test_deadline();
 	test_reset();
 	test_reg2_bad_write();
+	test_qmag();
+	test_reg_debounce();
 	if (failures) {
 		fprintf(stderr, "test-sensord: %d failure(s)\n", failures);
 		return 1;

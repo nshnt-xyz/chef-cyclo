@@ -183,6 +183,8 @@ extern struct qmi_elem_info sns_time2_resp_ei[];
  * sensors) / 2 raw, sample quality 1. */
 #define SNS_SMGR_DECIMATION_DEFAULT	3
 #define SNS_SMGR_CAL_FULL		0
+#define SNS_SMGR_CAL_FACTORY		1
+#define SNS_SMGR_CAL_RAW		2
 #define SNS_SMGR_SAMPLE_QUALITY_DEFAULT	1
 
 #define SNS_SMGR_MAX_SENSORS	20
@@ -367,6 +369,89 @@ extern struct qmi_elem_info sns_smgr_buf_ind_ei[];
 extern struct qmi_elem_info sns_smgr_rep_req_ei[];
 extern struct qmi_elem_info sns_smgr_rep_resp_ei[];
 extern struct qmi_elem_info sns_smgr_rep_ind_ei[];
+
+/* ------------------------------------------ SAM QMAG_CAL (0x140) */
+
+/* Dynamic magnetometer (hard-iron) calibration in the ADSP's SAM
+ * framework; stock dump_servers lists it as 0x140 inst 0x3201. The IDL
+ * (logs/sns-idl-dump-2026-09-27-qmag.txt) builds its messages from two
+ * shared tables: sns_sam_cal (enable 0x02, disable 0x03, report 0x05,
+ * error 0x06, 0x20) and sns_sam_common (algorithm attributes 0x24).
+ * Field meanings are our reading of the common SAM layout; only the TLV
+ * numbers and sizes come from the dump. */
+#define SNS_QMAG_SVC		0x140
+#define SNS_QMAG_VERS		1
+#define SNS_QMAG_INST		0x32
+#define SNS_SAM_ENABLE		0x02
+#define SNS_SAM_DISABLE		0x03
+#define SNS_SAM_REPORT_IND	0x05
+#define SNS_SAM_ERROR_IND	0x06
+#define SNS_SAM_GET_ATTR	0x24
+
+/* Registry group holding the QMAG_CAL items 3800..3840 (version,
+ * enable, sample rate, persisted bias), from the stock map. */
+#define SNS_REG2_QMAG_GROUP	2970
+
+/* ENABLE (0x02) request: only an optional TLV 0x10 u32, read as the
+ * report period (Q16 seconds). The IDL is odd here: the message's
+ * directory max_len is 0 and its C struct is 2 bytes with the u32 at
+ * offset 1, so the stock encoder cannot emit it and a DSP decoder built
+ * from the same tables could write 4 bytes into a 2-byte struct.
+ * sensord always sends ENABLE empty (period_valid 0); the field is here
+ * only so the wire test can pin what the TLV would be. */
+struct sns_sam_enable_req {
+	uint8_t period_valid;
+	uint32_t period_q16;
+};
+
+/* ENABLE and DISABLE responses: TLV 0x10 optional u8 instance id. */
+struct sns_sam_instance_resp {
+	struct sns_resp resp;
+	uint8_t instance_valid;
+	uint8_t instance;
+};
+
+/* DISABLE (0x03) request: TLV 0x01 u8 instance id. */
+struct sns_sam_disable_req {
+	uint8_t instance;
+};
+
+/* REPORT indication (0x05): TLV 0x01 u8 instance, 0x02 u32 DSP tick
+ * timestamp, 0x03 u32[3] bias (read as signed Q16 gauss in the SMGR
+ * axis frame, like the magnetometer samples), 0x04 u32 accuracy. */
+struct sns_sam_qmag_ind {
+	uint8_t instance;
+	uint32_t timestamp;
+	int32_t bias[3];
+	uint32_t accuracy;
+};
+
+/* ERROR indication (0x06): TLV 0x01 u8 error, TLV 0x02 u8 instance. */
+struct sns_sam_error_ind {
+	uint8_t error;
+	uint8_t instance;
+};
+
+/* GET_ATTR (0x24) response: nine mandatory u32 TLVs 0x03..0x0b, read as
+ * algorithm revision, processor, supported reporting modes, min/max
+ * report rate, min/max sample rate (Q16 Hz), max batch size, power (Q16
+ * mA); optional TLV 0x10 u64 (sensor UID) and 0x11 u32 (reserved batch
+ * size). Logged as numbers; nothing depends on them. */
+struct sns_sam_attr_resp {
+	struct sns_resp resp;
+	uint32_t attr[9];		/* TLVs 0x03..0x0b in order */
+	uint8_t suid_valid;
+	uint64_t suid;
+	uint8_t reserved_valid;
+	uint32_t reserved;
+};
+
+extern struct qmi_elem_info sns_sam_enable_req_ei[];
+extern struct qmi_elem_info sns_sam_instance_resp_ei[];
+extern struct qmi_elem_info sns_sam_disable_req_ei[];
+extern struct qmi_elem_info sns_sam_qmag_ind_ei[];
+extern struct qmi_elem_info sns_sam_error_ind_ei[];
+extern struct qmi_elem_info sns_sam_attr_resp_ei[];
 
 /* QMI header (type u8, txn u16, msg id u16, length u16, packed). */
 #define SNS_QMI_HDR_LEN 7

@@ -66,6 +66,7 @@ stop_pair() {
 }
 
 ./tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
+chmod 0400 "$T/reg"	# as sensors-up leaves its copy
 
 # ---------------------------------------------------------- buffering
 start_pair "" ""
@@ -74,8 +75,17 @@ grep -q "^REG2 OK" "$T/smgr.log" || fail "registry checks: $(grep REG2 "$T/smgr.
 # mask 0), then 0x3201 picked out of the list beside a 0x3202 decoy
 grep -q "lookup 0x100 (all instances): .*0x3202@" "$T/sensord.log" || fail "decoy instance not listed"
 grep -q "lookup 0x100 (all instances): .*0x3201@" "$T/sensord.log" || fail "0x3201 not listed"
-grep -q "reg2: group write 1000 .*(RAM only)" "$T/sensord.log" || fail "registry write not logged"
+grep -q "reg2: group write 1000 .*(RAM, /run copy)" "$T/sensord.log" || fail "registry write not logged"
 grep -q "reg2: unsupported request, nacked" "$T/sensord.log" || fail "msg 0x06 not logged"
+# the DSP's registry write is written back over the /run copy after 3 s
+# of quiet: atomically (no temp left), same mode, nothing else written
+wait_for "$T/sensord.log" "registry written back to $T/reg (after DSP writes; 1 DSP writes so far; persist untouched)" 60 \
+	|| fail "registry not written back: $(grep -i 'registry' "$T/sensord.log")"
+[ "$(od -An -tx1 -N16 "$T/reg" | tr -d ' \n')" = a0a1a2a3a4a5a6a7a8a9aaabacadaeaf ] || fail "written-back content: $(od -An -tx1 -N16 "$T/reg")"
+[ "$(od -An -tx1 -j16 -N1 "$T/reg" | tr -d ' ')" = 73 ] || fail "bytes after the write changed"
+[ -e "$T/reg.tmp" ] && fail "write-back temp left"
+[ "$(ls -l "$T/reg" | cut -c1-10)" = "-r--------" ] || fail "write-back mode: $(ls -l "$T/reg")"
+[ "$(ls "$T" | tr '\n' ' ')" = "ipc reg sensord.log smgr.log sock " ] || fail "files besides the registry: $(ls "$T")"
 
 # a second daemon must not steal the socket or publish REG2 again
 if ./tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/second.log"; then
@@ -148,7 +158,7 @@ kill "$WG" 2>/dev/null
 wait "$WG" 2>/dev/null
 
 S=$(cli status)
-echo "$S" | grep -q '"reg2_reads":3,"reg2_writes":1,"reg2_misses":1' || fail "status counters: $S"
+echo "$S" | grep -q '"reg2_reads":3,"reg2_writes":1,"reg2_misses":1,"reg2_saves":1,"reg2_save_errors":0' || fail "status counters: $S"
 echo "$S" | grep -q '"smgr_resets":[1-9]' || fail "status resets: $S"
 
 # SIGTERM: reports still owned are deleted on the way out
@@ -169,6 +179,125 @@ sleep 0.3
 kill "$WA" 2>/dev/null
 wait "$WA" 2>/dev/null
 stop_pair
+grep -Eq "QMAG (ATTR|ENABLE)" "$T/smgr.log" && fail "QMAG_CAL touched without -Q"
+grep -q "calibration full" "$T/sensord.log" || fail "default calibration not logged"
+
+# ------------------------------------------ -c and the QMAG_CAL client (-Q)
+: >"$T/smgr.log"
+: >"$T/sensord.log"
+start_pair "-Q -c magn=factory -c accel=raw" ""
+cli -n 3 watch accel 10 >/dev/null || fail "accel watch with -c accel=raw"
+grep -q "ADD report 1 sensor 0 dt 0 rate 10 report_rate 10 notify 1 cal 2 dec 3" "$T/smgr.log" \
+	|| fail "accel calibration byte not raw: $(grep 'ADD report 1' "$T/smgr.log")"
+grep -q "add report 1: accel 10 Hz, calibration raw" "$T/sensord.log" || fail "accel calibration not logged"
+grep -Eq "QMAG (ATTR|ENABLE)" "$T/smgr.log" && fail "QMAG_CAL touched for an accel claim"
+L=$(cli list)
+echo "$L" | grep -q '"sensor":"magn"[^}]*"calibration":"factory"' || fail "list: magn calibration: $L"
+
+bg_cli -n 100000 watch magn 20 >"$T/qmagn"
+WQ=$!
+wait_for "$T/smgr.log" "QMAG ENABLE period none instance 7" 50 || fail "QMAG_CAL not enabled on the magn claim"
+grep -q "sensor 20 dt 0 rate 20 report_rate 20 notify 1 cal 1 " "$T/smgr.log" || fail "magn calibration byte not factory"
+[ "$(grep -n 'QMAG ATTR' "$T/smgr.log" | cut -d: -f1)" -lt "$(grep -n 'QMAG ENABLE' "$T/smgr.log" | cut -d: -f1)" ] \
+	|| fail "attributes not queried before enable"
+grep -q "lookup 0x140 (all instances): .*0x3202@" "$T/sensord.log" || fail "QMAG decoy instance not listed"
+grep -q "qmag attributes (TLV 0x03..0x0b): 100 101 0x66 103 104 655360 106 107 108; suid 0x1122334455667788; reserved (absent) 0" \
+	"$T/sensord.log" || fail "attributes not logged: $(grep 'qmag attr' "$T/sensord.log")"
+grep -q "qmag attributes read as: .*sample rate 10\.\." "$T/sensord.log" || fail "attributes Q16 reading"
+grep -q "qmag enabled: instance 7" "$T/sensord.log" || fail "instance not stored"
+wait_for "$T/sensord.log" "qmag error indication: error 2 for our instance 7" 50 || fail "error indication not logged"
+wait_for "$T/sensord.log" "qmag report 6: " 50 || fail "reports not logged"
+grep -q "qmag report 1: instance 7 ts [0-9]* bias raw 8192 -16384 24576 (SMGR frame, Q16 0.12500 -0.25000 0.37500 gauss) device x -0.25000 y 0.12500 z -0.37500 gauss, accuracy 0" \
+	"$T/sensord.log" || fail "report line: $(grep 'qmag report 1:' "$T/sensord.log")"
+wait_for "$T/qmagn" '"bias":\[-0.25,0.125,-0.375\],"bias_raw":\[8192,-16384,24576\],"accuracy":[0-3]}$' 50 \
+	|| fail "magn lines without bias: $(tail -n 2 "$T/qmagn")"
+S=$(cli status)
+echo "$S" | grep -q '"qmag":"on","qmag_instance":7,"qmag_enables":1,"qmag_inds":[1-9][0-9]*,"qmag_errors":1,"qmag_last_error":2,"bias":\[-0.25,0.125,-0.375\],"bias_raw":\[8192,-16384,24576\],"accuracy":[0-3]}$' \
+	|| fail "status qmag fields: $S"
+
+# SMGR alone restarts: the live QMAG instance is disabled while SMGR is
+# away, and enabled again once SMGR is back (magn still claimed)
+kill -USR2 "$FPID"
+wait_for "$T/smgr.log" "QMAG DISABLE instance 7$" 100 || fail "QMAG_CAL not disabled on SMGR loss"
+wait_for "$T/sensord.log" "qmag disable instance 7 (smgr not ready)" 10 || fail "disable reason"
+wait_for "$T/smgr.log" "QMAG ENABLE period none instance 8" 100 || fail "QMAG_CAL not re-enabled after SMGR came back"
+# the whole DSP restarts: the instance is gone with it; enabled again on the new port
+kill -USR1 "$FPID"
+wait_for "$T/sensord.log" "qmag 1:[0-9]* lost (" 100 || fail "QMAG loss not noticed"
+wait_for "$T/smgr.log" "QMAG ENABLE period none instance 9" 150 || fail "QMAG_CAL not re-enabled after DSP restart"
+[ "$(grep -c 'QMAG ATTR' "$T/smgr.log")" -eq 1 ] || fail "attributes asked more than once"
+# the last magn claim goes
+kill "$WQ" 2>/dev/null
+wait "$WQ" 2>/dev/null
+wait_for "$T/smgr.log" "QMAG DISABLE instance 9$" 30 || fail "QMAG_CAL not disabled on release"
+wait_for "$T/sensord.log" "qmag disabled: instance 9 (result 0 err 0)" 30 || fail "disable response"
+S=$(cli status)
+echo "$S" | grep -q '"qmag":"idle","qmag_instance":-1,' || fail "status after release: $S"
+echo "$S" | grep -q '"bias"' && fail "stale bias in status: $S"
+# SIGTERM while enabled
+bg_cli -n 100000 watch magn 10 >/dev/null
+WQ=$!
+wait_for "$T/smgr.log" "QMAG ENABLE period none instance 10" 50 || fail "QMAG_CAL not enabled again"
+sleep 0.3
+kill "$SPID"
+wait "$SPID" 2>/dev/null
+SPID=
+wait_for "$T/smgr.log" "QMAG DISABLE instance 10$" 10 || fail "QMAG_CAL not disabled on SIGTERM"
+kill "$WQ" 2>/dev/null
+wait "$WQ" 2>/dev/null
+grep -q "DISABLE instance [0-9]* unknown" "$T/smgr.log" && fail "disable for an unknown instance"
+stop_pair
+
+# A slow DSP (ENABLE answered after 4.5 s, past the 3 s request timeout):
+# ENABLE is not idempotent, so it is sent exactly once
+: >"$T/smgr.log"
+: >"$T/sensord.log"
+export FAKE_QMAG_ENABLE_DELAY_MS=4500
+start_pair "-Q" ""
+bg_cli -n 100000 watch magn 10 >/dev/null
+WQ=$!
+wait_for "$T/smgr.log" "QMAG ENABLE REPLY instance 7" 100 || fail "slow enable never answered"
+wait_for "$T/sensord.log" "qmag enabled: instance 7" 20 || fail "slow enable not accepted"
+[ "$(grep -c 'QMAG ENABLE period' "$T/smgr.log")" -eq 1 ] || fail "ENABLE resent: $(grep QMAG "$T/smgr.log")"
+grep -q "resending" "$T/sensord.log" && fail "a qmag request was resent"
+kill "$WQ" 2>/dev/null
+wait "$WQ" 2>/dev/null
+wait_for "$T/smgr.log" "QMAG DISABLE instance 7$" 30 || fail "slow case: not disabled on release"
+stop_pair
+# SIGTERM with an ENABLE in flight: sensord waits for the answer and
+# disables the instance it created
+: >"$T/smgr.log"
+: >"$T/sensord.log"
+FAKE_QMAG_ENABLE_DELAY_MS=700
+start_pair "-Q" ""
+bg_cli -n 100000 watch magn 10 >/dev/null
+WQ=$!
+wait_for "$T/smgr.log" "QMAG ENABLE period none instance 7" 50 || fail "enable not sent"
+kill "$SPID"
+wait "$SPID" 2>/dev/null
+SPID=
+wait_for "$T/smgr.log" "QMAG DISABLE instance 7$" 30 || fail "ENABLE in flight at exit: instance left: $(grep QMAG "$T/smgr.log")"
+grep -q "DISABLE instance [0-9]* unknown" "$T/smgr.log" && fail "slow case: disable for an unknown instance"
+kill "$WQ" 2>/dev/null
+wait "$WQ" 2>/dev/null
+stop_pair
+unset FAKE_QMAG_ENABLE_DELAY_MS
+# SIGHUP (closed telnet session) exits as cleanly as TERM
+: >"$T/smgr.log"
+: >"$T/sensord.log"
+start_pair "-Q" ""
+bg_cli -n 100000 watch magn 10 >/dev/null
+WQ=$!
+wait_for "$T/sensord.log" "qmag enabled: instance 7" 50 || fail "HUP case: not enabled"
+kill -HUP "$SPID"
+wait "$SPID" 2>/dev/null
+SPID=
+wait_for "$T/smgr.log" "QMAG DISABLE instance 7$" 30 || fail "HUP: QMAG not disabled"
+grep -q "DELETE report 3" "$T/smgr.log" || fail "HUP: magn report not deleted"
+[ -e "$SOCK" ] && fail "HUP: socket left behind"
+kill "$WQ" 2>/dev/null
+wait "$WQ" 2>/dev/null
+stop_pair
 
 # ----------------------------------------------------- periodic (-P)
 : >"$T/smgr.log"
@@ -188,6 +317,23 @@ ls "$SENSORD_FAKE_IPC" | grep -q '^s271\.' && fail "-R still published REG2"
 kill "$SPID"
 wait "$SPID" 2>/dev/null
 SPID=
+
+# a registry that is not on a RAM filesystem: the write-back is refused
+# (never onto a disk), logged, and sensord keeps serving
+DISK="$PWD/tests/e2e-disk-$$.reg"
+cp "$T/reg" "$DISK"
+: >"$T/smgr.log"
+./tests/sensord-fake -r "$DISK" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/disk.log" &
+SPID=$!
+./tests/fake_smgr serve >>"$T/smgr.log" 2>&1 &
+FPID=$!
+wait_for "$T/disk.log" "registry write-back to $DISK failed (Invalid cross-device link): not a RAM filesystem" 80 \
+	|| fail "disk write-back not refused: $(grep -i registry "$T/disk.log")"
+cmp -s "$T/reg" "$DISK" || fail "disk registry file was modified"
+[ -e "$DISK.tmp" ] && fail "temp left beside the disk registry"
+cli status | grep -q '"smgr":"ready".*"reg2_saves":0,"reg2_save_errors":1' || fail "sensord not serving after a failed write-back"
+stop_pair
+rm -f "$DISK" "$DISK.tmp"
 
 # refuses to start on a registry whose size does not match the map
 head -c 1000 "$T/reg" >"$T/short"

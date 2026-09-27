@@ -331,3 +331,54 @@ struct qmi_elem_info sns_smgr_rep_ind_ei[] = {
 	EI_VSTRUCTS(0x04, struct sns_smgr_rep_ind, item, SNS_SMGR_REP_ITEMS, sns_smgr_rep_data_ei),
 	EI_END
 };
+
+/* ------------------------------------------------- SAM QMAG_CAL */
+
+struct qmi_elem_info sns_sam_enable_req_ei[] = {
+	EI_OPT(0x10, struct sns_sam_enable_req, period_valid),
+	EI_NUM(0x10, struct sns_sam_enable_req, period_q16),
+	EI_END
+};
+
+struct qmi_elem_info sns_sam_instance_resp_ei[] = {
+	EI_STRUCT(0x02, struct sns_sam_instance_resp, resp, sns_resp_ei),
+	EI_OPT(0x10, struct sns_sam_instance_resp, instance_valid),
+	EI_NUM(0x10, struct sns_sam_instance_resp, instance),
+	EI_END
+};
+
+struct qmi_elem_info sns_sam_disable_req_ei[] = {
+	EI_NUM(0x01, struct sns_sam_disable_req, instance),
+	EI_END
+};
+
+struct qmi_elem_info sns_sam_qmag_ind_ei[] = {
+	EI_NUM(0x01, struct sns_sam_qmag_ind, instance),
+	EI_NUM(0x02, struct sns_sam_qmag_ind, timestamp),
+	EI_NUMS(0x03, struct sns_sam_qmag_ind, bias, 3),
+	EI_NUM(0x04, struct sns_sam_qmag_ind, accuracy),
+	EI_END
+};
+
+struct qmi_elem_info sns_sam_error_ind_ei[] = {
+	EI_NUM(0x01, struct sns_sam_error_ind, error),
+	EI_NUM(0x02, struct sns_sam_error_ind, instance),
+	EI_END
+};
+
+#define EI_ATTR(tlv, i) { \
+	.data_type = QMI_UNSIGNED_4_BYTE, .elem_len = 1, .elem_size = 4, \
+	.array_type = NO_ARRAY, .tlv_type = (tlv), \
+	.offset = offsetof(struct sns_sam_attr_resp, attr) + 4 * (i) }
+
+struct qmi_elem_info sns_sam_attr_resp_ei[] = {
+	EI_STRUCT(0x02, struct sns_sam_attr_resp, resp, sns_resp_ei),
+	EI_ATTR(0x03, 0), EI_ATTR(0x04, 1), EI_ATTR(0x05, 2),
+	EI_ATTR(0x06, 3), EI_ATTR(0x07, 4), EI_ATTR(0x08, 5),
+	EI_ATTR(0x09, 6), EI_ATTR(0x0a, 7), EI_ATTR(0x0b, 8),
+	EI_OPT(0x10, struct sns_sam_attr_resp, suid_valid),
+	EI_NUM(0x10, struct sns_sam_attr_resp, suid),
+	EI_OPT(0x11, struct sns_sam_attr_resp, reserved_valid),
+	EI_NUM(0x11, struct sns_sam_attr_resp, reserved),
+	EI_END
+};

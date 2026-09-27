@@ -1,0 +1,14 @@
+# Within-boot registry reuse, live 2026-09-27 (fastboot boot, nothing flashed)
+Image out/boot.img 4bd64ca1... (sensord e9c04b3f...). Host evidence: ~/chef-cyclo-evidence/regreuse-live-20260927T101308Z (pull-reuse-final.tgz, reuse-check.sh).
+
+Fresh boot: sensors-up made a fresh copy (setro, ro,noload, unmount), wrote sns.reg.boot_id and sns.reg.persist; sensord wrote back after the DSP's boot write of group 20 (21.5 s).
+User: 30 s figure-8 in the air, then face up on the table, untouched.
+DSP REG2 writes this boot: group 20 at 18.5 s; group 2980 at 2403 s (15 s after the figure-8) with bias words all ZERO. No learned magnetometer bias.
+Captures, phone still, 100 samples each (gauss, device frame):
+  before restart: full (+0.3408, +0.5861, +0.2146)  factory (+0.3409, +0.5874, +0.2141)
+  after restart:  full (+0.3411, +0.5868, +0.2149)  factory (+0.3420, +0.5861, +0.2141)
+  -> full == factory: the fast figure-8 alone did not make the DSP learn a bias (in the first session it learned during the slow face-by-face holds).
+Restart: TERM to sensors-up at 2452 s; the rerun logged "registry reused from this boot: /run/sensors/sns.reg (27426 bytes, DSP writes kept: 0 bytes differ from persist's; persist not touched)" (0 because the DSP's writes this boot equal persist's bytes), no blockdev/mount; smgr ready again.
+persist mmcblk0p38 diskstats before and after the restart identical (9 reads, 0 writes); not mounted at the end. Stock sns.reg sha256 d3bfcfb6... identical before and after the session.
+Note: restarting sensord does not restart the ADSP, which keeps its calibration state in its own memory; the /run registry copy matters when the ADSP restarts or re-reads the registry, and as the source for a future across-boot copy.
+Test-script bug (host-side reuse-check.sh only, not in the repo): cap() used a bare `wait`, which also waited for the setsid helper sensord; the helpers were TERMed by hand after their 100 samples, so no data was lost.

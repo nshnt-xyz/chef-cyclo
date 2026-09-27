@@ -17,8 +17,14 @@
 # ro,noload (noload is still needed: a read-only device with a journal to
 # replay fails to mount without it), copies the one file, and unmounts
 # before doing anything else. If persist is already mounted somewhere, it
-# copies from there and leaves that mount alone. sensord gets the copy under /run and never writes even
-# that (DSP registry writes stay in its RAM).
+# copies from there and leaves that mount alone. sensord gets the copy
+# under /run and writes the DSP's registry writes back to that copy only
+# (never to persist). A later sensors-up in the same boot (boot id
+# recorded beside the copy, size matching the map) reuses that copy
+# without touching persist at all, so the DSP's registry writes (the
+# magnetometer hard-iron bias) stay available for an ADSP restart or
+# re-read (the ADSP itself keeps its state across a sensord restart); a new boot, a
+# size mismatch or SENSORS_FRESH=1 makes a fresh copy as above.
 #
 # Order: sensord's REG2 server is published *before* the ADSP boots, the
 # way stock's sensors.qti (class core) is up before the sensor PD reads
@@ -55,7 +61,11 @@ AUDIO_LOCK=${AUDIO_LOCK:-/run/audio-up.lock}
 SENSORD=${SENSORD:-sensord}
 SENSORD_ARGS=${SENSORD_ARGS:--v}
 SMGR_WAIT=${SMGR_WAIT:-120}	# 0.5 s steps: 60 s
+BOOT_ID_FILE=${BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}
+SENSORS_FRESH=${SENSORS_FRESH:-0}
 REG_COPY="$RUN_DIR/sns.reg"
+REG_BOOT="$RUN_DIR/sns.reg.boot_id"	# the boot the copy was made in
+REG_PRISTINE="$RUN_DIR/sns.reg.persist"	# the copy as read from persist
 
 # part() is audio-up's (itself copied from gps-up); keep in sync by hand.
 part() {
@@ -143,8 +153,43 @@ copy_registry() {
 		return 1
 	fi
 	chmod 0400 "$REG_COPY.tmp"
+	rm -f "$REG_PRISTINE" "$REG_BOOT"
+	cp "$REG_COPY.tmp" "$REG_PRISTINE" && chmod 0400 "$REG_PRISTINE"
 	mv -f "$REG_COPY.tmp" "$REG_COPY"
+	cat "$BOOT_ID_FILE" > "$REG_BOOT" 2>/dev/null
 	log "registry copied to $REG_COPY ($got bytes; persist untouched)"
+}
+
+# Reuse the /run copy an earlier sensord of this boot left behind, with
+# what the DSP wrote into it (sensord writes its RAM registry back there:
+# live, the magnetometer bias the DSP learned). Only when it was made in
+# this boot (boot id recorded beside it) and has the map's size; persist
+# is not touched at all then (no setro, no mount). SENSORS_FRESH=1 forces
+# a fresh copy. 1 = make a fresh copy.
+reuse_registry() {
+	if [ "$SENSORS_FRESH" = 1 ]; then
+		log "SENSORS_FRESH=1: fresh registry copy from persist"
+		return 1
+	fi
+	[ -f "$REG_COPY" ] || return 1
+	bid=$(cat "$BOOT_ID_FILE" 2>/dev/null)
+	if [ -z "$bid" ] || [ "$(cat "$REG_BOOT" 2>/dev/null)" != "$bid" ]; then
+		log "registry copy in $RUN_DIR is not from this boot; fresh copy from persist"
+		return 1
+	fi
+	want=$(map_size)
+	got=$(file_size "$REG_COPY")
+	if [ -z "$want" ] || [ "$got" != "$want" ]; then
+		log "registry copy is ${got:-?} bytes, the map expects ${want:-?}; fresh copy from persist"
+		return 1
+	fi
+	if [ -f "$REG_PRISTINE" ]; then
+		kept="$(cmp -l "$REG_PRISTINE" "$REG_COPY" 2>/dev/null | wc -l | tr -d ' ') bytes differ from persist's"
+	else
+		kept="no persist copy to compare"
+	fi
+	log "registry reused from this boot: $REG_COPY ($got bytes, DSP writes kept: $kept; persist not touched)"
+	return 0
 }
 
 # wait_for <predicate...>: 0.5 s steps up to $LIMIT, failing early if
@@ -212,7 +257,7 @@ mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
 
 case " $SENSORD_ARGS " in
 *" -R "*) NO_REG2=1; log "SENSORD_ARGS has -R: not copying or serving the registry" ;;
-*) NO_REG2=0; copy_registry || exit 1 ;;
+*) NO_REG2=0; reuse_registry || copy_registry || exit 1 ;;
 esac
 
 if ! irsc; then

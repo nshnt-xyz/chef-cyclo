@@ -1,0 +1,329 @@
+[   14.193157,2] sensors-up: /dev/mmcblk0p38 set read-only at the block layer (blockdev --getro = 1)
+[   14.245051,2] sensors-up: registry copied to /run/sensors/sns.reg (27426 bytes; persist untouched)
+[   14.251637,2] sensord: registry /run/sensors/sns.reg loaded: 27426 bytes, 108 groups, 2561 items (RAM copy; DSP writes stay in RAM)
+[   14.252333,2] sensord: serving service 0x10f inst 0x0002
+[   14.252419,2] sensord: ready: /run/sensord.sock, BUFFERING API, timestamps dsps
+[   14.252521,2] sensord: smgr service 0x100 not registered yet, polling every 1000 ms
+[   14.751216,2] sensors-up: REG2 (0x10f) served by sensord pid 704
+[   14.756434,2] sensors-up: starting audio-up to boot the adsp
+[   15.866545,2] sensord: reg2: group read 2970 (QMAG_CAL) from 5:81 -> 143 bytes
+[   16.047319,2] sensord: reg2: group write 20 from 5:80 (RAM only) (126 bytes): 01 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00 00 00 5c 00 01 00 e0 fe ff ff 0d 01 00 00 e0 fe ff ff ec 00 01 00 69 ff ff ff 0d 01 00 00 69 ff ...
+[   16.253948,2] sensord: lookup 0x100 (all instances): 0x3201@5:89
+[   16.253993,2] sensord: smgr service 0x100 found at 5:89, reading sensor info
+[   16.272892,3] sensors-up: SMGR (0x100) registered 1.52s after the adsp check
+[   16.273025,3] sensors-up: supervising sensord pid 704 (audio-up pid 713 left running)
+[   16.458730,2] sensord: smgr sensor id 0 'ACCEL'
+[   16.458770,2] sensord: smgr sensor id 10 'GYRO'
+[   16.458793,2] sensord: smgr sensor id 20 'MAG'
+[   16.458815,2] sensord: smgr sensor id 40 'PROX_LIGHT'
+[   16.459772,2] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[   16.459808,2] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[   16.460734,2] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[   16.460768,2] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[   16.461617,2] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[   16.462800,2] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[   16.462835,2] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[   16.462860,2] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[   48.069809,0] sensord: not serving REG2 (-R)
+[   48.069886,0] sensord: ready: /run/qm.sock, BUFFERING API, timestamps dsps, QMAG_CAL client (-Q)
+[   48.069914,0] sensord: SMGR report IDs 31..35 (-i)
+[   48.070091,0] sensord: lookup 0x100 (all instances): 0x3201@5:89
+[   48.070117,0] sensord: smgr service 0x100 found at 5:89, reading sensor info
+[   48.073926,0] sensord: smgr sensor id 0 'ACCEL'
+[   48.073950,0] sensord: smgr sensor id 10 'GYRO'
+[   48.073973,0] sensord: smgr sensor id 20 'MAG'
+[   48.073994,0] sensord: smgr sensor id 40 'PROX_LIGHT'
+[   48.075352,0] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[   48.075387,0] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[   48.076448,0] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[   48.076482,0] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[   48.077478,0] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[   48.078775,0] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[   48.078811,0] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[   48.078838,0] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[   50.071105,0] sensord: claim magn 20 Hz
+[   50.071262,0] sensord: add report 33: magn 20 Hz, calibration full
+[   50.071356,0] sensord: lookup 0x140 (all instances): 0x3201@5:112
+[   50.071381,0] sensord: qmag service 0x140 found at 5:112
+[   50.074916,0] sensord: qmag attributes (TLV 0x03..0x0b): 0 1 0x2 0 0 10 10 0 1280; suid 0xae6563aec8c3ec59; reserved 0
+[   50.074973,0] sensord: qmag attributes read as: revision 0, processor 1, report modes 0x2, report rate 0..0 Hz, sample rate 0.0001526..0.0001526 Hz, max batch 0, power 0.01953 mA (rates/power as Q16)
+[   50.075048,0] sensord: qmag enable (no report period TLV)
+[   50.076961,0] sensord: qmag enabled: instance 8
+[   50.078503,0] sensord: magn report accepted with changes (ack 1)
+[   75.084091,1] sensord: release magn (client gone)
+[   75.084217,1] sensord: delete report 33: magn 20 Hz
+[   75.084314,1] sensord: qmag disable instance 8 (no magn claims)
+[   75.085291,1] sensord: qmag disabled: instance 8 (result 0 err 0)
+[   75.086187,2] sensord: reg2: group write 2980 from 5:81 (RAM only) (126 bytes): 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 ...
+[   75.109018,1] sensord: exiting
+[  538.782816,2] sensord: add report 1: accel 50 Hz, calibration full
+[  538.906852,2] sensord: delete report 1: accel 50 Hz
+[  538.909331,0] magcal: magnetometer check, ~5 min, output /run/sensortest/magcal-19700110T204847
+[  538.909414,0] magcal: keep away from metal, magnets, laptops
+[  538.909485,0] magcal: 1 long buzz: hold still. 2 short: move on
+[  538.910647,7] sensord: not serving REG2 (-R)
+[  538.910699,7] sensord: ready: /run/sensortest/magcal-19700110T204847/factory.sock, BUFFERING API, timestamps dsps
+[  538.910716,7] sensord: SMGR report IDs 11..15 (-i)
+[  538.910729,7] sensord: magn: calibration factory (-c)
+[  538.910824,7] sensord: lookup 0x100 (all instances): 0x3201@5:89
+[  538.910840,7] sensord: smgr service 0x100 found at 5:89, reading sensor info
+[  538.912521,7] sensord: smgr sensor id 0 'ACCEL'
+[  538.912536,7] sensord: smgr sensor id 10 'GYRO'
+[  538.912549,7] sensord: smgr sensor id 20 'MAG'
+[  538.912560,7] sensord: smgr sensor id 40 'PROX_LIGHT'
+[  538.913547,7] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[  538.913572,7] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[  538.914489,7] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[  538.914511,7] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[  538.915320,7] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[  538.916254,7] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[  538.916278,7] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[  538.916296,7] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[  539.415424,1] sensord: not serving REG2 (-R)
+[  539.415502,1] sensord: ready: /run/sensortest/magcal-19700110T204847/raw.sock, BUFFERING API, timestamps dsps
+[  539.415528,1] sensord: SMGR report IDs 21..25 (-i)
+[  539.415553,1] sensord: magn: calibration raw (-c)
+[  539.415675,1] sensord: lookup 0x100 (all instances): 0x3201@5:89
+[  539.415720,1] sensord: smgr service 0x100 found at 5:89, reading sensor info
+[  539.419202,1] sensord: smgr sensor id 0 'ACCEL'
+[  539.419226,1] sensord: smgr sensor id 10 'GYRO'
+[  539.419248,1] sensord: smgr sensor id 20 'MAG'
+[  539.419271,1] sensord: smgr sensor id 40 'PROX_LIGHT'
+[  539.420676,1] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[  539.420710,1] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[  539.421745,1] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[  539.421778,1] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[  539.422739,1] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[  539.423837,1] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[  539.423871,1] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[  539.423896,1] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[  539.917747,0] magcal: starting in 5
+[  540.919016,0] magcal: starting in 4
+[  541.920341,0] magcal: starting in 3
+[  542.921794,0] magcal: starting in 2
+[  543.923154,0] magcal: starting in 1
+[  544.927728,0] magcal: part a (magn: full factory raw)
+[  544.929456,1] sensord: claim magn 20 Hz
+[  544.929510,2] sensord: claim magn 20 Hz
+[  544.929629,3] sensord: claim magn 20 Hz
+[  544.929631,1] sensord: add report 13: magn 20 Hz, calibration factory
+[  544.929671,2] sensord: add report 3: magn 20 Hz, calibration full
+[  544.929726,3] sensord: add report 23: magn 20 Hz, calibration raw
+[  544.930170,2] sensord: claim anglvel 50 Hz
+[  544.930297,2] sensord: add report 2: anglvel 50 Hz, calibration full
+[  544.930456,2] sensord: claim accel 50 Hz
+[  544.930550,2] sensord: add report 1: accel 50 Hz, calibration full
+[  544.934638,1] sensord: magn report accepted with changes (ack 1)
+[  544.938584,2] sensord: magn report accepted with changes (ack 1)
+[  544.939446,3] sensord: magn report accepted with changes (ack 1)
+[  545.930304,0] magcal: next: FACE UP on the table, still
+[  548.933822,0] magcal: GO 6 s: FACE UP on the table, still. then: FACE DOWN on the table, still
+[  555.237233,0] magcal: next: FACE DOWN on the table, still
+[  558.240798,1] magcal: GO 6 s: FACE DOWN on the table, still. then: UPRIGHT, top edge up, still
+[  564.544325,1] magcal: next: UPRIGHT, top edge up, still
+[  570.547706,1] magcal: GO 6 s: UPRIGHT, top edge up, still. then: UPSIDE DOWN, top edge down
+[  576.850914,1] magcal: next: UPSIDE DOWN, top edge down
+[  579.854285,1] magcal: GO 6 s: UPSIDE DOWN, top edge down. then: ON ITS LEFT EDGE, still
+[  586.157499,1] magcal: next: ON ITS LEFT EDGE, still
+[  589.160874,1] magcal: GO 6 s: ON ITS LEFT EDGE, still. then: ON ITS RIGHT EDGE, still
+[  595.464357,1] magcal: next: ON ITS RIGHT EDGE, still
+[  598.468020,1] magcal: GO 6 s: ON ITS RIGHT EDGE, still. then: FIGURE-8 in the air, all ways
+[  604.771683,1] magcal: next: FIGURE-8 in the air, all ways
+[  607.775376,1] magcal: GO 20 s: FIGURE-8 in the air, all ways. then: FACE UP on table, 1 slow full circle
+[  609.441608,2] sensord: release magn (client gone)
+[  609.441715,1] sensord: release magn (client gone)
+[  609.441753,2] sensord: delete report 23: magn 20 Hz
+[  609.441863,1] sensord: delete report 3: magn 20 Hz
+[  609.441870,0] sensord: release magn (client gone)
+[  609.441889,1] sensord: release anglvel (client gone)
+[  609.441958,0] sensord: delete report 13: magn 20 Hz
+[  609.442039,1] sensord: delete report 2: anglvel 50 Hz
+[  609.442065,1] sensord: release accel (client gone)
+[  609.442086,0] sensord: exiting
+[  609.442165,1] sensord: delete report 1: accel 50 Hz
+[  609.442198,2] sensord: exiting
+[  609.450217,1] sensord: reg2: group write 2980 from 5:81 (RAM only) (126 bytes): 01 00 00 00 01 00 52 c2 ff ff eb 9a ff ff 32 41 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 ...
+[  609.454526,1] sensord: reg2: group write 2610 from 5:81 (RAM only) (24 bytes): b5 00 00 00 d8 ff ff ff 93 fe ff ff 00 00 01 00 00 00 01 00 00 00 01 00
+[ 1025.183737,2] sensord: add report 1: accel 50 Hz, calibration full
+[ 1025.304880,2] sensord: delete report 1: accel 50 Hz
+[ 1025.307325,1] magcal: magnetometer check, ~5 min, output /run/sensortest/magcal-19700110T205653
+[ 1025.307426,1] magcal: keep away from metal, magnets, laptops
+[ 1025.307496,1] magcal: 1 long buzz: hold still. 2 short: move on
+[ 1025.309438,1] sensord: not serving REG2 (-R)
+[ 1025.309513,1] sensord: ready: /run/sensortest/magcal-19700110T205653/factory.sock, BUFFERING API, timestamps dsps
+[ 1025.309542,1] sensord: SMGR report IDs 11..15 (-i)
+[ 1025.309567,1] sensord: magn: calibration factory (-c)
+[ 1025.309693,1] sensord: lookup 0x100 (all instances): 0x3201@5:89
+[ 1025.309719,1] sensord: smgr service 0x100 found at 5:89, reading sensor info
+[ 1025.310725,5] sensord: smgr sensor id 0 'ACCEL'
+[ 1025.310755,5] sensord: smgr sensor id 10 'GYRO'
+[ 1025.310770,5] sensord: smgr sensor id 20 'MAG'
+[ 1025.310783,5] sensord: smgr sensor id 40 'PROX_LIGHT'
+[ 1025.311735,5] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[ 1025.311758,5] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[ 1025.312845,5] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[ 1025.312866,5] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[ 1025.313695,5] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[ 1025.314642,5] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[ 1025.314666,5] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[ 1025.314682,5] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[ 1025.813953,0] sensord: not serving REG2 (-R)
+[ 1025.814026,0] sensord: ready: /run/sensortest/magcal-19700110T205653/raw.sock, BUFFERING API, timestamps dsps
+[ 1025.814053,0] sensord: SMGR report IDs 21..25 (-i)
+[ 1025.814077,0] sensord: magn: calibration raw (-c)
+[ 1025.814218,0] sensord: lookup 0x100 (all instances): 0x3201@5:89
+[ 1025.814244,0] sensord: smgr service 0x100 found at 5:89, reading sensor info
+[ 1025.817886,0] sensord: smgr sensor id 0 'ACCEL'
+[ 1025.817911,0] sensord: smgr sensor id 10 'GYRO'
+[ 1025.817934,0] sensord: smgr sensor id 20 'MAG'
+[ 1025.817957,0] sensord: smgr sensor id 40 'PROX_LIGHT'
+[ 1025.819318,0] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[ 1025.819354,0] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[ 1025.820535,0] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[ 1025.820569,0] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[ 1025.821530,0] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[ 1025.822660,0] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[ 1025.822694,0] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[ 1025.822719,0] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[ 1026.318364,1] magcal: starting in 5
+[ 1027.319706,1] magcal: starting in 4
+[ 1028.321169,1] magcal: starting in 3
+[ 1029.322551,1] magcal: starting in 2
+[ 1030.324009,1] magcal: starting in 1
+[ 1031.328599,1] magcal: part a (magn: full factory raw)
+[ 1031.330361,0] sensord: claim magn 20 Hz
+[ 1031.330463,2] sensord: claim magn 20 Hz
+[ 1031.330505,0] sensord: add report 23: magn 20 Hz, calibration raw
+[ 1031.330563,2] sensord: add report 3: magn 20 Hz, calibration full
+[ 1031.330589,0] sensord: claim magn 20 Hz
+[ 1031.330670,0] sensord: add report 13: magn 20 Hz, calibration factory
+[ 1031.330692,2] sensord: claim anglvel 50 Hz
+[ 1031.330786,2] sensord: add report 2: anglvel 50 Hz, calibration full
+[ 1031.330835,2] sensord: claim accel 50 Hz
+[ 1031.330924,2] sensord: add report 1: accel 50 Hz, calibration full
+[ 1031.335469,0] sensord: magn report accepted with changes (ack 1)
+[ 1031.339920,2] sensord: magn report accepted with changes (ack 1)
+[ 1031.340737,0] sensord: magn report accepted with changes (ack 1)
+[ 1032.331404,1] magcal: ---- STEP 1/16: FACE UP on the table, still
+[ 1032.331475,1] magcal:      move the phone now (8 s)
+[ 1040.335142,1] magcal:      HOLD 10 s: FACE UP on the table, still
+[ 1050.638520,1] magcal: ---- STEP 2/16: FACE DOWN on the table, still
+[ 1050.638593,1] magcal:      move the phone now (8 s)
+[ 1058.641838,1] magcal:      HOLD 10 s: FACE DOWN on the table, still
+[ 1068.944950,1] magcal: ---- STEP 3/16: UPRIGHT, top edge up, still
+[ 1068.945024,1] magcal:      move the phone now (11 s)
+[ 1079.948521,1] magcal:      HOLD 10 s: UPRIGHT, top edge up, still
+[ 1090.251981,1] magcal: ---- STEP 4/16: UPSIDE DOWN, top edge down
+[ 1090.252051,1] magcal:      move the phone now (8 s)
+[ 1098.255589,1] magcal:      HOLD 10 s: UPSIDE DOWN, top edge down
+[ 1108.559108,1] magcal: ---- STEP 5/16: ON ITS LEFT EDGE, still
+[ 1108.559176,1] magcal:      move the phone now (8 s)
+[ 1116.562784,1] magcal:      HOLD 10 s: ON ITS LEFT EDGE, still
+[ 1126.866274,1] magcal: ---- STEP 6/16: ON ITS RIGHT EDGE, still
+[ 1126.866345,1] magcal:      move the phone now (8 s)
+[ 1130.853681,1] sensord: reg2: group write 1000 from 5:80 (RAM only) (15 bytes): 00 00 00 1d a7 00 00 a2 60 ff ff 9c 38 00 00
+[ 1134.870028,1] magcal:      HOLD 10 s: ON ITS RIGHT EDGE, still
+[ 1145.173546,4] magcal: ---- STEP 7/16: FIGURE-8 in the air, all ways
+[ 1145.173593,4] magcal:      move the phone now (8 s)
+[ 1153.177047,1] magcal:      HOLD 30 s: FIGURE-8 in the air, all ways
+[ 1183.480628,1] magcal: ---- STEP 8/16: FACE UP on table, 1 slow full circle
+[ 1183.480726,1] magcal:      move the phone now (8 s)
+[ 1191.484134,1] magcal:      HOLD 30 s: FACE UP on table, 1 slow full circle
+[ 1221.787490,3] sensord: release magn (client gone)
+[ 1221.787559,1] sensord: release magn (client gone)
+[ 1221.787585,3] sensord: delete report 13: magn 20 Hz
+[ 1221.787633,1] sensord: delete report 23: magn 20 Hz
+[ 1221.787715,2] sensord: release magn (client gone)
+[ 1221.787808,2] sensord: delete report 3: magn 20 Hz
+[ 1221.787833,2] sensord: release accel (client gone)
+[ 1221.787911,2] sensord: delete report 1: accel 50 Hz
+[ 1221.787917,3] magcal: part q: dynamic calibration (QMAG_CAL)
+[ 1221.787943,2] sensord: release anglvel (client gone)
+[ 1221.788022,2] sensord: delete report 2: anglvel 50 Hz
+[ 1221.790550,1] sensord: not serving REG2 (-R)
+[ 1221.790626,1] sensord: ready: /run/sensortest/magcal-19700110T205653/qmag.sock, BUFFERING API, timestamps dsps, QMAG_CAL client (-Q)
+[ 1221.790691,1] sensord: SMGR report IDs 31..35 (-i)
+[ 1221.790887,2] sensord: lookup 0x100 (all instances): 0x3201@5:89
+[ 1221.790913,2] sensord: smgr service 0x100 found at 5:89, reading sensor info
+[ 1221.792141,2] sensord: reg2: group write 2980 from 5:81 (RAM only) (126 bytes): 01 00 00 00 01 00 7e c5 ff ff 5e 99 ff ff 0f 41 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 ...
+[ 1221.798197,2] sensord: reg2: group write 2610 from 5:81 (RAM only) (24 bytes): f4 00 00 00 da ff ff ff 8f fe ff ff 00 00 01 00 00 00 01 00 00 00 01 00
+[ 1221.803231,2] sensord: smgr sensor id 0 'ACCEL'
+[ 1221.803254,2] sensord: smgr sensor id 10 'GYRO'
+[ 1221.803276,2] sensord: smgr sensor id 20 'MAG'
+[ 1221.803298,2] sensord: smgr sensor id 40 'PROX_LIGHT'
+[ 1221.806703,2] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[ 1221.806737,2] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[ 1221.807968,2] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[ 1221.808001,2] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[ 1221.808987,2] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[ 1221.810255,2] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[ 1221.810290,2] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[ 1221.810316,2] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[ 1222.293483,3] magcal: part q (magn: full qmag factory raw)
+[ 1222.294906,2] sensord: claim magn 20 Hz
+[ 1222.295046,2] sensord: add report 3: magn 20 Hz, calibration full
+[ 1222.295166,2] sensord: claim magn 20 Hz
+[ 1222.295288,2] sensord: add report 33: magn 20 Hz, calibration full
+[ 1222.295471,2] sensord: claim anglvel 50 Hz
+[ 1222.295577,2] sensord: add report 2: anglvel 50 Hz, calibration full
+[ 1222.295590,1] sensord: claim magn 20 Hz
+[ 1222.295662,1] sensord: add report 23: magn 20 Hz, calibration raw
+[ 1222.295668,2] sensord: lookup 0x140 (all instances): 0x3201@5:112
+[ 1222.295696,2] sensord: qmag service 0x140 found at 5:112
+[ 1222.296122,3] sensord: claim magn 20 Hz
+[ 1222.296205,3] sensord: add report 13: magn 20 Hz, calibration factory
+[ 1222.296337,2] sensord: claim accel 50 Hz
+[ 1222.296432,2] sensord: add report 1: accel 50 Hz, calibration full
+[ 1222.302733,2] sensord: magn report accepted with changes (ack 1)
+[ 1222.304931,2] sensord: magn report accepted with changes (ack 1)
+[ 1222.309201,1] sensord: magn report accepted with changes (ack 1)
+[ 1222.311616,3] sensord: magn report accepted with changes (ack 1)
+[ 1222.312509,2] sensord: qmag attributes (TLV 0x03..0x0b): 0 1 0x2 0 0 10 10 0 1280; suid 0xae6563aec8c3ec59; reserved 0
+[ 1222.312555,2] sensord: qmag attributes read as: revision 0, processor 1, report modes 0x2, report rate 0..0 Hz, sample rate 0.0001526..0.0001526 Hz, max batch 0, power 0.01953 mA (rates/power as Q16)
+[ 1222.312626,2] sensord: qmag enable (no report period TLV)
+[ 1222.314118,2] sensord: qmag enabled: instance 23
+[ 1223.296681,3] magcal: ---- STEP 9/16: FIGURE-8 in the air, keep going
+[ 1223.296753,3] magcal:      move the phone now (8 s)
+[ 1231.300276,3] magcal:      HOLD 60 s: FIGURE-8 in the air, keep going
+[ 1291.603642,3] magcal: ---- STEP 10/16: FACE UP on the table, still
+[ 1291.603715,3] magcal:      move the phone now (8 s)
+[ 1299.607085,3] magcal:      HOLD 10 s: FACE UP on the table, still
+[ 1309.910530,3] magcal: ---- STEP 11/16: FACE DOWN on the table, still
+[ 1309.910604,3] magcal:      move the phone now (8 s)
+[ 1317.914028,3] magcal:      HOLD 10 s: FACE DOWN on the table, still
+[ 1328.217541,3] magcal: ---- STEP 12/16: UPRIGHT, top edge up, still
+[ 1328.217612,3] magcal:      move the phone now (11 s)
+[ 1339.221151,3] magcal:      HOLD 10 s: UPRIGHT, top edge up, still
+[ 1349.524855,3] magcal: ---- STEP 13/16: UPSIDE DOWN, top edge down
+[ 1349.524927,3] magcal:      move the phone now (8 s)
+[ 1357.528464,3] magcal:      HOLD 10 s: UPSIDE DOWN, top edge down
+[ 1367.832041,3] magcal: ---- STEP 14/16: ON ITS LEFT EDGE, still
+[ 1367.832110,3] magcal:      move the phone now (8 s)
+[ 1375.835644,3] magcal:      HOLD 10 s: ON ITS LEFT EDGE, still
+[ 1386.139000,3] magcal: ---- STEP 15/16: ON ITS RIGHT EDGE, still
+[ 1386.139069,3] magcal:      move the phone now (8 s)
+[ 1390.658316,1] sensord: reg2: group write 1000 from 5:80 (RAM only) (15 bytes): 00 00 00 8a ae 00 00 64 5e ff ff 72 41 00 00
+[ 1394.142693,3] magcal:      HOLD 10 s: ON ITS RIGHT EDGE, still
+[ 1404.446403,3] magcal: ---- STEP 16/16: FACE UP on table, 1 slow full circle
+[ 1404.446512,3] magcal:      move the phone now (8 s)
+[ 1412.449936,4] magcal:      HOLD 30 s: FACE UP on table, 1 slow full circle
+[ 1442.754597,3] sensord: release magn (client gone)
+[ 1442.754639,1] sensord: release magn (client gone)
+[ 1442.754704,3] sensord: delete report 13: magn 20 Hz
+[ 1442.754756,3] sensord: release magn (client gone)
+[ 1442.754761,1] sensord: delete report 23: magn 20 Hz
+[ 1442.754839,3] sensord: delete report 33: magn 20 Hz
+[ 1442.754850,2] sensord: release magn (client gone)
+[ 1442.754907,3] sensord: qmag disable instance 23 (no magn claims)
+[ 1442.754939,2] sensord: delete report 3: magn 20 Hz
+[ 1442.754965,2] sensord: release anglvel (client gone)
+[ 1442.755075,2] sensord: delete report 2: anglvel 50 Hz
+[ 1442.755100,2] sensord: release accel (client gone)
+[ 1442.755198,2] sensord: delete report 1: accel 50 Hz
+[ 1442.755741,3] sensord: exiting
+[ 1442.755764,1] sensord: exiting
+[ 1442.755854,0] sensord: exiting
+[ 1442.764255,2] sensord: reg2: group write 2980 from 5:81 (RAM only) (126 bytes): 01 00 00 00 01 00 7e c5 ff ff 5e 99 ff ff 0f 41 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 ...
+[ 1442.768400,0] sensord: qmag disabled: instance 23 (result 0 err 0)
+[ 1442.774870,2] sensord: reg2: group write 2610 from 5:81 (RAM only) (24 bytes): 05 01 00 00 45 00 00 00 8f fe ff ff 00 00 01 00 00 00 01 00 00 00 01 00
+[ 1443.372391,0] magcal: DONE, thank you

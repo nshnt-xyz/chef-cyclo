@@ -14,9 +14,13 @@
  *     address, axis orientation, calibration. Served from a RAM copy of
  *     persist's sns.reg (sensors-up copies it to /run and never leaves
  *     persist mounted), laid out by a map sns-reg-map.py extracted from
- *     the stock sensors.qti at image build time. Writes from the DSP only
- *     change the RAM copy, and are logged. The backing file is opened
- *     O_RDONLY, once.
+ *     the stock sensors.qti at image build time. Writes from the DSP
+ *     change the RAM copy and are logged; 3 s after the last one, and on
+ *     exit, the RAM copy is written back over the /run file (atomic
+ *     rename, tmpfs/ramfs only), so the /run copy holds what the DSP
+ *     wrote this boot (the ADSP keeps its own state across a sensord
+ *     restart; the copy matters when the ADSP restarts or re-reads the
+ *     registry). persist is never written.
  *  2. SMGR client, QMI service 0x100 on the ADSP (stock: libsensor1 +
  *     sensors.ssc.so). Enumerates the sensors (all-sensor-info,
  *     single-sensor-info), then adds a BUFFERING report (0x21, what the
@@ -27,6 +31,16 @@
  *  3. Optional (-t) TIME2 server, 0x118 instance 0x3202 (stock:
  *     sensors.qti). Nothing shows the DSP needs it; it is here so the
  *     live run can turn it on if the DSP is seen looking it up.
+ *  4. Optional (-Q) QMAG_CAL client, SAM service 0x140 instance 0x3201 on
+ *     the ADSP: the DSP's dynamic hard-iron calibration of the
+ *     magnetometer, for the calibration check in docs/next-steps/
+ *     sensors-plan.md section 7. While magn is claimed it queries the
+ *     algorithm attributes (0x24, once per daemon) and enables the
+ *     algorithm (0x02); it logs every report (0x05: bias, accuracy) and
+ *     error (0x06) indication, adds the latest bias to magn lines and to
+ *     status, and disables it (0x03) when the last magn claim goes, when
+ *     SMGR is lost and on exit. Off by default: production behaviour is
+ *     unchanged without the flag.
  *
  * Data model (IIO channel names and units, so a later kernel IIO driver
  * or an iio-sensor-proxy facade changes the transport, not the data):
@@ -70,7 +84,8 @@
  * that fits. A client that lets a reply overflow is disconnected.
  *
  * Usage: sensord [-r REG] [-m MAP] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ]
- *                [-s CH=ID:DT]... [-P] [-t] [-R] [-F] [-v]
+ *                [-s CH=ID:DT]... [-c CH=full|factory|raw]... [-i BASE] [-Q]
+ *                [-P] [-t] [-R] [-F] [-v]
  *   -r  registry copy to serve (default /run/sensors/sns.reg)
  *   -m  registry map (default /usr/share/sensord/sns_reg.map)
  *   -S  socket path (default /run/sensord.sock)
@@ -80,6 +95,15 @@
  *       so samples arrive batched; default 0 = one report per sample, as
  *       the stock HAL does
  *   -s  map a channel to another SMGR sensor ID/data type (accel=0:0)
+ *   -c  calibration SMGR applies to a channel's samples (the BUFFERING
+ *       item's calibration field): full (0, default: factory plus any
+ *       dynamic calibration), factory (1, what the stock HAL asks for its
+ *       "uncalibrated" sensors), raw (2). Repeatable, one per channel.
+ *   -i  SMGR report ID base: channel N uses report ID BASE+N+1 (default
+ *       0). For a second SMGR client beside the main one (with -R), so
+ *       the two never share a report ID even if the DSP keys reports by
+ *       ID rather than per client
+ *   -Q  run the QMAG_CAL client (see 4. above)
  *   -P  use periodic REPORT (0x02) instead of BUFFERING (0x21)
  *   -t  also serve TIME2 (0x118 inst 0x3202) on the apps node
  *   -R  do not serve REG2 (for a run that tests SMGR without it)
@@ -127,6 +151,10 @@
 #define SENSORD_LOOKUP_MS	1000	/* while SMGR is absent */
 #define SENSORD_CHECK_MS	5000	/* while up: is it still the same port? */
 #define SENSORD_REQ_TIMEOUT_MS	3000
+/* A SAM ENABLE is not idempotent (each one the DSP handles creates an
+ * instance), so it is sent once and given longer to answer. */
+#define SENSORD_QMAG_ENABLE_TIMEOUT_MS	10000
+#define SENSORD_QMAG_EXIT_WAIT_MS	1500
 #define SENSORD_REQ_TRIES	3
 #define SENSORD_GET_TIMEOUT_MS	5000
 #define SENSORD_MAX_PENDING	8
@@ -158,6 +186,18 @@ static void kmsg_note(const char *fmt, ...)
 	close(fd);
 }
 
+/* Detail worth keeping but too frequent for the kernel log: stderr. */
+static void stderr_note(const char *fmt, ...)
+{
+	va_list ap;
+
+	fputs("sensord: ", stderr);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fputc('\n', stderr);
+}
+
 /* Debug detail: stderr only, and only with -v. */
 static void vlog(const char *fmt, ...)
 {
@@ -184,6 +224,7 @@ struct channel {
 	enum ch_kind kind;
 	uint8_t smgr_id, dt;
 	unsigned default_hz;
+	uint8_t cal;		/* BUFFERING item calibration, SNS_SMGR_CAL_* (-c) */
 	/* from SINGLE_SENSOR_INFO */
 	bool present;
 	char hw[SNS_SMGR_NAME + 1];
@@ -205,6 +246,13 @@ static const struct channel channel_defaults[CH_COUNT] = {
 	[CH_ILLUM]   = { "illuminance", "lux", CH_SCALAR, SNS_SMGR_ID_PROX_LIGHT, 1, 5 },
 	[CH_PROX_]   = { "proximity", "near", CH_PROX, SNS_SMGR_ID_PROX_LIGHT, 0, 5 },
 };
+
+static const char *const cal_names[] = { "full", "factory", "raw" };
+
+static const char *cal_name(uint8_t cal)
+{
+	return cal <= SNS_SMGR_CAL_RAW ? cal_names[cal] : "?";
+}
 
 static int channel_from_name(const char *name)
 {
@@ -332,12 +380,44 @@ struct pending {
 
 enum ts_mode { TS_DSPS, TS_CNTVCT, TS_RX };
 
+/* QMAG_CAL client (-Q). One request in flight at a time; the service is
+ * looked up while magn is claimed and forgotten when a send to it fails
+ * or its socket is reset. */
+struct qmag {
+	bool opt;			/* -Q */
+	int sock;
+	uint32_t node, port;		/* port 0: not looked up */
+	bool on;			/* enabled, instance valid */
+	uint8_t instance;
+	bool failed;			/* refused/unanswered: not retried until magn claims drop */
+	bool attr_done;			/* 0x24 asked once per daemon */
+	int64_t next_lookup;
+	bool missing_logged;
+	char seen[160];
+	/* the request in flight */
+	bool busy;
+	uint16_t txn, msg;
+	int64_t sent;
+	int tries;
+	struct qrtr_packet pkt;
+	char buf[128];
+	/* latest report */
+	bool have_bias;
+	int32_t bias[3];		/* raw Q16, SMGR frame */
+	uint32_t accuracy, ts;
+	uint8_t last_error;		/* from the latest error indication */
+	bool had_error;
+	unsigned long enables, inds, errors;
+	int64_t last_note;		/* last report that went to kmsg */
+};
+
 struct server {
 	struct channel ch[CH_COUNT];
 	struct client clients[SENSORD_MAX_CLIENTS];
 	struct sns_reg reg;
 	bool serve_reg2, serve_time2, periodic, force;
 	unsigned report_cap;
+	unsigned report_base;		/* -i: SMGR report IDs are base + channel + 1 */
 	enum ts_mode ts_mode;
 	int dsps_fd;
 	int reg_sock, time_sock, smgr_sock;
@@ -352,9 +432,21 @@ struct server {
 	int ninfo, info_next;
 	int64_t skew_logged;
 	unsigned long time2_reqs, smgr_resets, unknown_reqs;
-	/* injected for the tests; the defaults are the real clock/log */
+	/* Write-back of the RAM registry over the /run copy it came from
+	 * (never persist: sns_reg_save refuses anything but tmpfs/ramfs), a
+	 * few seconds after the DSP's last write and on exit, so the copy
+	 * holds what the DSP wrote this boot (live: the magnetometer
+	 * hard-iron bias in group 2980) for an ADSP restart or re-read. */
+	const char *reg_path;		/* NULL: no write-back (-R, tests) */
+	bool reg_dirty;
+	int64_t reg_dirty_at;		/* last unsaved write */
+	int64_t reg_dirty_since;	/* first unsaved write */
+	unsigned long reg_saves, reg_save_errors;
+	struct qmag qmag;
+	/* injected for the tests; the defaults are the real clock/logs */
 	int64_t (*now_ms)(void);
-	void (*log)(const char *fmt, ...);
+	void (*log)(const char *fmt, ...);	/* kmsg + stderr */
+	void (*elog)(const char *fmt, ...);	/* stderr only */
 };
 
 static int64_t mono_ns(void)
@@ -381,9 +473,11 @@ static void server_init(struct server *s)
 	s->serve_reg2 = true;
 	s->dsps_fd = -1;
 	s->reg_sock = s->time_sock = s->smgr_sock = -1;
+	s->qmag.sock = -1;
 	s->st = SMGR_DOWN;
 	s->now_ms = real_now_ms;
 	s->log = kmsg_note;
+	s->elog = stderr_note;
 }
 
 /* Highest rate any client wants on a channel, clamped to what the sensor
@@ -429,6 +523,7 @@ static struct client *server_add_client(struct server *s, int fd)
 }
 
 static void smgr_sync(struct server *s);
+static void qmag_sync(struct server *s);
 
 static void server_drop_client(struct server *s, struct client *c)
 {
@@ -542,33 +637,73 @@ static void server_list_line(const struct server *s, char *buf, size_t len)
 		off += (size_t)snprintf(buf + off, len - off,
 			"%s{\"sensor\":\"%s\",\"unit\":\"%s\",\"smgr_id\":%u,\"data_type\":%u,"
 			"\"present\":%s,\"name\":\"%s\",\"vendor\":\"%s\",\"max_hz\":%u,"
-			"\"range\":%.6g,\"resolution\":%.6g,\"rate\":%u,\"claims\":%d}",
+			"\"range\":%.6g,\"resolution\":%.6g,\"rate\":%u,\"claims\":%d,"
+			"\"calibration\":\"%s\"}",
 			i ? "," : "", ch->name, ch->unit, ch->smgr_id, ch->dt,
 			ch->present ? "true" : "false", hw, vendor, ch->max_hz,
-			ch->range, ch->resolution, ch->rate, channel_claims(s, i));
+			ch->range, ch->resolution, ch->rate, channel_claims(s, i), cal_name(ch->cal));
 	}
 	if (off < len)
 		snprintf(buf + off, len - off, "]}\n");
 }
 
+/* The latest QMAG_CAL bias: device frame gauss (the magn samples' axis
+ * map), the raw SMGR-frame Q16 words, accuracy as the DSP sends it. */
+static int format_qmag_fields(const struct qmag *q, char *buf, size_t len)
+{
+	double v[3];
+
+	convert_sample(CH_VEC3, q->bias, v);
+	return snprintf(buf, len, "\"bias\":[%.6g,%.6g,%.6g],\"bias_raw\":[%" PRId32 ",%" PRId32
+			",%" PRId32 "],\"accuracy\":%" PRIu32, v[0], v[1], v[2], q->bias[0], q->bias[1],
+			q->bias[2], q->accuracy);
+}
+
+static const char *qmag_state_name(const struct qmag *q)
+{
+	if (!q->opt)
+		return "off";
+	if (q->busy)
+		return q->msg == SNS_SAM_ENABLE ? "enabling" : q->msg == SNS_SAM_DISABLE ? "disabling"
+										: "attributes";
+	if (q->on)
+		return "on";
+	return q->failed ? "failed" : "idle";
+}
+
 static void server_status_line(const struct server *s, char *buf, size_t len)
 {
 	static const char *st[] = { "down", "info", "ready" };
+	const struct qmag *q = &s->qmag;
+	char qb[192] = "";
 	int i, nc = 0;
+	size_t off;
 
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++)
 		if (s->clients[i].fd >= 0)
 			nc++;
-	snprintf(buf, len,
+	if (q->have_bias) {
+		qb[0] = ',';
+		format_qmag_fields(q, qb + 1, sizeof(qb) - 1);
+	}
+	off = (size_t)snprintf(buf, len,
 		 "{\"ok\":\"status\",\"proto\":%d,\"smgr\":\"%s\",\"smgr_node\":%u,\"smgr_port\":%u,"
 		 "\"smgr_resets\":%lu,\"api\":\"%s\",\"reg2\":%s,\"reg2_reads\":%lu,"
-		 "\"reg2_writes\":%lu,\"reg2_misses\":%lu,\"time2\":%s,\"time2_reqs\":%lu,"
-		 "\"unknown_reqs\":%lu,\"ts\":\"%s\",\"clients\":%d}\n",
+		 "\"reg2_writes\":%lu,\"reg2_misses\":%lu,\"reg2_saves\":%lu,\"reg2_save_errors\":%lu,"
+		 "\"time2\":%s,\"time2_reqs\":%lu,"
+		 "\"unknown_reqs\":%lu,\"ts\":\"%s\",\"clients\":%d",
 		 SENSORD_PROTO, st[s->st], s->smgr_node, s->smgr_port, s->smgr_resets,
 		 s->periodic ? "report" : "buffering",
 		 s->serve_reg2 ? "true" : "false", s->reg.reads, s->reg.writes, s->reg.misses,
+		 s->reg_saves, s->reg_save_errors,
 		 s->serve_time2 ? "true" : "false", s->time2_reqs, s->unknown_reqs,
 		 s->ts_mode == TS_DSPS ? "dsps" : s->ts_mode == TS_CNTVCT ? "cntvct" : "rx", nc);
+	if (off < len)
+		snprintf(buf + off, len - off,
+			 ",\"qmag\":\"%s\",\"qmag_instance\":%d,\"qmag_enables\":%lu,"
+			 "\"qmag_inds\":%lu,\"qmag_errors\":%lu,\"qmag_last_error\":%d%s}\n",
+			 qmag_state_name(q), q->on ? q->instance : -1, q->enables, q->inds, q->errors,
+			 q->had_error ? q->last_error : -1, qb);
 }
 
 static unsigned parse_rate(const char *arg, unsigned dflt)
@@ -604,7 +739,7 @@ static void server_handle_line(struct server *s, struct client *c, char *line)
 		return;
 	}
 	if (strcmp(cmd, "status") == 0) {
-		char buf[768];
+		char buf[1536];
 
 		server_status_line(s, buf, sizeof(buf));
 		client_reply(s, c, "%s", buf);
@@ -711,13 +846,23 @@ static void server_publish(struct server *s, int chn, int64_t t, const int32_t d
 {
 	struct channel *ch = &s->ch[chn];
 	bool released = false;
-	char line[256];
+	char line[384];
 	int i, n;
 
 	ch->samples++;
 	n = format_sample(line, sizeof(line), ch, t, d);
 	if (n <= 0 || (size_t)n >= sizeof(line))
 		return;
+	/* With -Q: the latest QMAG_CAL bias rides along on magn lines. */
+	if (chn == CH_MAGN && s->qmag.have_bias && n >= 2) {
+		char ex[192];
+		int k;
+
+		ex[0] = ',';
+		k = format_qmag_fields(&s->qmag, ex + 1, sizeof(ex) - 1) + 1;
+		if (k > 1 && (size_t)k < sizeof(ex) && (size_t)(n - 2 + k + 2) < sizeof(line))
+			n = n - 2 + snprintf(line + n - 2, sizeof(line) - (size_t)(n - 2), "%s}\n", ex);
+	}
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++) {
 		struct client *c = &s->clients[i];
 
@@ -849,6 +994,9 @@ static void smgr_reset(struct server *s, const char *why)
 		s->ch[i].rate = 0;
 		s->ch[i].busy = false;
 	}
+	/* QMAG_CAL is a separate service: disable it while SMGR is away
+	 * (a no-op without -Q, or if the DSP took it down too). */
+	qmag_sync(s);
 }
 
 static int smgr_send(struct server *s, uint16_t msg, struct qmi_elem_info *ei, const void *req,
@@ -929,7 +1077,7 @@ static void smgr_found(struct server *s, uint32_t node, uint32_t port)
 static void smgr_report(struct server *s, int c, unsigned rate)
 {
 	struct channel *ch = &s->ch[c];
-	uint8_t report_id = (uint8_t)(c + 1);
+	uint8_t report_id = (uint8_t)(s->report_base + c + 1);
 	int rc;
 
 	if (s->periodic) {
@@ -961,7 +1109,7 @@ static void smgr_report(struct server *s, int c, unsigned rate)
 			req.item[0].sensor_id = ch->smgr_id;
 			req.item[0].data_type = ch->dt;
 			req.item[0].decimation = SNS_SMGR_DECIMATION_DEFAULT;
-			req.item[0].calibration = SNS_SMGR_CAL_FULL;
+			req.item[0].calibration = ch->cal;
 			req.item[0].sampling_rate_hz = (uint16_t)rate;
 			req.item[0].sample_quality = SNS_SMGR_SAMPLE_QUALITY_DEFAULT;
 			req.notify_valid = 1;	/* apps processor, no wakeups in suspend */
@@ -971,8 +1119,10 @@ static void smgr_report(struct server *s, int c, unsigned rate)
 	if (rc == 0) {
 		ch->busy = true;
 		ch->want_sent = rate;
-		s->log("%s report %u: %s %u Hz", rate ? (ch->rate ? "change" : "add") : "delete",
-		       report_id, ch->name, rate ? rate : ch->rate);
+		s->log("%s report %u: %s %u Hz%s%s", rate ? (ch->rate ? "change" : "add") : "delete",
+		       report_id, ch->name, rate ? rate : ch->rate,
+		       rate && !s->periodic ? ", calibration " : "",
+		       rate && !s->periodic ? cal_name(ch->cal) : "");
 	}
 }
 
@@ -993,6 +1143,7 @@ static void smgr_sync(struct server *s)
 			continue;
 		smgr_report(s, c, want);
 	}
+	qmag_sync(s);
 }
 
 static void notify_claimants(struct server *s, int c, const char *err)
@@ -1145,7 +1296,7 @@ static void smgr_handle_resp(struct server *s, struct qrtr_packet *pkt, unsigned
 
 static int channel_by_report(struct server *s, uint8_t report_id, uint8_t sensor_id, uint8_t dt)
 {
-	int c = (int)report_id - 1;
+	int c = (int)report_id - (int)s->report_base - 1;
 
 	if (c >= 0 && c < CH_COUNT && s->ch[c].smgr_id == sensor_id && s->ch[c].dt == dt)
 		return c;
@@ -1262,23 +1413,24 @@ static void smgr_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, ui
 	}
 }
 
-/* Find SMGR (0x100, instance 0x3201). msmipc_lookup() always sends
- * lookup_mask 0, and the router matches a server only when
- * (instance & mask) == requested instance
- * (kernel/net/ipc_router/ipc_router_core.c, the LOOKUP_SERVER handler),
- * so the only instance that works is 0 = "all instances of the service";
- * pick 0x3201 out of that list here. Logs the instance set whenever it
- * changes (other instances of 0x100 would be a surprise worth seeing).
+/* Find a DSP service instance (SMGR 0x100 or QMAG_CAL 0x140, both
+ * instance 0x3201). msmipc_lookup() always sends lookup_mask 0, and the
+ * router matches a server only when (instance & mask) == requested
+ * instance (kernel/net/ipc_router/ipc_router_core.c, the LOOKUP_SERVER
+ * handler), so the only instance that works is 0 = "all instances of the
+ * service"; pick the wanted one out of that list here. Logs the instance
+ * set whenever it changes (other instances would be a surprise worth
+ * seeing); seen[] holds the last logged set.
  * Returns 1 with *out filled, 0 if not registered, -1 on error. */
-static int smgr_lookup(struct server *s, struct msm_ipc_server_info *out)
+static int svc_lookup(struct server *s, int sock, uint32_t svc, uint32_t want, char *seen_prev,
+		      size_t seen_sz, struct msm_ipc_server_info *out)
 {
 	struct msm_ipc_server_info info[8];
-	const uint32_t want = (SNS_SMGR_INST << 8) | SNS_SMGR_VERS;
 	char seen[160];
 	size_t o = 0;
 	int n, k, hit = -1;
 
-	n = msmipc_lookup(s->smgr_sock, SNS_SMGR_SVC, 0, info, 8);
+	n = msmipc_lookup(sock, svc, 0, info, 8);
 	if (n < 0)
 		return -1;
 	seen[0] = '\0';
@@ -1289,14 +1441,20 @@ static int smgr_lookup(struct server *s, struct msm_ipc_server_info *out)
 			o += (size_t)snprintf(seen + o, sizeof(seen) - o, "%s0x%x@%u:%u", k ? " " : "",
 					      info[k].instance, info[k].node_id, info[k].port_id);
 	}
-	if (strcmp(seen, s->smgr_seen)) {
-		snprintf(s->smgr_seen, sizeof(s->smgr_seen), "%s", seen);
-		s->log("lookup 0x%x (all instances): %s", SNS_SMGR_SVC, n ? seen : "none");
+	if (strcmp(seen, seen_prev)) {
+		snprintf(seen_prev, seen_sz, "%s", seen);
+		s->log("lookup 0x%x (all instances): %s", svc, n ? seen : "none");
 	}
 	if (hit < 0)
 		return 0;
 	*out = info[hit];
 	return 1;
+}
+
+static int smgr_lookup(struct server *s, struct msm_ipc_server_info *out)
+{
+	return svc_lookup(s, s->smgr_sock, SNS_SMGR_SVC, (SNS_SMGR_INST << 8) | SNS_SMGR_VERS,
+			  s->smgr_seen, sizeof(s->smgr_seen), out);
 }
 
 static void smgr_tick(struct server *s)
@@ -1364,6 +1522,406 @@ static void smgr_tick(struct server *s)
 	}
 }
 
+/* -------------------------------------------------- QMAG_CAL client */
+
+/* The service's port is gone (send failed, socket reset, no answer):
+ * look it up again next time magn wants it. */
+static void qmag_forget(struct server *s, const char *why)
+{
+	struct qmag *q = &s->qmag;
+
+	if (q->port)
+		s->log("qmag %u:%u lost (%s)%s", q->node, q->port, why,
+		       q->on ? "; its instance is gone with it" : "");
+	if (q->sock >= 0)
+		qrtr_close(q->sock);
+	q->sock = -1;
+	q->node = q->port = 0;
+	q->on = q->busy = q->have_bias = false;
+	q->seen[0] = '\0';
+	q->missing_logged = false;
+}
+
+static int qmag_send(struct server *s, uint16_t msg, struct qmi_elem_info *ei, const void *req)
+{
+	struct qmag *q = &s->qmag;
+	ssize_t len;
+	int rc;
+
+	q->pkt.data = q->buf;
+	q->pkt.data_len = sizeof(q->buf);
+	s->txn = s->txn == 0xffff ? 1 : s->txn + 1;
+	len = qmi_encode_message(&q->pkt, QMI_REQUEST, msg, s->txn, req, ei);
+	if (len < 0) {
+		s->log("encode qmag msg 0x%02x failed: %s", msg, strerror((int)-len));
+		return (int)len;
+	}
+	q->busy = true;
+	q->txn = s->txn;
+	q->msg = msg;
+	q->sent = s->now_ms();
+	q->tries = 1;
+	vlog("qmag -> msg 0x%02x txn %u (%zd bytes)", msg, q->txn, len);
+	rc = qrtr_sendto(q->sock, q->node, q->port, q->pkt.data, (unsigned)q->pkt.data_len);
+	if (rc < 0) {
+		qmag_forget(s, strerror(-rc));
+		return rc;
+	}
+	return 0;
+}
+
+/* Rate-limited lookup of 0x140 instance 0x3201. 1 when found. */
+static int qmag_lookup(struct server *s)
+{
+	struct qmag *q = &s->qmag;
+	struct msm_ipc_server_info info;
+	int64_t now = s->now_ms();
+	int n;
+
+	if (now < q->next_lookup)
+		return 0;
+	q->next_lookup = now + SENSORD_LOOKUP_MS;
+	if (q->sock < 0) {
+		q->sock = qrtr_open(0);
+		if (q->sock < 0) {
+			s->log("qmag socket: %s", strerror(errno));
+			return -1;
+		}
+	}
+	n = svc_lookup(s, q->sock, SNS_QMAG_SVC, (SNS_QMAG_INST << 8) | SNS_QMAG_VERS, q->seen,
+		       sizeof(q->seen), &info);
+	if (n > 0) {
+		q->node = info.node_id;
+		q->port = info.port_id;
+		q->missing_logged = false;
+		s->log("qmag service 0x%x found at %u:%u", SNS_QMAG_SVC, q->node, q->port);
+		return 1;
+	}
+	if (!q->missing_logged) {
+		q->missing_logged = true;
+		s->log("qmag service 0x%x inst 0x%x not registered; polling every %d ms while magn is claimed",
+		       SNS_QMAG_SVC, (SNS_QMAG_INST << 8) | SNS_QMAG_VERS, SENSORD_LOOKUP_MS);
+	}
+	return n;
+}
+
+static bool qmag_wanted(const struct server *s)
+{
+	return s->qmag.opt && !s->qmag.failed && s->st == SMGR_READY && channel_claims(s, CH_MAGN);
+}
+
+/* Bring QMAG_CAL in line with the magn claims: on while magn is claimed
+ * and SMGR is up, off otherwise. One request at a time; called again
+ * when it is answered. */
+static void qmag_sync(struct server *s)
+{
+	struct qmag *q = &s->qmag;
+
+	if (!q->opt)
+		return;
+	if (!channel_claims(s, CH_MAGN))
+		q->failed = false;
+	if (q->busy)
+		return;
+	if (q->on) {
+		if (!qmag_wanted(s)) {
+			struct sns_sam_disable_req r = { .instance = q->instance };
+			const char *why = s->st != SMGR_READY ? "smgr not ready" : "no magn claims";
+
+			if (qmag_send(s, SNS_SAM_DISABLE, sns_sam_disable_req_ei, &r) == 0)
+				s->log("qmag disable instance %u (%s)", r.instance, why);
+		}
+		return;
+	}
+	if (!qmag_wanted(s))
+		return;
+	if (!q->port && qmag_lookup(s) <= 0)
+		return;
+	if (!q->attr_done) {
+		qmag_send(s, SNS_SAM_GET_ATTR, sns_empty_ei, NULL);
+		return;
+	}
+	{
+		/* No TLV 0x10: its IDL entry (max_len 0, a u32 at offset 1 of
+		 * a 2-byte struct) says no stock client can send it, and a DSP
+		 * decoder built from that table could overrun its buffer. */
+		struct sns_sam_enable_req r = { .period_valid = 0 };
+
+		if (qmag_send(s, SNS_SAM_ENABLE, sns_sam_enable_req_ei, &r) == 0)
+			s->log("qmag enable (no report period TLV)");
+	}
+}
+
+static void qmag_report(struct server *s, const struct sns_sam_qmag_ind *ind)
+{
+	struct qmag *q = &s->qmag;
+	void (*note)(const char *fmt, ...) = s->elog;
+	int64_t now = s->now_ms();
+	double v[3];
+
+	if (!q->on || ind->instance != q->instance) {
+		s->log("qmag report for instance %u ignored (%s %u)", ind->instance,
+		       q->on ? "ours is" : "not enabled; last", q->instance);
+		return;
+	}
+	q->inds++;
+	/* Every report goes to stderr; the kernel log gets the first, any
+	 * accuracy change, and at most one every 5 s otherwise. */
+	if (q->inds == 1 || !q->have_bias || ind->accuracy != q->accuracy ||
+	    now - q->last_note >= 5000) {
+		note = s->log;
+		q->last_note = now;
+	}
+	memcpy(q->bias, ind->bias, sizeof(q->bias));
+	q->accuracy = ind->accuracy;
+	q->ts = ind->timestamp;
+	q->have_bias = true;
+	convert_sample(CH_VEC3, ind->bias, v);
+	note("qmag report %lu: instance %u ts %" PRIu32 " bias raw %" PRId32 " %" PRId32 " %" PRId32
+	     " (SMGR frame, Q16 %.5f %.5f %.5f gauss) device x %.5f y %.5f z %.5f gauss, accuracy %" PRIu32,
+	     q->inds, ind->instance, ind->timestamp, ind->bias[0], ind->bias[1], ind->bias[2],
+	     ind->bias[0] / 65536.0, ind->bias[1] / 65536.0, ind->bias[2] / 65536.0, v[0], v[1], v[2],
+	     ind->accuracy);
+}
+
+/* An ENABLE response we are not waiting for (after a give-up, or a
+ * duplicate) that created an instance which is not ours: disable it at
+ * once, fire and forget, so no DSP instance outlives its owner. */
+static void qmag_stray_enable(struct server *s, struct qrtr_packet *pkt)
+{
+	struct qmag *q = &s->qmag;
+	struct sns_sam_instance_resp r;
+	struct sns_sam_disable_req d;
+	DEFINE_QRTR_PACKET(out, 64);
+	unsigned int t;
+	int rc;
+
+	memset(&r, 0, sizeof(r));
+	rc = qmi_decode_message(&r, &t, pkt, QMI_RESPONSE, SNS_SAM_ENABLE, sns_sam_instance_resp_ei);
+	if (rc < 0 || r.resp.result != SNS_RESULT_SUCCESS || !r.instance_valid)
+		return;
+	if (q->on && r.instance == q->instance)
+		return;
+	d.instance = r.instance;
+	s->txn = s->txn == 0xffff ? 1 : s->txn + 1;
+	rc = (int)qmi_encode_message(&out, QMI_REQUEST, SNS_SAM_DISABLE, s->txn, &d,
+				     sns_sam_disable_req_ei);
+	if (rc >= 0)
+		rc = qrtr_sendto(q->sock, q->node, q->port, out.data, (unsigned)out.data_len);
+	s->log("qmag late enable response created instance %u: disabling it%s", r.instance,
+	       rc < 0 ? " failed" : "");
+}
+
+static void qmag_handle_resp(struct server *s, struct qrtr_packet *pkt, unsigned msg, uint16_t txn)
+{
+	struct qmag *q = &s->qmag;
+	unsigned int t;
+	int rc;
+
+	if (!q->busy || txn != q->txn || msg != q->msg) {
+		vlog("qmag <- stray response msg 0x%02x txn %u", msg, txn);
+		if (msg == SNS_SAM_ENABLE)
+			qmag_stray_enable(s, pkt);
+		return;
+	}
+	q->busy = false;
+	switch (msg) {
+	case SNS_SAM_GET_ATTR: {
+		struct sns_sam_attr_resp r;
+
+		memset(&r, 0, sizeof(r));
+		q->attr_done = true;
+		rc = qmi_decode_message(&r, &t, pkt, QMI_RESPONSE, msg, sns_sam_attr_resp_ei);
+		if (rc < 0 || r.resp.result != SNS_RESULT_SUCCESS) {
+			s->log("qmag attributes: failed (decode %d, result %u err %u)", rc, r.resp.result,
+			       r.resp.err);
+			break;
+		}
+		s->log("qmag attributes (TLV 0x03..0x0b): %" PRIu32 " %" PRIu32 " 0x%" PRIx32 " %" PRIu32
+		       " %" PRIu32 " %" PRIu32 " %" PRIu32 " %" PRIu32 " %" PRIu32 "; suid %s0x%016" PRIx64
+		       "; reserved %s%" PRIu32, r.attr[0], r.attr[1], r.attr[2], r.attr[3], r.attr[4],
+		       r.attr[5], r.attr[6], r.attr[7], r.attr[8], r.suid_valid ? "" : "(absent) ", r.suid,
+		       r.reserved_valid ? "" : "(absent) ", r.reserved);
+		s->log("qmag attributes read as: revision %" PRIu32 ", processor %" PRIu32
+		       ", report modes 0x%" PRIx32 ", report rate %.4g..%.4g Hz, sample rate %.4g..%.4g Hz"
+		       ", max batch %" PRIu32 ", power %.4g mA (rates/power as Q16)",
+		       r.attr[0], r.attr[1], r.attr[2], r.attr[3] / 65536.0, r.attr[4] / 65536.0,
+		       r.attr[5] / 65536.0, r.attr[6] / 65536.0, r.attr[7], r.attr[8] / 65536.0);
+		break;
+	}
+	case SNS_SAM_ENABLE: {
+		struct sns_sam_instance_resp r;
+
+		memset(&r, 0, sizeof(r));
+		rc = qmi_decode_message(&r, &t, pkt, QMI_RESPONSE, msg, sns_sam_instance_resp_ei);
+		if (rc >= 0 && r.resp.result == SNS_RESULT_SUCCESS && r.instance_valid) {
+			q->on = true;
+			q->instance = r.instance;
+			q->enables++;
+			q->have_bias = false;
+			s->log("qmag enabled: instance %u", r.instance);
+		} else {
+			q->failed = true;
+			s->log("qmag enable refused (decode %d, result %u err %u, instance %s); not retried until magn is released",
+			       rc, r.resp.result, r.resp.err, r.instance_valid ? "given" : "missing");
+		}
+		break;
+	}
+	case SNS_SAM_DISABLE: {
+		struct sns_sam_instance_resp r;
+
+		memset(&r, 0, sizeof(r));
+		rc = qmi_decode_message(&r, &t, pkt, QMI_RESPONSE, msg, sns_sam_instance_resp_ei);
+		if (rc < 0)
+			s->log("qmag disabled: instance %u (response did not decode: %d)", q->instance, rc);
+		else
+			s->log("qmag disabled: instance %u (result %u err %u)", q->instance,
+			       r.resp.result, r.resp.err);
+		q->on = false;
+		q->have_bias = false;
+		break;
+	}
+	}
+	qmag_sync(s);
+}
+
+/* libqrtr does not enforce mandatory TLVs: 1 when TLVs first..last are
+ * all present in the message (walked with bounds checks). */
+static bool tlvs_present(const struct qrtr_packet *pkt, unsigned first, unsigned last)
+{
+	const uint8_t *p = (const uint8_t *)pkt->data + SNS_QMI_HDR_LEN;
+	size_t left = pkt->data_len - SNS_QMI_HDR_LEN;
+	uint32_t seen = 0, want = 0;
+	unsigned k;
+
+	for (k = first; k <= last && k < 32; k++)
+		want |= 1u << k;
+	while (left >= 3) {
+		size_t len = (size_t)(p[1] | p[2] << 8);
+
+		if (len > left - 3)
+			return false;
+		if (p[0] < 32)
+			seen |= 1u << p[0];
+		p += 3 + len;
+		left -= 3 + len;
+	}
+	return (seen & want) == want;
+}
+
+static void qmag_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, uint32_t port)
+{
+	struct qmag *q = &s->qmag;
+	const uint8_t *h = pkt->data;
+	unsigned int msg, t;
+	uint16_t txn;
+	int rc;
+
+	if (pkt->data_len < SNS_QMI_HDR_LEN || qmi_decode_header(pkt, &msg) < 0) {
+		s->log("qmag: malformed QMI message from %u:%u, dropped", node, port);
+		return;
+	}
+	if (!q->port || node != q->node || port != q->port) {
+		vlog("qmag socket: message from unexpected %u:%u, ignored", node, port);
+		return;
+	}
+	txn = (uint16_t)(h[1] | h[2] << 8);
+	if (h[0] == QMI_RESPONSE) {
+		vlog("qmag <- resp 0x%02x txn %u (%zu bytes)", msg, txn, pkt->data_len);
+		qmag_handle_resp(s, pkt, msg, txn);
+	} else if (h[0] == QMI_INDICATION && msg == SNS_SAM_REPORT_IND) {
+		struct sns_sam_qmag_ind ind;
+
+		memset(&ind, 0, sizeof(ind));
+		rc = qmi_decode_message(&ind, &t, pkt, QMI_INDICATION, (int)msg, sns_sam_qmag_ind_ei);
+		if (rc < 0)
+			s->log("qmag report indication did not decode (%d)", rc);
+		else if (!tlvs_present(pkt, 0x01, 0x04))
+			s->log("qmag report indication without all of TLVs 0x01..0x04, ignored");
+		else
+			qmag_report(s, &ind);
+	} else if (h[0] == QMI_INDICATION && msg == SNS_SAM_ERROR_IND) {
+		struct sns_sam_error_ind ind;
+
+		memset(&ind, 0, sizeof(ind));
+		rc = qmi_decode_message(&ind, &t, pkt, QMI_INDICATION, (int)msg, sns_sam_error_ind_ei);
+		if (rc < 0 || !tlvs_present(pkt, 0x01, 0x02)) {
+			s->log("qmag error indication malformed (decode %d), ignored", rc);
+		} else if (q->on && ind.instance == q->instance) {
+			/* Counted and shown in status; what an error means for
+			 * the instance is unknown, so it stays enabled. */
+			q->errors++;
+			q->last_error = ind.error;
+			q->had_error = true;
+			s->log("qmag error indication: error %u for our instance %u", ind.error,
+			       ind.instance);
+		} else {
+			s->log("qmag error indication: error %u instance %u (not ours: %s%u)", ind.error,
+			       ind.instance, q->on ? "" : "none enabled, last ", q->instance);
+		}
+	} else {
+		vlog("qmag <- type %u msg 0x%02x ignored", h[0], msg);
+	}
+}
+
+static int64_t qmag_timeout_at(const struct qmag *q)
+{
+	return q->sent + (q->msg == SNS_SAM_ENABLE ? SENSORD_QMAG_ENABLE_TIMEOUT_MS
+						   : SENSORD_REQ_TIMEOUT_MS);
+}
+
+/* Resends and give-ups for the request in flight (ENABLE: never
+ * resent; forgetting the port closes our socket, which tells the DSP
+ * this client is gone); lookup retries. */
+static void qmag_tick(struct server *s)
+{
+	struct qmag *q = &s->qmag;
+	int64_t now = s->now_ms();
+
+	if (!q->opt)
+		return;
+	if (q->busy && now >= qmag_timeout_at(q)) {
+		if (q->tries >= SENSORD_REQ_TRIES || q->msg == SNS_SAM_ENABLE) {
+			uint16_t msg = q->msg;
+
+			s->log("qmag msg 0x%02x txn %u: no response after %d tries, giving up", msg,
+			       q->txn, q->tries);
+			q->busy = false;
+			if (msg == SNS_SAM_GET_ATTR) {
+				q->attr_done = true;
+			} else {
+				if (msg == SNS_SAM_ENABLE)
+					q->failed = true;
+				qmag_forget(s, "no response");
+			}
+		} else {
+			int rc;
+
+			q->tries++;
+			q->sent = now;
+			s->log("qmag msg 0x%02x txn %u: no response, resending (try %d)", q->msg, q->txn,
+			       q->tries);
+			rc = qrtr_sendto(q->sock, q->node, q->port, q->pkt.data,
+					 (unsigned)q->pkt.data_len);
+			if (rc < 0)
+				qmag_forget(s, strerror(-rc));
+		}
+	}
+	qmag_sync(s);
+}
+
+/* When qmag_tick has something to do next, for the poll() timeout. */
+static int64_t qmag_deadline(const struct server *s, int64_t next)
+{
+	const struct qmag *q = &s->qmag;
+
+	if (q->busy && qmag_timeout_at(q) < next)
+		next = qmag_timeout_at(q);
+	else if (!q->busy && !q->on && !q->port && qmag_wanted(s) && q->next_lookup < next)
+		next = q->next_lookup;
+	return next;
+}
+
 /* ------------------------------------------------ REG2/TIME2 servers */
 
 static void hexdump_log(struct server *s, const char *what, const void *data, size_t len)
@@ -1411,6 +1969,54 @@ static void send_version(struct server *s, int sock, uint32_t node, uint32_t por
 	send_resp(s, sock, node, port, SNS_MSG_VERSION, txn, &r, sns_version_resp_ei);
 }
 
+/* QMAG_CAL's registry: group 2970 = items 3800..3840 (stock map). */
+static bool reg2_is_qmag(bool group, uint16_t id)
+{
+	return group ? id == SNS_REG2_QMAG_GROUP : id >= 3800 && id <= 3840;
+}
+
+#define SENSORD_REG_SAVE_QUIET_MS 3000
+#define SENSORD_REG_SAVE_MAX_MS	30000	/* ... but never later than this */
+
+/* Write the RAM registry back over the /run copy. A failure is logged
+ * and dropped (the RAM copy still serves the DSP); the next DSP write
+ * tries again. */
+static void reg_writeback(struct server *s, const char *why)
+{
+	int rc;
+
+	if (!s->reg_path || !s->reg_dirty)
+		return;
+	s->reg_dirty = false;
+	rc = sns_reg_save(&s->reg, s->reg_path);
+	if (rc < 0) {
+		s->reg_save_errors++;
+		s->log("registry write-back to %s failed (%s)%s; the DSP's writes stay in RAM only",
+		       s->reg_path, strerror(-rc), rc == -EXDEV ? ": not a RAM filesystem" : "");
+		return;
+	}
+	s->reg_saves++;
+	s->log("registry written back to %s (%s; %lu DSP writes so far; persist untouched)",
+	       s->reg_path, why, s->reg.writes);
+}
+
+/* When the pending write-back is due: 3 s after the last DSP write,
+ * capped at 30 s after the first unsaved one (steady writes cannot
+ * postpone it for ever). */
+static int64_t reg_save_due(const struct server *s)
+{
+	int64_t quiet = s->reg_dirty_at + SENSORD_REG_SAVE_QUIET_MS;
+	int64_t cap = s->reg_dirty_since + SENSORD_REG_SAVE_MAX_MS;
+
+	return quiet < cap ? quiet : cap;
+}
+
+static void reg_tick(struct server *s)
+{
+	if (s->reg_dirty && s->now_ms() >= reg_save_due(s))
+		reg_writeback(s, "after DSP writes");
+}
+
 static void reg2_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, uint32_t port)
 {
 	const uint8_t *h = pkt->data;
@@ -1451,6 +2057,10 @@ static void reg2_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, ui
 		if (n < 0)
 			s->log("reg2: %s read %u from %u:%u: %s", group ? "group" : "item", req.id,
 			       node, port, rc < 0 ? "malformed" : "no such id");
+		else if (reg2_is_qmag(group, req.id))
+			/* Not read at boot live: shows QMAG_CAL starting up. */
+			s->log("reg2: %s read %u (QMAG_CAL) from %u:%u -> %d bytes",
+			       group ? "group" : "item", req.id, node, port, n);
 		else
 			vlog("reg2: %s read %u from %u:%u -> %d bytes", group ? "group" : "item",
 			     req.id, node, port, n);
@@ -1477,7 +2087,7 @@ static void reg2_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, ui
 		const uint8_t *data;
 		uint32_t len;
 		uint16_t id;
-		char what[64];
+		char what[96];
 
 		memset(&gw, 0, sizeof(gw));
 		memset(&iw, 0, sizeof(iw));
@@ -1496,9 +2106,15 @@ static void reg2_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, ui
 			len = 0;
 		if (rc >= 0)
 			rc = sns_reg_write(&s->reg, group, id, data, len);
-		snprintf(what, sizeof(what), "reg2: %s write %u from %u:%u (RAM only)%s",
-			 group ? "group" : "item", id, node, port,
-			 rc == -ENOENT ? " no such id" : rc < 0 ? " rejected" : "");
+		if (rc >= 0) {
+			if (!s->reg_dirty)
+				s->reg_dirty_since = s->now_ms();
+			s->reg_dirty = true;
+			s->reg_dirty_at = s->now_ms();	/* debounce: wait for quiet */
+		}
+		snprintf(what, sizeof(what), "reg2: %s write %u%s from %u:%u (RAM, /run copy)%s",
+			 group ? "group" : "item", id, reg2_is_qmag(group, id) ? " (QMAG_CAL)" : "",
+			 node, port, rc == -ENOENT ? " no such id" : rc < 0 ? " rejected" : "");
 		hexdump_log(s, what, data, len);
 		send_generic(s, s->reg_sock, node, port, msg, txn,
 			     rc < 0 ? SNS_RESULT_FAILURE : SNS_RESULT_SUCCESS,
@@ -1630,6 +2246,9 @@ static int server_deadline_ms(struct server *s)
 	int64_t next = s->st == SMGR_DOWN ? s->next_lookup : s->next_check;
 	int i, c;
 
+	next = qmag_deadline(s, next);
+	if (s->reg_dirty && s->reg_path && reg_save_due(s) < next)
+		next = reg_save_due(s);
 	for (i = 0; i < SENSORD_MAX_PENDING; i++)
 		if (s->pend[i].used && s->pend[i].sent + SENSORD_REQ_TIMEOUT_MS < next)
 			next = s->pend[i].sent + SENSORD_REQ_TIMEOUT_MS;
@@ -1708,7 +2327,7 @@ static void usage(void)
 {
 	fprintf(stderr,
 		"usage: sensord [-r REG] [-m MAP] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ] [-s CH=ID:DT]...\n"
-		"               [-P] [-t] [-R] [-F] [-v]\n"
+		"               [-c CH=full|factory|raw]... [-i BASE] [-Q] [-P] [-t] [-R] [-F] [-v]\n"
 		"       sensord [-S SOCK] [-n COUNT] list | status | get SENSOR [HZ] | watch SENSOR [HZ]\n");
 }
 
@@ -1802,6 +2421,37 @@ static int parse_override(struct server *s, const char *arg)
 	return 0;
 }
 
+static int parse_cal(struct server *s, const char *arg)
+{
+	char name[32], cal[16];
+	int c, k;
+
+	if (sscanf(arg, "%31[^=]=%15s", name, cal) != 2)
+		return -1;
+	c = channel_from_name(name);
+	if (c < 0)
+		return -1;
+	for (k = 0; k <= SNS_SMGR_CAL_RAW; k++)
+		if (strcmp(cal, cal_names[k]) == 0 || (cal[0] == '0' + k && !cal[1])) {
+			s->ch[c].cal = (uint8_t)k;
+			return 0;
+		}
+	return -1;
+}
+
+static int parse_u32(const char *arg, uint32_t *out)
+{
+	char *end;
+	unsigned long long v;
+
+	errno = 0;
+	v = strtoull(arg, &end, 0);
+	if (errno || end == arg || *end || v > UINT32_MAX)
+		return -1;
+	*out = (uint32_t)v;
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	static struct server s;
@@ -1812,7 +2462,7 @@ int main(int argc, char **argv)
 	size_t got = 0;
 
 	server_init(&s);
-	while ((opt = getopt(argc, argv, "r:m:S:T:b:s:n:PtRFv")) != -1) {
+	while ((opt = getopt(argc, argv, "r:m:S:T:b:s:c:i:Qn:PtRFv")) != -1) {
 		switch (opt) {
 		case 'r': reg_path = optarg; break;
 		case 'm': map_path = optarg; break;
@@ -1825,6 +2475,23 @@ int main(int argc, char **argv)
 				return 64;
 			}
 			break;
+		case 'c':
+			if (parse_cal(&s, optarg)) {
+				usage();
+				return 64;
+			}
+			break;
+		case 'i': {
+			uint32_t v;
+
+			if (parse_u32(optarg, &v) || v > 255 - CH_COUNT) {
+				usage();
+				return 64;
+			}
+			s.report_base = v;
+			break;
+		}
+		case 'Q': s.qmag.opt = true; break;
 		case 'n': count = atol(optarg); break;
 		case 'P': s.periodic = true; break;
 		case 't': s.serve_time2 = true; break;
@@ -1856,6 +2523,7 @@ int main(int argc, char **argv)
 	}
 	signal(SIGINT, on_signal);
 	signal(SIGTERM, on_signal);
+	signal(SIGHUP, on_signal);	/* a closed telnet session: exit cleanly too */
 	signal(SIGPIPE, SIG_IGN);
 
 	if (strcmp(ts, "dsps") == 0) {
@@ -1893,8 +2561,9 @@ int main(int argc, char **argv)
 				  strerror(-rc), got, s.reg.size);
 			return 1;
 		}
-		kmsg_note("registry %s loaded: %zu bytes, %zu groups, %zu items (RAM copy; DSP writes stay in RAM)",
+		kmsg_note("registry %s loaded: %zu bytes, %zu groups, %zu items (RAM copy; DSP writes are written back to this file, never to persist)",
 			  reg_path, s.reg.size, s.reg.ngroups, s.reg.nitems);
+		s.reg_path = reg_path;
 		if (publish(&s, &s.reg_sock, SNS_REG2_SVC, SNS_REG2_VERS, SNS_REG2_INST))
 			return 1;
 	} else {
@@ -1909,15 +2578,22 @@ int main(int argc, char **argv)
 		kmsg_note("listen %s: %s; exiting", sock_path, strerror(-lfd));
 		return 1;
 	}
-	kmsg_note("ready: %s, %s API, timestamps %s%s%s", sock_path,
+	kmsg_note("ready: %s, %s API, timestamps %s%s%s%s", sock_path,
 		  s.periodic ? "periodic REPORT" : "BUFFERING",
 		  s.ts_mode == TS_DSPS ? "dsps" : s.ts_mode == TS_CNTVCT ? "cntvct" : "rx",
-		  s.report_cap ? ", report rate capped" : "", s.force ? ", -F" : "");
+		  s.report_cap ? ", report rate capped" : "", s.force ? ", -F" : "",
+		  s.qmag.opt ? ", QMAG_CAL client (-Q)" : "");
+	if (s.report_base)
+		kmsg_note("SMGR report IDs %u..%u (-i)", s.report_base + 1, s.report_base + CH_COUNT);
+	for (i = 0; i < CH_COUNT; i++)
+		if (s.ch[i].cal != SNS_SMGR_CAL_FULL)
+			kmsg_note("%s: calibration %s (-c)%s", s.ch[i].name, cal_name(s.ch[i].cal),
+				  s.periodic ? " has no effect with -P: REPORT has no calibration field" : "");
 
 	while (!g_stop) {
-		struct pollfd pfd[5 + SENSORD_MAX_CLIENTS];
+		struct pollfd pfd[6 + SENSORD_MAX_CLIENTS];
 		struct client *cmap[SENSORD_MAX_CLIENTS];
-		int n = 0, nclients = 0, ireg = -1, itime = -1, ismgr = -1, ilisten;
+		int n = 0, nclients = 0, ireg = -1, itime = -1, ismgr = -1, iqmag = -1, ilisten;
 
 		pfd[n++] = (struct pollfd){ .fd = g_sigpipe[0], .events = POLLIN };
 		if (s.reg_sock >= 0) {
@@ -1931,6 +2607,10 @@ int main(int argc, char **argv)
 		if (s.smgr_sock >= 0 && s.st != SMGR_DOWN) {
 			ismgr = n;
 			pfd[n++] = (struct pollfd){ .fd = s.smgr_sock, .events = POLLIN };
+		}
+		if (s.qmag.sock >= 0) {
+			iqmag = n;
+			pfd[n++] = (struct pollfd){ .fd = s.qmag.sock, .events = POLLIN };
 		}
 		ilisten = n;
 		pfd[n++] = (struct pollfd){ .fd = lfd, .events = POLLIN };
@@ -1983,6 +2663,18 @@ int main(int argc, char **argv)
 			else if (rc > 0)
 				smgr_rx(&s, &pkt, node, port);
 		}
+		if (iqmag >= 0 && s.qmag.sock == pfd[iqmag].fd &&
+		    (pfd[iqmag].revents & (POLLIN | POLLERR))) {
+			static char buf[SENSORD_QMI_BUF];
+			struct qrtr_packet pkt;
+			uint32_t node = 0, port = 0;
+
+			rc = ipc_recv(s.qmag.sock, buf, sizeof(buf), &pkt, &node, &port);
+			if (rc == -ENETRESET)
+				qmag_forget(&s, "IPC router reset");
+			else if (rc > 0)
+				qmag_rx(&s, &pkt, node, port);
+		}
 		if (pfd[ilisten].revents & POLLIN) {
 			int cfd = accept4(lfd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
 
@@ -2012,6 +2704,8 @@ int main(int argc, char **argv)
 				server_client_input(&s, cmap[i]);
 		}
 		smgr_tick(&s);
+		qmag_tick(&s);
+		reg_tick(&s);
 		server_tick_clients(&s);
 		server_flush_all(&s);
 	}
@@ -2028,6 +2722,50 @@ int main(int argc, char **argv)
 		for (i = 0; i < CH_COUNT; i++)
 			if (s.ch[i].rate && !s.ch[i].busy)
 				smgr_report(&s, i, 0);
+	/* QMAG_CAL: the clients are gone, so nothing wants it. Disable an
+	 * enabled instance, and give a request in flight (an ENABLE above
+	 * all, whose instance would otherwise be left behind) a short while
+	 * to be answered, disabling what it created. */
+	{
+		struct qmag *q = &s.qmag;
+		int64_t end = real_now_ms() + SENSORD_QMAG_EXIT_WAIT_MS;
+		bool sent = false;
+
+		while (q->sock >= 0) {
+			struct pollfd pfd = { .fd = q->sock, .events = POLLIN };
+			int64_t left = end - real_now_ms();
+
+			if (q->on && !q->busy && !sent) {
+				struct sns_sam_disable_req r = { .instance = q->instance };
+
+				sent = true;
+				if (qmag_send(&s, SNS_SAM_DISABLE, sns_sam_disable_req_ei, &r) == 0)
+					kmsg_note("qmag disable instance %u (exiting)", r.instance);
+				continue;
+			}
+			if (!q->busy)
+				break;
+			if (left <= 0) {
+				kmsg_note("qmag msg 0x%02x unanswered at exit%s", q->msg,
+					  q->msg == SNS_SAM_ENABLE ?
+					  "; its instance, if any, lasts until the DSP drops our port" : "");
+				break;
+			}
+			if (poll(&pfd, 1, left > 100 ? 100 : (int)left) > 0) {
+				static char buf[SENSORD_QMI_BUF];
+				struct qrtr_packet pkt;
+				uint32_t node = 0, port = 0;
+
+				rc = ipc_recv(q->sock, buf, sizeof(buf), &pkt, &node, &port);
+				if (rc == -ENETRESET)
+					qmag_forget(&s, "IPC router reset");
+				else if (rc > 0)
+					qmag_rx(&s, &pkt, node, port);
+			}
+		}
+	}
+	if (s.qmag.sock >= 0)
+		qrtr_close(s.qmag.sock);
 	close(lfd);
 	unlink(sock_path);
 	if (s.smgr_sock >= 0)
@@ -2036,6 +2774,7 @@ int main(int argc, char **argv)
 		qrtr_close(s.reg_sock);
 	if (s.time_sock >= 0)
 		qrtr_close(s.time_sock);
+	reg_writeback(&s, "on exit");
 	sns_reg_free(&s.reg);
 	return 0;
 }
