@@ -1,8 +1,10 @@
-# Sensors: stock research and implementation plan
+# Sensors: research and implementation record
 
-[Connectivity and sensors](connectivity-and-sensors.md#on-board-sensors) · [Next-steps index](README.md) · [Feature guide](../features/sensors.md)
+[Research index](README.md) · [Remaining work](../next-steps/sensors.md) · [Feature guide](../features/sensors.md)
 
-Status: **implemented and live-verified 2026-09-26** (S0 to S5 below all passed). How to use it: [On-board sensors](../features/sensors.md). What is left: [remaining work](#remaining-work). The research below is kept as the record of why it is built this way. Raw stock evidence: [`logs/stock-sensors-survey-2026-09-26.txt`](../../logs/stock-sensors-survey-2026-09-26.txt); live evidence: `logs/sensors-live-test-2026-09-26-*`.
+Status: **implemented and live-verified 2026-09-26** (S0 to S5 below all passed). How to use it: [On-board sensors](../features/sensors.md). What is left: [sensor roadmap](../next-steps/sensors.md). The research below is kept as the record of why it is built this way. Raw stock evidence: [`logs/stock-sensors-survey-2026-09-26.txt`](../../logs/stock-sensors-survey-2026-09-26.txt); live evidence: `logs/sensors-live-test-2026-09-26-*`.
+
+This record preserves the original design, completed experiments and acceptance results through 2026-10-01. Prospective wording in the original plans is historical; the feature guide owns the current contract and the sensor roadmap owns follow-ups.
 
 Goal: accelerometer, gyroscope, magnetometer, ambient light and proximity data available to userspace programs on the Alpine image (compass for the map, auto-brightness, wake-on-motion/tap, ride logging), exposed in a way that follows Linux conventions.
 
@@ -119,17 +121,7 @@ Driven by the sensors lead with the existing telnet driver (see the phone live-t
 
 ## 6. Documentation
 
-Done 2026-09-26: [feature guide](../features/sensors.md), feature index row, [On-board sensors](connectivity-and-sensors.md#on-board-sensors) in the connectivity plan, repository layout, and the build-log entry.
-
-## Remaining work
-
-- **Magnetometer calibration check: done 2026-09-27** ([results](#results-2026-09-27)). SMGR's full calibration removes a hard-iron bias the ADSP learns on its own (registry group 2980); QMAG_CAL is not needed. The DSP's registry writes are now kept in the `/run` copy for the whole boot (`sensord` writes them back, `sensors-up` reuses that copy in the same boot without touching persist; live-checked 2026-09-27). A `sensord` restart does not restart the ADSP, which keeps its calibration in memory; the `/run` copy matters when the ADSP restarts or re-reads the registry, and as the source for a future across-boot copy.
-- **Keep the learned calibration across reboots**, once the image has writable storage of its own (persist is never written): save the DSP-written registry groups (2980 magnetometer bias, 2610 gyro bias) there and merge them into the `/run` copy at `sensors-up`. Until then every boot starts uncorrected, and learning is condition-dependent (slow face-by-face holds worked, a fast 30 s figure-8 alone did not).
-- **Tilt-compensated compass**: done and live-tested 2026-10-01 as good enough for a map at a stop; open accuracy items are listed under [section 8 results](#results-2026-10-01-stopped-here-as-good-enough).
-- **Wake-on-motion and tap** through the DSP's SAM services (AMD 0x104, TAP 0x11a; their IDL is already in the dump), exposed as claimable event channels.
-- **ALS backlight policy**: auto-brightness from `illuminance`, with the display owner (fblog/UI) deciding.
-- **inittab and power**: measure idle current with `sensord` up and nothing claimed, and while streaming accel at ride rates, then decide whether `sensors-up` runs at boot.
-- **Optional `net.hadess.SensorProxy` facade** (iio-sensor-proxy's D-Bus interface) if an off-the-shelf consumer ever needs it; `dbus-daemon` already runs for BlueZ.
+Done 2026-09-26: [feature guide](../features/sensors.md), feature index row, [On-board sensors](../next-steps/connectivity-and-sensors.md#on-board-sensors) in the connectivity plan, repository layout, and the build-log entry.
 
 ## 7. Magnetometer calibration check (research 2026-09-27)
 

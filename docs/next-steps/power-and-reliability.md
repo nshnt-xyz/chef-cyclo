@@ -6,16 +6,26 @@ These are plans, not implemented behavior. Package versions and candidate approa
 
 ## Battery and charging
 
-Done 2026-09-26 ([feature guide](../features/battery-and-charging.md), [plan](battery-and-charging-plan.md)): the kernel charges on its own under our image, the fuel gauge is sane with the right profile and no helper, status flips correctly, and `powerd` provides the low-battery warn/shutdown, the charge throttle and a `/run/power` log. Remaining:
+The [feature guide](../features/battery-and-charging.md) owns the implemented charging and `powerd` policy. Remaining validation and integration:
 
-- **Ride drain (plan step L5):** ride image with GPS on, unplugged for at least 1 h, then pull `/run/power/log.csv` for %/h and mean current.
-- **`Full` and recharge restart (Q4):** needs a long charge to 100 %.
-- **Off-mode charging under our image:** needs a standalone boot. Today power-off with USB attached returns to Android's charger.
-- **Persistent cycle/age and power logs:** need writable storage. Until then a low-battery shutdown on the ride image loses the RAM ride log.
+- **Ride drain:** run the ride image with GPS active, unplugged for at least 1 h, then retrieve `/run/power/log.csv` for %/h and mean current. Do not span plug events when calculating drain.
+- **Full and recharge:** observe a long charge to 100% and confirm recharge restarts correctly.
+- **Thermal and source coverage:** verify throttle step-down and normal 44/42 °C behavior, and an SDP source. The 68 °C and empty-battery shutdown paths were not observed at real thresholds; retain that verification limitation without deliberately overheating the phone. Investigate stock's below-44 °C throttle before claiming thermal-policy parity.
+- **Effective FCC logging:** add `main/constant_charge_current_max` to power logs; the battery-profile vote does not show the throttle's effective limit.
+- **Off-mode charging:** implement our charger mode after [standalone boot](storage-and-boot.md#standalone-boot). Today shutdown with USB returns to Android's charger.
+- **Persistent cycle/age and power logs:** integrate after [writable storage](storage-and-boot.md#persistent-storage). RAM ride logs are still lost at low-battery shutdown.
+
+Acceptance details and original completed test steps are retained in the [research record](../research/battery-and-charging.md).
 
 ## Suspend and idle power
 
-`lpm_levels.sleep_disabled=1` is still on the cmdline; measure idle current with the panel off, then with the modem up vs. off (GPS keeps it powered), BT asleep vs. off, Wi-Fi off vs. associated, and decide what a ride's power budget allows. First validate current readings under [battery and charging](#battery-and-charging), and retain the clean-shutdown path.
+`lpm_levels.sleep_disabled=1` is still on the cmdline; measure idle current with the panel off, then with the modem up vs. off (GPS keeps it powered), BT asleep vs. off, Wi-Fi off vs. associated, and decide what a ride's power budget allows. Use the verified current sign convention in the [battery guide](../features/battery-and-charging.md), and retain the clean-shutdown path.
+
+## ADSP lifecycle and power
+
+Audio and sensors share the ADSP. Measure idle draw with it off, audio brought up, sensors running without claims, and sensors streaming. The kernel accepts `0` on `/sys/kernel/boot_adsp/boot`, but unload/reload is unverified.
+
+On an ephemeral boot, test unload with no audio or sensor claims, ALSA card removal, APR/service cleanup, and a second load with both audio and sensor recovery. Establish ownership of shared firmware mounts and services before changing production teardown. Reboot remains the verified reset. Use these results for [sensor boot integration](sensors.md#boot-integration-and-power) and [alert-player lifecycle](connectivity-and-sensors.md#audio).
 
 ## Crash recovery
 

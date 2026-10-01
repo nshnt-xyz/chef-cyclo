@@ -15,6 +15,7 @@ GPS is started manually in the baseline image. A separate temporary ride image s
 - [Build and boot](docs/building.md) — prerequisites, commands, rebuilding, and build troubleshooting.
 - [Feature guides](docs/features/README.md) — use, modify, and test the working subsystems.
 - [Next steps](docs/next-steps/README.md) — remaining work and dependencies.
+- [Research records](docs/research/README.md) — completed investigations, design decisions, and experiment findings.
 - [Device reference](docs/device.md) — hardware, backups, and boot behavior.
 - [Build log](docs/build-log.md) — dated experiments, fixes, measurements, and verification evidence.
 

@@ -1,6 +1,6 @@
 # Battery and charging
 
-[Feature index](README.md) · [Build instructions](../building.md) · [Plan and stock research](../next-steps/battery-and-charging-plan.md)
+[Feature index](README.md) · [Build instructions](../building.md) · [Stock research and implementation record](../research/battery-and-charging.md)
 
 ## Current behavior
 
@@ -52,7 +52,7 @@ See the [build-log entry](../build-log.md) and `logs/powerd-live-test-2026-09-26
 - The low-battery shutdown with test thresholds went LOW → CRITICAL (buzz) → 3 confirmations → SHUTDOWN in 11 s, then power-off into Android's off-mode charger. The evidence for the power-off is the host kmsg stream closing right after the `SHUTDOWN` line plus the user seeing the charger screen; no init shutdown or power-down line was captured.
 - **Heat:** on the wall charger the battery went from 32 °C to 42 °C in about 7 min at room temperature, so the 44 °C throttle will engage in real use (sun, handlebars, power bank).
 - **Open observation, not parity:** stock was read at `system_temp_level=3` (`main/constant_charge_current_max` 1500000) with the battery at 37 °C, 30 s after boot (`logs/powerd-live-test-2026-09-26-stock-before-after.txt`). Stock can therefore throttle charging below 44 °C, probably through the `SS-CHG-BATT` rule on `msm_therm` or as a boot transient (one sample). powerd's battery-only 44 °C rule is less conservative than stock.
-- Not yet seen live: `Full` and the recharge restart (Q4), a real 68 °C shutdown, a real throttle at 44 °C, an SDP port, and a real empty-battery shutdown or ride drain (plan step L5).
+- Not yet seen live: `Full` and the recharge restart, a real 68 °C shutdown, a real throttle at 44 °C, an SDP port, and a real empty-battery shutdown or ride drain.
 
 ## Limits
 
@@ -60,3 +60,5 @@ See the [build-log entry](../build-log.md) and `logs/powerd-live-test-2026-09-26
 - Off-mode charging under our own image needs a standalone boot. Today a power-off with USB attached comes back in Android's own charger mode. Stock's charger writes `/mnt/vendor/persist/chargeonly/cooldown` itself; our image never writes persist.
 - Cycle count and battery age are not persisted (no writable storage yet). The fuel gauge keeps the cycle count while the battery stays connected.
 - The ride image has no critical buzz (`powerd -V ''`), because the vibrator carries the ride logger's patterns.
+
+Remaining validation and persistence work is owned by [power and reliability](../next-steps/power-and-reliability.md#battery-and-charging).

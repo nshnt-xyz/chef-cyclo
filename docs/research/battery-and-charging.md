@@ -1,8 +1,10 @@
-# Battery and charging: stock research and implementation plan
+# Battery and charging: research and implementation record
 
-[Power and reliability](power-and-reliability.md#battery-and-charging) · [Next-steps index](README.md)
+[Research index](README.md) · [Remaining work](../next-steps/power-and-reliability.md#battery-and-charging)
 
 Status: implemented and live-verified L0 to L4 on 2026-09-26 (see the [feature guide](../features/battery-and-charging.md) and the dated [build-log entry](../build-log.md)); L5 (ride drain) and Q4 (`Full`) remain. Written 2026-09-26. Raw stock evidence: [`logs/stock-power-survey-2026-09-26.txt`](../../logs/stock-power-survey-2026-09-26.txt).
+
+This is a historical record of the September 26 implementation. Prospective instructions and questions below describe that investigation, not the current backlog. The feature guide records the resulting behavior; the power roadmap owns outstanding validation and integration.
 
 The goal is to copy how stock Android manages power on this phone into the Alpine image. The research shows that most of the work already happens in the kernel we share with stock. Stock userspace adds only a small, clonable policy layer.
 
@@ -34,7 +36,7 @@ Conclusion: charging itself does not need an Android daemon. Detection, current 
 | `hvdcp_opti` | QC3/PPS negotiation daemon. Only referenced from `on charger`, and no service definition exists. Not running in normal boot. | No. |
 | `charge_only_mode` + `on charger` / `moto-charger` init triggers | Off-mode charging UI when the bootloader boots with `androidboot.mode=charger` (USB plugged at power-off). | **Deferred** to standalone boot. Today power-off with USB returns to Android's own charger mode, which is fine. |
 | Charging LED (`/sys/class/leds/charging`) | Stock leaves it **off** (brightness 0, trigger none) while charging with the screen on. The kernel offers `battery-charging` etc. triggers. | No change: match stock (off). |
-| `vendor.power-hal`, `perf`, `system_suspend` | CPU/perf hints, wakelocks and autosleep. | Out of scope: [suspend and idle power](power-and-reliability.md#suspend-and-idle-power). |
+| `vendor.power-hal`, `perf`, `system_suspend` | CPU/perf hints, wakelocks and autosleep. | Out of scope: [suspend and idle power](../next-steps/power-and-reliability.md#suspend-and-idle-power). |
 
 ### 1.3 Things read live on stock today (2026-09-26, host CDP port; the phone was net-discharging)
 
@@ -92,7 +94,7 @@ The phone is on stock Android with the host USB cable attached. Ask the user onc
 
 L5 can be a separate session. L0 to L4 fit in one boot.
 
-## 4. Open questions for the implementer to settle live
+## 4. Original questions for live verification
 
 - **Q1** Confirm the sign convention under our kernel (source and stock say positive = discharge, negative = charge) and whether `battery/current_now` equals `bms/current_now`. The policy must not depend on the sign.
 - **Q2** Is capacity sane without any userspace helper? The expectation is yes, because FG-gen3 is fully in-kernel. Does the 2026-09-15 battery swap need a profile reload? The expectation is no: the battery serial matches the ATL-india profile on both kernels and `qcom,fg-force-load-profile` is set. Confirm with L0 (`battery_type`, capacity vs OCV) and note that learned `charge_full` still equals design (no learning cycle yet).
@@ -105,6 +107,6 @@ L5 can be a separate session. L0 to L4 fit in one boot.
 
 Off-mode charging under our own image (needs standalone boot), persistent cycle/age storage (needs persistent storage), suspend/idle measurements, CPU thermal throttling, and a charge limit for storage (`force_demo_mode` exists if wanted later).
 
-## 6. Documentation to update when done
+## 6. Original documentation checklist
 
 `docs/features/battery-and-charging.md` (new feature guide), `docs/features/README.md` table, `docs/next-steps/power-and-reliability.md` (trim what is done), `docs/repository-layout.md` (`tools/powerd.c`), and a dated `docs/build-log.md` entry with evidence under `logs/`.

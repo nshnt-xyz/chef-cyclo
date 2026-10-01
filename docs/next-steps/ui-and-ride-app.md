@@ -30,6 +30,12 @@ Order: (a) **UI first** — the data pages on the panel with touch/buttons on th
 
 **Time zone**: chrony ([time synchronization](gps-and-time.md#time-synchronization)) gives UTC; the UI needs local time (tzdata or a fixed `TZ`). Written as an ordinary Linux app against gpsd/BlueZ/evdev so it is testable on the host with replayed `nmea.log` from the ride runs.
 
+## Sensor integration
+
+Use the [sensord contract](../features/sensors.md) for raw sensors and magnetic heading. The UI owns ALS-driven brightness, including manual override and sunlight mode; the display owner applies backlight changes through the framebuffer commit contract.
+
+For maps, show calibration/disturbance state and use the accepted compass behavior when stopped. Blend with GPS course over ground when moving, and compute declination from GPS/WMM on the consumer side before setting true heading. Validate switching at low speeds, disturbed or uncalibrated input, and missing GPS. Daemon accuracy refinements remain in the [sensor roadmap](sensors.md#optional-compass-refinements).
+
 ## GPU
 
 Adreno 509 behind the downstream `kgsl` driver (`kgsl-hyp` messages appear at boot), no DRM. Using it means either freedreno/Mesa on a DRM `msm` driver this 4.4 kernel does not have, or libhybris over the stock Android GLES blobs. Software rendering on `fb0` is likely enough for a bike computer UI at 1080x2246; only revisit if the chosen [UI stack](#ui-stack) turns out to be too slow or too power-hungry without it.

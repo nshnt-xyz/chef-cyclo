@@ -1,6 +1,6 @@
 # On-board sensors
 
-[Feature index](README.md) · [Build instructions](../building.md) · [Plan and stock research](../next-steps/sensors-plan.md)
+[Feature index](README.md) · [Build instructions](../building.md) · [Plan and stock research](../research/sensors.md)
 
 ## Current behavior
 
@@ -154,7 +154,7 @@ Sources: `tools/sensord/` (`sensord.c`, `compass.{c,h}`, `sns_msgs.{c,h}`, `sns_
 
 ## Magnetometer calibration check
 
-Tooling for the experiment in [section 7 of the plan](../next-steps/sensors-plan.md#7-magnetometer-calibration-check-research-2026-09-27). With `sensors-up` running:
+Tooling for the experiment in [section 7 of the plan](../research/sensors.md#7-magnetometer-calibration-check-research-2026-09-27). With `sensors-up` running:
 
 ```sh
 sensors-magcal-run --list                              # the step list, to read to the person holding the phone
@@ -178,7 +178,7 @@ Measured live on 2026-09-27 (`logs/magcal-live-test-2026-09-27-*`; every number 
 
 ## Compass
 
-The `heading` channel: a tilt-compensated heading for the bike UI when stopped or slow, with an honest "not calibrated" / "disturbed" state ([plan section 8](../next-steps/sensors-plan.md#8-tilt-compensated-compass-plan-2026-09-27)). Linux's name for the same quantity is IIO's `in_rot_from_north_magnetic_tilt_comp` (iio-sensor-proxy's `CompassHeading`). First live run 2026-10-01 (`logs/compass-live-test-2026-10-01-*`): the filter tracks the gyro to about 4 deg rms in hand-held motion and agrees with the ADSP's rotation vector within about 0.5 deg in calibrated still steps, but the calibrated flag of that build (registry only) was wrong; the live flag below is the fix, not yet run on the phone.
+The `heading` channel: a tilt-compensated heading for the bike UI when stopped or slow, with an honest "not calibrated" / "disturbed" state ([design and experiment record](../research/sensors.md#8-tilt-compensated-compass-plan-2026-09-27)). Linux's name for the same quantity is IIO's `in_rot_from_north_magnetic_tilt_comp` (iio-sensor-proxy's `CompassHeading`). First live run 2026-10-01 (`logs/compass-live-test-2026-10-01-*`): the filter tracks the gyro to about 4 deg rms in hand-held motion and agrees with the ADSP's rotation vector within about 0.5 deg in calibrated still steps, but the calibrated flag of that build (registry only) was wrong. Run 2 live-verified the factory-minus-full flag below; see [limits and open items](#limits-and-open-items).
 
 ```sh
 sensord -n 20 watch heading 10        # 10 Hz; claims accel 50, anglvel 50, magn 20 (+ factory 5) inside sensord
@@ -239,7 +239,7 @@ setsid sensors-compass-run > /run/compass.log 2>&1 &     # ROTVEC=1 for the rota
 tail -n 1 /run/compass.log                                 # one-line summary when done
 ```
 
-On the host, `python3 tools/compass-check.py DIR --ref BEARING [--replay] [--calibrated-from STEP]` prints per-step statistics, the heading against the gyro over turns, the rotation vector difference, and the plan's acceptance: turns 90 +- 5 deg apart (with the gyro's own angle next to it, to separate the person's turning from the compass), and |turn.0 - BEARING| <= 10 deg. Tilt, shake and the quick turn are scored as heading change minus the change of a gyro-propagated reference (the attitude of the window's first heading line, propagated by the gyro, its heading taken with the same mount rule), because a hand-held phone really yaws while it tilts or shakes (live the roll step yawed 95 deg): tilt within +-5 deg in each of tilt.up, tilt.bar, tilt.roll, each scored only if the pose was reached (tilt.up pitch to >= 70, tilt.bar median pitch 45..75, tilt.roll median pitch >= 60 with |roll| to >= 20; n/a otherwise, with the pose printed); shake: standard deviation under 3 deg; quick: within 2 deg of its final value no later than 1 s after the gyro says the turn ended. `--calibrated-from STEP` treats lines from that step on as calibrated, to re-score a run whose flag was wrong (`logs/compass-live-test-2026-10-01-check.txt`: `--calibrated-from cal2.up`: turns FAIL (steps 86.7 95.4 94.4 82.0 against gyro 88.8 91.7 91.7 88.8), tilt FAIL (tilt.up -7.9 deg at pitch up to 90; tilt.bar and tilt.roll n/a, pose not reached), shake PASS (std 0.89 deg), quick FAIL (settled in 1.78 s)). A criterion whose scored windows contain heading lines flagged `"calibrated":false` is reported `NOT CALIBRATED` (a failure, the acceptance holds after the ADSP has learned its bias), with the calibrated fraction; the per-step table shows that fraction too. In the script, still steps are announced `HOLD N s:` and movement steps (tilt.up, tilt.roll, shake, quick) `DO N s:`; the long buzz starts either kind (the quick turn starts at it).
+On the host, `python3 tools/compass-check.py DIR --ref BEARING [--replay] [--calibrated-from STEP]` prints per-step statistics, the heading against the gyro over turns, the rotation vector difference, and the original acceptance checks: turns 90 +- 5 deg apart (with the gyro's own angle next to it, to separate the person's turning from the compass), and |turn.0 - BEARING| <= 10 deg. Tilt, shake and the quick turn are scored as heading change minus the change of a gyro-propagated reference (the attitude of the window's first heading line, propagated by the gyro, its heading taken with the same mount rule), because a hand-held phone really yaws while it tilts or shakes (live the roll step yawed 95 deg): tilt within +-5 deg in each of tilt.up, tilt.bar, tilt.roll, each scored only if the pose was reached (tilt.up pitch to >= 70, tilt.bar median pitch 45..75, tilt.roll median pitch >= 60 with |roll| to >= 20; n/a otherwise, with the pose printed); shake: standard deviation under 3 deg; quick: within 2 deg of its final value no later than 1 s after the gyro says the turn ended. `--calibrated-from STEP` treats lines from that step on as calibrated, to re-score a run whose flag was wrong (`logs/compass-live-test-2026-10-01-check.txt`: `--calibrated-from cal2.up`: turns FAIL (steps 86.7 95.4 94.4 82.0 against gyro 88.8 91.7 91.7 88.8), tilt FAIL (tilt.up -7.9 deg at pitch up to 90; tilt.bar and tilt.roll n/a, pose not reached), shake PASS (std 0.89 deg), quick FAIL (settled in 1.78 s)). A criterion whose scored windows contain heading lines flagged `"calibrated":false` is reported `NOT CALIBRATED` (a failure, the acceptance holds after the ADSP has learned its bias), with the calibrated fraction; the per-step table shows that fraction too. In the script, still steps are announced `HOLD N s:` and movement steps (tilt.up, tilt.roll, shake, quick) `DO N s:`; the long buzz starts either kind (the quick turn starts at it).
 
 ## Limits and open items
 
@@ -257,4 +257,4 @@ On the host, `python3 tools/compass-check.py DIR --ref BEARING [--replay] [--cal
 - The DSP's fusion and gesture algorithms (SAM: motion detect, tap, step counter) are not exposed; its rotation vector is, as a diagnostic (`-V`).
 - Registry writes from the DSP are lost on reboot (the `/run` copy only, by design; persist is never written).
 
-Remaining work is in the [sensors plan](../next-steps/sensors-plan.md#remaining-work).
+Outstanding daemon work and optional accuracy refinements are owned by the [sensor roadmap](../next-steps/sensors.md); UI policies are owned by [UI integration](../next-steps/ui-and-ride-app.md#sensor-integration).
