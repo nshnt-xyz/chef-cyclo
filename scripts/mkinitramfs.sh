@@ -36,7 +36,8 @@ cp -a initramfs/. "$ROOT"/
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
-    "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run
+    "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \
+    "$ROOT"/usr/bin/sensors-compass-run
 if [ "$VARIANT" = ride ]; then
     for f in initramfs-ride/etc/inittab initramfs-ride/usr/bin/ride-logger \
              initramfs-ride/usr/share/ride/www/cgi-bin/index.cgi \
@@ -268,13 +269,14 @@ echo "built $ROOT/usr/bin/tert-tx-hold"
 # /run/sensord.sock, started by initramfs/usr/bin/sensors-up (manual
 # opt-in, not in inittab). Same transport/codec as servreg-locator.
 for f in tools/sensord/sensord.c tools/sensord/sns_msgs.c tools/sensord/sns_reg.c \
-         initramfs/usr/bin/sensors-up; do
+         tools/sensord/compass.c initramfs/usr/bin/sensors-up \
+         initramfs/usr/bin/sensors-compass-run; do
     [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
 done
 "$MUSLCC" -Wall -Wextra -Wno-cpp -O2 -static $KHDR -I tools/sensord -I "$QRTR_DIR" -I tools \
     -o "$ROOT/usr/bin/sensord" \
     tools/sensord/sensord.c tools/sensord/sns_msgs.c tools/sensord/sns_reg.c \
-    "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" tools/msmipc.c
+    tools/sensord/compass.c "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" tools/msmipc.c -lm
 echo "built $ROOT/usr/bin/sensord"
 
 # sensord's registry map: which sns.reg bytes are which REG2 item/group is

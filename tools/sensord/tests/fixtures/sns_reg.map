@@ -1,11 +1,15 @@
 # Synthetic registry map for the host tests. Same format as the real
 # /usr/share/sensord/sns_reg.map (tools/sns-reg-map.py), invented IDs and
 # offsets; the matching data file is made by `fake_smgr mkreg FILE 1024`
-# (byte i = i*7+3), never taken from a device.
+# (byte i = i*7+3, zero in group 2980), never taken from a device. Group
+# 2980 and items 3900..3905 mirror the real layout of the magnetometer
+# calibration group (items 3903..3905: the learned bias), which sensord
+# looks up by ID; their offsets here are invented.
 size 1024
 group 1000 0 16
 group 2695 256 40
 group 10007 512 34
+group 2980 768 126
 item 700 0 1
 item 701 1 1
 item 702 2 1
@@ -13,3 +17,9 @@ item 2302 260 8
 item 2309 290 2
 item 2310 292 1
 item 10700 512 4
+item 3900 768 4
+item 3901 772 1
+item 3902 773 1
+item 3903 774 4
+item 3904 778 4
+item 3905 782 4

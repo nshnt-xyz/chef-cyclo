@@ -90,7 +90,7 @@ static void test_fixture(const char *map)
 	int line = 0, n, i;
 
 	CHECK(sns_reg_load_map(&r, map, &line) == 0);
-	CHECK(r.size == 1024 && r.ngroups == 3 && r.nitems == 7);
+	CHECK(r.size == 1024 && r.ngroups == 4 && r.nitems == 13);
 
 	/* data must be exactly the map's size */
 	CHECK(sns_reg_load_data(&r, make_reg("short.bin", 1000), 0, &got) == -EMSGSIZE && got == 1000);

@@ -303,7 +303,7 @@ stop_pair
 : >"$T/smgr.log"
 start_pair "-P" "-P"
 W=$(cli -n 3 watch anglvel 10)
-[ "$(echo "$W" | grep -c '^{"sensor":"anglvel","t":[0-9]*,"x":1,"y":0.5,"z":9.8066')" -eq 3 ] \
+[ "$(echo "$W" | grep -c '^{"sensor":"anglvel","t":[0-9]*,"x":0.00390625,"y":0.00195312,"z":0.000976562}$')" -eq 3 ] \
 	|| fail "periodic watch: $W"
 grep -q "ADD report 2 sensor 10 dt 0 rate 10 periodic" "$T/smgr.log" || fail "periodic add"
 stop_pair

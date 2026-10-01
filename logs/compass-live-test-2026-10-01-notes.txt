@@ -1,0 +1,26 @@
+# Compass live test, 2026-10-01 (fastboot boot, nothing flashed)
+Image out/boot.img 8f73802c... (sensord 0b8e858a..., sensors-compass-run dfa9ca76...), SENSORD_ARGS="-v -V", ROTVEC=1. Host evidence ~/chef-cyclo-evidence/compass-live-20260927T151624Z (pull-compass.tgz). Reference: phone top edge pointing away from the user along the desk; no absolute bearing given.
+Quick check before the run: heading 59.1 deg (not calibrated), ADSP rotation vector heading 58.9 deg, |q| 1.0000; rotvec enable/report/disable clean (instance 5).
+Run: 558 s, 29 steps (calibration rounds 1-3 ran in full), 13894 heading lines, 11116 rotvec, 0 error lines.
+
+## Finding 1: the calibrated flag was wrong
+The ADSP applied its learned magnetometer bias live during round 1 (by cal1.left, about 1427 s, about 75 s into the holds): per-step full-cal magn means lose their offset there (z +0.22..+0.27 G -> about 0), sphere-fit offsets round 1 (+0.368, -0.001, -0.131), round 2 (-0.010, -0.010, -0.062), round 3 (-0.013, -0.032, -0.097) G.
+But REG2 group 2980 was written with the bias only when the magn report was deleted at the end (1893.7 s: -0.2393 -0.4044 +0.2821 G, SMGR frame); during the run the only 2980 writes were zeros at 40.2/40.9 s (end of the quick pre-check). sensord's registry-based flag therefore read "not calibrated" for every line, and the script reported "NOT CALIBRATED after 3 rounds".
+The ADSP rotation vector's accuracy field tracks calibration live: 0 in cal1.up, 1-2 from cal1.left, 2 in round 2, 3 from round 3 on.
+
+## Finding 2: heading quality (calibrated from round 2 on; compass-check flags NOT CALIBRATED because of finding 1)
+Turns: holds 90.1 / 176.8 / 272.2 / 6.6 / 88.6 deg; steps 86.7 95.4 94.4 82.0 vs gyro 88.8 91.7 91.7 88.8 (heading minus gyro -2.1 +3.7 +2.7 -6.8); closure 1.5 deg.
+ADSP rotation vector minus our heading in calibrated still steps: mean within about 0.5 deg (max 0.3..2.9 deg); in motion steps max 1.5..8.5 deg.
+Motion steps, heading change minus gyro-integrated yaw: tilt.up rms 4.1 (-4.8..+8.1), tilt.roll rms 4.0 (-6.2..+9.8), shake rms 4.4 (-6.5..+10.3), quick rms 1.5 (-3.3..+1.3) deg.
+The user's motions were real yaw: roll step yawed +94.9 deg by gyro at mean pitch 23 deg; tilt.bar mean pitch 29 deg (prompt said about 60); tilt.bar vs tilt.flat +4.1 deg. So true tilt/roll invariance was not exercised; compass-check's absolute-constancy metrics for tilt/shake are the wrong yardstick for hand-held motion.
+Quick turn: 93.6 deg by gyro, settled within 1.78 s to 2 deg; 41 % of quick-step lines flagged disturbed (yaw-innovation gate during the fast turn).
+
+## persist
+mmcblk0p38 on our image: 9 reads, 0 writes; not mounted at the end. Stock sns.reg sha256 7f174db9... identical before and after the session.
+
+# Run 2 (same day), after the data-driven calibrated flag
+Image out/boot.img d1c4e041... (sensord 0494d086..., sensors-compass-run a43daf98...), SENSORD_ARGS="-v -V", ROTVEC=1. Host evidence ~/chef-cyclo-evidence/compass2-live-20261001T164634Z (pull-compass2.tgz). Check log: logs/compass-live-test-2026-10-01-run2-check.txt.
+Internal factory report accepted ("accepted with changes (ack 1)"); "CALIBRATED after 6 holds", source live, bias [0.4014, 0.1933, 0.0852] G (device frame). 332 s, 17 steps, 8259 heading lines (5629 calibrated, 3718 = 45 % disturbed), 6608 rotvec, 0 error lines.
+Acceptance: 1 turns FAIL (holds 112.2 173.4 278.8 3.7 86.6, steps 61.1 105.4 84.9 82.9 vs gyro 92.9 89.7 89.8 93.0); 2 tilt FAIL (tilt.up heading minus gyro reference +30.4, rms 19.3; tilt.bar not reached, pitch 41; tilt.roll not reached, median pitch 48, |roll| max 82); 3 shake PASS (std 2.21 deg); 4 quick PASS (final +0.3 deg, settled at once); 5 absolute n/a.
+Problems: (a) after calibration flipped, turn.0 was 100 % disturbed and 36 deg off the ADSP rotation vector (rotvec-heading -35.6), converging only by turn.180 (-0.9); (b) tilt.up: heading minus gyro reference +30 deg while rotvec agrees with our heading (mean -0.2, max 3.3); (c) 45 % disturbed overall (tilt.roll 86 %, quick 100 %, turn.0 100 %); (d) the user's natural handlebar pitch is about 30-45 deg, not 60.
+persist mmcblk0p38: 9 reads, 0 writes, not mounted at the end; stock sns.reg sha256 cc45d173... identical before and after.

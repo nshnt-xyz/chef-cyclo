@@ -382,3 +382,36 @@ struct qmi_elem_info sns_sam_attr_resp_ei[] = {
 	EI_NUM(0x11, struct sns_sam_attr_resp, reserved),
 	EI_END
 };
+
+/* ------------------------------------------ SAM ROTATION_VECTOR */
+
+static struct qmi_elem_info sns_sam_notify_suspend_ei[] = {
+	EI_NUM(0, struct sns_sam_notify_suspend, proc_type),
+	EI_NUM(0, struct sns_sam_notify_suspend, send_during_suspend),
+	EI_END
+};
+
+struct qmi_elem_info sns_rotvec_enable_req_ei[] = {
+	EI_NUM(0x01, struct sns_rotvec_enable_req, period_q16),
+	EI_OPT(0x10, struct sns_rotvec_enable_req, rate_valid),
+	EI_NUM(0x10, struct sns_rotvec_enable_req, rate_q16),
+	EI_OPT(0x11, struct sns_rotvec_enable_req, coord_valid),
+	EI_NUM(0x11, struct sns_rotvec_enable_req, coord),
+	EI_OPT(0x12, struct sns_rotvec_enable_req, notify_valid),
+	EI_STRUCT(0x12, struct sns_rotvec_enable_req, notify, sns_sam_notify_suspend_ei),
+	EI_END
+};
+
+static struct qmi_elem_info sns_rotvec_result_ei[] = {
+	EI_NUMS(0, struct sns_rotvec_result, q, 4),
+	EI_NUM(0, struct sns_rotvec_result, accuracy),
+	EI_NUM(0, struct sns_rotvec_result, coord),
+	EI_END
+};
+
+struct qmi_elem_info sns_sam_rotvec_ind_ei[] = {
+	EI_NUM(0x01, struct sns_sam_rotvec_ind, instance),
+	EI_NUM(0x02, struct sns_sam_rotvec_ind, timestamp),
+	EI_STRUCT(0x03, struct sns_sam_rotvec_ind, r, sns_rotvec_result_ei),
+	EI_END
+};

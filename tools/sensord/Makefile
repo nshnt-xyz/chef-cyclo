@@ -23,18 +23,23 @@ CFLAGS += -std=gnu11 -Wall -Wextra -Wno-cpp -g -O2
 INC := -I. -I.. -I$(QRTR_DIR) $(KHDR)
 
 OUT := sensord
+TOOLS := compass-replay
 TEST_OUT := tests/test-sns-msgs tests/test-sns-reg tests/test-sensord \
-	    tests/sensord-fake tests/fake_smgr
+	    tests/sensord-fake tests/fake_smgr tests/test-compass
 
 COMMON := sns_msgs.c sns_reg.c $(QRTR_DIR)/qmi.c $(QRTR_DIR)/logging.c
-HDRS := sns_msgs.h sns_reg.h ../msmipc.h $(QRTR_DIR)/libqrtr.h
+HDRS := sns_msgs.h sns_reg.h compass.h ../msmipc.h $(QRTR_DIR)/libqrtr.h
 
 .PHONY: all test clean
 
-all: $(OUT)
+all: $(OUT) $(TOOLS)
 
-$(OUT): sensord.c $(COMMON) ../msmipc.c $(HDRS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ sensord.c $(COMMON) ../msmipc.c $(LDFLAGS)
+# The compass filter alone, on recorded captures (host tool, not shipped).
+compass-replay: compass-replay.c compass.c compass.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -o $@ compass-replay.c compass.c $(LDFLAGS) -lm
+
+$(OUT): sensord.c compass.c $(COMMON) ../msmipc.c $(HDRS) compass.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ sensord.c compass.c $(COMMON) ../msmipc.c $(LDFLAGS) -lm
 
 tests/test-sns-msgs: tests/test_sns_msgs.c $(COMMON) $(HDRS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ tests/test_sns_msgs.c $(COMMON) $(LDFLAGS)
@@ -44,12 +49,16 @@ tests/test-sns-reg: tests/test_sns_reg.c sns_reg.c sns_reg.h
 
 # Includes sensord.c with SENSORD_NO_MAIN, so the I/O-only statics are
 # unused there.
-tests/test-sensord: tests/test_sensord.c sensord.c tests/fake_ipc.c $(COMMON) $(HDRS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-unused-function $(INC) -o $@ tests/test_sensord.c tests/fake_ipc.c $(COMMON) $(LDFLAGS)
+tests/test-sensord: tests/test_sensord.c sensord.c compass.c tests/fake_ipc.c $(COMMON) $(HDRS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Wno-unused-function $(INC) -o $@ tests/test_sensord.c compass.c tests/fake_ipc.c $(COMMON) $(LDFLAGS) -lm
 
 # The real daemon, on the fake transport, for the end-to-end test.
-tests/sensord-fake: sensord.c tests/fake_ipc.c $(COMMON) $(HDRS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ sensord.c tests/fake_ipc.c $(COMMON) $(LDFLAGS)
+tests/sensord-fake: sensord.c compass.c tests/fake_ipc.c $(COMMON) $(HDRS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ sensord.c compass.c tests/fake_ipc.c $(COMMON) $(LDFLAGS) -lm
+
+# The compass filter on synthetic motion (includes compass.c).
+tests/test-compass: tests/test_compass.c compass.c compass.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -o $@ tests/test_compass.c $(LDFLAGS) -lm
 
 tests/fake_smgr: tests/fake_smgr.c tests/fake_ipc.c $(COMMON) $(HDRS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ tests/fake_smgr.c tests/fake_ipc.c $(COMMON) $(LDFLAGS)
@@ -61,20 +70,36 @@ SAN := -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recove
 tests/test-sns-msgs-san: tests/test_sns_msgs.c $(COMMON) $(HDRS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAN) $(INC) -o $@ tests/test_sns_msgs.c $(COMMON) $(LDFLAGS)
 
-tests/test-sensord-san: tests/test_sensord.c sensord.c tests/fake_ipc.c $(COMMON) $(HDRS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAN) -Wno-unused-function $(INC) -o $@ tests/test_sensord.c tests/fake_ipc.c $(COMMON) $(LDFLAGS)
+tests/test-sensord-san: tests/test_sensord.c sensord.c compass.c tests/fake_ipc.c $(COMMON) $(HDRS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAN) -Wno-unused-function $(INC) -o $@ tests/test_sensord.c compass.c tests/fake_ipc.c $(COMMON) $(LDFLAGS) -lm
 
-test: $(TEST_OUT) tests/test-sns-msgs-san tests/test-sensord-san
+tests/test-compass-san: tests/test_compass.c compass.c compass.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAN) -I. -o $@ tests/test_compass.c $(LDFLAGS) -lm
+
+# The daemon under ASan/UBSan against the fake, for the compass/rotvec
+# part of the end-to-end test.
+tests/sensord-fake-san: sensord.c compass.c tests/fake_ipc.c $(COMMON) $(HDRS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAN) $(INC) -o $@ sensord.c compass.c tests/fake_ipc.c $(COMMON) $(LDFLAGS) -lm
+
+SAN_OUT := tests/test-sns-msgs-san tests/test-sensord-san tests/test-compass-san \
+	   tests/sensord-fake-san
+
+test: $(OUT) $(TOOLS) $(TEST_OUT) $(SAN_OUT)
 	./tests/test-sns-msgs
 	./tests/test-sns-msgs-san
 	./tests/test-sns-reg
 	./tests/test-sensord
 	./tests/test-sensord-san
+	./tests/test-compass
+	./tests/test-compass-san
 	sh tests/test_e2e.sh
+	sh tests/test_compass_e2e.sh
 	sh tests/test_sensors-up.sh
 	sh tests/test_magcal_run.sh
+	sh tests/test_compass_run.sh
 	python3 tests/test_sns_tools.py
 	python3 tests/test_mag_cal_check.py
+	python3 tests/test_compass_check.py
 
 clean:
-	rm -f $(OUT) $(TEST_OUT) tests/test-sns-msgs-san tests/test-sensord-san
+	rm -f $(OUT) $(TOOLS) $(TEST_OUT) $(SAN_OUT)

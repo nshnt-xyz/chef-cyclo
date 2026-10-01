@@ -1,0 +1,43 @@
+# python3 tools/compass-check.py ~/chef-cyclo-evidence/compass-live-20260927T151624Z/run/sensortest/compass-19700115T031947 --calibrated-from cal2.up
+# (2026-10-01 live run; the run's calibrated flag was wrong (registry lag, notes finding 1), so lines from cal2.up on are taken as calibrated;
+#  tilt/shake/quick scored as heading change minus a gyro-propagated reference)
+compass-check ~/chef-cyclo-evidence/compass-live-20260927T151624Z/run/sensortest/compass-19700115T031947: 29 steps; heading from live; rotation vector
+calibrated flag overridden: 10752 heading lines from cal2.up (1463.62) on taken as calibrated (--calibrated-from)
+gyro bias (stationary median) -0.00018 -0.00005 +0.00015 rad/s
+
+== heading: live (13894 lines)
+  cal1.up      mean   10.3 std  0.1 dev  -0.2.. +0.4 cal   0% dist   0% acc 180.0 pitch  -0.7 | rotvec-heading  -0.5 (max  0.8)
+  cal1.down    mean  190.9 std  0.2 dev  -0.3.. +0.3 cal   0% dist 100% acc 180.0 pitch  -1.3 | rotvec-heading +59.6 (max 59.9)
+  cal1.top     mean   11.7 std  0.3 dev  -0.5.. +0.7 cal   0% dist 100% acc 180.0 pitch +82.8 | rotvec-heading +174.0 (max 174.6)
+  cal1.bottom  mean  327.1 std  0.0 dev  -0.0.. +0.0 cal   0% dist 100% acc 180.0 pitch -89.3 | rotvec-heading -37.8 (max 37.8)
+  cal1.left    mean   22.4 std  0.0 dev  +0.0.. +0.0 cal   0% dist 100% acc 180.0 pitch  -0.2
+  cal1.right   mean   77.0 std  0.0 dev  +0.0.. +0.0 cal   0% dist  82% acc 180.0 pitch  -1.5
+  cal2.up      mean   92.1 std  0.5 dev  -2.1.. +0.6 cal 100% dist  86% acc 180.0 pitch  -0.6 | rotvec-heading  -1.6 (max  2.2)
+  cal2.down    mean  271.3 std  0.1 dev  -0.3.. +0.2 cal 100% dist   0% acc 180.0 pitch  -1.2 | rotvec-heading  -0.4 (max  0.6)
+  cal2.top     mean   91.9 std  0.4 dev  -0.9.. +0.9 cal 100% dist   0% acc 180.0 pitch +82.9 | rotvec-heading  +0.0 (max  0.3)
+  cal2.bottom  mean  271.1 std  0.2 dev  -0.4.. +0.3 cal 100% dist   0% acc 180.0 pitch -89.2 | rotvec-heading  +0.1 (max  0.3)
+  cal2.left    mean   93.1 std  0.0 dev  +0.0.. +0.0 cal 100% dist  58% acc 180.0 pitch  -0.0
+  cal2.right   mean  131.3 std  0.0 dev  +0.0.. +0.0 cal 100% dist  55% acc 180.0 pitch  -0.2
+  cal3.up      mean   88.5 std  1.3 dev  -1.2.. +1.9 cal 100% dist  52% acc 180.0 pitch  -0.3 | rotvec-heading  +1.1 (max  2.3)
+  cal3.down    mean  270.7 std  1.6 dev  -1.1.. +2.8 cal 100% dist  66% acc 180.0 pitch  -0.9 | rotvec-heading  +1.7 (max  2.9)
+  cal3.top     mean   90.0 std  2.4 dev  -1.9.. +4.2 cal 100% dist  23% acc 180.0 pitch +82.9 | rotvec-heading  -1.7 (max  6.1)
+  cal3.bottom  mean  268.6 std  0.2 dev  -0.4.. +0.6 cal 100% dist   0% acc 180.0 pitch -89.7 | rotvec-heading  -0.1 (max  0.4)
+  cal3.left    mean  282.8 std  0.0 dev  +0.0.. +0.0 cal 100% dist   0% acc 180.0 pitch  +0.0
+  cal3.right   mean    7.3 std  0.0 dev  +0.0.. +0.0 cal 100% dist   0% acc 180.0 pitch  -0.2
+  turn.0       mean   90.1 std  0.2 dev  -0.2.. +0.5 cal 100% dist   0% acc 180.0 pitch  -0.1 | rotvec-heading  +1.4 (max  1.6)
+  turn.90      mean  176.8 std  0.1 dev  -0.2.. +0.1 cal 100% dist   0% acc 180.0 pitch  +0.4 | rotvec-heading  +0.3 (max  0.5)
+  turn.180     mean  272.2 std  0.2 dev  -0.5.. +0.2 cal 100% dist   0% acc 180.0 pitch  +1.1 | rotvec-heading  -0.1 (max  0.4)
+  turn.270     mean    6.6 std  0.2 dev  -0.3.. +0.3 cal 100% dist   0% acc 180.0 pitch  +0.5 | rotvec-heading  -0.2 (max  0.6)
+  turn.360     mean   88.6 std  0.1 dev  -0.3.. +0.4 cal 100% dist   0% acc 180.0 pitch  -0.3 | rotvec-heading  +0.2 (max  0.5)
+  tilt.flat    mean   88.5 std  0.1 dev  -0.2.. +0.2 cal 100% dist   0% acc 180.0 pitch  -0.3 | rotvec-heading  +0.3 (max  0.5)
+  tilt.up      mean   87.4 std  3.9 dev  -9.2.. +7.4 cal 100% dist   0% acc 180.0 pitch +60.5 | rotvec-heading  +0.2 (max  1.5)
+  tilt.bar     mean   92.6 std  0.1 dev  -0.3.. +0.2 cal 100% dist   0% acc 180.0 pitch +29.0 | rotvec-heading  -0.5 (max  0.6)
+  tilt.roll    mean   95.4 std 33.9 dev -58.0..+49.5 cal 100% dist   0% acc 180.0 pitch +23.0 | rotvec-heading  -0.6 (max  4.7)
+  shake        mean   87.0 std  7.1 dev -26.6..+19.2 cal 100% dist   0% acc 180.0 pitch +36.5 | rotvec-heading  +0.4 (max  8.5)
+  quick        mean  173.1 std 23.9 dev -82.0..+12.4 cal 100% dist  41% acc 180.0 pitch  +0.6 | rotvec-heading  -1.8 (max  3.9)
+  acceptance:
+   1 turns    FAIL: holds 90.1 176.8 272.2 6.6 88.6; steps 86.7 95.4 94.4 82.0 (gyro 88.8 91.7 91.7 88.8)
+   2 tilt     FAIL: heading change minus gyro reference within +-5; tilt.up -7.9 rms 4.9 (pitch max 90 med 60, |roll| max 3); tilt.bar n/a: pose not reached (pitch max 29 med 29, |roll| max 1; aim median pitch 45..75, about 60), heading-gyro max +2.3; tilt.roll n/a: pose not reached (pitch max 30 med 23, |roll| max 21; aim median pitch >= 60, |roll| up to >= 20), heading-gyro max -7.2
+   3 shake    PASS: heading minus gyro reference std 0.89 deg (max -6.3); heading std 7.06
+   4 quick    FAIL: turned +93.6 deg (gyro), heading minus gyro reference settled within 1.78 s of the turn end (tol 2 deg), final -2.0, max -2.8
+   5 absolute n/a (no --ref)

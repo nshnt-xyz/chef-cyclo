@@ -125,7 +125,7 @@ Done 2026-09-26: [feature guide](../features/sensors.md), feature index row, [On
 
 - **Magnetometer calibration check: done 2026-09-27** ([results](#results-2026-09-27)). SMGR's full calibration removes a hard-iron bias the ADSP learns on its own (registry group 2980); QMAG_CAL is not needed. The DSP's registry writes are now kept in the `/run` copy for the whole boot (`sensord` writes them back, `sensors-up` reuses that copy in the same boot without touching persist; live-checked 2026-09-27). A `sensord` restart does not restart the ADSP, which keeps its calibration in memory; the `/run` copy matters when the ADSP restarts or re-reads the registry, and as the source for a future across-boot copy.
 - **Keep the learned calibration across reboots**, once the image has writable storage of its own (persist is never written): save the DSP-written registry groups (2980 magnetometer bias, 2610 gyro bias) there and merge them into the `/run` copy at `sensors-up`. Until then every boot starts uncorrected, and learning is condition-dependent (slow face-by-face holds worked, a fast 30 s figure-8 alone did not).
-- **Tilt-compensated compass** for the map, next: heading from accel + magn (calibration `full`) with smoothing (stock smooths the magnetometer over 8 samples; `sensord` does not), and a "not calibrated yet" state until the DSP has learned its bias after boot (group 2980 still zero, or face-sum/|B| checks).
+- **Tilt-compensated compass**: done and live-tested 2026-10-01 as good enough for a map at a stop; open accuracy items are listed under [section 8 results](#results-2026-10-01-stopped-here-as-good-enough).
 - **Wake-on-motion and tap** through the DSP's SAM services (AMD 0x104, TAP 0x11a; their IDL is already in the dump), exposed as claimable event channels.
 - **ALS backlight policy**: auto-brightness from `illuminance`, with the display owner (fblog/UI) deciding.
 - **inittab and power**: measure idle current with `sensord` up and nothing claimed, and while streaming accel at ride rates, then decide whether `sensors-up` runs at boot.
@@ -163,3 +163,44 @@ One `fastboot boot` session, nothing flashed; session notes in `logs/magcal-live
 5. **Decision (step 4):** use SMGR's `full` output as delivered; no bias estimation in `sensord`. Keep the DSP's registry writes: done within a boot (`sensord` write-back to `/run`, `sensors-up` reuse, live-checked); across reboots needs writable storage (remaining work).
 
 persist: `mmcblk0p38` 9 reads, 0 writes; not mounted at the end; stock `sns.reg` SHA-256 identical before and after.
+
+## 8. Tilt-compensated compass (plan 2026-09-27)
+
+Goal: a heading the bike UI can use when stopped or slow (GPS course over ground is unreliable below walking pace), with an honest "not calibrated" / "disturbed" state. Blending with GPS course while moving and the WMM declination model are consumer-side follow-ups.
+
+Linux convention: IIO names a tilt-compensated heading `in_rot_from_north_magnetic_tilt_comp` (degrees; HID sensor-hub compasses), and iio-sensor-proxy exposes it as `CompassHeading` on `net.hadess.SensorProxy.Compass`. `sensord` adds a `heading` channel with that meaning.
+
+Design:
+
+| Piece | Choice |
+|---|---|
+| Source | Own attitude filter in `sensord` (Mahony-style: gyro propagates attitude, accelerometer corrects tilt, magnetometer corrects yaw), fed by SMGR accel 50 Hz, anglvel 50 Hz and magn (full calibration) 20 Hz. Transparent and host-testable by replaying recorded captures. The ADSP's rotation vector (SAM 0x112, 9-axis) is a **diagnostic comparison** only, behind a flag like QMAG's `-Q`. |
+| Claims | Claiming `heading` claims accel, anglvel and magn internally (shared refcounts and rate max with other clients); releasing it drops them. Default output 10 Hz. |
+| Forward vector | The heading is the azimuth of a body "forward" vector. Default `portrait`: forward = the horizontal direction perpendicular to the body x axis (up x body-x). It points where the top edge points when flat and where the back of the phone faces when upright, so a handlebar mount at any pitch works, and unlike the horizontal part of (+y - z), which it equals at zero roll, it does not change when the phone rolls (that rule is 27 degrees off when upright and rolled 30 degrees). Options for landscape mounts and pure flat (+y) or pure upright (-z). |
+| Robustness | Accelerometer correction weighted down when \|a\| is more than about 10 % from g (bumps, braking). Magnetometer correction gated off ("disturbed") when \|B\| departs more than 25 % from its running value (live \|B\| swings about ±18 % around a calibrated flat turn indoors), when the dip angle jumps, or when the yaw innovation exceeds 25 degrees; the gyro carries the heading meanwhile. |
+| Calibration state | `calibrated` is true once the ADSP has written a nonzero bias to REG2 group 2980 (seen by `sensord`'s REG2 server, including a reused `/run` copy); false otherwise. Heading is still output, flagged. |
+| Declination | Magnetic heading always; `true_heading` only when a client sets a declination (socket request or flag). A GPS-aware consumer computes declination; WMM is not in `sensord`. |
+| Output line | `{"sensor":"heading","t":...,"heading":deg,"pitch":deg,"roll":deg,"calibrated":bool,"disturbed":bool,"accuracy":deg}` plus `true_heading`/`declination` when set. |
+
+Host verification: synthetic motion with known attitude (flat turns, pitch/roll sweeps, vibration, magnetic disturbance), plus replay of the 2026-09-27 magcal captures (the flat turn against gyro-integrated yaw; the faces).
+
+Live acceptance (after the ADSP has learned its bias through slow face holds):
+
+1. Four flat 90° turns against a reference direction: successive differences 90° ± 5°.
+2. Tilt invariance: pointing the same way, pitch the phone from flat to upright (handlebar pose) and roll ±30°: heading stays within ±5°.
+3. Vibration: tap and shake the phone for 10 s while pointing the same way: heading standard deviation under 3°.
+4. Tracking: a quick 90° turn settles within 1 s.
+5. Absolute: heading against a reference the user provides (another compass, or a wall of known map bearing): within 10° (magnetic; declination here is about 0 to 2°).
+
+### Results (2026-10-01, stopped here as good enough)
+
+Two guided runs, nothing flashed (`logs/compass-live-test-2026-10-01-notes.txt`, `-check.txt`, `-run2-check.txt`).
+
+- Run 1 found that the ADSP applies its learned bias live (about 75 s into the slow holds) but writes REG2 group 2980 only when the magn report is deleted, so a registry-based `calibrated` flag lags the whole session. The ADSP rotation vector's accuracy field (0..3) tracks calibration live. Fixed: the flag now comes from an internal 5 Hz factory-calibration magn report (bias = factory - full, calibrated above 0.05 G once stable), with the registry as fallback.
+- Run 2: flag on after 6 holds; shake PASS (std 2.2 deg against the gyro reference); quick PASS (+0.3 deg); turns FAIL because the heading stayed disturbed and up to 36 deg off for about 20 s after the calibration flip; tilt.up FAIL (+30 deg against the gyro reference while the ADSP rotation vector agreed with ours); handlebar and lean poses not reached (29 to 48 deg pitch). 45 % of lines flagged disturbed.
+- In still, calibrated steps the heading agrees with the ADSP rotation vector within about 0.5 to 2 deg, and in motion it tracks gyro yaw with about 4 deg rms. Good enough for orienting a map at a stop; the items below are open if more accuracy is ever needed:
+  - re-seed the `|B|`/dip reference and gates on a calibration change;
+  - retune the disturbance gates (45 % disturbed indoors);
+  - diagnose tilt.up against the gyro reference;
+  - test lean (roll about the forward horizontal axis) at a 30 to 50 deg handlebar pitch;
+  - blend with GPS course over ground when moving (consumer side), and declination from GPS/WMM.

@@ -1,0 +1,410 @@
+#!/bin/sh
+# Guided compass capture (docs/next-steps/sensors-plan.md section 8):
+# announces each step on the panel through /dev/kmsg and the vibrator,
+# records sensord's heading channel and its raw inputs under
+# /run/sensortest/compass-<stamp>/, and prints a one-line summary.
+# Analyse on the host with tools/compass-check.py (--ref DEG for the
+# absolute check).
+#
+#   sensors-compass-run            run it (sensors-up must be running)
+#   sensors-compass-run --list     print the step list and exit
+#
+# Needs sensors-up running (sensord on /run/sensord.sock, SMGR ready).
+# The main sensord is only a client's view: this claims heading (which
+# claims accel 50 Hz, anglvel 50 Hz and magn 20 Hz inside sensord) plus
+# raw captures of the same three, and releases everything at the end.
+# ROTVEC=1 also starts a helper sensord with the ADSP rotation vector
+# client (sensord -R -i 40 -V on its own socket under the output
+# directory), captures its rotvec channel for comparison, and stops it
+# (TERM: it disables the rotation vector) at the end or on abort.
+#
+# Steps:
+#  1. Calibration: slow face-by-face holds (face up, face down, upright,
+#     upside down, left edge, right edge), repeated until sensord reports
+#     "calibrated" (the ADSP wrote its learned magnetometer bias, registry
+#     group 2980), at most CAL_ROUNDS rounds; skipped if already
+#     calibrated. If it never calibrates, it says so and carries on (the
+#     heading lines are then flagged calibrated:false, accuracy 180).
+#  2. turn.0 .. turn.360: flat, top edge at a reference mark the person
+#     chooses, then four 90 deg clockwise turns to the next marks (table
+#     edges, floor tiles), holding at each.
+#  3. tilt.flat, tilt.up, tilt.bar, tilt.roll: pointing the same way, flat;
+#     slowly up to upright and back, twice; handlebar pose (about 60 deg);
+#     upright in front of you like a steering wheel, tilted left and right
+#     about 30 deg. During the last three the panel shows the live pitch
+#     (and roll) every 2 s next to the target ("pitch 29, aim 60").
+#  4. shake: tap and shake for SHAKE_S, pointing the same way.
+#  5. quick: flat at the reference, at the long buzz turn 90 deg clockwise
+#     quickly, then hold still.
+# The heading of turn.0 against the reference's map bearing is the
+# absolute check: note the bearing (magnetic, or true minus the local
+# declination) and pass it to compass-check.py --ref.
+#
+# Prompts (the style that worked live, docs/features/sensors.md):
+#   ---- STEP k/N: TEXT
+#        move the phone now (G s)
+#        HOLD N s: TEXT        (still steps)
+#        DO N s: TEXT          (movement steps: tilt.up, tilt.roll, shake,
+#                               quick)
+# one long buzz = the step starts (hold still, or start the movement for a
+# DO step); two short = the step is over, move on;
+# three short = done. The step list is printed at the start (and by
+# --list).
+#
+# Files (the directory is printed):
+#   steps.txt          "UPTIME STEP ID: TEXT (N s)" per step, a "# clock"
+#                      line (uptime next to a sample "t"), and a "# cal"
+#                      line with the calibration outcome
+#   heading.jsonl      sensord heading lines at HEADING_HZ
+#   accel.jsonl, anglvel.jsonl, magn.jsonl   the raw inputs (50/50/20 Hz)
+#   rotvec.jsonl       with ROTVEC=1
+#   status.jsonl       main sensord status every 5 s
+#   sensord-rotvec.log the helper's stderr (ROTVEC=1)
+#   status-*.json, dmesg.txt, sensors-up.log
+#
+# Aborting (TERM, INT, HUP) stops everything this started: captures and
+# the poller first (their claims go with them), then the helper by TERM;
+# the main sensord keeps running with no claims left.
+#
+# Env overrides (the host test uses them): SENSORD, MAIN_SOCK, OUT_BASE,
+# KMSG, VIB, NOW_CMD, SENSORS_UP_LOG, ROTVEC, CAL_S, CAL_ROUNDS, TURN_S,
+# TILT_S, BAR_S, ROLL_S, SHAKE_S, QUICK_S, GAP_S, COUNT_S, HEADING_HZ,
+# IMU_HZ, MAGN_HZ, ROTVEC_HZ, HELPER_WAIT, POLL_S.
+set -u
+
+SENSORD=${SENSORD:-sensord}
+MAIN_SOCK=${MAIN_SOCK:-/run/sensord.sock}
+OUT_BASE=${OUT_BASE:-/run/sensortest}
+KMSG=${KMSG:-/dev/kmsg}
+VIB=${VIB:-/sys/class/timed_output/vibrator/enable}
+NOW_CMD=${NOW_CMD:-}
+SENSORS_UP_LOG=${SENSORS_UP_LOG:-/run/sensors-up.log}
+ROTVEC=${ROTVEC:-0}
+CAL_S=${CAL_S:-10}
+CAL_ROUNDS=${CAL_ROUNDS:-3}
+TURN_S=${TURN_S:-10}
+TILT_S=${TILT_S:-20}
+BAR_S=${BAR_S:-8}
+ROLL_S=${ROLL_S:-15}
+SHAKE_S=${SHAKE_S:-10}
+QUICK_S=${QUICK_S:-8}
+GAP_S=${GAP_S:-8}
+COUNT_S=${COUNT_S:-5}
+HEADING_HZ=${HEADING_HZ:-25}
+IMU_HZ=${IMU_HZ:-50}
+MAGN_HZ=${MAGN_HZ:-20}
+ROTVEC_HZ=${ROTVEC_HZ:-20}
+HELPER_WAIT=${HELPER_WAIT:-40}	# 0.5 s steps
+POLL_S=${POLL_S:-5}
+
+CAPS=			# capture pids
+HELPERS=		# helper sensord pid
+POLLER=
+NAP=
+CLEANED=0
+
+# ------------------------------------------------------------ the plan
+# "id|seconds|text" per step; the calibration round is repeated.
+
+cal_plan() {
+	echo "cal$1.up|$CAL_S|FACE UP on the table, still"
+	echo "cal$1.down|$CAL_S|FACE DOWN on the table, still"
+	echo "cal$1.top|$CAL_S|UPRIGHT, top edge up, still"
+	echo "cal$1.bottom|$CAL_S|UPSIDE DOWN, top edge down, still"
+	echo "cal$1.left|$CAL_S|ON ITS LEFT EDGE, still"
+	echo "cal$1.right|$CAL_S|ON ITS RIGHT EDGE, still"
+}
+
+main_plan() {
+	echo "turn.0|$TURN_S|FLAT, top edge at your REFERENCE mark, still"
+	echo "turn.90|$TURN_S|turn 90 deg CLOCKWISE to the next mark, flat, still"
+	echo "turn.180|$TURN_S|turn 90 deg CLOCKWISE to the next mark, flat, still"
+	echo "turn.270|$TURN_S|turn 90 deg CLOCKWISE to the next mark, flat, still"
+	echo "turn.360|$TURN_S|turn 90 deg CLOCKWISE, back at the REFERENCE, flat, still"
+	echo "tilt.flat|$TURN_S|FLAT at the reference, still"
+	echo "tilt.up|$TILT_S|same way: SLOWLY tilt up to UPRIGHT (screen to you) and back, twice|do|up"
+	echo "tilt.bar|$BAR_S|same way: HANDLEBAR POSE, tilted up about 60 deg, still||bar"
+	echo "tilt.roll|$ROLL_S|same way: hold it UPRIGHT in front of you like a steering wheel and tilt it left/right about 30 deg|do|roll"
+	echo "shake|$SHAKE_S|same way: TAP and SHAKE the phone|do"
+	echo "quick|$QUICK_S|FLAT at the reference; at the LONG BUZZ turn 90 deg CLOCKWISE QUICKLY, then hold still|do"
+}
+
+print_list() {
+	{ cal_plan 1; main_plan; } | awk -F'|' -v gap="$GAP_S" '
+		{ n++; t += $2 + gap + extra; extra = ($1 ~ /\.down$/) ? 3 : 0
+		  printf "%3d. %-11s %3s s  %s%s\n", n, $1, $2, $4 == "do" ? "DO: " : "", $3 }
+		END { printf "%d steps, about %d s of holds and gaps\n", n, t }'
+	echo "steps 1-6 (calibration) repeat until calibrated, at most $CAL_ROUNDS rounds; skipped if already calibrated"
+	echo "one long buzz = the step starts: hold still (HOLD), or start the movement (DO);"
+	echo "two short = the step is over, move on; three short = done"
+	echo "choose a REFERENCE mark with three more at 90 deg clockwise; note its map bearing"
+}
+
+if [ "${1:-}" = --list ]; then
+	print_list
+	exit 0
+fi
+
+# -------------------------------------------------------------- helpers
+
+now_s() {
+	if [ -n "$NOW_CMD" ]; then
+		$NOW_CMD
+	else
+		cut -d' ' -f1 /proc/uptime
+	fi
+}
+
+say() {
+	echo "compass: $*" >> "$KMSG" 2>/dev/null
+	echo "compass: $*"
+}
+
+buzz() {
+	[ -w "$VIB" ] && echo "$1" > "$VIB" 2>/dev/null
+	return 0
+}
+
+# Interruptible sleep: a trapped signal ends the wait at once. Only this
+# pid is waited for, never a bare wait.
+nap() {
+	sleep "$1" &
+	NAP=$!
+	wait "$NAP"
+	NAP=
+}
+
+kill_wait() {
+	for p in "$@"; do kill "$p" 2>/dev/null; done
+	for p in "$@"; do wait "$p" 2>/dev/null; done
+}
+
+# Idempotent: captures and the poller first (they hold the claims), then
+# the helper by TERM, waited for by pid (it disables the rotation vector).
+cleanup() {
+	[ "$CLEANED" = 1 ] && return
+	CLEANED=1
+	# shellcheck disable=SC2086 # pid lists
+	kill_wait $NAP $CAPS $POLLER
+	CAPS=
+	POLLER=
+	NAP=
+	# shellcheck disable=SC2086
+	kill_wait $HELPERS
+	HELPERS=
+}
+
+status_ok() {
+	"$SENSORD" -S "$1" status 2>/dev/null | grep -q '"smgr":"ready"'
+}
+
+# sensord's calibrated flag: live (full minus its internal factory magn
+# report, what the ADSP applies now) once known, else the registry.
+calibrated() {
+	"$SENSORD" -S "$MAIN_SOCK" status 2>/dev/null | grep -q '"calibrated":true'
+}
+
+# "SOURCE BIAS" of the flag ("live [0.4010,0.2290,0.2540]"), for the log
+cal_info() {
+	"$SENSORD" -S "$MAIN_SOCK" status 2>/dev/null |
+		sed -n 's/.*"cal_source":"\([a-z]*\)","mag_bias":\([^,]*\(,[^,]*,[^],]*\]\)\{0,1\}\).*/\1 \2/p'
+}
+
+start_rotvec() {
+	"$SENSORD" -R -i 40 -V -S "$O/rotvec.sock" </dev/null 2>"$O/sensord-rotvec.log" &
+	HELPERS="$HELPERS $!"
+	i=0
+	while ! status_ok "$O/rotvec.sock"; do
+		i=$((i + 1))
+		if [ "$i" -ge "$HELPER_WAIT" ]; then
+			say "rotation vector helper not ready; no rotvec capture"
+			return 1
+		fi
+		nap 0.5
+	done
+	return 0
+}
+
+start_poller() {
+	(
+		sp=
+		trap '[ -n "$sp" ] && kill "$sp" 2>/dev/null; exit 0' TERM
+		while :; do
+			"$SENSORD" -S "$MAIN_SOCK" status >> "$O/status.jsonl" 2>&1
+			sleep "$POLL_S" &
+			sp=$!
+			wait "$sp"
+		done
+	) </dev/null &
+	POLLER=$!
+}
+
+# cap SOCK SENSOR HZ FILE
+cap() {
+	[ -S "$1" ] || return 0
+	"$SENSORD" -S "$1" watch "$2" "$3" </dev/null >"$4" 2>&1 &
+	CAPS="$CAPS $!"
+}
+
+# The newest heading line's pitch and roll, rounded: "P R", or nothing.
+pose_now() {
+	tail -n 1 "$O/heading.jsonl" 2>/dev/null |
+		sed -n 's/.*"pitch":\(-*[0-9.]*\),"roll":\(-*[0-9.]*\).*/\1 \2/p' |
+		awk '{ printf "%.0f %.0f", $1, $2 }'
+}
+
+# aim_hold SECONDS AIM: the hold, with the live pose and its target on
+# the panel every 2 s (live 2026-10-01 the handlebar pose was held at 29
+# deg and the roll done at 23 deg pitch: the person could not see the
+# angle). AIM: up (to upright and back), bar (about 60), roll (upright,
+# +-30 left/right).
+aim_hold() {
+	left=$1
+	while awk -v l="$left" 'BEGIN { exit !(l > 0.001) }'; do
+		chunk=$(awk -v l="$left" 'BEGIN { print (l > 2) ? 2 : l }')
+		nap "$chunk"
+		left=$(awk -v l="$left" -v c="$chunk" 'BEGIN { print l - c }')
+		set -- $(pose_now)
+		[ $# -eq 2 ] || continue
+		case $AIM in
+		up) say "     pitch $1, aim 90 (upright) and back to 0" ;;
+		bar) say "     pitch $1, aim 60" ;;
+		roll) say "     roll $2, aim +-30 left and right; pitch $1, aim 90 (upright)" ;;
+		esac
+	done
+}
+
+# step ID SECONDS TEXT [do] [AIM]: a numbered header, time to move (3 s
+# more after face down, to turn the phone over and read), one long buzz,
+# the hold (with the live pose for an AIM), two short buzzes.
+PREV=
+STEPNO=0
+step() {
+	gap=$GAP_S
+	case $PREV in *.down) gap=$((GAP_S + 3)) ;; esac
+	PREV=$1
+	STEPNO=$((STEPNO + 1))
+	say "---- STEP $STEPNO/$STEPS: $3"
+	say "     move the phone now ($gap s)"
+	nap "$gap"
+	echo "$(now_s) STEP $1: $3 ($2 s)" >> "$O/steps.txt"
+	buzz 400
+	if [ "${4:-}" = do ]; then
+		say "     DO $2 s: $3"
+	else
+		say "     HOLD $2 s: $3"
+	fi
+	if [ -n "${5:-}" ]; then
+		AIM=$5
+		aim_hold "$2"
+	else
+		nap "$2"
+	fi
+	buzz 120
+	nap 0.3
+	buzz 120
+}
+
+lines() {
+	if [ -f "$1" ]; then grep -c '^{"sensor"' "$1"; else echo 0; fi
+}
+
+# ------------------------------------------------------------------ main
+
+trap cleanup EXIT
+trap 'cleanup; exit 130' HUP INT TERM
+
+STAMP=$(date +%Y%m%dT%H%M%S)
+O="$OUT_BASE/compass-$STAMP"
+mkdir -p "$O" || exit 1
+if ! status_ok "$MAIN_SOCK"; then
+	echo "sensors-compass-run: no ready sensord on $MAIN_SOCK; run sensors-up first" >&2
+	exit 1
+fi
+print_list
+T0=$(now_s)
+"$SENSORD" -S "$MAIN_SOCK" status > "$O/status-start.json" 2>&1
+echo "# sensors-compass-run $STAMP; step times: /proc/uptime" > "$O/steps.txt"
+t=$("$SENSORD" -S "$MAIN_SOCK" get accel 50 2>/dev/null | sed -n 's/.*"t":\([0-9]*\).*/\1/p')
+echo "# clock uptime $(now_s) sample_t ${t:-none}" >> "$O/steps.txt"
+say "compass check, ~6 min, output $O"
+say "keep away from metal, magnets, laptops"
+say "1 long buzz: step starts (HOLD still, or DO the movement). 2 short: move on"
+[ "$ROTVEC" = 1 ] && start_rotvec
+
+cap "$MAIN_SOCK" heading "$HEADING_HZ" "$O/heading.jsonl"
+cap "$MAIN_SOCK" accel "$IMU_HZ" "$O/accel.jsonl"
+cap "$MAIN_SOCK" anglvel "$IMU_HZ" "$O/anglvel.jsonl"
+cap "$MAIN_SOCK" magn "$MAGN_HZ" "$O/magn.jsonl"
+[ "$ROTVEC" = 1 ] && cap "$O/rotvec.sock" rotvec "$ROTVEC_HZ" "$O/rotvec.jsonl"
+start_poller
+
+n=$COUNT_S
+while [ "$n" -gt 0 ]; do say "starting in $n"; nap 1; n=$((n - 1)); done
+
+MAIN=$(main_plan)
+NMAIN=$(echo "$MAIN" | grep -c '|')
+CAL=done
+CALHOLDS=0
+if calibrated; then
+	STEPS=$NMAIN
+	say "magnetometer already calibrated: no calibration holds"
+	echo "# cal already calibrated at $(now_s) (source and bias: $(cal_info))" >> "$O/steps.txt"
+else
+	STEPS=$((NMAIN + 6))
+	CAL=no
+	r=1
+	while [ "$r" -le "$CAL_ROUNDS" ] && [ "$CAL" = no ]; do
+		if [ "$r" -gt 1 ]; then
+			STEPS=$((STEPS + 6))
+			say "not calibrated yet: calibration round $r of $CAL_ROUNDS, now $STEPS steps"
+		fi
+		PLAN=$(cal_plan "$r")
+		while IFS='|' read -r id secs text; do
+			step "$id" "$secs" "$text"
+			CALHOLDS=$((CALHOLDS + 1))
+			if calibrated; then
+				CAL=yes
+				break
+			fi
+		done <<EOF
+$PLAN
+EOF
+		r=$((r + 1))
+	done
+	if [ "$CAL" = yes ]; then
+		# the remaining holds of the round are not needed: renumber
+		STEPS=$((STEPNO + NMAIN))
+		say "CALIBRATED after $CALHOLDS holds; now $STEPS steps"
+		say "     calibration source and bias (G): $(cal_info)"
+		echo "# cal calibrated after $CALHOLDS holds at $(now_s) (source and bias: $(cal_info))" >> "$O/steps.txt"
+	else
+		say "NOT CALIBRATED after $CAL_ROUNDS rounds: the DSP did not learn the magnetometer bias"
+		say "carrying on: heading is flagged calibrated:false, accuracy 180"
+		echo "# cal not calibrated after $CALHOLDS holds ($CAL_ROUNDS rounds) at $(now_s)" >> "$O/steps.txt"
+	fi
+fi
+
+while IFS='|' read -r id secs text kind aim; do
+	step "$id" "$secs" "$text" "$kind" "$aim"
+done <<EOF
+$MAIN
+EOF
+
+"$SENSORD" -S "$MAIN_SOCK" status > "$O/status-end.json" 2>&1
+[ -S "$O/rotvec.sock" ] && "$SENSORD" -S "$O/rotvec.sock" status > "$O/status-rotvec-end.json" 2>&1
+cleanup
+buzz 120; nap 0.3; buzz 120; nap 0.3; buzz 120
+say "DONE, thank you"
+
+dmesg > "$O/dmesg.txt" 2>/dev/null
+[ -f "$SENSORS_UP_LOG" ] && cp "$SENSORS_UP_LOG" "$O/sensors-up.log"
+
+# one-line summary
+nh=$(lines "$O/heading.jsonl")
+ndist=$(grep -c '"disturbed":true' "$O/heading.jsonl" 2>/dev/null)
+ncal=$(grep -c '"calibrated":true' "$O/heading.jsonl" 2>/dev/null)
+nrv=$(lines "$O/rotvec.jsonl")
+errs=$(cat "$O"/*.jsonl 2>/dev/null | grep -c '"err"')
+T1=$(now_s)
+echo "compass: done in $(awk -v a="$T0" -v b="$T1" 'BEGIN { printf "%d", b - a }') s, $O; heading lines $nh (calibrated $ncal, disturbed $ndist); calibration $CAL after $CALHOLDS holds; accel $(lines "$O/accel.jsonl") anglvel $(lines "$O/anglvel.jsonl") magn $(lines "$O/magn.jsonl"); rotvec $nrv; error lines $errs"

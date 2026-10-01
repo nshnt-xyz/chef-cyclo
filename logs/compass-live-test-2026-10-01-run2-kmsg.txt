@@ -1,0 +1,337 @@
+[    9.547375,1] sensors-up: /dev/mmcblk0p38 set read-only at the block layer (blockdev --getro = 1)
+[    9.603220,1] sensors-up: registry copied to /run/sensors/sns.reg (27426 bytes; persist untouched)
+[    9.608924,2] sensord: registry /run/sensors/sns.reg loaded: 27426 bytes, 108 groups, 2561 items (RAM copy; DSP writes are written back to this file, never to persist)
+[    9.608990,2] sensord: magnetometer bias in the registry (registry loaded): 0.0000 0.0000 0.0000 gauss (SMGR frame, group 2980) -> not calibrated
+[    9.609023,2] sensord: magnetometer NOT calibrated (source registry, registry loaded): live bias 0.0000 0.0000 0.0000 gauss (factory - full, device frame, not known yet)
+[    9.609688,2] sensord: serving service 0x10f inst 0x0002
+[    9.609774,2] sensord: ready: /run/sensord.sock, BUFFERING API, timestamps dsps, rotation vector client (-V); heading mount portrait
+[    9.609878,2] sensord: smgr service 0x100 not registered yet, polling every 1000 ms
+[   10.108228,1] sensors-up: REG2 (0x10f) served by sensord pid 707
+[   10.113151,1] sensors-up: starting audio-up to boot the adsp
+[   11.137262,2] sensord: reg2: group read 2970 (QMAG_CAL) from 5:80 -> 143 bytes
+[   11.227685,2] sensord: reg2: group write 20 from 5:19 (RAM, /run copy) (126 bytes): 01 00 00 00 01 01 00 00 00 00 00 00 00 00 00 00 00 00 5c 00 01 00 e0 fe ff ff 0d 01 00 00 e0 fe ff ff ec 00 01 00 69 ff ff ff 0d 01 00 00 69 ff ...
+[   11.611480,2] sensord: lookup 0x100 (all instances): 0x3201@5:86
+[   11.611527,2] sensord: smgr service 0x100 found at 5:86, reading sensor info
+[   11.630361,0] sensors-up: SMGR (0x100) registered 1.51s after the adsp check
+[   11.630536,0] sensors-up: supervising sensord pid 707 (audio-up pid 716 left running)
+[   11.647195,2] sensord: smgr sensor id 0 'ACCEL'
+[   11.647236,2] sensord: smgr sensor id 10 'GYRO'
+[   11.647258,2] sensord: smgr sensor id 20 'MAG'
+[   11.647279,2] sensord: smgr sensor id 40 'PROX_LIGHT'
+[   11.648228,2] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[   11.648263,2] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[   11.649170,2] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[   11.649204,2] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[   11.650160,2] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[   11.651206,2] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[   11.651240,2] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[   11.651265,2] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[   14.230314,2] sensord: registry written back to /run/sensors/sns.reg (after DSP writes; 1 DSP writes so far; persist untouched)
+[   34.502635,2] sensord: claim heading 2 Hz
+[   34.502694,2] sensord: heading on: accel 50 Hz, anglvel 50 Hz, magn 20 Hz (calibration full) and magn 5 Hz (factory) claimed internally, rotation vector (-V); mount portrait; magnetometer NOT calibrated yet (source registry)
+[   34.502821,2] sensord: add report 1: accel 50 Hz, calibration full
+[   34.502892,2] sensord: add report 2: anglvel 50 Hz, calibration full
+[   34.502964,2] sensord: add report 3: magn 20 Hz, calibration full
+[   34.503036,2] sensord: add report 6: magn_factory 5 Hz, calibration factory
+[   34.503149,2] sensord: lookup 0x112 (all instances): 0x3201@5:127
+[   34.503173,2] sensord: rotvec service 0x112 found at 5:127
+[   34.513962,2] sensord: magn report accepted with changes (ack 1)
+[   34.514500,2] sensord: rotvec attributes (TLV 0x03..0x0b): 1 1 0x4 327680 13107200 327680 13107200 35924 131071; suid 0x31e5ac1ade90ceb5; reserved 150
+[   34.514550,2] sensord: rotvec attributes read as: revision 1, processor 1, report modes 0x4, report rate 5..200 Hz, sample rate 5..200 Hz, max batch 35924, power 2 mA (rates/power as Q16)
+[   34.514629,2] sensord: rotvec enable (report period 0, sample rate 20 Hz, suspend notify apps/no; no coordinate TLV, as the stock HAL)
+[   34.517153,2] sensord: rotvec enabled: instance 5
+[   34.517451,2] sensord: magn_factory report accepted with changes (ack 1)
+[   34.804098,2] sensord: rotvec report 1: instance 5 ts 1527970 q x 0.00591 y -0.00666 z -0.01429 w 0.99986 (|q| 1.0000) accuracy 0 coord 0
+[   35.778887,2] sensord: release heading (client gone)
+[   35.778983,2] sensord: heading off (no claims): 119 lines, 0 disturbances, 1 resets
+[   35.779118,2] sensord: delete report 1: accel 50 Hz
+[   35.779190,2] sensord: delete report 2: anglvel 50 Hz
+[   35.779263,2] sensord: delete report 3: magn 20 Hz
+[   35.779448,2] sensord: delete report 6: magn_factory 5 Hz
+[   35.779564,2] sensord: rotvec disable instance 5 (no claims)
+[   35.789567,2] sensord: rotvec disabled: instance 5 (result 0 err 0)
+[   35.791256,2] sensord: reg2: group write 2980 from 5:80 (RAM, /run copy) (126 bytes): 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 ...
+[   35.795285,2] sensord: reg2: group write 2610 from 5:80 (RAM, /run copy) (24 bytes): b3 00 00 00 ec ff ff ff 89 fe ff ff 00 00 01 00 00 00 01 00 00 00 01 00
+[   38.797603,2] sensord: registry written back to /run/sensors/sns.reg (after DSP writes; 3 DSP writes so far; persist untouched)
+[   70.297133,2] sensord: add report 1: accel 50 Hz, calibration full
+[   70.421622,2] sensord: delete report 1: accel 50 Hz
+[   70.424037,0] compass: compass check, ~6 min, output /run/sensortest/compass-19700115T041034
+[   70.424117,0] compass: keep away from metal, magnets, laptops
+[   70.424198,0] compass: 1 long buzz: step starts (HOLD still, or DO the movement). 2 short: move on
+[   70.426095,0] sensord: not serving REG2 (-R)
+[   70.426131,0] sensord: magnetometer calibration in the registry unknown (no registry (-R): no registry items 3903..3905)
+[   70.426188,0] sensord: magnetometer NOT calibrated (source none, no registry (-R)): live bias 0.0000 0.0000 0.0000 gauss (factory - full, device frame, not known yet)
+[   70.426261,0] sensord: ready: /run/sensortest/compass-19700115T041034/rotvec.sock, BUFFERING API, timestamps dsps, rotation vector client (-V); heading mount portrait
+[   70.426285,0] sensord: SMGR report IDs 41..46 (-i)
+[   70.426415,0] sensord: lookup 0x100 (all instances): 0x3201@5:86
+[   70.426446,0] sensord: smgr service 0x100 found at 5:86, reading sensor info
+[   70.427437,0] sensord: smgr sensor id 0 'ACCEL'
+[   70.427459,0] sensord: smgr sensor id 10 'GYRO'
+[   70.427481,0] sensord: smgr sensor id 20 'MAG'
+[   70.427503,0] sensord: smgr sensor id 40 'PROX_LIGHT'
+[   70.428447,0] sensord: smgr id 0 dt 0 'BMI160 Accelerometer' (BOSCH) v2062701 max 200 Hz range 78.45 res 0.002396
+[   70.428482,0] sensord: smgr id 0 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[   70.429601,0] sensord: smgr id 10 dt 0 'BMI160 Gyroscope' (BOSCH) v2062701 max 200 Hz range 34.91 res 0.001068
+[   70.429634,0] sensord: smgr id 10 dt 1 'BMI160 Temperature' (BOSCH) v2062701 max 1 Hz range 85 res 1
+[   70.430432,0] sensord: smgr id 20 dt 0 'AK09918 Magnetometer' (AKM) v1 max 50 Hz range 49.12 res 0.001495
+[   70.431404,0] sensord: smgr id 40 dt 0 'EPL259x ALS/PS PROX' (Eminent) v1 max 5 Hz range 0.05 res 0.001007
+[   70.431439,0] sensord: smgr id 40 dt 1 'EPL259x ALS/PS ALS' (Eminent) v1 max 5 Hz range 3e+04 res 0.001007
+[   70.431465,0] sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+[   70.929878,0] compass: starting in 5
+[   70.930487,2] sensord: claim magn 20 Hz
+[   70.930488,0] sensord: claim rotvec 20 Hz
+[   70.930658,0] sensord: lookup 0x112 (all instances): 0x3201@5:127
+[   70.930688,0] sensord: rotvec service 0x112 found at 5:127
+[   70.930854,2] sensord: add report 3: magn 20 Hz, calibration full
+[   70.930987,2] sensord: claim anglvel 50 Hz
+[   70.931093,2] sensord: add report 2: anglvel 50 Hz, calibration full
+[   70.931173,2] sensord: claim heading 25 Hz
+[   70.931238,2] sensord: heading on: accel 50 Hz, anglvel 50 Hz, magn 20 Hz (calibration full) and magn 5 Hz (factory) claimed internally, rotation vector (-V); mount portrait; magnetometer NOT calibrated yet (source registry)
+[   70.931313,2] sensord: add report 1: accel 50 Hz, calibration full
+[   70.931385,2] sensord: add report 6: magn_factory 5 Hz, calibration factory
+[   70.931461,2] sensord: rotvec enable (report period 0, sample rate 20 Hz, suspend notify apps/no; no coordinate TLV, as the stock HAL)
+[   70.931541,2] sensord: claim accel 50 Hz
+[   70.938397,2] sensord: magn report accepted with changes (ack 1)
+[   70.944613,2] sensord: magn_factory report accepted with changes (ack 1)
+[   70.946279,0] sensord: rotvec attributes (TLV 0x03..0x0b): 1 1 0x4 327680 13107200 327680 13107200 35924 131071; suid 0x31e5ac1ade90ceb5; reserved 150
+[   70.946328,0] sensord: rotvec attributes read as: revision 1, processor 1, report modes 0x4, report rate 5..200 Hz, sample rate 5..200 Hz, max batch 35924, power 2 mA (rates/power as Q16)
+[   70.946410,0] sensord: rotvec enable (report period 0, sample rate 20 Hz, suspend notify apps/no; no coordinate TLV, as the stock HAL)
+[   70.948813,2] sensord: rotvec enabled: instance 21
+[   70.949091,0] sensord: rotvec enabled: instance 22
+[   71.082120,2] sensord: rotvec report 26: instance 21 ts 2716727 q x 0.00244 y -0.00885 z -0.01554 w 0.99984 (|q| 1.0000) accuracy 0 coord 0
+[   71.082436,0] sensord: rotvec report 1: instance 22 ts 2716727 q x 0.00244 y -0.00885 z -0.01554 w 0.99984 (|q| 1.0000) accuracy 0 coord 0
+[   71.151869,2] sensord: magnetometer NOT calibrated (source live, live): live bias -0.0013 -0.0027 0.0004 gauss (factory - full, device frame, known)
+[   71.932040,7] compass: starting in 4
+[   72.933423,0] compass: starting in 3
+[   73.935010,0] compass: starting in 2
+[   74.936478,0] compass: starting in 1
+[   75.943252,0] compass: ---- STEP 1/17: FACE UP on the table, still
+[   75.943325,0] compass:      move the phone now (8 s)
+[   76.105828,2] sensord: rotvec report 152: instance 21 ts 2881379 q x -0.00795 y -0.00625 z -0.10073 w 0.99486 (|q| 1.0000) accuracy 0 coord 0
+[   76.106019,0] sensord: rotvec report 127: instance 22 ts 2881379 q x -0.00795 y -0.00625 z -0.10073 w 0.99486 (|q| 1.0000) accuracy 0 coord 0
+[   81.130837,0] sensord: rotvec report 278: instance 21 ts 3046034 q x -0.00810 y -0.00644 z -0.10228 w 0.99470 (|q| 1.0000) accuracy 0 coord 0
+[   81.131051,0] sensord: rotvec report 253: instance 22 ts 3046034 q x -0.00810 y -0.00644 z -0.10228 w 0.99470 (|q| 1.0000) accuracy 0 coord 0
+[   83.946640,0] compass:      HOLD 10 s: FACE UP on the table, still
+[   86.155537,2] sensord: rotvec report 404: instance 21 ts 3210690 q x -0.00657 y -0.00663 z -0.10244 w 0.99470 (|q| 1.0000) accuracy 0 coord 0
+[   86.155749,0] sensord: rotvec report 379: instance 22 ts 3210690 q x -0.00657 y -0.00663 z -0.10244 w 0.99470 (|q| 1.0000) accuracy 0 coord 0
+[   91.180345,2] sensord: rotvec report 530: instance 21 ts 3375345 q x -0.00653 y -0.00668 z -0.10246 w 0.99469 (|q| 1.0000) accuracy 0 coord 0
+[   91.180531,2] sensord: rotvec report 505: instance 22 ts 3375345 q x -0.00653 y -0.00668 z -0.10246 w 0.99469 (|q| 1.0000) accuracy 0 coord 0
+[   94.251434,0] compass: ---- STEP 2/17: FACE DOWN on the table, still
+[   94.251506,0] compass:      move the phone now (8 s)
+[   96.205233,0] sensord: rotvec report 656: instance 21 ts 3540001 q x -0.03996 y -0.24397 z -0.11830 w 0.96171 (|q| 1.0000) accuracy 0 coord 0
+[   96.205437,2] sensord: rotvec report 631: instance 22 ts 3540001 q x -0.03996 y -0.24397 z -0.11830 w 0.96171 (|q| 1.0000) accuracy 0 coord 0
+[  101.230123,1] sensord: rotvec report 782: instance 21 ts 3704656 q x -0.56891 y -0.82234 z 0.00581 w 0.00820 (|q| 1.0000) accuracy 0 coord 0
+[  101.230311,2] sensord: rotvec report 757: instance 22 ts 3704656 q x -0.56891 y -0.82234 z 0.00581 w 0.00820 (|q| 1.0000) accuracy 0 coord 0
+[  102.254917,0] compass:      HOLD 10 s: FACE DOWN on the table, still
+[  106.255012,3] sensord: rotvec report 908: instance 21 ts 3869312 q x -0.56893 y -0.82232 z 0.00560 w 0.00845 (|q| 1.0000) accuracy 0 coord 0
+[  106.255230,2] sensord: rotvec report 883: instance 22 ts 3869312 q x -0.56893 y -0.82232 z 0.00560 w 0.00845 (|q| 1.0000) accuracy 0 coord 0
+[  111.279902,0] sensord: rotvec report 1034: instance 21 ts 4033968 q x -0.56891 y -0.82234 z 0.00569 w 0.00827 (|q| 1.0000) accuracy 0 coord 0
+[  111.280101,2] sensord: rotvec report 1009: instance 22 ts 4033968 q x -0.56891 y -0.82234 z 0.00569 w 0.00827 (|q| 1.0000) accuracy 0 coord 0
+[  112.560083,0] compass: ---- STEP 3/17: UPRIGHT, top edge up, still
+[  112.560159,0] compass:      move the phone now (11 s)
+[  116.305232,2] sensord: rotvec report 1160: instance 21 ts 4198625 q x 0.56628 y -0.33747 z -0.42643 w 0.61935 (|q| 1.0000) accuracy 0 coord 0
+[  116.305411,2] sensord: rotvec report 1135: instance 22 ts 4198625 q x 0.56628 y -0.33747 z -0.42643 w 0.61935 (|q| 1.0000) accuracy 0 coord 0
+[  121.329759,2] sensord: rotvec report 1286: instance 21 ts 4363280 q x 0.04752 y 0.65738 z 0.75020 w 0.05286 (|q| 1.0000) accuracy 0 coord 0
+[  121.330038,2] sensord: rotvec report 1261: instance 22 ts 4363280 q x 0.04752 y 0.65738 z 0.75020 w 0.05286 (|q| 1.0000) accuracy 0 coord 0
+[  123.563501,0] compass:      HOLD 10 s: UPRIGHT, top edge up, still
+[  126.354703,0] sensord: rotvec report 1412: instance 21 ts 4527937 q x 0.06680 y 0.66494 z 0.74005 w 0.07562 (|q| 1.0000) accuracy 0 coord 0
+[  126.354891,2] sensord: rotvec report 1387: instance 22 ts 4527937 q x 0.06680 y 0.66494 z 0.74005 w 0.07562 (|q| 1.0000) accuracy 0 coord 0
+[  131.379663,3] sensord: rotvec report 1538: instance 21 ts 4692593 q x 0.06672 y 0.66740 z 0.73817 w 0.07236 (|q| 1.0000) accuracy 0 coord 0
+[  131.379875,3] sensord: rotvec report 1513: instance 22 ts 4692593 q x 0.06672 y 0.66740 z 0.73817 w 0.07236 (|q| 1.0000) accuracy 0 coord 0
+[  133.868780,0] compass: ---- STEP 4/17: UPSIDE DOWN, top edge down, still
+[  133.868855,0] compass:      move the phone now (8 s)
+[  136.404690,0] sensord: rotvec report 1664: instance 21 ts 4857250 q x -0.60761 y -0.21672 z 0.20157 w 0.73702 (|q| 1.0000) accuracy 0 coord 0
+[  136.404985,3] sensord: rotvec report 1639: instance 22 ts 4857250 q x -0.60761 y -0.21672 z 0.20157 w 0.73702 (|q| 1.0000) accuracy 0 coord 0
+[  141.429395,2] sensord: rotvec report 1790: instance 21 ts 5021907 q x -0.57719 y -0.40226 z 0.40605 w 0.58323 (|q| 1.0000) accuracy 0 coord 0
+[  141.429588,3] sensord: rotvec report 1765: instance 22 ts 5021907 q x -0.57719 y -0.40226 z 0.40605 w 0.58323 (|q| 1.0000) accuracy 0 coord 0
+[  141.872177,0] compass:      HOLD 10 s: UPSIDE DOWN, top edge down, still
+[  146.454418,0] sensord: rotvec report 1916: instance 21 ts 5186564 q x -0.57490 y -0.40854 z 0.41064 w 0.57789 (|q| 1.0000) accuracy 0 coord 0
+[  146.454664,3] sensord: rotvec report 1891: instance 22 ts 5186564 q x -0.57490 y -0.40854 z 0.41064 w 0.57789 (|q| 1.0000) accuracy 0 coord 0
+[  151.480290,2] sensord: rotvec report 2042: instance 21 ts 5351222 q x -0.57495 y -0.40912 z 0.41003 w 0.57787 (|q| 1.0000) accuracy 0 coord 0
+[  151.480477,3] sensord: rotvec report 2017: instance 22 ts 5351222 q x -0.57495 y -0.40912 z 0.41003 w 0.57787 (|q| 1.0000) accuracy 0 coord 0
+[  152.177755,0] compass: ---- STEP 5/17: ON ITS LEFT EDGE, still
+[  152.177825,0] compass:      move the phone now (8 s)
+[  156.504266,2] sensord: rotvec report 2168: instance 21 ts 5515879 q x -0.11580 y -0.68032 z -0.11879 w 0.71389 (|q| 1.0000) accuracy 0 coord 0
+[  156.504478,3] sensord: rotvec report 2143: instance 22 ts 5515879 q x -0.11580 y -0.68032 z -0.11879 w 0.71389 (|q| 1.0000) accuracy 0 coord 0
+[  160.181150,0] compass:      HOLD 10 s: ON ITS LEFT EDGE, still
+[  161.529199,0] sensord: rotvec report 2294: instance 21 ts 5680537 q x -0.16519 y -0.68453 z -0.16125 w 0.69147 (|q| 1.0000) accuracy 0 coord 0
+[  161.529384,3] sensord: rotvec report 2269: instance 22 ts 5680537 q x -0.16519 y -0.68453 z -0.16125 w 0.69147 (|q| 1.0000) accuracy 0 coord 0
+[  166.554236,1] sensord: rotvec report 2420: instance 21 ts 5845195 q x -0.15909 y -0.67130 z -0.16147 w 0.70568 (|q| 1.0000) accuracy 0 coord 0
+[  166.554436,3] sensord: rotvec report 2395: instance 22 ts 5845195 q x -0.15909 y -0.67130 z -0.16147 w 0.70568 (|q| 1.0000) accuracy 0 coord 0
+[  170.486323,0] compass: ---- STEP 6/17: ON ITS RIGHT EDGE, still
+[  170.486397,0] compass:      move the phone now (8 s)
+[  171.579218,2] sensord: rotvec report 2546: instance 21 ts 6009853 q x 0.28128 y -0.49342 z -0.74704 w 0.34546 (|q| 1.0000) accuracy 0 coord 0
+[  171.579404,3] sensord: rotvec report 2521: instance 22 ts 6009853 q x 0.28128 y -0.49342 z -0.74704 w 0.34546 (|q| 1.0000) accuracy 0 coord 0
+[  173.174857,3] sensord: rotvec report 2586: instance 21 ts 6062125 q x -0.64635 y 0.15601 z 0.72540 w 0.17802 (|q| 1.0000) accuracy 1 coord 0
+[  173.175050,3] sensord: rotvec report 2561: instance 22 ts 6062125 q x -0.64635 y 0.15601 z 0.72540 w 0.17802 (|q| 1.0000) accuracy 1 coord 0
+[  176.318751,1] sensord: magnetometer calibrated (source live, live): live bias 0.4017 0.1926 0.0867 gauss (factory - full, device frame, known)
+[  178.199339,3] sensord: rotvec report 2712: instance 21 ts 6226783 q x -0.65962 y 0.15348 z 0.71554 w 0.17131 (|q| 1.0000) accuracy 1 coord 0
+[  178.199534,3] sensord: rotvec report 2687: instance 22 ts 6226783 q x -0.65962 y 0.15348 z 0.71554 w 0.17131 (|q| 1.0000) accuracy 1 coord 0
+[  178.489798,0] compass:      HOLD 10 s: ON ITS RIGHT EDGE, still
+[  183.224364,2] sensord: rotvec report 2838: instance 21 ts 6391442 q x -0.66051 y 0.14466 z 0.71864 w 0.16237 (|q| 1.0000) accuracy 1 coord 0
+[  183.224569,3] sensord: rotvec report 2813: instance 22 ts 6391442 q x -0.66051 y 0.14466 z 0.71864 w 0.16237 (|q| 1.0000) accuracy 1 coord 0
+[  188.249272,1] sensord: rotvec report 2964: instance 21 ts 6556101 q x -0.66009 y 0.14529 z 0.71870 w 0.16322 (|q| 1.0000) accuracy 1 coord 0
+[  188.249463,3] sensord: rotvec report 2939: instance 22 ts 6556101 q x -0.66009 y 0.14529 z 0.71870 w 0.16322 (|q| 1.0000) accuracy 1 coord 0
+[  188.795443,0] compass: CALIBRATED after 6 holds; now 17 steps
+[  188.798062,0] compass:      calibration source and bias (G): live [0.4014,0.1933,0.0852]
+[  188.801936,0] compass: ---- STEP 7/17: FLAT, top edge at your REFERENCE mark, still
+[  188.802010,0] compass:      move the phone now (8 s)
+[  193.274303,2] sensord: rotvec report 3090: instance 21 ts 6720760 q x 0.21619 y -0.23783 z -0.76371 w 0.55985 (|q| 1.0000) accuracy 1 coord 0
+[  193.274494,3] sensord: rotvec report 3065: instance 22 ts 6720760 q x 0.21619 y -0.23783 z -0.76371 w 0.55985 (|q| 1.0000) accuracy 1 coord 0
+[  196.805274,0] compass:      HOLD 10 s: FLAT, top edge at your REFERENCE mark, still
+[  198.299330,0] sensord: rotvec report 3216: instance 21 ts 6885419 q x -0.01022 y -0.00185 z -0.63272 w 0.77431 (|q| 1.0000) accuracy 1 coord 0
+[  198.299521,3] sensord: rotvec report 3191: instance 22 ts 6885419 q x -0.01022 y -0.00185 z -0.63272 w 0.77431 (|q| 1.0000) accuracy 1 coord 0
+[  203.324490,1] sensord: rotvec report 3342: instance 21 ts 7050079 q x -0.00895 y -0.00298 z -0.61637 w 0.78740 (|q| 1.0000) accuracy 1 coord 0
+[  203.324680,3] sensord: rotvec report 3317: instance 22 ts 7050079 q x -0.00895 y -0.00298 z -0.61637 w 0.78740 (|q| 1.0000) accuracy 1 coord 0
+[  207.108583,0] compass: ---- STEP 8/17: turn 90 deg CLOCKWISE to the next mark, flat, still
+[  207.108658,0] compass:      move the phone now (8 s)
+[  208.349956,2] sensord: rotvec report 3468: instance 21 ts 7214739 q x -0.00913 y -0.00292 z -0.61634 w 0.78742 (|q| 1.0000) accuracy 1 coord 0
+[  208.350178,3] sensord: rotvec report 3443: instance 22 ts 7214739 q x -0.00913 y -0.00292 z -0.61634 w 0.78742 (|q| 1.0000) accuracy 1 coord 0
+[  213.374427,2] sensord: rotvec report 3594: instance 21 ts 7379399 q x -0.01348 y -0.00086 z -0.99932 w 0.03427 (|q| 1.0000) accuracy 1 coord 0
+[  213.374615,3] sensord: rotvec report 3569: instance 22 ts 7379399 q x -0.01348 y -0.00086 z -0.99932 w 0.03427 (|q| 1.0000) accuracy 1 coord 0
+[  215.111863,0] compass:      HOLD 10 s: turn 90 deg CLOCKWISE to the next mark, flat, still
+[  218.399368,1] sensord: rotvec report 3720: instance 21 ts 7544059 q x -0.01222 y -0.00119 z -0.99915 w 0.03941 (|q| 1.0000) accuracy 1 coord 0
+[  218.399558,3] sensord: rotvec report 3695: instance 22 ts 7544059 q x -0.01222 y -0.00119 z -0.99915 w 0.03941 (|q| 1.0000) accuracy 1 coord 0
+[  223.424517,3] sensord: rotvec report 3846: instance 21 ts 7708720 q x -0.01210 y -0.00123 z -0.99915 w 0.03934 (|q| 1.0000) accuracy 1 coord 0
+[  223.424762,3] sensord: rotvec report 3821: instance 22 ts 7708720 q x -0.01210 y -0.00123 z -0.99915 w 0.03934 (|q| 1.0000) accuracy 1 coord 0
+[  225.415285,0] compass: ---- STEP 9/17: turn 90 deg CLOCKWISE to the next mark, flat, still
+[  225.415356,0] compass:      move the phone now (8 s)
+[  228.449423,1] sensord: rotvec report 3972: instance 21 ts 7873379 q x 0.00933 y 0.00056 z 0.71192 w 0.70219 (|q| 1.0000) accuracy 1 coord 0
+[  228.449614,3] sensord: rotvec report 3947: instance 22 ts 7873379 q x 0.00933 y 0.00056 z 0.71192 w 0.70219 (|q| 1.0000) accuracy 1 coord 0
+[  233.418941,0] compass:      HOLD 10 s: turn 90 deg CLOCKWISE to the next mark, flat, still
+[  233.474500,2] sensord: rotvec report 4098: instance 21 ts 8038039 q x 0.00644 y -0.00203 z 0.65767 w 0.75328 (|q| 1.0000) accuracy 1 coord 0
+[  233.474718,3] sensord: rotvec report 4073: instance 22 ts 8038039 q x 0.00644 y -0.00203 z 0.65767 w 0.75328 (|q| 1.0000) accuracy 1 coord 0
+[  238.499504,2] sensord: rotvec report 4224: instance 21 ts 8202699 q x 0.00645 y -0.00184 z 0.65729 w 0.75361 (|q| 1.0000) accuracy 1 coord 0
+[  238.499694,3] sensord: rotvec report 4199: instance 22 ts 8202699 q x 0.00645 y -0.00184 z 0.65729 w 0.75361 (|q| 1.0000) accuracy 1 coord 0
+[  243.524533,2] sensord: rotvec report 4350: instance 21 ts 8367359 q x 0.00649 y -0.00190 z 0.65729 w 0.75361 (|q| 1.0000) accuracy 1 coord 0
+[  243.524730,3] sensord: rotvec report 4325: instance 22 ts 8367359 q x 0.00649 y -0.00190 z 0.65729 w 0.75361 (|q| 1.0000) accuracy 1 coord 0
+[  243.722225,0] compass: ---- STEP 10/17: turn 90 deg CLOCKWISE to the next mark, flat, still
+[  243.722297,0] compass:      move the phone now (8 s)
+[  248.549579,2] sensord: rotvec report 4476: instance 21 ts 8532019 q x -0.00129 y -0.00109 z 0.00917 w 0.99996 (|q| 1.0000) accuracy 1 coord 0
+[  248.549760,3] sensord: rotvec report 4451: instance 22 ts 8532019 q x -0.00129 y -0.00109 z 0.00917 w 0.99996 (|q| 1.0000) accuracy 1 coord 0
+[  251.725820,0] compass:      HOLD 10 s: turn 90 deg CLOCKWISE to the next mark, flat, still
+[  253.574606,0] sensord: rotvec report 4602: instance 21 ts 8696679 q x -0.00132 y -0.00177 z 0.00267 w 0.99999 (|q| 1.0000) accuracy 1 coord 0
+[  253.574793,3] sensord: rotvec report 4577: instance 22 ts 8696679 q x -0.00132 y -0.00177 z 0.00267 w 0.99999 (|q| 1.0000) accuracy 1 coord 0
+[  258.599648,2] sensord: rotvec report 4728: instance 21 ts 8861339 q x -0.00120 y -0.00202 z 0.00263 w 0.99999 (|q| 1.0000) accuracy 1 coord 0
+[  258.599863,3] sensord: rotvec report 4703: instance 22 ts 8861339 q x -0.00120 y -0.00202 z 0.00263 w 0.99999 (|q| 1.0000) accuracy 1 coord 0
+[  262.029595,1] compass: ---- STEP 11/17: turn 90 deg CLOCKWISE, back at the REFERENCE, flat, still
+[  262.029694,1] compass:      move the phone now (8 s)
+[  263.624628,0] sensord: rotvec report 4854: instance 21 ts 9025999 q x -0.00137 y -0.00167 z 0.00269 w 0.99999 (|q| 1.0000) accuracy 1 coord 0
+[  263.624813,3] sensord: rotvec report 4829: instance 22 ts 9025999 q x -0.00137 y -0.00167 z 0.00269 w 0.99999 (|q| 1.0000) accuracy 1 coord 0
+[  268.649716,2] sensord: rotvec report 4980: instance 21 ts 9190659 q x -0.00581 y -0.00217 z -0.64816 w 0.76148 (|q| 1.0000) accuracy 1 coord 0
+[  268.649912,3] sensord: rotvec report 4955: instance 22 ts 9190659 q x -0.00581 y -0.00217 z -0.64816 w 0.76148 (|q| 1.0000) accuracy 1 coord 0
+[  270.033450,1] compass:      HOLD 10 s: turn 90 deg CLOCKWISE, back at the REFERENCE, flat, still
+[  273.674739,0] sensord: rotvec report 5106: instance 21 ts 9355320 q x -0.00569 y -0.00181 z -0.64489 w 0.76425 (|q| 1.0000) accuracy 1 coord 0
+[  273.674919,3] sensord: rotvec report 5081: instance 22 ts 9355320 q x -0.00569 y -0.00181 z -0.64489 w 0.76425 (|q| 1.0000) accuracy 1 coord 0
+[  278.699691,2] sensord: rotvec report 5232: instance 21 ts 9519980 q x -0.00580 y -0.00187 z -0.64489 w 0.76425 (|q| 1.0000) accuracy 1 coord 0
+[  278.699882,3] sensord: rotvec report 5207: instance 22 ts 9519980 q x -0.00580 y -0.00187 z -0.64489 w 0.76425 (|q| 1.0000) accuracy 1 coord 0
+[  280.336833,1] compass: ---- STEP 12/17: FLAT at the reference, still
+[  280.336904,1] compass:      move the phone now (8 s)
+[  283.724772,0] sensord: rotvec report 5358: instance 21 ts 9684640 q x -0.00553 y -0.00193 z -0.64494 w 0.76421 (|q| 1.0000) accuracy 1 coord 0
+[  283.724986,3] sensord: rotvec report 5333: instance 22 ts 9684640 q x -0.00553 y -0.00193 z -0.64494 w 0.76421 (|q| 1.0000) accuracy 1 coord 0
+[  288.340257,4] compass:      HOLD 10 s: FLAT at the reference, still
+[  288.749755,2] sensord: rotvec report 5484: instance 21 ts 9849301 q x -0.00558 y -0.00190 z -0.64492 w 0.76423 (|q| 1.0000) accuracy 1 coord 0
+[  288.749946,3] sensord: rotvec report 5459: instance 22 ts 9849301 q x -0.00558 y -0.00190 z -0.64492 w 0.76423 (|q| 1.0000) accuracy 1 coord 0
+[  293.774749,0] sensord: rotvec report 5610: instance 21 ts 10013961 q x -0.00566 y -0.00194 z -0.64492 w 0.76423 (|q| 1.0000) accuracy 1 coord 0
+[  293.774938,3] sensord: rotvec report 5585: instance 22 ts 10013961 q x -0.00566 y -0.00194 z -0.64492 w 0.76423 (|q| 1.0000) accuracy 1 coord 0
+[  298.643531,1] compass: ---- STEP 13/17: same way: SLOWLY tilt up to UPRIGHT (screen to you) and back, twice
+[  298.643613,1] compass:      move the phone now (8 s)
+[  298.799675,0] sensord: rotvec report 5736: instance 21 ts 10178622 q x -0.00549 y -0.00188 z -0.64493 w 0.76422 (|q| 1.0000) accuracy 1 coord 0
+[  298.799857,3] sensord: rotvec report 5711: instance 22 ts 10178622 q x -0.00549 y -0.00188 z -0.64493 w 0.76422 (|q| 1.0000) accuracy 1 coord 0
+[  303.824997,0] sensord: rotvec report 5862: instance 21 ts 10343282 q x -0.01181 y -0.00363 z -0.63380 w 0.77340 (|q| 1.0000) accuracy 1 coord 0
+[  303.825374,3] sensord: rotvec report 5837: instance 22 ts 10343282 q x -0.01181 y -0.00363 z -0.63380 w 0.77340 (|q| 1.0000) accuracy 1 coord 0
+[  306.646984,1] compass:      DO 20 s: same way: SLOWLY tilt up to UPRIGHT (screen to you) and back, twice
+[  308.661673,1] compass:      pitch 10, aim 90 (upright) and back to 0
+[  308.849851,2] sensord: rotvec report 5988: instance 21 ts 10507943 q x 0.03789 y -0.15139 z -0.65141 w 0.74250 (|q| 1.0000) accuracy 1 coord 0
+[  308.850100,3] sensord: rotvec report 5963: instance 22 ts 10507943 q x 0.03789 y -0.15139 z -0.65141 w 0.74250 (|q| 1.0000) accuracy 1 coord 0
+[  310.676139,1] compass:      pitch 44, aim 90 (upright) and back to 0
+[  312.691295,1] compass:      pitch 80, aim 90 (upright) and back to 0
+[  313.875016,1] sensord: rotvec report 6114: instance 21 ts 10672604 q x 0.31714 y -0.43094 z -0.68558 w 0.49365 (|q| 1.0000) accuracy 1 coord 0
+[  313.875202,3] sensord: rotvec report 6089: instance 22 ts 10672604 q x 0.31714 y -0.43094 z -0.68558 w 0.49365 (|q| 1.0000) accuracy 1 coord 0
+[  314.703410,1] compass:      pitch 27, aim 90 (upright) and back to 0
+[  316.717370,1] compass:      pitch 9, aim 90 (upright) and back to 0
+[  318.729684,1] compass:      pitch 57, aim 90 (upright) and back to 0
+[  318.900439,2] sensord: rotvec report 6240: instance 21 ts 10837265 q x 0.35296 y -0.38789 z -0.65220 w 0.54735 (|q| 1.0000) accuracy 1 coord 0
+[  318.900649,0] sensord: rotvec report 6215: instance 22 ts 10837265 q x 0.35296 y -0.38789 z -0.65220 w 0.54735 (|q| 1.0000) accuracy 1 coord 0
+[  320.744685,1] compass:      pitch 86, aim 90 (upright) and back to 0
+[  322.759446,2] compass:      pitch 67, aim 90 (upright) and back to 0
+[  323.925244,2] sensord: rotvec report 6366: instance 21 ts 11001926 q x 0.17214 y -0.22515 z -0.77250 w 0.56826 (|q| 1.0000) accuracy 1 coord 0
+[  323.925423,0] sensord: rotvec report 6341: instance 22 ts 11001926 q x 0.17214 y -0.22515 z -0.77250 w 0.56826 (|q| 1.0000) accuracy 1 coord 0
+[  324.774414,2] compass:      pitch 6, aim 90 (upright) and back to 0
+[  326.785654,2] compass:      pitch 25, aim 90 (upright) and back to 0
+[  327.088934,2] compass: ---- STEP 14/17: same way: HANDLEBAR POSE, tilted up about 60 deg, still
+[  327.089010,2] compass:      move the phone now (8 s)
+[  328.950233,2] sensord: rotvec report 6492: instance 21 ts 11166587 q x 0.22772 y -0.26131 z -0.71082 w 0.61204 (|q| 1.0000) accuracy 1 coord 0
+[  328.950419,0] sensord: rotvec report 6467: instance 22 ts 11166587 q x 0.22772 y -0.26131 z -0.71082 w 0.61204 (|q| 1.0000) accuracy 1 coord 0
+[  333.975247,2] sensord: rotvec report 6618: instance 21 ts 11331249 q x 0.21539 y -0.27936 z -0.72233 w 0.59481 (|q| 1.0000) accuracy 1 coord 0
+[  333.975496,0] sensord: rotvec report 6593: instance 22 ts 11331249 q x 0.21539 y -0.27936 z -0.72233 w 0.59481 (|q| 1.0000) accuracy 1 coord 0
+[  335.092925,2] compass:      HOLD 8 s: same way: HANDLEBAR POSE, tilted up about 60 deg, still
+[  337.108188,3] compass:      pitch 41, aim 60
+[  339.000359,0] sensord: rotvec report 6744: instance 21 ts 11495910 q x 0.21846 y -0.27221 z -0.72078 w 0.59888 (|q| 1.0000) accuracy 1 coord 0
+[  339.000549,1] sensord: rotvec report 6719: instance 22 ts 11495910 q x 0.21846 y -0.27221 z -0.72078 w 0.59888 (|q| 1.0000) accuracy 1 coord 0
+[  339.123185,3] compass:      pitch 41, aim 60
+[  341.139044,0] compass:      pitch 41, aim 60
+[  343.154507,0] compass:      pitch 41, aim 60
+[  343.457966,0] compass: ---- STEP 15/17: same way: hold it UPRIGHT in front of you like a steering wheel and tilt it left/right about 30 deg
+[  343.458043,0] compass:      move the phone now (8 s)
+[  344.025443,3] sensord: rotvec report 6870: instance 21 ts 11660573 q x 0.23304 y -0.27439 z -0.71953 w 0.59387 (|q| 1.0000) accuracy 1 coord 0
+[  344.025626,1] sensord: rotvec report 6845: instance 22 ts 11660573 q x 0.23304 y -0.27439 z -0.71953 w 0.59387 (|q| 1.0000) accuracy 1 coord 0
+[  349.050552,1] sensord: rotvec report 6996: instance 21 ts 11825234 q x 0.39091 y -0.50002 z -0.62209 w 0.45844 (|q| 1.0000) accuracy 1 coord 0
+[  349.050741,1] sensord: rotvec report 6971: instance 22 ts 11825234 q x 0.39091 y -0.50002 z -0.62209 w 0.45844 (|q| 1.0000) accuracy 1 coord 0
+[  351.461200,0] compass:      DO 15 s: same way: hold it UPRIGHT in front of you like a steering wheel and tilt it left/right about 30 deg
+[  353.472366,0] compass:      roll -17, aim +-30 left and right; pitch 71, aim 90 (upright)
+[  354.075488,2] sensord: rotvec report 7122: instance 21 ts 11989897 q x 0.21864 y -0.61127 z -0.46311 w 0.60338 (|q| 1.0000) accuracy 1 coord 0
+[  354.075674,1] sensord: rotvec report 7097: instance 22 ts 11989897 q x 0.21864 y -0.61127 z -0.46311 w 0.60338 (|q| 1.0000) accuracy 1 coord 0
+[  355.486456,0] compass:      roll -60, aim +-30 left and right; pitch 28, aim 90 (upright)
+[  357.500996,0] compass:      roll -31, aim +-30 left and right; pitch 58, aim 90 (upright)
+[  359.100704,0] sensord: rotvec report 7248: instance 21 ts 12154559 q x 0.54391 y -0.40184 z -0.71517 w 0.17671 (|q| 1.0000) accuracy 1 coord 0
+[  359.100914,2] sensord: rotvec report 7223: instance 22 ts 12154559 q x 0.54391 y -0.40184 z -0.71517 w 0.17671 (|q| 1.0000) accuracy 1 coord 0
+[  359.515628,0] compass:      roll 49, aim +-30 left and right; pitch 40, aim 90 (upright)
+[  361.530746,0] compass:      roll 10, aim +-30 left and right; pitch 79, aim 90 (upright)
+[  362.530524,2] sensord: rotvec report 7334: instance 21 ts 12266947 q x 0.11676 y -0.63437 z -0.51510 w 0.56445 (|q| 1.0000) accuracy 2 coord 0
+[  362.530705,2] sensord: rotvec report 7309: instance 22 ts 12266947 q x 0.11676 y -0.63437 z -0.51510 w 0.56445 (|q| 1.0000) accuracy 2 coord 0
+[  363.542263,0] compass:      roll -77, aim +-30 left and right; pitch 3, aim 90 (upright)
+[  365.557688,0] compass:      roll -8, aim +-30 left and right; pitch 79, aim 90 (upright)
+[  365.695588,2] sensord: magnetometer bias changed (live): 0.3763 0.2408 0.0131 gauss; heading re-learns the field
+[  366.569010,0] compass:      roll 43, aim +-30 left and right; pitch 46, aim 90 (upright)
+[  366.872117,0] compass: ---- STEP 16/17: same way: TAP and SHAKE the phone
+[  366.872191,0] compass:      move the phone now (8 s)
+[  367.555741,2] sensord: rotvec report 7460: instance 21 ts 12431610 q x -0.59274 y 0.28106 z 0.75461 w 0.01496 (|q| 1.0000) accuracy 2 coord 0
+[  367.555936,2] sensord: rotvec report 7435: instance 22 ts 12431610 q x -0.59274 y 0.28106 z 0.75461 w 0.01496 (|q| 1.0000) accuracy 2 coord 0
+[  371.847929,3] sensord: magnetometer bias changed (live): 0.3770 0.2329 0.1423 gauss; heading re-learns the field
+[  372.580842,0] sensord: rotvec report 7586: instance 21 ts 12596272 q x 0.25229 y -0.36504 z -0.71550 w 0.53959 (|q| 1.0000) accuracy 2 coord 0
+[  372.581016,2] sensord: rotvec report 7561: instance 22 ts 12596272 q x 0.25229 y -0.36504 z -0.71550 w 0.53959 (|q| 1.0000) accuracy 2 coord 0
+[  374.875933,0] compass:      DO 10 s: same way: TAP and SHAKE the phone
+[  377.605932,0] sensord: rotvec report 7712: instance 21 ts 12760935 q x 0.27411 y -0.27455 z -0.73921 w 0.55051 (|q| 1.0000) accuracy 2 coord 0
+[  377.606075,2] sensord: rotvec report 7687: instance 22 ts 12760935 q x 0.27411 y -0.27455 z -0.73921 w 0.55051 (|q| 1.0000) accuracy 2 coord 0
+[  382.630928,1] sensord: rotvec report 7838: instance 21 ts 12925598 q x 0.26630 y -0.18644 z -0.75552 w 0.56879 (|q| 1.0000) accuracy 2 coord 0
+[  382.631150,1] sensord: rotvec report 7813: instance 22 ts 12925598 q x 0.26630 y -0.18644 z -0.75552 w 0.56879 (|q| 1.0000) accuracy 2 coord 0
+[  385.179419,0] compass: ---- STEP 17/17: FLAT at the reference; at the LONG BUZZ turn 90 deg CLOCKWISE QUICKLY, then hold still
+[  385.179495,0] compass:      move the phone now (8 s)
+[  387.656106,2] sensord: rotvec report 7964: instance 21 ts 13090261 q x 0.24657 y -0.24489 z -0.74923 w 0.56381 (|q| 1.0000) accuracy 2 coord 0
+[  387.656295,1] sensord: rotvec report 7939: instance 22 ts 13090261 q x 0.24657 y -0.24489 z -0.74923 w 0.56381 (|q| 1.0000) accuracy 2 coord 0
+[  392.681182,1] sensord: rotvec report 8090: instance 21 ts 13254925 q x -0.00947 y -0.00229 z -0.65231 w 0.75789 (|q| 1.0000) accuracy 2 coord 0
+[  392.681369,1] sensord: rotvec report 8065: instance 22 ts 13254925 q x -0.00947 y -0.00229 z -0.65231 w 0.75789 (|q| 1.0000) accuracy 2 coord 0
+[  393.183166,0] compass:      DO 8 s: FLAT at the reference; at the LONG BUZZ turn 90 deg CLOCKWISE QUICKLY, then hold still
+[  397.706443,0] sensord: rotvec report 8216: instance 21 ts 13419588 q x -0.02553 y -0.00601 z -0.99952 w 0.01627 (|q| 1.0000) accuracy 2 coord 0
+[  397.706671,1] sensord: rotvec report 8191: instance 22 ts 13419588 q x -0.02553 y -0.00601 z -0.99952 w 0.01627 (|q| 1.0000) accuracy 2 coord 0
+[  401.488746,1] sensord: release heading (client gone)
+[  401.488792,1] sensord: heading off (no claims): 36467 lines, 10 disturbances, 2 resets
+[  401.488894,1] sensord: delete report 6: magn_factory 5 Hz
+[  401.488993,1] sensord: release rotvec (client gone)
+[  401.489138,1] sensord: rotvec disable instance 22 (no claims)
+[  401.489265,2] sensord: rotvec disable instance 21 (no claims)
+[  401.489303,2] sensord: release magn (client gone)
+[  401.489428,2] sensord: delete report 3: magn 20 Hz
+[  401.489453,2] sensord: release anglvel (client gone)
+[  401.489485,1] sensord: exiting
+[  401.489539,2] sensord: delete report 2: anglvel 50 Hz
+[  401.489565,2] sensord: release accel (client gone)
+[  401.489665,2] sensord: delete report 1: accel 50 Hz
+[  401.493013,2] sensord: rotvec disabled: instance 21 (result 0 err 0)
+[  401.499148,1] sensord: rotvec disabled: instance 22 (result 0 err 0)
+[  401.507642,2] sensord: reg2: group write 2980 from 5:80 (RAM, /run copy) (126 bytes): 01 00 00 00 01 00 82 c4 ff ff 7a 9f ff ff f4 23 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 ...
+[  401.507731,2] sensord: magnetometer bias in the registry (DSP write): -0.2324 -0.3770 0.1404 gauss (SMGR frame, group 2980) -> calibrated
+[  401.510715,2] sensord: reg2: group write 2610 from 5:80 (RAM, /run copy) (24 bytes): bc 00 00 00 d5 ff ff ff 91 fe ff ff 00 00 01 00 00 00 01 00 00 00 01 00
+[  402.103039,0] compass: DONE, thank you
+[  404.513188,2] sensord: registry written back to /run/sensors/sns.reg (after DSP writes; 5 DSP writes so far; persist untouched)

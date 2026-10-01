@@ -4,9 +4,15 @@
  * conversion, reset recovery), not the wire layouts themselves; those
  * are pinned to the IDL dump by tests/test_sns_msgs.c.
  *
- *   fake_smgr mkreg FILE SIZE       synthetic registry: byte i = i*7+3
+ *   fake_smgr mkreg FILE SIZE       synthetic registry: byte i = i*7+3,
+ *                                   except bytes 768..893 (group 2980 in
+ *                                   the fixture map: the magnetometer
+ *                                   bias, all zero = not learned yet)
  *   fake_smgr serve [-P]            REG2 checks, then an SMGR server
  *   fake_smgr slow SOCK SECS        claim accel 200, stall, then report
+ *   fake_smgr reg2write GROUP HEX   write a registry group as the DSP
+ *                                   does (REG2 group write), print
+ *                                   "REG2 WRITE OK" or "REG2 WRITE FAIL"
  *
  * serve first acts like the DSP at boot: waits for REG2 (0x10f), reads a
  * group and some items, writes one, and prints "REG2 OK" or
@@ -14,7 +20,11 @@
  * info and report requests, printing "ADD report R sensor S dt D rate N"
  * and "DELETE report R", and streams samples for each active report:
  * accel (SMGR frame) 0.5, 1.0, -9.80665 -> sensord x=1, y=0.5, z=9.80665;
- * light 123.5 lux; proximity near with raw 42. SIGUSR1 simulates a DSP
+ * gyro 1/512, 1/256, -1/1024 rad/s -> x=0.00390625, y=0.00195312,
+ * z=0.000976562 (a small, bias-like rate); magn 0, -0.3125, 0.1875 gauss
+ * -> x=-0.3125, y=0, z=-0.1875 (with that accel: heading 88.13 deg, pitch
+ * 2.90, roll -5.81 for the portrait mount); light 123.5 lux; proximity
+ * near with raw 42. $FAKE_MAG_LEARN_FILE: see mag_learned(). SIGUSR1 simulates a DSP
  * restart: the SMGR and QMAG ports close, every report and QMAG instance
  * is forgotten and the services come back on new ports a second later.
  * SIGUSR2 restarts only SMGR (QMAG stays), so sensord has a live QMAG
@@ -28,7 +38,16 @@
  * 0..3, and one error indication (error 2) after the fifth report.
  * $FAKE_QMAG_ENABLE_DELAY_MS delays every ENABLE response (the instance
  * exists at once, reports start only after the response), for sensord's
- * no-resend and disable-at-exit rules. */
+ * no-resend and disable-at-exit rules.
+ *
+ * ROTATION_VECTOR (0x112 inst 0x3201, beside a 0x3202 decoy), the same
+ * lifecycle and prints with "ROTVEC": "ROTVEC ENABLE period P rate R
+ * coord none|C notify none|PROC/SEND instance I"; reports every 100 ms
+ * with the quaternion x 0, y 0, z -0.70710677, w 0.70710677 (flat, top
+ * edge east: heading 90), accuracy rising 0..3, coordinate byte 1, and
+ * one error indication (error 3) after the fifth report;
+ * $FAKE_ROTVEC_ENABLE_DELAY_MS delays its ENABLE responses. SIGUSR1
+ * takes it down with QMAG; SIGUSR2 leaves it. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <poll.h>
@@ -80,7 +99,7 @@ static int mkreg(const char *path, long size)
 	if (!f)
 		return 1;
 	for (i = 0; i < size; i++)
-		fputc((int)((i * 7 + 3) & 0xff), f);
+		fputc(i >= 768 && i < 768 + 126 ? 0 : (int)((i * 7 + 3) & 0xff), f);
 	return fclose(f) ? 1 : 0;
 }
 
@@ -210,6 +229,7 @@ struct report {
 	bool on;
 	uint8_t sensor, dt;
 	unsigned rate;
+	uint8_t cal;		/* BUFFERING calibration select */
 	int64_t next;
 	uint32_t node, port;
 };
@@ -307,6 +327,7 @@ static void smgr_request(int sock, struct qrtr_packet *pkt, uint32_t node, uint3
 			rp->sensor = q.item[0].sensor_id;
 			rp->dt = q.item[0].data_type;
 			rp->rate = q.item[0].sampling_rate_hz;
+			rp->cal = q.item[0].calibration;
 			rp->next = now_ns();
 			rp->node = node;
 			rp->port = port;
@@ -352,6 +373,30 @@ static void smgr_request(int sock, struct qrtr_packet *pkt, uint32_t node, uint3
 	}
 }
 
+/* The ADSP's learned magnetometer bias: once the file named by
+ * $FAKE_MAG_LEARN_FILE exists, magn at calibration factory/raw (1, 2)
+ * reads the full value plus the bias (as live: the DSP subtracts it only
+ * from "full"), factory - full = (0.401, 0.229, 0.254) G in the device
+ * frame = (0.229, 0.401, -0.254) in the SMGR frame. */
+static bool mag_learned(void)
+{
+	const char *f = getenv("FAKE_MAG_LEARN_FILE");
+
+	return f && access(f, F_OK) == 0;
+}
+
+static void sample_for(uint8_t sensor, uint8_t dt, int32_t d[3]);
+
+static void sample_cal(uint8_t sensor, uint8_t dt, uint8_t cal, int32_t d[3])
+{
+	sample_for(sensor, dt, d);
+	if (sensor == 20 && cal != 0 && mag_learned()) {
+		d[0] += Q16(0.229);
+		d[1] += Q16(0.401);
+		d[2] += Q16(-0.254);
+	}
+}
+
 static void sample_for(uint8_t sensor, uint8_t dt, int32_t d[3])
 {
 	d[0] = d[1] = d[2] = 0;
@@ -360,6 +405,14 @@ static void sample_for(uint8_t sensor, uint8_t dt, int32_t d[3])
 	} else if (sensor == 40) {
 		d[0] = Q16(1);
 		d[1] = 42;		/* raw, unscaled */
+	} else if (sensor == 10) {
+		d[0] = Q16(1.0 / 512);
+		d[1] = Q16(1.0 / 256);
+		d[2] = Q16(-1.0 / 1024);
+	} else if (sensor == 20) {
+		d[0] = 0;
+		d[1] = Q16(-0.3125);
+		d[2] = Q16(0.1875);
 	} else {
 		d[0] = Q16(0.5);
 		d[1] = Q16(1.0);
@@ -392,7 +445,7 @@ static void stream(int sock)
 			ind.item[0].sensor_id = rp->sensor;
 			ind.item[0].data_type = rp->dt;
 			ind.item[0].ts = ticks();
-			sample_for(rp->sensor, rp->dt, ind.item[0].data);
+			sample_cal(rp->sensor, rp->dt, rp->cal, ind.item[0].data);
 			if (qmi_encode_message(&out, QMI_INDICATION, SNS_SMGR_REPORT_IND, 0, &ind,
 					       sns_smgr_rep_ind_ei) >= 0)
 				qrtr_sendto(sock, rp->node, rp->port, out.data, (unsigned)out.data_len);
@@ -409,8 +462,8 @@ static void stream(int sock)
 			ind.index[0].first_ts = ticks() - period;
 			ind.index[0].rate_q16 = rp->rate << 16;
 			ind.n_samples = 2;
-			sample_for(rp->sensor, rp->dt, ind.samples[0].data);
-			sample_for(rp->sensor, rp->dt, ind.samples[1].data);
+			sample_cal(rp->sensor, rp->dt, rp->cal, ind.samples[0].data);
+			sample_cal(rp->sensor, rp->dt, rp->cal, ind.samples[1].data);
 			ind.samples[1].ts_offset = (uint16_t)period;
 			if (qmi_encode_message(&out, QMI_INDICATION, SNS_SMGR_BUFFERING_IND, 0, &ind,
 					       sns_smgr_buf_ind_ei) >= 0)
@@ -419,9 +472,15 @@ static void stream(int sock)
 	}
 }
 
-/* ------------------------------------------------------ QMAG server */
+/* ---------------------------------------- SAM servers (QMAG, ROTVEC) */
 
-static struct {
+struct samsrv {
+	const char *tag;		/* printed: "QMAG", "ROTVEC" */
+	const char *delay_env;
+	uint32_t svc;
+	bool rotvec;
+	int sock;
+	int64_t republish;
 	bool on;
 	uint8_t instance, next_instance;
 	uint32_t node, port;
@@ -431,27 +490,40 @@ static struct {
 	int64_t reply_at;
 	uint16_t reply_txn;
 	uint8_t reply_instance;
-} qm = { .next_instance = 7 };
+};
 
-static int64_t enable_delay_ns(void)
+static struct samsrv sams[2] = {
+	{ .tag = "QMAG", .delay_env = "FAKE_QMAG_ENABLE_DELAY_MS", .svc = SNS_QMAG_SVC,
+	  .sock = -1, .next_instance = 7 },
+	{ .tag = "ROTVEC", .delay_env = "FAKE_ROTVEC_ENABLE_DELAY_MS", .svc = SNS_ROTVEC_SVC,
+	  .rotvec = true, .sock = -1, .next_instance = 7 },
+};
+
+static int64_t enable_delay_ns(const struct samsrv *q)
 {
-	const char *e = getenv("FAKE_QMAG_ENABLE_DELAY_MS");
+	const char *e = getenv(q->delay_env);
 
 	return e ? atoll(e) * 1000000LL : 0;
 }
 
-static void qmag_enable_reply(int sock, uint16_t txn, uint8_t instance)
+static void sam_enable_reply(struct samsrv *q, uint16_t txn, uint8_t instance)
 {
 	struct sns_sam_instance_resp r;
 
 	memset(&r, 0, sizeof(r));
 	r.instance_valid = 1;
 	r.instance = instance;
-	reply(sock, qm.node, qm.port, SNS_SAM_ENABLE, txn, &r, sns_sam_instance_resp_ei);
+	reply(q->sock, q->node, q->port, SNS_SAM_ENABLE, txn, &r, sns_sam_instance_resp_ei);
 }
 
-static void qmag_request(int sock, struct qrtr_packet *pkt, uint32_t node, uint32_t port)
+static struct samsrv *sam_by_sock(int sock)
 {
+	return sams[0].sock == sock ? &sams[0] : &sams[1];
+}
+
+static void sam_request(int sock, struct qrtr_packet *pkt, uint32_t node, uint32_t port)
+{
+	struct samsrv *q = sam_by_sock(sock);
 	const uint8_t *h = pkt->data;
 	unsigned int msg, t;
 	uint16_t txn = (uint16_t)(h[1] | h[2] << 8);
@@ -468,46 +540,61 @@ static void qmag_request(int sock, struct qrtr_packet *pkt, uint32_t node, uint3
 		r.attr[5] = 10u << 16;	/* min sample rate 10 Hz */
 		r.suid_valid = 1;
 		r.suid = 0x1122334455667788ULL;
-		printf("QMAG ATTR\n");
+		printf("%s ATTR\n", q->tag);
 		reply(sock, node, port, msg, txn, &r, sns_sam_attr_resp_ei);
 	} else if (msg == SNS_SAM_ENABLE) {
-		struct sns_sam_enable_req q;
-		struct sns_sam_instance_resp r;
+		q->on = true;
+		q->instance = q->next_instance++;
+		q->node = node;
+		q->port = port;
+		q->sent = 0;
+		q->next = now_ns() + 100000000LL + enable_delay_ns(q);
+		if (q->rotvec) {
+			struct sns_rotvec_enable_req e;
 
-		memset(&q, 0, sizeof(q));
-		memset(&r, 0, sizeof(r));
-		qmi_decode_message(&q, &t, pkt, QMI_REQUEST, (int)msg, sns_sam_enable_req_ei);
-		qm.on = true;
-		qm.instance = qm.next_instance++;
-		qm.node = node;
-		qm.port = port;
-		qm.sent = 0;
-		qm.next = now_ns() + 100000000LL + enable_delay_ns();
-		if (q.period_valid)
-			printf("QMAG ENABLE period %u instance %u\n", q.period_q16, qm.instance);
-		else
-			printf("QMAG ENABLE period none instance %u\n", qm.instance);
-		(void)r;
-		if (enable_delay_ns()) {
-			qm.reply_at = now_ns() + enable_delay_ns();
-			qm.reply_txn = txn;
-			qm.reply_instance = qm.instance;
+			memset(&e, 0, sizeof(e));
+			qmi_decode_message(&e, &t, pkt, QMI_REQUEST, (int)msg, sns_rotvec_enable_req_ei);
+			printf("ROTVEC ENABLE period %u rate %u", e.period_q16,
+			       e.rate_valid ? e.rate_q16 >> 16 : 0);
+			if (e.coord_valid)
+				printf(" coord %u", e.coord);
+			else
+				printf(" coord none");
+			if (e.notify_valid)
+				printf(" notify %u/%u", e.notify.proc_type, e.notify.send_during_suspend);
+			else
+				printf(" notify none");
+			printf(" instance %u\n", q->instance);
 		} else {
-			qmag_enable_reply(sock, txn, qm.instance);
+			struct sns_sam_enable_req e;
+
+			memset(&e, 0, sizeof(e));
+			qmi_decode_message(&e, &t, pkt, QMI_REQUEST, (int)msg, sns_sam_enable_req_ei);
+			if (e.period_valid)
+				printf("QMAG ENABLE period %u instance %u\n", e.period_q16, q->instance);
+			else
+				printf("QMAG ENABLE period none instance %u\n", q->instance);
+		}
+		if (enable_delay_ns(q)) {
+			q->reply_at = now_ns() + enable_delay_ns(q);
+			q->reply_txn = txn;
+			q->reply_instance = q->instance;
+		} else {
+			sam_enable_reply(q, txn, q->instance);
 		}
 	} else if (msg == SNS_SAM_DISABLE) {
-		struct sns_sam_disable_req q = { 0 };
+		struct sns_sam_disable_req d = { 0 };
 		struct sns_sam_instance_resp r;
 		bool known;
 
 		memset(&r, 0, sizeof(r));
-		qmi_decode_message(&q, &t, pkt, QMI_REQUEST, (int)msg, sns_sam_disable_req_ei);
-		known = qm.on && q.instance == qm.instance;
-		printf("QMAG DISABLE instance %u%s\n", q.instance, known ? "" : " unknown");
+		qmi_decode_message(&d, &t, pkt, QMI_REQUEST, (int)msg, sns_sam_disable_req_ei);
+		known = q->on && d.instance == q->instance;
+		printf("%s DISABLE instance %u%s\n", q->tag, d.instance, known ? "" : " unknown");
 		if (known) {
-			qm.on = false;
+			q->on = false;
 			r.instance_valid = 1;
-			r.instance = q.instance;
+			r.instance = d.instance;
 		} else {
 			r.resp.result = SNS_RESULT_FAILURE;
 			r.resp.err = SNS_ERR_BAD_PARAM;
@@ -517,41 +604,57 @@ static void qmag_request(int sock, struct qrtr_packet *pkt, uint32_t node, uint3
 	fflush(stdout);
 }
 
-static void qmag_stream(int sock)
+static void sam_stream(struct samsrv *q)
 {
 	DEFINE_QRTR_PACKET(out, 256);
+	int rc = -1;
 
-	if (qm.reply_at && now_ns() >= qm.reply_at) {
-		qm.reply_at = 0;
-		printf("QMAG ENABLE REPLY instance %u\n", qm.reply_instance);
+	if (q->reply_at && now_ns() >= q->reply_at) {
+		q->reply_at = 0;
+		printf("%s ENABLE REPLY instance %u\n", q->tag, q->reply_instance);
 		fflush(stdout);
-		qmag_enable_reply(sock, qm.reply_txn, qm.reply_instance);
+		sam_enable_reply(q, q->reply_txn, q->reply_instance);
 	}
 
-	if (!qm.on || now_ns() < qm.next)
+	if (!q->on || now_ns() < q->next)
 		return;
-	qm.next = now_ns() + 100000000LL;
-	qm.sent++;
-	{
+	q->next = now_ns() + 100000000LL;
+	q->sent++;
+	if (q->rotvec) {
+		struct sns_sam_rotvec_ind ind;
+		float f[4] = { 0, 0, -0.70710677f, 0.70710677f };
+		int i;
+
+		memset(&ind, 0, sizeof(ind));
+		ind.instance = q->instance;
+		ind.timestamp = ticks();
+		for (i = 0; i < 4; i++)
+			memcpy(&ind.r.q[i], &f[i], 4);
+		ind.r.accuracy = (uint8_t)(q->sent / 3 > 3 ? 3 : q->sent / 3);
+		ind.r.coord = 1;
+		rc = (int)qmi_encode_message(&out, QMI_INDICATION, SNS_SAM_REPORT_IND, 0, &ind,
+					     sns_sam_rotvec_ind_ei);
+	} else {
 		struct sns_sam_qmag_ind ind;
 
 		memset(&ind, 0, sizeof(ind));
-		ind.instance = qm.instance;
+		ind.instance = q->instance;
 		ind.timestamp = ticks();
 		ind.bias[0] = Q16(0.125);
 		ind.bias[1] = Q16(-0.25);
 		ind.bias[2] = Q16(0.375);
-		ind.accuracy = qm.sent / 3 > 3 ? 3 : qm.sent / 3;
-		if (qmi_encode_message(&out, QMI_INDICATION, SNS_SAM_REPORT_IND, 0, &ind,
-				       sns_sam_qmag_ind_ei) >= 0)
-			qrtr_sendto(sock, qm.node, qm.port, out.data, (unsigned)out.data_len);
+		ind.accuracy = q->sent / 3 > 3 ? 3 : q->sent / 3;
+		rc = (int)qmi_encode_message(&out, QMI_INDICATION, SNS_SAM_REPORT_IND, 0, &ind,
+					     sns_sam_qmag_ind_ei);
 	}
-	if (qm.sent == 5) {
-		struct sns_sam_error_ind e = { .error = 2, .instance = qm.instance };
+	if (rc >= 0)
+		qrtr_sendto(q->sock, q->node, q->port, out.data, (unsigned)out.data_len);
+	if (q->sent == 5) {
+		struct sns_sam_error_ind e = { .error = q->rotvec ? 3 : 2, .instance = q->instance };
 
 		if (qmi_encode_message(&out, QMI_INDICATION, SNS_SAM_ERROR_IND, 0, &e,
 				       sns_sam_error_ind_ei) >= 0)
-			qrtr_sendto(sock, qm.node, qm.port, out.data, (unsigned)out.data_len);
+			qrtr_sendto(q->sock, q->node, q->port, out.data, (unsigned)out.data_len);
 	}
 }
 
@@ -573,22 +676,25 @@ static void serve_one(int sock, void (*handle)(int, struct qrtr_packet *, uint32
 
 static int serve(void)
 {
-	int sock = -1, qsock = -1, decoy, qdecoy;
-	int64_t republish = 0, qrepublish = 0;
+	int sock = -1, decoy, qdecoy, rdecoy, k;
+	int64_t republish = 0;
 
 	if (reg2_checks())
 		return 1;
 	/* Another instance of 0x100 (the router lists every instance of a
 	 * service for an instance-0 lookup): sensord must pick 0x3201, and
-	 * anything sent here is a bug. */
+	 * anything sent here is a bug. The same for the SAM services. */
 	decoy = qrtr_open(0);
 	if (decoy < 0 || qrtr_publish(decoy, SNS_SMGR_SVC, 2, 0x32) < 0)
 		return 1;
 	qdecoy = qrtr_open(0);
 	if (qdecoy < 0 || qrtr_publish(qdecoy, SNS_QMAG_SVC, 2, 0x32) < 0)
 		return 1;
+	rdecoy = qrtr_open(0);
+	if (rdecoy < 0 || qrtr_publish(rdecoy, SNS_ROTVEC_SVC, 2, 0x32) < 0)
+		return 1;
 	while (!g_stop) {
-		struct pollfd pfd[2];
+		struct pollfd pfd[3];
 
 		if (g_restart || g_restart_smgr) {
 			if (sock >= 0)
@@ -597,21 +703,27 @@ static int serve(void)
 			memset(reports, 0, sizeof(reports));
 			republish = now_ns() + 1000000000LL;
 			if (g_restart) {
-				if (qsock >= 0)
-					qrtr_close(qsock);
-				qsock = -1;
-				qm.on = false;
-				qrepublish = republish;
+				for (k = 0; k < 2; k++) {
+					if (sams[k].sock >= 0)
+						qrtr_close(sams[k].sock);
+					sams[k].sock = -1;
+					sams[k].on = false;
+					sams[k].republish = republish;
+				}
 			}
 			printf("%s\n", g_restart ? "RESTART" : "RESTART SMGR");
 			fflush(stdout);
 			g_restart = g_restart_smgr = 0;
 		}
-		if (qsock < 0 && now_ns() >= qrepublish) {
-			qsock = qrtr_open(0);
-			if (qsock < 0 || qrtr_publish(qsock, SNS_QMAG_SVC, SNS_QMAG_VERS, SNS_QMAG_INST) < 0)
+		for (k = 0; k < 2; k++) {
+			struct samsrv *q = &sams[k];
+
+			if (q->sock >= 0 || now_ns() < q->republish)
+				continue;
+			q->sock = qrtr_open(0);
+			if (q->sock < 0 || qrtr_publish(q->sock, q->svc, 1, 0x32) < 0)
 				return 1;
-			printf("QMAG UP\n");
+			printf("%s UP\n", q->tag);
 			fflush(stdout);
 		}
 		if (sock < 0 && now_ns() >= republish) {
@@ -622,22 +734,26 @@ static int serve(void)
 			fflush(stdout);
 		}
 		pfd[0] = (struct pollfd){ .fd = sock, .events = POLLIN };
-		pfd[1] = (struct pollfd){ .fd = qsock, .events = POLLIN };
-		if (poll(pfd, 2, 5) > 0) {
+		pfd[1] = (struct pollfd){ .fd = sams[0].sock, .events = POLLIN };
+		pfd[2] = (struct pollfd){ .fd = sams[1].sock, .events = POLLIN };
+		if (poll(pfd, 3, 5) > 0) {
 			if (sock >= 0 && (pfd[0].revents & POLLIN))
 				serve_one(sock, smgr_request);
-			if (qsock >= 0 && (pfd[1].revents & POLLIN))
-				serve_one(qsock, qmag_request);
+			for (k = 0; k < 2; k++)
+				if (sams[k].sock >= 0 && (pfd[1 + k].revents & POLLIN))
+					serve_one(sams[k].sock, sam_request);
 		}
 		if (sock >= 0)
 			stream(sock);
-		if (qsock >= 0)
-			qmag_stream(qsock);
+		for (k = 0; k < 2; k++)
+			if (sams[k].sock >= 0)
+				sam_stream(&sams[k]);
 		{
 			char buf[64];
 
 			if (qrtr_recvfrom(decoy, buf, sizeof(buf), NULL, NULL) > 0 ||
-			    qrtr_recvfrom(qdecoy, buf, sizeof(buf), NULL, NULL) > 0) {
+			    qrtr_recvfrom(qdecoy, buf, sizeof(buf), NULL, NULL) > 0 ||
+			    qrtr_recvfrom(rdecoy, buf, sizeof(buf), NULL, NULL) > 0) {
 				printf("DECOY got a message\n");
 				fflush(stdout);
 			}
@@ -645,10 +761,50 @@ static int serve(void)
 	}
 	if (sock >= 0)
 		qrtr_close(sock);
-	if (qsock >= 0)
-		qrtr_close(qsock);
+	for (k = 0; k < 2; k++)
+		if (sams[k].sock >= 0)
+			qrtr_close(sams[k].sock);
 	qrtr_close(decoy);
 	qrtr_close(qdecoy);
+	qrtr_close(rdecoy);
+	return 0;
+}
+
+/* Write a registry group as the DSP does: "reg2write GROUP HEXBYTES". */
+static int reg2write(const char *group, const char *hex)
+{
+	struct msm_ipc_server_info info[2];
+	static struct sns_reg2_group_write_req gw;
+	struct sns_generic_resp g;
+	int sock = qrtr_open(0), n = 0, i;
+	size_t len = strlen(hex);
+
+	memset(&gw, 0, sizeof(gw));
+	gw.id = (uint16_t)atoi(group);
+	if (len % 2 || len / 2 > sizeof(gw.data))
+		return 64;
+	for (i = 0; i < (int)len / 2; i++) {
+		unsigned v;
+
+		if (sscanf(hex + 2 * i, "%2x", &v) != 1)
+			return 64;
+		gw.data[i] = (uint8_t)v;
+	}
+	gw.data_len = (uint32_t)(len / 2);
+	for (i = 0; i < 100 && n <= 0; i++) {
+		n = msmipc_lookup(sock, SNS_REG2_SVC, 0, info, 2);
+		if (n <= 0)
+			usleep(20000);
+	}
+	memset(&g, 0, sizeof(g));
+	if (n <= 0 || call(sock, 1, info[0].port_id, SNS_REG2_GROUP_WRITE, &gw,
+			   sns_reg2_group_write_req_ei, &g, sns_generic_resp_ei) < 0 || g.resp.result) {
+		printf("REG2 WRITE FAIL\n");
+		qrtr_close(sock);
+		return 1;
+	}
+	printf("REG2 WRITE OK\n");
+	qrtr_close(sock);
 	return 0;
 }
 
@@ -712,6 +868,8 @@ int main(int argc, char **argv)
 	}
 	if (argc == 4 && strcmp(argv[1], "slow") == 0)
 		return slow(argv[2], atoi(argv[3]));
-	fprintf(stderr, "usage: fake_smgr mkreg FILE SIZE | serve [-P] | slow SOCK SECS\n");
+	if (argc == 4 && strcmp(argv[1], "reg2write") == 0)
+		return reg2write(argv[2], argv[3]);
+	fprintf(stderr, "usage: fake_smgr mkreg FILE SIZE | serve [-P] | slow SOCK SECS | reg2write GROUP HEX\n");
 	return 64;
 }

@@ -487,6 +487,77 @@ static void test_qmag(void)
 	}
 }
 
+/* ROTATION_VECTOR (0x112), against logs/sns-idl-dump-2026-09-27-rotvec.txt. */
+static void test_rotvec(void)
+{
+	struct sns_rotvec_enable_req en;
+	struct sns_sam_rotvec_ind ind;
+	float f[4];
+	/* what sensord sends: 0x01 period 0, 0x10 rate 20 Hz Q16, 0x12 {0, 0} */
+	static const uint8_t en_tlv[] = {
+		0x01, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x10, 0x04, 0x00, 0x00, 0x00, 0x14, 0x00,
+		0x12, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	/* all four TLVs: 26 bytes, the IDL's max_len */
+	static const uint8_t en_all[] = {
+		0x01, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00,
+		0x10, 0x04, 0x00, 0x00, 0x00, 0x0a, 0x00,
+		0x11, 0x01, 0x00, 0x01,
+		0x12, 0x05, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01 };
+	/* report: 01 u8 instance, 02 u32 ts, 03 {f32 x4 (0.5, -0.5, 0.25, 0.625), u8, u8} */
+	static const uint8_t ind_tlv[] = {
+		0x01, 0x01, 0x00, 0x09,
+		0x02, 0x04, 0x00, 0x44, 0x33, 0x22, 0x11,
+		0x03, 0x12, 0x00,
+		0x00, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 0xbf, 0x00, 0x00, 0x80, 0x3e,
+		0x00, 0x00, 0x20, 0x3f, 0x03, 0x01 };
+	int i;
+
+	memset(&en, 0, sizeof(en));
+	en.rate_valid = 1;
+	en.rate_q16 = 20u << 16;
+	en.notify_valid = 1;
+	expect_encoded("rotvec enable", QMI_REQUEST, SNS_SAM_ENABLE, 5, &en, sns_rotvec_enable_req_ei,
+		       en_tlv, sizeof(en_tlv));
+	en.period_q16 = 65536;
+	en.rate_q16 = 10u << 16;
+	en.coord_valid = 1;
+	en.coord = 1;
+	en.notify.proc_type = 2;
+	en.notify.send_during_suspend = 1;
+	expect_encoded("rotvec enable, all TLVs", QMI_REQUEST, SNS_SAM_ENABLE, 6, &en,
+		       sns_rotvec_enable_req_ei, en_all, sizeof(en_all));
+	CHECK(sizeof(en_all) == 26);
+
+	memset(&ind, 0, sizeof(ind));
+	CHECK(decode(QMI_INDICATION, SNS_SAM_REPORT_IND, ind_tlv, sizeof(ind_tlv), &ind,
+		     sns_sam_rotvec_ind_ei) >= 0);
+	CHECK(ind.instance == 9 && ind.timestamp == 0x11223344);
+	for (i = 0; i < 4; i++)
+		memcpy(&f[i], &ind.r.q[i], 4);
+	CHECK(f[0] == 0.5f && f[1] == -0.5f && f[2] == 0.25f && f[3] == 0.625f);
+	CHECK(ind.r.accuracy == 3 && ind.r.coord == 1);
+	/* The result struct one byte short, TLV length consistent (17): the
+	 * codec stops at the TLV end and accepts it with coord unset, so
+	 * sensord checks TLV 0x03 is exactly 18 bytes itself (and ASan here
+	 * shows nothing is read past the input). */
+	{
+		uint8_t cut[sizeof(ind_tlv) - 1];
+
+		memcpy(cut, ind_tlv, sizeof(cut));
+		cut[12] = 0x11;
+		memset(&ind, 0, sizeof(ind));
+		ind.r.coord = 0x55;
+		CHECK(decode(QMI_INDICATION, SNS_SAM_REPORT_IND, cut, sizeof(cut), &ind,
+			     sns_sam_rotvec_ind_ei) >= 0);
+		CHECK(ind.r.accuracy == 3 && ind.r.coord == 0x55);
+		/* TLV length beyond the input: refused */
+		cut[12] = 0x12;
+		CHECK(decode(QMI_INDICATION, SNS_SAM_REPORT_IND, cut, sizeof(cut), &ind,
+			     sns_sam_rotvec_ind_ei) < 0);
+	}
+}
+
 /* Malformed input from the DSP must be rejected without reading past it
  * (tools/qrtr/qmi.c bounds checks; run under ASan by make test). */
 static void test_truncated(void)
@@ -543,6 +614,7 @@ int main(void)
 	test_smgr_report();
 	test_smgr_calibration();
 	test_qmag();
+	test_rotvec();
 	test_truncated();
 	if (failures) {
 		fprintf(stderr, "test-sns-msgs: %d failure(s)\n", failures);

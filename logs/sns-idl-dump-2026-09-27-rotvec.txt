@@ -1,0 +1,117 @@
+# ROTATION_VECTOR (0x112) IDL, 2026-09-27, for sensord's -V diagnostic
+# (docs/next-steps/sensors-plan.md section 8). Produced by:
+#   debugfs -R "dump /lib64/libsensor1.so /tmp/libsensor1.so" stock/partitions/vendor_a.img
+#   python3 tools/sns-idl-dump.py /tmp/libsensor1.so SAM_ROTATION_VECTOR
+# Reading (TLV numbers and sizes from the dump below; meanings from the stock
+# HAL sensors.ssc.so, RotationVector::enable and ::processInd, disassembled
+# with aarch64-linux-objdump from stock/partitions/vendor_a.img /lib64):
+#  msg 0x02 enable req: 0x01 u32 report period (Q16 s; 0 = every new result),
+#    0x10 opt u32 sample rate (Q16 Hz), 0x11 opt u8 coordinate system,
+#    0x12 opt {u32 processor, u8 send indications during suspend}.
+#    Stock default ("synchronous req with sample_rate %d Hz"): period 0,
+#    0x10 = Hz << 16, 0x12 = {0, wakeup flag}, no 0x11. The other branch
+#    ("periodic req with report_rate %d Q16 secs"): period only. sensord -V
+#    sends the default branch with wakeup 0 and 20 Hz.
+#  msg 0x05 report ind: 0x01 u8 instance, 0x02 u32 DSP ticks, 0x03 {u32[4],
+#    u8 accuracy, u8 coordinate system}: the HAL copies the four words as is
+#    into the Android rotation vector event data[0..3] (logged as %f), so
+#    they are IEEE floats x, y, z, w; accuracy 1..3 becomes data[4] =
+#    constant / accuracy (heading accuracy), else a constant.
+#  0x03 disable {u8 instance}, 0x06 error ind {u8 error, u8 instance}, 0x24
+#    attributes: the common SAM messages, as QMAG_CAL (0x140).
+# The stock HAL does not send 0x11, so the DSP's default frame is what
+# Android used; whether that is ENU (Android) or SAE is for the live run
+# (compare with sensord's own heading; the report's coordinate byte is logged).
+#
+# sns-idl-dump of libsensor1.so (sha256 e2fa2798017558bd374ae8bf63bddb313d0e18503e74302c18c1df81a9dbf66f)
+# @N = C struct offset in the generated vendor struct (only meaningful for
+# *_len/*_valid bookkeeping); wire order is TLV order, fields packed little endian.
+
+========================================================================
+SNS_SAM_ROTATION_VECTOR_SVC_qmi_idl_service_object_v01
+service 0x112 idl v1.7 (lib 6) max_msg_len 1803, 8 req / 8 resp / 3 ind
+msg 0x00 req  max_len 0     c_size 1     (sns_common msg 0) no TLVs
+msg 0x00 resp max_len 5     c_size 2     (sns_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+msg 0x01 req  max_len 0     c_size 1     (sns_common msg 2) no TLVs
+msg 0x01 resp max_len 17    c_size 12    (sns_common msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u16
+msg 0x02 req  max_len 26    c_size 24    (self msg 0)
+    TLV 0x01 mandatory @0    u32
+    TLV 0x10 optional  @8    u32 (valid u8 at 4)
+    TLV 0x11 optional  @13   u8 (valid u8 at 12)
+    TLV 0x12 optional  @16   struct sns_common#1 (valid u8 at 14)
+msg 0x02 resp max_len 9     c_size 4     (self msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x03 req  max_len 4     c_size 1     (self msg 2)
+    TLV 0x01 mandatory @0    u8
+msg 0x03 resp max_len 9     c_size 4     (self msg 3)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+msg 0x04 req  max_len 4     c_size 1     (self msg 5)
+    TLV 0x01 mandatory @0    u8
+msg 0x04 resp max_len 37    c_size 36    (self msg 6)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+    TLV 0x11 optional  @8    u32 (valid u8 at 4)
+    TLV 0x12 optional  @16   struct table_0x1bf30#0 (valid u8 at 12)
+msg 0x05 ind  max_len 32    c_size 28    (self msg 4)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+    TLV 0x03 mandatory @8    struct table_0x1bf30#0
+msg 0x06 ind  max_len 8     c_size 2     (self msg 7)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @1    u8
+msg 0x21 req  max_len 18    c_size 16    (self msg 8)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+    TLV 0x10 optional  @12   u32 (valid u8 at 8)
+msg 0x21 resp max_len 23    c_size 20    (self msg 9)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+    TLV 0x11 optional  @8    u32 (valid u8 at 4)
+    TLV 0x12 optional  @16   u32 (valid u8 at 12)
+msg 0x22 ind  max_len 1803  c_size 1980  (self msg 10)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+    TLV 0x03 mandatory @12   u16[<=89] (len u32 at +8, wire len u8)
+    TLV 0x04 mandatory @196  struct table_0x1bf30#0[<=89] (len u32 at +192, wire len u8)
+    TLV 0x10 optional  @1977 u8 (valid u8 at 1976)
+msg 0x23 req  max_len 11    c_size 8     (self msg 11)
+    TLV 0x01 mandatory @0    u8
+    TLV 0x02 mandatory @4    u32
+msg 0x23 resp max_len 16    c_size 12    (self msg 12)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x10 optional  @3    u8 (valid u8 at 2)
+    TLV 0x11 optional  @8    u32 (valid u8 at 4)
+msg 0x24 req  max_len 0     c_size 1     (sns_sam_common msg 0) no TLVs
+msg 0x24 resp max_len 86    c_size 64    (sns_sam_common msg 1)
+    TLV 0x02 mandatory @0    struct sns_common#0
+    TLV 0x03 mandatory @4    u32
+    TLV 0x04 mandatory @8    u32
+    TLV 0x05 mandatory @12   u32
+    TLV 0x06 mandatory @16   u32
+    TLV 0x07 mandatory @20   u32
+    TLV 0x08 mandatory @24   u32
+    TLV 0x09 mandatory @28   u32
+    TLV 0x0a mandatory @32   u32
+    TLV 0x0b mandatory @36   u32
+    TLV 0x10 optional  @48   u64 (valid u8 at 40)
+    TLV 0x11 optional  @60   u32 (valid u8 at 56)
+
+========================================================================
+Referenced structs
+
+struct sns_common#0 (c_size 2)
+    @0    u8
+    @1    u8
+struct sns_common#1 (c_size 8)
+    @0    u32
+    @4    u8
+struct table_0x1bf30#0 (c_size 20)
+    @0    u32[4]
+    @16   u8
+    @17   u8

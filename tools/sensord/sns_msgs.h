@@ -392,6 +392,14 @@ extern struct qmi_elem_info sns_smgr_rep_ind_ei[];
  * enable, sample rate, persisted bias), from the stock map. */
 #define SNS_REG2_QMAG_GROUP	2970
 
+/* Registry group the ADSP writes its learned magnetometer hard-iron bias
+ * to (stock map: group 2980 = items 3900..3935): item 3903..3905 are the
+ * bias, s32 Q16 gauss in the SMGR frame (live 2026-09-27: all zero at
+ * boot, -15790/-25877/+16690 once learned). sensord's heading channel
+ * is "calibrated" while they are nonzero. */
+#define SNS_REG2_MAG_CAL_GROUP	2980
+#define SNS_REG2_MAG_BIAS_ITEM	3903
+
 /* ENABLE (0x02) request: only an optional TLV 0x10 u32, read as the
  * report period (Q16 seconds). The IDL is odd here: the message's
  * directory max_len is 0 and its C struct is 2 bytes with the u32 at
@@ -452,6 +460,63 @@ extern struct qmi_elem_info sns_sam_disable_req_ei[];
 extern struct qmi_elem_info sns_sam_qmag_ind_ei[];
 extern struct qmi_elem_info sns_sam_error_ind_ei[];
 extern struct qmi_elem_info sns_sam_attr_resp_ei[];
+
+/* ---------------------------------- SAM ROTATION_VECTOR (0x112) */
+
+/* The ADSP's 9-axis rotation vector (accel + gyro + mag fusion), a
+ * diagnostic comparison for sensord's own compass (-V). IDL:
+ * logs/sns-idl-dump-2026-09-27-rotvec.txt (service 0x112, idl v1.7).
+ * DISABLE, ERROR and GET_ATTR are the common SAM messages above;
+ * ENABLE and REPORT are its own. Instance 0x3201 like QMAG_CAL (assumed
+ * from the SAM services' common registration; the lookup lists every
+ * instance, so the live run shows what the ADSP registers). */
+#define SNS_ROTVEC_SVC		0x112
+#define SNS_ROTVEC_VERS		1
+#define SNS_ROTVEC_INST		0x32
+
+/* ENABLE (0x02) request: TLV 0x01 u32 report period (Q16 seconds; 0 =
+ * a report for every new result), 0x10 optional u32 sample rate (Q16
+ * Hz), 0x11 optional u8 coordinate system, 0x12 optional struct {u32
+ * processor, u8 send indications during suspend}. The stock HAL
+ * (sensors.ssc.so RotationVector::enable, its default "synchronous req"
+ * branch) sends period 0, sample rate Hz << 16 and 0x12 {0 (apps), the
+ * sensor's wakeup flag}, and no 0x11; sensord sends exactly that with
+ * wakeup 0. */
+struct sns_sam_notify_suspend {
+	uint32_t proc_type;
+	uint8_t send_during_suspend;
+};
+
+struct sns_rotvec_enable_req {
+	uint32_t period_q16;
+	uint8_t rate_valid;
+	uint32_t rate_q16;
+	uint8_t coord_valid;
+	uint8_t coord;
+	uint8_t notify_valid;
+	struct sns_sam_notify_suspend notify;
+};
+
+/* REPORT indication (0x05): TLV 0x01 u8 instance, 0x02 u32 DSP tick
+ * timestamp, 0x03 struct {u32[4] quaternion, u8 accuracy, u8 coordinate
+ * system}. The stock HAL copies the four words unchanged into an Android
+ * rotation vector event's data[0..3] (and logs them as floats), so they
+ * are IEEE floats x, y, z, w; it maps accuracy 1..3 to a heading
+ * accuracy of (a constant) / accuracy in data[4]. */
+struct sns_rotvec_result {
+	uint32_t q[4];
+	uint8_t accuracy;
+	uint8_t coord;
+};
+
+struct sns_sam_rotvec_ind {
+	uint8_t instance;
+	uint32_t timestamp;
+	struct sns_rotvec_result r;
+};
+
+extern struct qmi_elem_info sns_rotvec_enable_req_ei[];
+extern struct qmi_elem_info sns_sam_rotvec_ind_ei[];
 
 /* QMI header (type u8, txn u16, msg id u16, length u16, packed). */
 #define SNS_QMI_HDR_LEN 7

@@ -60,4 +60,9 @@ tools/sensord/tests/sensord-fake
 tools/sensord/tests/fake_smgr
 tools/sensord/tests/test-sns-msgs-san
 tools/sensord/tests/test-sensord-san
+tools/sensord/compass-replay
+tools/sensord/tests/test-compass
+tools/sensord/tests/test-compass-san
+tools/sensord/tests/sensord-fake-san
+tools/sensord/tests/__pycache__/
 tools/__pycache__/
