@@ -1,0 +1,23 @@
+kill $(pidof fblog); sleep 3; echo WLED_AFTER_RESTART; cat /sys/class/leds/w
+led/brightness; pidof fblog buttond NetworkManager; dmesg | grep -E 'fblog|nvt_t
+s_resume|CTP_I2C|BUS ERROR' | tail -15; echo CYCL0_COMMAND_DONE
+WLED_AFTER_RESTART
+1542
+2180 657 632
+[   42.638663,0] fblog: paused: screen borrowed (/run/fb0.lock)
+[   47.153387,0] [NVT-ts] nvt_ts_resume 1668: start
+[   47.207072,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   47.207541,0] [NVT-ts] nvt_ts_resume 1690: end
+[   48.126719,0] [NVT-ts] nvt_ts_resume 1668: start
+[   48.180402,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   48.180424,0] [NVT-ts] nvt_ts_resume 1690: end
+[   48.263824,7] fblog: resumed
+[   64.980362,7] fblog: exiting: blanking before close
+[   67.005620,1] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+[   98.932895,2] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[   99.109816,0] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[   99.120045,0] [NVT-ts] nvt_ts_resume 1668: start
+[   99.173722,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   99.174177,0] [NVT-ts] nvt_ts_resume 1690: end
+CYCL0_COMMAND_DONE
+/ # 

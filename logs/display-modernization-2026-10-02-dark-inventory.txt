@@ -1,0 +1,39 @@
+mkdir -p /run/display-test; touch /run/fblog.off; p=$(pidof fblog); if [ -n 
+"$p" ]; then kill $p; fi; sleep 3; echo OFF_BASELINE; cat /sys/class/leds/wled/b
+rightness; dmesg > /run/display-test/dmesg-before; display-touch-inventory > /ru
+n/display-test/inventory-dark; display-touch-inventory --metadata-only > /run/di
+splay-test/inventory-metadata; libinput list-devices > /run/display-test/libinpu
+t-dark; echo OFF_AFTER_DIAGNOSTICS; cat /sys/class/leds/wled/brightness; dmesg >
+ /run/display-test/dmesg-after; diff /run/display-test/dmesg-before /run/display
+-test/dmesg-after; grep -A 8 'input event1' /run/display-test/inventory-dark; gr
+ep -A 8 NVT /run/display-test/libinput-dark; rm /run/fblog.off; sleep 6; echo RE
+STORED_WLED; cat /sys/class/leds/wled/brightness; pidof fblog buttond NetworkMan
+ager; dmesg | grep -E 'CTP_I2C|BUS ERROR' | wc -l; echo CYCL0_COMMAND_DONE
+OFF_BASELINE
+0
+OFF_AFTER_DIAGNOSTICS
+0
+input event1
+name: NVTCapacitiveTouchScreen
+phys: input/ts
+uniq: 
+properties: 2
+id/bustype: 0018
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+Device:                  NVTCapacitiveTouchScreen
+Kernel:                  /dev/input/event1
+Id:                      i2c:0000:0000
+Group:                   3
+Seat:                    seat0, default
+Capabilities:            touch 
+Tap-to-click:            n/a
+Tap-and-drag:            n/a
+Tap button map:          n/a
+RESTORED_WLED
+0
+1574 657 632
+0
+CYCL0_COMMAND_DONE
+/ # 

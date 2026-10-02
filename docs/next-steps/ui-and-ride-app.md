@@ -10,13 +10,39 @@ Use [buttond](../features/buttons-and-power-off.md) rather than opening the key 
 
 Acceptance: claims release on process death, UI restarts do not interrupt the recorder, and the user can still finish a ride and shut down cleanly. Decide how the future recorder supersedes the temporary ride image, which currently has no button daemon.
 
+## Display and touch modernization
+
+Direction agreed on 2026-10-02: modernize both the display and touch paths. Target a supported DRM/KMS display driver, a current Wayland compositor, and libinput for touchscreen handling. A polished framebuffer application alone does not complete this work. This is a hardware enablement project; support for this phone's exact panel and replacement touchscreen must be established before choosing a kernel or compositor.
+
+Initial support findings and evidence are in the [display modernization investigation](../research/display-modernization.md). Standard touch discovery can be brought up on the current kernel while the DRM board port is investigated separately.
+
+### Display investigation and bring-up
+
+The current downstream 4.4 kernel exposes the panel through `mdss_fb` and the GPU through `kgsl`; the working userspace path is [fbdev.h](../../tools/fbdev.h). Investigate a newer kernel with DRM `msm` support for SDM636 and the board, versus a scoped DRM/KMS port to the existing kernel. Inventory DSI host/PHY, panel initialization and timings, regulators, clocks, reset GPIOs, WLED/backlight, boot splash handoff, and the touchscreen's shared panel rails. Record available upstream support, missing drivers/board descriptions, and effects on working modem, GPS, Wi-Fi, Bluetooth, audio and power features. Choose the kernel approach from that evidence, rather than assuming that a generic SoC driver enables the complete phone.
+
+Bring up software-rendered KMS scanout first: identify the connector/mode, allocate a supported scanout buffer, show a test pattern, and verify frame updates/page flips. DRM/KMS display support and GPU acceleration are separate milestones. Check atomic modesetting support and compositor requirements explicitly. Use temporary boot images and retain the verified baseline and stock recovery path.
+
+Acceptance: correct 1080x2246 output and pixel format, stable repeated updates, clean boot handoff, brightness changes, repeated screen-off/on and reopen, and no panel or touch I2C faults. Measure presentation latency, CPU usage and power for static data pages and representative map redraws. Compare with the existing baseline before replacing it.
+
+### Standard Linux touch path
+
+Initial discovery is verified on the 2026-10-02 temporary baseline: input-only coldplug supplies standard classification, libinput 1.31.3 recognizes the ten-contact touchscreen, and cached inventory works with the panel off. See [results and evidence](../research/display-modernization.md#initial-image-results). Physical touch mapping, dropped-event recovery and compositor integration remain pending.
+
+The NT36xxx driver already exposes evdev multitouch; [fbtouch.c](../../tools/fbtouch.c) is the working reference. Integrate libinput with correct eudev touchscreen classification and discovery by identity/capabilities, without hardcoding `event1`. Validate the driver's ABS ranges, multitouch slots, contact lifecycle, and recovery after dropped events and panel sleep. Keep power/volume input owned by `buttond` and its socket contract.
+
+The touch surface reports 720x1600 while the panel is 1080x2246. Normalize from the reported ABS ranges and map to the intended output; the resolution difference alone does not require calibration. Add a calibration matrix only if measured alignment or orientation needs correction. Keep display rotation and touch mapping consistent. The [ArchWiki touchscreen guide](https://wiki.archlinux.org/title/Touchscreen) is a setup reference; verify behavior against the chosen libinput/compositor versions.
+
+Acceptance: taps at all corners and center, strokes, three simultaneous contacts, release/cancel without stuck touches, correct portrait/landscape mapping, and repeated sleep/wake. Test with libinput diagnostics and then through the actual compositor/toolkit; raw evdev success alone is insufficient.
+
 ## UI stack
 
-Decide the UI stack. The 4.4 kernel exposes the panel as fbdev (`mdss_fb`, the `tools/fbdev.h` contract) and the GPU as `kgsl`, no DRM/KMS — current Weston/wlroots need DRM (fbdev backend was dropped in Weston 10), so Wayland means either Weston ≤9 built from source with the fbdev backend + pixman, or libhybris. If not Wayland then X11: Xorg with the `fbdev` DDX (`xf86-video-fbdev`, still maintained and packaged in Alpine) runs on `mdss_fb` today with no kernel work, `xf86-input-libinput` or `evdev` for touch, and the app can be any X toolkit — the pragmatic middle ground. Last resort: draw straight to `fb0` (LVGL has fbdev + evdev backends) and skip the display server entirely. These candidates have not been integrated; spike and choose one.
+After DRM/KMS and libinput bring-up, spike a current Wayland compositor and a maintained application toolkit. Validate software rendering first, then accelerated rendering when available. Choose based on startup reliability, touch behavior, memory, rendering latency, power, host development/replay support, and the later offline-map requirements. Pin tested versions and document device permissions and compositor/session supervision.
 
-Either way the touch path needs doing: the NT36xxx multitouch protocol is decoded in `tools/fbtouch.c` (reference client; the [framebuffer contract](../features/display-and-touch.md#framebuffer-and-touch-contract) is binding); under Wayland that becomes libinput reading `event1` (check it handles the panel's raw 720x1600 coordinates vs. the 1080x2246 framebuffer — needs a calibration matrix or `LIBINPUT_CALIBRATION_MATRIX`), under fbdev/LVGL it is the evdev backend with the same scaling. Test: taps in the corners, a stroke, three fingers, as in the [2026-09-18 display verification](../build-log.md).
+Define one normal display owner: the compositor/session coordinates presentation, screen power and backlight; the UI supplies screen policy and brightness requests. Replace `buttond`'s current `fblog.off`/restart coupling with a display-owner interface. Preserve a diagnostic fallback, but ensure it cannot draw concurrently or wake a screen deliberately left off. A UI restart must not interrupt recording; a compositor restart must restore display and input predictably.
 
-Also, whatever the stack: a **sunlight and gloves** mode — maximum backlight and a high-contrast, big-digit layout by default, and everything reachable from the side buttons ([button integration](ui-and-ride-app.md#button-integration)) because touch through gloves or rain is unreliable; a screen-on policy (always on while riding vs. wake on button) lives here too.
+During investigation, retain `fblog`/`fbtouch` and the binding [framebuffer contract](../features/display-and-touch.md#framebuffer-and-touch-contract) for the existing fbdev path. Any temporary Xorg/fbdev or direct-toolkit spike must adapt and verify locking, frame commits, backlight application, and blank-before-close behavior; generic fbdev support does not prove compatibility. Those experiments are interim options, not the modernization target. A DRM path needs its own verified power/touch lifecycle rather than blindly copying fbdev ioctls.
+
+Provide a **sunlight and gloves** mode: maximum backlight on request, a high-contrast, big-digit layout, and every riding action reachable from the side buttons because touch through gloves or rain is unreliable. Define always-on versus button-wake policy, manual brightness override, and ALS-driven brightness. Verify sleep/wake, process death, fallback, and clean shutdown before adding the full ride application.
 
 ## Bike-computer application
 
@@ -28,14 +54,16 @@ Opening the map acquires a temporary `map` lease from the GPS manager; leaving i
 
 Order: (a) **UI first** — the data pages on the panel with touch/buttons on the chosen UI stack, driven by gpsd and the sensors, ride recording underneath; (b) **then a map source** — offline tiles or vector data on the writable storage ([persistent storage](storage-and-boot.md#persistent-storage): OSM extracts, e.g. MBTiles/PMTiles or a raster tile cache pre-fetched over Wi-Fi/USB), rendered under the position with track-up rotation, then route following on top; no online map dependency on a ride; GPS altitude is noisy and there is no barometer, so take **elevation** from a DEM shipped with the map data (climb totals, gradient).
 
-**Time zone**: chrony ([time synchronization](gps-and-time.md#time-synchronization)) gives UTC; the UI needs local time (tzdata or a fixed `TZ`). Written as an ordinary Linux app against gpsd/BlueZ/evdev so it is testable on the host with replayed `nmea.log` from the ride runs.
+**Time zone**: chrony ([time synchronization](gps-and-time.md#time-synchronization)) gives UTC; the UI needs local time (tzdata or a fixed `TZ`). Written as an ordinary Linux app against gpsd/BlueZ and the chosen toolkit/input stack so it is testable on the host with replayed `nmea.log` from the ride runs.
 
 ## Sensor integration
 
-Use the [sensord contract](../features/sensors.md) for raw sensors and magnetic heading. The UI owns ALS-driven brightness, including manual override and sunlight mode; the display owner applies backlight changes through the framebuffer commit contract.
+Use the [sensord contract](../features/sensors.md) for raw sensors and magnetic heading. The UI owns ALS-driven brightness, including manual override and sunlight mode; the display owner applies backlight changes through the chosen display backend, preserving the framebuffer commit contract while the fbdev path remains in use.
 
 For maps, show calibration/disturbance state and use the accepted compass behavior when stopped. Blend with GPS course over ground when moving, and compute declination from GPS/WMM on the consumer side before setting true heading. Validate switching at low speeds, disturbed or uncalibrated input, and missing GPS. Daemon accuracy refinements remain in the [sensor roadmap](sensors.md#optional-compass-refinements).
 
 ## GPU
 
-Adreno 509 behind the downstream `kgsl` driver (`kgsl-hyp` messages appear at boot), no DRM. Using it means either freedreno/Mesa on a DRM `msm` driver this 4.4 kernel does not have, or libhybris over the stock Android GLES blobs. Software rendering on `fb0` is likely enough for a bike computer UI at 1080x2246; only revisit if the chosen [UI stack](#ui-stack) turns out to be too slow or too power-hungry without it.
+The Adreno 509 currently uses the downstream `kgsl` driver and is unused by our display clients. As part of the kernel investigation, establish the exact GPU revision, DRM `msm`/Mesa freedreno compatibility, required firmware, and buffer-sharing support with the display driver. Do not assume KMS scanout also enables GPU rendering, or that Mesa can use the existing KGSL interface unchanged.
+
+Once software-rendered DRM/KMS works, bring up Mesa/EGL acceleration and verify actual hardware rendering, compositor buffer import/presentation, and recovery across screen cycles. Compare CPU usage, frame latency and power on data pages and rotating maps. Record software-rendering fallback behavior. Libhybris over stock Android GLES blobs may be investigated if the native route is blocked, but is a separate compatibility approach, not proof of native DRM/Mesa support.

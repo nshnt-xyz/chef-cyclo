@@ -1,0 +1,29 @@
+cat /sys/class/leds/wled/brightness; cat /sys/class/leds/lcd-backlight/brigh
+tness; ls /run/fblog.off; pidof fblog; dmesg | grep -E 'fblog|nvt_ts_suspend|nvt
+_ts_resume' | tail -20; echo CYCL0_COMMAND_DONE
+0
+96
+ls: /run/fblog.off: No such file or directory
+1574
+[   42.400080,6] [NVT-ts] nvt_ts_resume 1668: start
+[   42.453782,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   42.455399,0] [NVT-ts] nvt_ts_resume 1690: end
+[   42.557715,1] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   42.638663,0] fblog: paused: screen borrowed (/run/fb0.lock)
+[   43.654459,0] [NVT-ts] nvt_ts_suspend 1591: start
+[   43.706726,0] [NVT-ts] nvt_ts_suspend 1643: end
+[   47.153387,0] [NVT-ts] nvt_ts_resume 1668: start
+[   47.207072,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   47.207541,0] [NVT-ts] nvt_ts_resume 1690: end
+[   47.638951,0] [NVT-ts] nvt_ts_suspend 1591: start
+[   47.690049,0] [NVT-ts] nvt_ts_suspend 1643: end
+[   48.126719,0] [NVT-ts] nvt_ts_resume 1668: start
+[   48.180402,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   48.180424,0] [NVT-ts] nvt_ts_resume 1690: end
+[   48.263824,7] fblog: resumed
+[   64.980362,7] fblog: exiting: blanking before close
+[   64.980503,7] [NVT-ts] nvt_ts_suspend 1591: start
+[   65.033380,7] [NVT-ts] nvt_ts_suspend 1643: end
+[   67.005620,1] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+CYCL0_COMMAND_DONE
+/ # 

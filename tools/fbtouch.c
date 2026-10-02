@@ -48,6 +48,8 @@
  *    resumes it with the reset.
  *
  * Commands:
+ *   fbtouch input-info -i DEV    cached evdev ABS ranges only; no fb/sysfs,
+ *                                event reads, grabs or state changes
  *   fbtouch info                 panel/fb sysfs and touch device caps (does
  *                                not open fb0, so no blank side effect)
  *   fbtouch show [options]       test pattern, backlight, then touch events
@@ -617,6 +619,46 @@ static void print_panel_sysfs(void)
 
 /* ------------------------------------------------------------- commands */
 
+/* EVIOCG* reads input-core metadata, not the touch IC's firmware. Opening
+ * evdev still invokes the input driver's open callback (if any); never use
+ * this command as evidence that the physical controller is awake/healthy. */
+static int cmd_input_info(const char *path)
+{
+	unsigned long bits[(ABS_MAX + 8 * sizeof(long)) / (8 * sizeof(long))] = {0};
+	int fd, rc = 0;
+	unsigned int axis;
+
+	if (!path) {
+		fprintf(stderr, "input-info requires -i eventdev\n");
+		return 64;
+	}
+	fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+	if (fd < 0) {
+		fprintf(stderr, "input: %s: %s\n", path, strerror(errno));
+		return 1;
+	}
+	if (ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(bits)), bits) < 0) {
+		fprintf(stderr, "input: %s: ABS capabilities unavailable: %s\n",
+		        path, strerror(errno));
+		rc = 1;
+	} else {
+		for (axis = 0; axis <= ABS_MAX; axis++) {
+			struct input_absinfo abs;
+			if (!has_bit(bits, axis))
+				continue;
+			if (ioctl(fd, EVIOCGABS(axis), &abs) < 0) {
+				fprintf(stderr, "ABS 0x%02x: unavailable: %s\n", axis, strerror(errno));
+				rc = 1;
+				continue;
+			}
+			printf("ABS 0x%02x: min=%d max=%d fuzz=%d flat=%d resolution=%d\n",
+			       axis, abs.minimum, abs.maximum, abs.fuzz, abs.flat, abs.resolution);
+		}
+	}
+	close(fd);
+	return rc;
+}
+
 static int cmd_info(const char *fbpath, const char *inpath)
 {
 	struct touch_dev td;
@@ -886,6 +928,7 @@ static void usage(void)
 {
 	fprintf(stderr,
 		"usage: fbtouch info [-f fbdev] [-i eventdev]\n"
+		"       fbtouch input-info -i eventdev\n"
 		"       fbtouch show [-t secs] [-b level] [-c secs] [-f fbdev] [-i eventdev] [-r] [-q]\n"
 		"       fbtouch bl <0-255>\n");
 }
@@ -917,6 +960,8 @@ int main(int argc, char **argv)
 	}
 	if (!strcmp(cmd, "info"))
 		return cmd_info(fbpath, inpath);
+	if (!strcmp(cmd, "input-info"))
+		return cmd_input_info(inpath);
 	if (!strcmp(cmd, "show"))
 		return cmd_show(fbpath, inpath, secs, bl, cycle_at, require_touch, paint);
 	if (!strcmp(cmd, "bl")) {

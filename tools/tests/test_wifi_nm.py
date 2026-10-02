@@ -70,17 +70,48 @@ coldplug='mkdir -p /run/udev\n'+coldplug
 with tempfile.TemporaryDirectory() as t:
     p=pathlib.Path(t);b=p/'bin';b.mkdir()
     (b/'udevd').write_text('#!/bin/sh\n[ "${UDEV_FAIL:-}" != daemon ]\n')
-    (b/'udevadm').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALLS"\n[ "${UDEV_FAIL:-}" != "$1" ]\n')
+    (b/'udevadm').write_text('''#!/bin/sh
+printf "%s\\n" "$*" >> "$CALLS"
+case "$*" in
+    *--subsystem-match=input)
+        if [ -n "${INPUT_GATE:-}" ]; then
+            while [ ! -e "$INPUT_GATE" ]; do sleep 0.01; done
+        fi
+        [ "${UDEV_FAIL:-}" != input-trigger ] ;;
+    *--timeout=5) [ "${UDEV_FAIL:-}" != input-settle ] ;;
+    *) [ "${UDEV_FAIL:-}" != "$1" ] ;;
+esac
+''')
     for f in b.iterdir():f.chmod(0o755)
-    code='log() { :; }; '+coldplug.replace('/sbin/udevd',str(b/'udevd')).replace('/run/udev',str(p/'udev'))
-    for failure in ('','daemon','trigger','settle'):
+    code='log() { :; }; '+coldplug.replace('/sbin/udevd',str(b/'udevd')).replace('/run/udev',str(p/'udev')).replace('/run/input-udev-ready',str(p/'input-ready'))
+    # Production has no wait: only the harness waits for the background task.
+    assert ') &' in coldplug and 'wait' not in coldplug.split('    (\n',1)[1].split(') &',1)[1]
+    code+='\nwait\n'
+    for failure in ('','daemon','trigger','settle','input-trigger','input-settle'):
         ready=p/'udev-ready';ready.unlink(missing_ok=True)
+        input_ready=p/'input-ready';input_ready.unlink(missing_ok=True)
         calls=p/'calls';calls.unlink(missing_ok=True)
         env=dict(os.environ,PATH=str(b)+':'+os.environ['PATH'],CALLS=str(calls),UDEV_FAIL=failure)
         subprocess.run(['sh','-c',code],env=env,check=True)
-        assert ready.exists()==(failure=='')
-        if failure=='':assert calls.read_text().splitlines()==['trigger --action=add --subsystem-match=net','settle --timeout=20']
-print('test_wifi_nm: network-only coldplug and fail-closed readiness PASS')
+        assert ready.exists()==(failure in ('','input-trigger','input-settle'))
+        assert input_ready.exists()==(failure in ('','trigger','settle'))
+        if failure=='':assert calls.read_text().splitlines()==['trigger --action=add --subsystem-match=net','settle --timeout=20','trigger --action=add --subsystem-match=input','settle --timeout=5']
+    # Hold input discovery behind a gate and prove init handoff proceeds.
+    import time
+    gate=p/'release-input';handoff=p/'handoff'
+    ready.unlink(missing_ok=True);input_ready.unlink(missing_ok=True)
+    env=dict(env,UDEV_FAIL='',INPUT_GATE=str(gate))
+    child=subprocess.Popen(['sh','-c',code.rsplit('\nwait\n',1)[0]+f'\ntouch "{handoff}"\nwait\n'],env=env)
+    try:
+        deadline=time.monotonic()+2
+        while not handoff.exists() and time.monotonic()<deadline:time.sleep(0.01)
+        assert handoff.exists() and ready.exists() and not input_ready.exists()
+        gate.touch()
+        assert child.wait(timeout=2)==0 and input_ready.exists()
+    finally:
+        gate.touch()
+        if child.poll() is None:child.kill();child.wait()
+print('test_wifi_nm: independent network/input coldplug and fail-closed readiness PASS')
 
 # Execute real metadata setup without invoking privileged host chown/chmod.
 init=(R/'initramfs/init').read_text()

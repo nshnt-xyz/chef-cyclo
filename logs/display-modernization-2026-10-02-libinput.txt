@@ -1,0 +1,158 @@
+cat /proc/uptime; uname -a; ls /run/udev-ready /run/input-udev-ready; udevad
+m info -q property -n /dev/input/event1; libinput --version; libinput list-devic
+es; fbtouch input-info -i /dev/input/event1; dmesg | grep -E 'input coldplug|exe
+c init|USB networking|udev initialization'; pidof NetworkManager fblog buttond; 
+ls /usr/lib/udev/rules.d/80-libinput-device-groups.rules /usr/libexec/libinput/l
+ibinput-debug-events; echo CYCL0_COMMAND_DONE
+24.86 185.23
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+/run/input-udev-ready  /run/udev-ready
+DEVNAME=/dev/input/event1
+DEVPATH=/devices/virtual/input/input1/event1
+ID_INPUT=1
+ID_INPUT_TOUCHSCREEN=1
+LIBINPUT_DEVICE_GROUP=18/0/0:input/ts
+MAJOR=13
+MINOR=65
+SUBSYSTEM=input
+USEC_INITIALIZED=5186952
+1.31.3
+Device:                  gpio-keys
+Kernel:                  /dev/input/event6
+Id:                      host:0001:0001
+Group:                   1
+Seat:                    seat0, default
+Capabilities:            keyboard 
+Tap-to-click:            n/a
+Tap-and-drag:            n/a
+Tap button map:          n/a
+Tap drag lock:           n/a
+Left-handed:             n/a
+Nat.scrolling:           n/a
+Middle emulation:        n/a
+Calibration:             n/a
+Scroll methods:          none
+Scroll button:           n/a
+Scroll button lock:      n/a
+Click methods:           none
+Clickfinger button map:  n/a
+Disable-w-typing:        n/a
+Disable-w-trackpointing: n/a
+Accel profiles:          n/a
+Rotation:                0.0
+Area rectangle:          n/a
+
+Device:                  qpnp_pon
+Kernel:                  /dev/input/event0
+Id:                      <unknown>:0000:0000
+Group:                   2
+Seat:                    seat0, default
+Capabilities:            keyboard 
+Tap-to-click:            n/a
+Tap-and-drag:            n/a
+Tap button map:          n/a
+Tap drag lock:           n/a
+Left-handed:             n/a
+Nat.scrolling:           n/a
+Middle emulation:        n/a
+Calibration:             n/a
+Scroll methods:          none
+Scroll button:           n/a
+Scroll button lock:      n/a
+Click methods:           none
+Clickfinger button map:  n/a
+Disable-w-typing:        n/a
+Disable-w-trackpointing: n/a
+Accel profiles:          n/a
+Rotation:                0.0
+Area rectangle:          n/a
+
+Device:                  NVTCapacitiveTouchScreen
+Kernel:                  /dev/input/event1
+Id:                      i2c:0000:0000
+Group:                   3
+Seat:                    seat0, default
+Capabilities:            touch 
+Tap-to-click:            n/a
+Tap-and-drag:            n/a
+Tap button map:          n/a
+Tap drag lock:           n/a
+Left-handed:             n/a
+Nat.scrolling:           n/a
+Middle emulation:        n/a
+Calibration:             identity matrix
+Scroll methods:          none
+Scroll button:           n/a
+Scroll button lock:      n/a
+Click methods:           none
+Clickfinger button map:  n/a
+Disable-w-typing:        n/a
+Disable-w-trackpointing: n/a
+Accel profiles:          n/a
+Rotation:                0.0
+Area rectangle:          n/a
+
+Device:                  hbtp_vm
+Kernel:                  /dev/input/event2
+Id:                      <unknown>:0000:0000
+Group:                   4
+Seat:                    seat0, default
+Capabilities:            pointer 
+Tap-to-click:            n/a
+Tap-and-drag:            n/a
+Tap button map:          n/a
+Tap drag lock:           n/a
+Left-handed:             disabled
+Nat.scrolling:           disabled
+Middle emulation:        n/a
+Calibration:             n/a
+Scroll methods:          button
+Scroll button:           BTN_RIGHT
+Scroll button lock:      disabled
+Click methods:           none
+Clickfinger button map:  n/a
+Disable-w-typing:        n/a
+Disable-w-trackpointing: n/a
+Accel profiles:          flat *adaptive custom
+Rotation:                0.0
+Area rectangle:          n/a
+
+Device:                  uinput-egis
+Kernel:                  /dev/input/event5
+Id:                      <unknown>:0000:0000
+Group:                   5
+Seat:                    seat0, default
+Capabilities:            keyboard 
+Tap-to-click:            n/a
+Tap-and-drag:            n/a
+Tap button map:          n/a
+Tap drag lock:           n/a
+Left-handed:             n/a
+Nat.scrolling:           n/a
+Middle emulation:        n/a
+Calibration:             n/a
+Scroll methods:          none
+Scroll button:           n/a
+Scroll button lock:      n/a
+Click methods:           none
+Clickfinger button map:  n/a
+Disable-w-typing:        n/a
+Disable-w-trackpointing: n/a
+Accel profiles:          n/a
+Rotation:                0.0
+Area rectangle:          n/a
+
+ABS 0x2f: min=0 max=9 fuzz=0 flat=0 resolution=0
+ABS 0x30: min=0 max=255 fuzz=0 flat=0 resolution=0
+ABS 0x35: min=0 max=720 fuzz=0 flat=0 resolution=0
+ABS 0x36: min=0 max=1600 fuzz=0 flat=0 resolution=0
+ABS 0x39: min=0 max=65535 fuzz=0 flat=0 resolution=0
+ABS 0x3a: min=0 max=1000 fuzz=0 flat=0 resolution=0
+[    5.172018,2] cyclo-init: input coldplug starting
+[    5.172351,0] cyclo-init: exec init
+[    5.193532,2] cyclo-init: input coldplug ready
+632 650 657
+/usr/lib/udev/rules.d/80-libinput-device-groups.rules
+/usr/libexec/libinput/libinput-debug-events
+CYCL0_COMMAND_DONE
+/ # 

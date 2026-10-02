@@ -1,0 +1,68 @@
+#!/bin/sh
+# Cached metadata only. Never traverse vendor attributes or open fbdev.
+set -u
+
+usage() {
+    echo 'usage: display-touch-inventory [--metadata-only] [--root DIR]'
+    echo '  --metadata-only  skip evdev opens/ABS ioctls'
+    echo '  --root DIR       inspect a saved sysfs fixture; implies metadata-only'
+}
+root=
+metadata_only=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --metadata-only) metadata_only=1 ;;
+        --root)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || { usage >&2; exit 64; }
+            root=${2%/}; metadata_only=1; shift ;;
+        --help) usage; exit 0 ;;
+        *) usage >&2; exit 64 ;;
+    esac
+    shift
+done
+
+# Read only these known input-core/fb-core attributes, never recursive cat.
+attribute() {
+    label=$1
+    file=$2
+    if [ -r "$file" ]; then
+        printf '%s: ' "$label"
+        cat "$file" || printf 'unavailable\n'
+    else
+        printf '%s: unavailable\n' "$label"
+    fi
+}
+
+echo 'display/touch inventory: cached metadata; no fbdev open, vendor reads, event reads or grabs'
+found=0
+for fb in "$root"/sys/class/graphics/fb[0-9]*; do
+    [ -d "$fb" ] || continue
+    found=1
+    printf '\nframebuffer %s\n' "${fb##*/}"
+    for key in name modes virtual_size bits_per_pixel stride; do
+        attribute "$key" "$fb/$key"
+    done
+done
+[ "$found" -eq 1 ] || echo 'framebuffer: none found'
+
+found=0
+for event in "$root"/sys/class/input/event[0-9]*; do
+    [ -d "$event" ] || continue
+    found=1
+    node=${event##*/}
+    printf '\ninput %s\n' "$node"
+    for key in name phys uniq properties id/bustype id/vendor id/product id/version \
+               capabilities/ev capabilities/key capabilities/rel capabilities/abs \
+               capabilities/msc capabilities/led capabilities/snd capabilities/ff capabilities/sw; do
+        attribute "$key" "$event/device/$key"
+    done
+    echo 'properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1'
+    if [ "$metadata_only" -eq 1 ]; then
+        echo 'ABS ranges: skipped (metadata-only)'
+    elif command -v fbtouch >/dev/null 2>&1; then
+        fbtouch input-info -i "/dev/input/$node" || echo 'ABS ranges: incomplete/unavailable'
+    else
+        echo 'ABS ranges: unavailable (fbtouch not installed)'
+    fi
+done
+[ "$found" -eq 1 ] || echo 'input: none found'

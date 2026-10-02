@@ -35,6 +35,8 @@ The kernel config combines stock Android's `sdm660-perf_defconfig`, `moto-sdm660
 
 - Kernel/config change: regenerate config if needed, run `kmake`, and repack the boot image.
 - Helper or baseline overlay change: rebuild the initramfs and boot image.
+- Display/touch diagnostics add `libinput` and `libinput-tools`: refresh the rootfs
+  before rebuilding the initramfs. See [inventory usage](features/display-and-touch.md#read-only-inventory-and-libinput-diagnostics).
 - Rootfs package change: rebuild rootfs, initramfs, and boot image.
 - Ride overlay change: use [the ride-image build](features/ride-logging.md), which produces separate artifacts.
 

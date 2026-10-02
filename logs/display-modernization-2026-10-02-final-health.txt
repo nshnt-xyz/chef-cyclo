@@ -1,0 +1,176 @@
+timeout 2 libinput debug-events --device /dev/input/event1; echo debug_event
+s_exit=$?; display-touch-inventory; ls /run/udev-ready /run/input-udev-ready; nm
+cli -t -f RUNNING general; cat /sys/class/leds/wled/brightness; dmesg | grep -E 
+'CTP_I2C|BUS ERROR|subsys-restart.*crash' | wc -l; echo CYCL0_COMMAND_DONE
+-event1   DEVICE_ADDED                 NVTCapacitiveTouchScreen          seat0 default group1  cap:t ntouches 10 calib
+Terminated
+debug_events_exit=143
+display/touch inventory: cached metadata; no fbdev open, vendor reads, event reads or grabs
+
+framebuffer fb0
+name: mdssfb_80000
+modes: U:1080x2246p-60
+virtual_size: 1080,4492
+bits_per_pixel: 32
+stride: 4352
+
+framebuffer fb1
+name: mdssfb_a0000
+modes: U:640x480p-60
+virtual_size: 640,960
+bits_per_pixel: 32
+stride: 2560
+
+input event0
+name: qpnp_pon
+phys: qpnp_pon/input0
+uniq: 
+properties: 0
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 3
+capabilities/key: 14000000000000 0
+capabilities/rel: 0
+capabilities/abs: 0
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+
+input event1
+name: NVTCapacitiveTouchScreen
+phys: input/ts
+uniq: 
+properties: 2
+id/bustype: 0018
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: b
+capabilities/key: 400 0 0 0 0 0
+capabilities/rel: 0
+capabilities/abs: 661800000000000
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS 0x2f: min=0 max=9 fuzz=0 flat=0 resolution=0
+ABS 0x30: min=0 max=255 fuzz=0 flat=0 resolution=0
+ABS 0x35: min=0 max=720 fuzz=0 flat=0 resolution=0
+ABS 0x36: min=0 max=1600 fuzz=0 flat=0 resolution=0
+ABS 0x39: min=0 max=65535 fuzz=0 flat=0 resolution=0
+ABS 0x3a: min=0 max=1000 fuzz=0 flat=0 resolution=0
+
+input event2
+name: hbtp_vm
+phys: 
+uniq: 
+properties: 2
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 7
+capabilities/key: 30000 0 0 0 0
+capabilities/rel: 3
+capabilities/abs: 0
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+
+input event3
+name: SX9310 Cap Touch top
+phys: 
+uniq: 
+properties: 0
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 9
+capabilities/key: 0
+capabilities/rel: 0
+capabilities/abs: 2000000
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS 0x19: min=-1 max=100 fuzz=0 flat=0 resolution=0
+
+input event4
+name: SX9310 Cap Touch bottom
+phys: 
+uniq: 
+properties: 0
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 9
+capabilities/key: 0
+capabilities/rel: 0
+capabilities/abs: 2000000
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS 0x19: min=-1 max=100 fuzz=0 flat=0 resolution=0
+
+input event5
+name: uinput-egis
+phys: 
+uniq: 
+properties: 0
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 3
+capabilities/key: 7fc000000000 0 0 0 0 0 0 0 0 0
+capabilities/rel: 0
+capabilities/abs: 0
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+
+input event6
+name: gpio-keys
+phys: gpio-keys/input0
+uniq: 
+properties: 0
+id/bustype: 0019
+id/vendor: 0001
+id/product: 0001
+id/version: 0100
+capabilities/ev: 3
+capabilities/key: 8000000000000 0
+capabilities/rel: 0
+capabilities/abs: 0
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+/run/input-udev-ready  /run/udev-ready
+running
+0
+0
+CYCL0_COMMAND_DONE
+/ # 

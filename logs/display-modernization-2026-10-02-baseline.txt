@@ -1,0 +1,31 @@
+uname -a; for p in name modes virtual_size bits_per_pixel stride; do echo "$
+p:"; cat /sys/class/graphics/fb0/$p; done; ls /dev/dri /dev/kgsl-3d0; udevadm in
+fo -q property -n /dev/input/event1; cat /sys/class/input/event1/device/name; ca
+t /sys/class/input/event1/device/capabilities/abs; cat /sys/class/input/event1/d
+evice/properties; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+name:
+mdssfb_80000
+modes:
+U:1080x2246p-60
+virtual_size:
+1080,4492
+bits_per_pixel:
+32
+stride:
+4352
+ls: /dev/dri: No such file or directory
+/dev/kgsl-3d0
+DEVNAME=/dev/input/event1
+DEVPATH=/devices/virtual/input/input1/event1
+ID_INPUT=1
+ID_INPUT_TOUCHSCREEN=1
+MAJOR=13
+MINOR=65
+SUBSYSTEM=input
+USEC_INITIALIZED=2419218421
+NVTCapacitiveTouchScreen
+661800000000000
+2
+CYCL0_COMMAND_DONE
+/ # 

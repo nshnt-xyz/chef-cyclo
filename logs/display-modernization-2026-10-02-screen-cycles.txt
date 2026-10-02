@@ -1,0 +1,93 @@
+cat /sys/class/leds/lcd-backlight/brightness; display-touch-inventory > /run
+/inventory-on.txt; cat /sys/class/leds/lcd-backlight/brightness; touch /run/fblo
+g.off; kill $(pidof fblog); sleep 1; echo PANEL_OFF_BEFORE; cat /sys/class/leds/
+lcd-backlight/brightness; display-touch-inventory > /run/inventory-off.txt; libi
+nput list-devices > /run/libinput-off.txt; echo PANEL_OFF_AFTER; cat /sys/class/
+leds/lcd-backlight/brightness; diff /run/inventory-on.txt /run/inventory-off.txt
+; cat /run/libinput-off.txt | grep -A 7 NVT; rm /run/fblog.off; kill $(pidof fbl
+og); sleep 1; echo PANEL_ON_AFTER; cat /sys/class/leds/lcd-backlight/brightness;
+ fbtouch show -t 5 -c 1 -b 96 -q; sleep 1; cat /sys/class/leds/lcd-backlight/bri
+ghtness; dmesg | grep -E 'CTP_I2C|BUS ERROR|Touch|nvt_ts|input coldplug|fblog' |
+ tail -65; echo CYCL0_COMMAND_DONE
+96
+96
+PANEL_OFF_BEFORE
+96
+PANEL_OFF_AFTER
+96
+Device:                  NVTCapacitiveTouchScreen
+Kernel:                  /dev/input/event1
+Id:                      i2c:0000:0000
+Group:                   3
+Seat:                    seat0, default
+Capabilities:            touch 
+Tap-to-click:            n/a
+Tap-and-drag:            n/a
+sh: you need to specify whom to kill
+PANEL_ON_AFTER
+96
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=suspend
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 96/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.000 s
+fb: unblanked in 0.000 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.064 s
+backlight: wrote 96, readback 96
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+cycle: FBIOBLANK POWERDOWN at +1.097 s
+cycle: panel off (1.415 s), holding 3 s
+cycle: unblanked in 3.235 s
+cycle: frame recommitted at +4.719 s
+backlight: wrote 96, readback 96
+summary: frames=5 touch_reports=0 contacts=0
+fb: blanked before close
+96
+[    1.953904,4] [NVT-ts] nvt_ts_probe 1303: start
+[    2.040522,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1239: buf[1]=0x0B, buf[2]=0x00, buf[3]=0x00, buf[4]=0x25, buf[5]=0x65, buf[6]=0x03
+[    2.040537,0] [NVT-ts] nvt_ts_check_chip_ver_trim 1256: This is NVT touch IC
+[    2.095112,0] input: NVTCapacitiveTouchScreen as /devices/virtual/input/input1
+[    2.095228,0] [NVT-ts] nvt_ts_probe 1415: int_trigger_type=1
+[    2.095286,0] [NVT-ts] nvt_ts_probe 1427: request irq 249 succeed
+[    2.095701,0] [NVT-ts] nvt_ts_probe 1504: end
+[    2.099073,0] input: SX9310 Cap Touch top as /devices/virtual/input/input3
+[    2.099242,0] input: SX9310 Cap Touch bottom as /devices/virtual/input/input4
+[    5.172018,2] cyclo-init: input coldplug starting
+[    5.185328,2] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[    5.186376,1] buttond: ready: /run/buttond.sock, long 1500 ms, double 300 ms, power.short toggles the screen via /run/fblog.off, power held 3000 ms then released powers off
+[    5.191165,4] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[    5.191190,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[    5.193532,2] cyclo-init: input coldplug ready
+[   40.192280,4] fblog: exiting: blanking before close
+[   40.192426,4] [NVT-ts] nvt_ts_suspend 1591: start
+[   40.243380,4] [NVT-ts] nvt_ts_suspend 1643: end
+[   42.210966,0] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[   42.387761,0] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[   42.400080,6] [NVT-ts] nvt_ts_resume 1668: start
+[   42.453782,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   42.455399,0] [NVT-ts] nvt_ts_resume 1690: end
+[   42.557715,1] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   42.638663,0] fblog: paused: screen borrowed (/run/fb0.lock)
+[   43.654459,0] [NVT-ts] nvt_ts_suspend 1591: start
+[   43.706726,0] [NVT-ts] nvt_ts_suspend 1643: end
+[   47.153387,0] [NVT-ts] nvt_ts_resume 1668: start
+[   47.207072,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   47.207541,0] [NVT-ts] nvt_ts_resume 1690: end
+[   47.638951,0] [NVT-ts] nvt_ts_suspend 1591: start
+[   47.690049,0] [NVT-ts] nvt_ts_suspend 1643: end
+[   48.126719,0] [NVT-ts] nvt_ts_resume 1668: start
+[   48.180402,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   48.180424,0] [NVT-ts] nvt_ts_resume 1690: end
+[   48.263824,7] fblog: resumed
+CYCL0_COMMAND_DONE
+/ # 

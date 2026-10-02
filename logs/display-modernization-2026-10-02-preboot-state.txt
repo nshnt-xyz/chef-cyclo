@@ -1,0 +1,54 @@
+cat /proc/uptime; cat /sys/class/leds/lcd-backlight/brightness; ls /run/udev
+-ready /run/input-udev-ready; dmesg | grep -E 'input|mdss|DSI|CTP_I2C|BUS ERROR|
+subsys-restart' | tail -45; echo CYCL0_COMMAND_DONE
+2603.01 20586.97
+96
+ls: /run/input-udev-ready: No such file or directory
+/run/udev-ready
+[    1.248155,7] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-timing-switch-command
+[    1.248160,7] mdss_dsi_panel_get_dsc_cfg_np: cannot find dsc config node:config0
+[    1.248245,7] mdss_dsi_parse_panel_features: ulps feature disabled
+[    1.248249,7] mdss_dsi_parse_panel_features: ulps during suspend feature disabled
+[    1.248255,7] mdss_dsi_parse_dms_config: dynamic switch feature enabled: 0
+[    1.248300,7] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-lp-mode-on
+[    1.248308,7] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-lp-mode-off
+[    1.248325,7] mdss_dsi_set_refresh_rate_range:2796, Unable to read min refresh rate
+[    1.248330,7] mdss_dsi_set_refresh_rate_range:2811, Unable to read max refresh rate
+[    1.248349,7] mdss_panel_parse_param_prop: HBM feature enabled with 2 dt cmds
+[    1.248351,7] mdss_panel_parse_param_prop: HBM type = 1
+[    1.248371,7] mdss_panel_parse_param_prop: CABC feature enabled with 3 dt cmds
+[    1.248571,7] mdss_dsi_parse_ctrl_params:4581 Unable to read qcom,display-id, data=0000000000000000,len=20
+[    1.248608,7] mdss_dsi_parse_gpio_params: bklt_en gpio not specified
+[    1.248611,7] mdss_dsi_parse_gpio_params: avdd_en gpio not specified
+[    1.248638,7] mdss_dsi_parse_gpio_params:4645, tp reset gpio not specified
+[    1.248710,7] mdss_dsi_retrieve_ctrl_resources+0x170/0x1f4->msm_dss_ioremap_byname: 'dsi_phy_regulator' msm_dss_get_res_byname failed
+[    1.248716,7] mdss_dsi_retrieve_ctrl_resources: ctrl_base=ffffff80086f2000 ctrl_size=400 phy_base=ffffff80086f4400 phy_size=588
+[    1.248956,7] Unable to find fb node for device: c994000.qcom,mdss_dsi_ctrl0
+[    1.249197,7] mdss_register_panel: adding framebuffer device c994000.qcom,mdss_dsi_ctrl0
+[    1.252290,6] mdss_dsi_ctrl_probe: Dsi Ctrl->0 initialized, DSI rev:0x20010000, PHY rev:0x2
+[    1.252440,6] mdss_dsi_status_init: DSI status check interval:8000
+[    1.254142,6] mdss_register_panel: adding framebuffer device soc:qcom,mdss_wb_panel
+[    1.254759,6] mdss_fb_probe: fb0: split_mode:0 left:0 right:0
+[    1.255210,6] mdss_fb_register: FrameBuffer[0] 1080x2246 registered successfully!
+[    1.255943,6] mdss_fb_probe: fb1: split_mode:0 left:0 right:0
+[    1.256058,6] mdss_fb_register: FrameBuffer[1] 640x480 registered successfully!
+[    1.256215,6] mdss_mdp_splash_parse_dt: splash mem child node is not present
+[    1.731748,7] input: NVTCapacitiveTouchScreen as /devices/virtual/input/input1
+[    1.733265,7] input: hbtp_vm as /devices/virtual/input/input2
+[    1.734722,7] input: SX9310 Cap Touch top as /devices/virtual/input/input3
+[    1.734847,7] input: SX9310 Cap Touch bottom as /devices/virtual/input/input4
+[    2.149880,0] Egis navigation driver, egis_input device init
+[    2.150257,0] Egis navigation driver, uinput_egis_init
+[    2.150475,0] input: uinput-egis as /devices/virtual/input/input5
+[    2.150590,0] nav_input_thread enter
+[    3.404825,4] sde_rotator c900000.qcom,mdss_rotator: <SDEROT_INFO> SDE v4l2 rotator probe success
+[    4.373533,6] input: gpio-keys as /devices/soc/soc:gpio_keys/input/input6
+[    4.822620,4] buttond: grabbed /dev/input/event6 (gpio-keys): volup
+[    4.822640,4] buttond: grabbed /dev/input/event0 (qpnp_pon): power voldown
+[    4.895450,7] mdss_mdp_cxipeak_vote: cxipeak api fail ret:-22 set_vote :0 new_rate:171428571 prev_rate:412500000
+[    4.895505,7] mdss_dsi_on[0]+.
+[    4.895507,7] mdss_dsi_on[0]-.
+[    4.907365,7] mdss_dsi_post_panel_on[0]-.
+[    6.024153,1] subsys-restart: __subsystem_get(): Changing subsys fw_name to modem
+CYCL0_COMMAND_DONE
+/ # 

@@ -20,7 +20,7 @@ set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
 
-for bin in wpa_supplicant wpa_cli iw ip tc ss rfkill curl jq tcpdump iperf3 NetworkManager nmcli nmtui gdbus udevd udevadm apk iptables-legacy chronyd chronyc; do
+for bin in wpa_supplicant wpa_cli iw ip tc ss rfkill curl jq tcpdump iperf3 NetworkManager nmcli nmtui gdbus udevd udevadm libinput apk iptables-legacy chronyd chronyc; do
     [ -x "out/rootfs/usr/sbin/$bin" ] || [ -x "out/rootfs/usr/bin/$bin" ] || [ -x "out/rootfs/sbin/$bin" ] || [ -x "out/rootfs/bin/$bin" ] || {
         echo "missing $bin; rerun scripts/mkrootfs.sh" >&2; exit 1;
     }
@@ -32,6 +32,9 @@ for asset in usr/lib/libnm.so.0 usr/share/dbus-1/system.d/org.freedesktop.Networ
              usr/share/dbus-1/system.d/wpa_supplicant.conf \
              usr/share/dbus-1/system-services/fi.w1.wpa_supplicant1.service \
              etc/apk/repositories usr/lib/xtables/libxt_standard.so \
+             usr/libexec/libinput/libinput-list-devices \
+             usr/libexec/libinput/libinput-debug-events \
+             usr/lib/udev/rules.d/80-libinput-device-groups.rules \
              usr/libexec/dbus-daemon-launch-helper \
              usr/libexec/nm-dispatcher \
              usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service \
@@ -83,7 +86,7 @@ chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
     "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \
-    "$ROOT"/usr/bin/sensors-compass-run
+    "$ROOT"/usr/bin/sensors-compass-run "$ROOT"/usr/bin/display-touch-inventory
 if [ "$VARIANT" = ride ]; then
     for f in initramfs-ride/etc/inittab initramfs-ride/usr/bin/ride-logger \
              initramfs-ride/usr/share/ride/www/cgi-bin/index.cgi \

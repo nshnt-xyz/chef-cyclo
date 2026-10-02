@@ -39,6 +39,71 @@ In the baseline image, a short power-button press performs that toggle. The ride
 
 Edit `fblog` arguments in the applicable `etc/inittab`: `-b` brightness (default 96), `-s` glyph scale (default 2, 59×68 cells), `-k` maximum kernel log level, or `-a` all kernel messages.
 
+## Read-only inventory and libinput diagnostics
+
+The baseline overlay includes `display-touch-inventory` (also inherited by the
+ride image). It reports every framebuffer's cached name, modes, virtual geometry,
+bits per pixel and stride, then every evdev device's cached identity, properties
+and capability bitmaps. It uses BusyBox tools and the packaged `fbtouch input-info`
+command for all advertised ABS ranges, including slots and tracking IDs:
+
+```sh
+display-touch-inventory
+display-touch-inventory --metadata-only
+fbtouch input-info -i /dev/input/event1
+```
+
+The inventory never opens `/dev/fb0`, reads vendor panel/touch attributes
+(including `msm_fb_panel_status`, NVT proc nodes, `buildid` or `ic_ver`), changes
+brightness, reads events or grabs input devices. Default ABS queries open evdev
+read-only/nonblocking and use only `EVIOCGBIT`/`EVIOCGABS`. NT36xxx has no input
+open/close callbacks; other input drivers may have them. `--metadata-only` skips
+all evdev opens. Missing metadata or failed ABS queries are printed as unavailable;
+the script continues through the remaining devices and exits successfully. The
+standalone `fbtouch input-info` returns 1 on a failed query and 64 without `-i`.
+
+`--root DIR` reads a saved fixture tree under `DIR/sys/class` and implies
+metadata-only. Identity and capabilities come from input-core metadata, not live
+firmware identity or a controller health test. Capability/property output is raw
+kernel hexadecimal bitmaps: `INPUT_PROP_DIRECT` is property bit 1. ABS codes are
+hexadecimal: X/Y `00/01`, MT_SLOT `2f`, MT_POSITION_X/Y `35/36`, MT_TRACKING_ID `39`.
+Ranges include minima, maxima, fuzz, flat and resolution; MT X/Y alone does not
+establish protocol B. Framebuffer geometry may be virtual; use the cached modes
+where provided for visible dimensions. Pixel channel layout is not available
+through these generic attributes, so no framebuffer ioctl is attempted.
+
+The rootfs packages `libinput` and `libinput-tools`. Boot coldplugs network devices
+first, keeping `/run/udev-ready` solely for NetworkManager. Input-only coldplug
+then runs in a background task (trigger TERM after 4 seconds, KILL after one more;
+settle timeout 5 seconds), without delaying the handoff to init. Its independent
+`/run/input-udev-ready` marker means classification completed. Settle watches the
+global udev queue, so unrelated events can cause input readiness to fail. Failure
+is logged and does not remove network readiness. Generic eudev `input_id`
+classifies this touchscreen; no device-specific rule or calibration is installed.
+
+After input readiness, manual diagnostics include:
+
+```sh
+udevadm info --query=property --path=/sys/class/input/event1
+libinput list-devices
+libinput debug-events --device /dev/input/event1
+```
+
+Select the event node by the inventory identity/capabilities; event numbers can
+change. These libinput commands are separate manual diagnostics that open input
+devices; `debug-events` consumes live events until interrupted. They are not
+started automatically and do not replace the display client or button daemon.
+
+Host checks: `make -C tools test-display-inventory` exercises saved metadata
+fixtures with hazardous paths represented by FIFOs, and mocks the actual ABS
+command's open/ioctl/close calls including failure cleanup. `python3
+tools/tests/test_wifi_nm.py` checks independent net/input failure paths. Device
+validation remains necessary: compare boot-to-shell duration with the baseline,
+check input coldplug start/ready log timestamps and both readiness markers,
+verify `ID_INPUT_TOUCHSCREEN=1`, then compare inventory ranges with libinput
+classification and live touch behavior. Host checks cannot establish boot timing
+or physical controller health.
+
 ## Framebuffer and touch contract
 
 - **The display lives only while something holds `/dev/fb0` open.** mdss_fb's first `open()` unblanks, its last `close()` sets the backlight to 0 and powers the panel down (`mdss_fb_release_all`), and there is no `fb_write`: `cat > /dev/fb0`, busybox `fbsplash` or any open/draw/close tool shows nothing and then turns the screen off. The contract is open → `FBIOBLANK UNBLANK` → `mmap` → draw → `FBIOPAN_DISPLAY` → stay resident (`fbtouch.c`). No fbcon: mdss_fb has no fillrect/copyarea/imageblit.

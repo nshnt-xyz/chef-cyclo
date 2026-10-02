@@ -82,6 +82,14 @@ fbtouch: fbtouch.c fbdev.h
 tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
+.PHONY: test-display-inventory
+test-display-inventory:
+	@set -eu; test_bin=$$(mktemp /tmp/chef-display-test.XXXXXX); \
+	trap 'rm -f "$$test_bin"' EXIT; \
+	$(CC) $(CFLAGS) -o "$$test_bin" tests/test_display_input_info.c $(LDFLAGS) -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=ioctl; \
+	"$$test_bin"
+	python3 tests/test_display_touch_inventory.py
+
 # Read-only boot/probe output screen (fblog/fblog.c): tails /dev/kmsg onto
 # the panel through the same fbdev.h contract, never opens an input
 # device. Font table is generated (fblog/mkfont.py) and committed.
@@ -184,7 +192,7 @@ test-wifi: tests/test-wlan-fw wifi-psk
 	python3 tests/test_wifi_build.py
 	python3 tests/test_wifi_nm.py
 
-test: $(TEST_BIN) test-shell wifi-psk
+test: $(TEST_BIN) test-shell wifi-psk test-display-inventory
 	./tests/test-qmux
 	./tests/test-msmipc
 	./tests/test-fbtouch
