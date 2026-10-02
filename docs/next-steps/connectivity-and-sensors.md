@@ -10,12 +10,14 @@ Pair/connect real HR, speed/cadence, and power sensors through BlueZ and verify 
 
 ## Standard Bluetooth tooling
 
-Goal: any ordinary BlueZ client installed with `apk add` (or added to the rootfs) works as it would on a desktop distribution. The classic protocol layers, dual mode, root's session bus and the tool-first guide are done and live-verified; see [Bluetooth](../features/bluetooth.md). Remaining:
+Goal: any ordinary BlueZ client installed with `apk add` (or added to the rootfs) works as it would on a desktop distribution. The classic protocol layers, dual mode, root's session bus, classic HID (uhid and kernel HIDP, emulated keyboard), PAN (D-Bus and NetworkManager) and A2DP through PipeWire/WirePlumber are done and live-verified; see [Bluetooth](../features/bluetooth.md). Remaining:
 
 - **Persistence**: `/var/lib/bluetooth` and `apk add`ed packages are lost at reboot until [writable storage](storage-and-boot.md#persistent-storage) exists.
-- **Classic HID**: not exercised live (no classic keyboard or mouse was available). Pair one and confirm `/dev/input` events through bluetoothd's default uhid path, then once with `UserspaceHID=false` for kernel HIDP.
-- **NetworkManager PAN**: needs `networkmanager-bluetooth` and a deliberate change to NM's `unmanaged-devices` policy; the `bnep+` ingress rule already keeps PAN off the USB telnet.
-- **Audio over Bluetooth**: A2DP through PipeWire/WirePlumber or bluez-alsa is untested; HFP voice needs the unwired board PCM path.
+- **Mesh**: boot the kernel with `CONFIG_CRYPTO_USER_API_AEAD` (built, not booted), then confirm `bluetooth-meshd` passes its crypto check and `mesh-cfgclient` can `create` a local network. meshd takes the phone's adapter from bluetoothd while it runs; nothing needs the PC adapter.
+- **Idle current while bonded**: a bonded BR/EDR device keeps page scan on; measure it against the unbonded 97 mA with USB unplugged.
+- **Real classic devices**: HID was verified with a keyboard emulated on the build PC; a real keyboard or mouse (and its reconnect after power cycling) is still untried. bluez-alsa is untried as an alternative to PipeWire. HFP voice needs the unwired board PCM path.
+- **PAN lease overlap**: NM's dispatcher rejects `wlan0` leases overlapping the USB subnet but not `bnep*` ones. The ingress rule still blocks PAN traffic to USB, but a lease containing the USB host's address would break USB telnet (the local table is consulted before table 142). Extend the check to PAN (NM passes `bnep0` on up and the device's address on down) and test DHCP over `bnep0`, which is untested; both live runs used a manual address.
+- **Phone as NAP**: untested. BlueZ `NetworkServer1` and NM `bluetooth.type nap` both bridge `bnep*`, so traffic arrives on the bridge and the `-i bnep+` ingress rule does not match; a NAP needs an interface-agnostic guard first (for example drop the USB subnet on anything but the USB interface and `lo`), which is a design decision.
 
 ## Wi-Fi
 

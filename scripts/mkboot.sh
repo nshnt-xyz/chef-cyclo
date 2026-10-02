@@ -14,7 +14,8 @@ OUT=${OUT:-out/boot.img}
 # default-kernel image missing the classic Bluetooth / AF_ALG options.
 if [ "$KERNEL" = out/kernel/arch/arm64/boot/Image.gz-dtb ]; then
     for opt in BT_RFCOMM BT_RFCOMM_TTY BT_BNEP BT_BNEP_MC_FILTER BT_BNEP_PROTO_FILTER \
-               BT_HIDP BT_HCIVHCI CRYPTO_USER_API_HASH CRYPTO_USER_API_SKCIPHER; do
+               BT_HIDP BT_HCIVHCI CRYPTO_USER_API_HASH CRYPTO_USER_API_SKCIPHER \
+               CRYPTO_USER_API_AEAD; do
         grep -qx "CONFIG_$opt=y" out/kernel/.config || { echo "CONFIG_$opt missing from out/kernel/.config" >&2; exit 1; }
     done
 fi

@@ -26,8 +26,8 @@ preparation attempt. NM is supervised independently; it never restarts the
 modem after failure. The modem stays resident even when Wi-Fi is idle; power consumption remains to be measured.
 `/run/gps-up.log` holds shared support logs. Do not start another gps-up.
 
-Only wlan0 is managed. USB, loopback, Bluetooth and WWAN devices are explicitly
-unmanaged; USB's existing udhcpd is a server for the attached host. Before WLAN
+Only wlan0 and Bluetooth devices (NM type `bt`, for PAN) are managed. USB,
+loopback and WWAN devices are explicitly unmanaged; USB's existing udhcpd is a server for the attached host. Before WLAN
 preparation, explicit legacy iptables drops WLAN ingress to 172.16.42.0/24 and a
 dedicated policy route preserves the USB subnet. Failure to install protection
 blocks NM startup. An NM dispatcher disconnects overlapping IPv4 leases after

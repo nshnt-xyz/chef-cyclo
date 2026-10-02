@@ -1,0 +1,98 @@
+Standard Bluetooth tooling live validation, part 2, 2026-10-02 (bt_impl; filtered)
+
+Raw drivers, transcripts and recordings: ~/chef-cyclo-evidence/bt-tooling2-live-20261002/
+(hid_emu.py, pan_nap.py, a2dp_rec.py, a2dp_analyze.py, phone/*.sh, session-*.txt, a2dp-rx-*.wav).
+Phone: the already running boot.img cb497b2a9c45661560bf52839e6760ad7c658c38b653bb0b5b3ab4922b0f5bf2
+(kernel #17), no reboot, nothing flashed, USB attached throughout (the user was away; nothing needed a hand).
+Every phone-side change below was RAM-only. Peer: the build PC's adapter 90:CC:DF:AC:DE:55 (BlueZ 5.85,
+PipeWire 1.6.2); phone 30:4B:07:6F:0D:75. Pairing scripted with NoInputNoOutput agents on both sides
+(phone initiator), Just Works, bonded and trusted.
+
+Classic HID (emulated keyboard on the PC)
+- No physical classic keyboard/mouse exists. The PC's bluetoothd input plugin listens on PSM 17/19 and owns
+  UUID 0x1124 as a profile key (RegisterProfile with 0x1124: "NotPermitted: UUID already registered"), so the
+  PC published an HID keyboard SDP record through a record-only Profile1 under a private UUID (no PSM/RFCOMM
+  listener) and then connected out to the phone's PSM 17 then 19, as a reconnecting HID device does.
+  Boot-keyboard report map, no report IDs, HIDBootDevice true. The phone never initiates the HID connect
+  (the PC's input plugin would answer with VIRTUAL_CABLE_UNPLUG).
+- Pairing: the phone resolved UUID 0x1124 from the PC's SDP and created the input device.
+- Default (uhid): "input: nishant-linx as /devices/virtual/misc/uhid/0005:1D6B:0246.0002/input/input8",
+  "hid-generic 0005:1D6B:0246.0002: input,hidraw0: BLUETOOTH HID v5.55 Keyboard [nishant-linx] on 30:4b:07:6f:0d:75".
+  /proc/bus/input/devices Bus=0005, Handlers=sysrq leds event7. Typed usages 0x04 0x05 0x06 0x04 ->
+  evdev EV_MSC MSC_SCAN 0x70004/5/6 + EV_KEY 30 (A), 48 (B), 46 (C), 30, each press 1 then release 0.
+  The node disappears on disconnect (reader: "cat: read error: No such device").
+  Round 1's reader used busybox hexdump on /dev/input/event7: "Invalid argument" (evdev refuses reads
+  shorter than one 24-byte event); cat into a file worked.
+- UserspaceHID=false in /etc/bluetooth/input.conf + bluetoothd restart (625 -> 19015, bond kept):
+  "input: nishant-linx as /devices/soc/c1af000.uart/tty/ttyHS0/hci0/hci0:1/0005:1D6B:0246.0003/input/input9"
+  (kernel HIDP, not uhid), same 8 key events. input.conf restored, bluetoothd restarted (-> 19325).
+  No HID control requests reached the emulator in either mode. UART runtime_status suspended afterwards.
+- The emulator went into the repo as tools/bt-hid-emu.py (stdin-driven, adapter address from BlueZ,
+  GET_PROTOCOL answered on transaction type 0x6). Rerun with it after a fresh pairing (the phone had
+  re-paired without the record for PAN): uhid node 0005:1D6B:0246.0004, same 8 key events, record
+  unregistered on EOF, PC back to Pairable no / Discoverable no.
+- After the review's try/finally cleanup change, rerun (hid-emu-repo2.log, session-150443407367.txt):
+  uhid 0005:1D6B:0246.0005, same 8 key events, `hcitool con` empty afterwards (no ACL left).
+
+PAN
+- PC: NM bridge chefpan0 10.77.0.1/24 (temporary connection chef-pan-test, deleted afterwards) and
+  NetworkServer1.Register("nap", "chefpan0") held by a python process. Re-paired so the phone saw NAP 0x1116.
+- Phone, plain D-Bus: gdbus call Network1.Connect nap -> ('bnep0',); Connected true. In BlueZ 5.86 only
+  NetworkServer1 is tied to the caller; the PANU connection outlives gdbus. Address set by hand
+  (phone/pan.sh: ip addr add 10.77.0.2/24 dev bnep0; ip link set bnep0 up), no DHCP,
+  ping 10.77.0.1 5/5 (12.8-39.2 ms). PC side: enx90ccdfacde55 port of chefpan0, forwarding.
+- Guard: the PC sent to 172.16.42.1 through chefpan0 (ping -I, curl telnet://172.16.42.1:23). The phone
+  answered ARP for 172.16.42.1 on bnep0 (Linux answers for any local address), but
+  "-i bnep+ -d 172.16.42.0/24 -j DROP" counted 10 packets / 672 bytes; ping 0/3, curl timed out.
+  Control ping to 10.77.0.2 from the PC 2/2. Listeners stayed TCP 172.16.42.1:23 and UDP usb0:67.
+- Network1.Disconnect: bnep0 gone.
+- NetworkManager (approved by the user): networkmanager-bluetooth 1.52.2 was already in the image
+  (out/rootfs installed db; the plugin listed the PC as an unmanaged "bt" device). NM's device type for
+  Bluetooth is "bt": unmanaged-devices=...,except:type:bluetooth left it unmanaged; except:type:bt made it
+  "disconnected" (managed) while usb0, lo, p2p-dev-wlan0 stayed unmanaged. With the RAM edit and an NM
+  restart (inittab respawn of wifi-nm):
+  nmcli connection add type bluetooth bluetooth.type panu bluetooth.bdaddr 90:CC:DF:AC:DE:55
+  ipv4.method manual ipv4.addresses 10.77.0.2/24 ipv6.method disabled connection.autoconnect no;
+  nmcli connection up -> GENERAL.STATE 100 (connected), IP-IFACE bnep0, 10.77.0.2/24, route metric 750;
+  ping 5/5; DROP rule and "142: from all to 172.16.42.0/24 lookup 142" present; connection down removed
+  bnep0; profile deleted. Dispatcher arguments: up -> "bnep0", down -> "90:CC:DF:AC:DE:55".
+  NM had auto-generated "nishant-linx Network" (panu, autoconnect=false, DHCP) in /run for the paired NAP.
+
+A2DP (phone = source, PC = sink)
+- apk add --no-network pipewire wireplumber pipewire-spa-bluez pipewire-tools from packages served over USB
+  HTTP (85 files, 96 MB, sha256 all OK; Wi-Fi was down): PipeWire 1.6.8, WirePlumber 0.5.15,
+  346.8 MiB installed in RAM (pipewire-libs pulls libcamera -> mesa -> llvm). Started by hand from the
+  telnet shell (root, XDG_RUNTIME_DIR + session bus from the environment): `setsid pipewire`,
+  `setsid wireplumber`. logind module absent -> seat monitoring skipped, Bluetooth still enabled.
+- First run, stock WirePlumber config: it connected A2DP to the already-connected PC by itself, exposed sink
+  "nishant-linx" (bluez_output.90_CC_DF_AC_DE_55.1, codec aptx_hd) and also an A2DP-sink loopback
+  (bluez_input.90:CC:DF:AC:DE:55) on the phone; it probed /dev/video* (four "Unknown device [v4l2]") which
+  logged eight kernel WARNINGs at v4l2-ioctl.c:1040. No ALSA card was up (audio-up not run).
+  wavtone -f 440 -d 6 -a -30 -> pw-play --target bluez_output...: the PC's bluez_input.30_4B_07_6F_0D_75.2
+  (a2dp-source, aptx_hd) recorded 6 s of 440 Hz at peak -30.0 dBFS, rms -33.0 dBFS, L = R.
+  The PC's default sink stayed its own DAC throughout.
+- Drop-in initramfs/etc/wireplumber/wireplumber.conf.d/90-chef-cyclo.conf (hardware.audio, monitor.alsa,
+  monitor.alsa-midi, hardware.video-capture disabled; bluez5.roles = [ a2dp_source ],
+  hfphsp-backend none) copied to /etc in RAM; PipeWire/WirePlumber restarted after `setsid audio-up` had
+  brought sdm660-snd-card up: wpctl status listed no ALSA, v4l2 or Bluetooth devices, pipewire and
+  wireplumber held 0 /dev/snd fds. `bluetoothctl connect` -> sink "nishant-linx" after 1 s, no phone-side
+  bluez_input; tone received at 440 Hz, peak -29.3, rms -33.1 dBFS (aptx_hd). wpctl set-profile a2dp-sink-sbc: codec sbc,
+  tone received at 440 Hz, peak -30.0, rms -33.1 dBFS. Still 0 /dev/snd fds. Disconnect clean; dmesg had no
+  Bluetooth errors and 0 unknown-handle lines; UART suspended after.
+
+Mesh
+- /usr/lib/bluetooth/bluetooth-meshd -n -d: "Mesh Crypto functions unavailable", "Terminating".
+  /proc/crypto has ccm(aes) (ccm-aes-ce), cmac(aes), ecb(aes), but the kernel lacks
+  CONFIG_CRYPTO_USER_API_AEAD (AF_ALG aead sockets), which ell's l_aead_cipher needs. kernel-config adds
+  it; kernel #18 (only that .config line changed, Module.symvers identical) is in the queued boot.img
+  b865690ebf34a4b01ed549b65a04006aaa678bd2d571f179b033fd465fde89b1, not booted yet. mesh-cfgclient is
+  in the image (bluez). The PC adapter was not involved.
+
+Not done this session: bonded idle current (needs a USB unplug), meshd/mesh-cfgclient on kernel #18,
+bluez-alsa, a real classic keyboard or mouse.
+
+Cleanup: PC HID profile unregistered, NAP unregistered, bridge connection deleted, phone input.conf
+restored, PipeWire/WirePlumber stopped; the PC was left Pairable yes by the pairing driver once and was
+set back to no. The PC/phone bond is kept for the bonded idle-current run (to be removed afterwards).
+The phone still runs the RAM-only NM policy line (same as the repo); the logging dispatcher was removed.
+The ADSP stays up for the rest of this boot (audio-up), so the bonded idle-current run belongs on a fresh boot.
