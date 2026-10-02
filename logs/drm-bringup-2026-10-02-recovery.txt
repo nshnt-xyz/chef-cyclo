@@ -1,0 +1,22 @@
+uname -a; mkdir -p /sys/fs/pstore; mount -t pstore pstore /sys/fs/pstore; ls
+ -l /sys/fs/pstore; cat /sys/fs/pstore/console-ramoops*; ls /run/udev-ready /run
+/input-udev-ready; cat /sys/class/leds/wled/brightness; nmcli device status; lib
+input list-devices | grep -A 8 NVT; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+total 0
+-r--r--r--    1 root     root             0 Jan 15 23:25 annotate-ramoops-0
+cat: can't open '/sys/fs/pstore/console-ramoops*': No such file or directory
+/run/input-udev-ready  /run/udev-ready
+1542
+Error: NetworkManager is not running.
+Device:                  NVTCapacitiveTouchScreen
+Kernel:                  /dev/input/event1
+Id:                      i2c:0000:0000
+Group:                   3
+Seat:                    seat0, default
+Capabilities:            touch 
+Tap-to-click:            n/a
+Tap-and-drag:            n/a
+Tap button map:          n/a
+CYCL0_COMMAND_DONE
+/ # 

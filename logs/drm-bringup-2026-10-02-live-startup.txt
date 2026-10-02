@@ -1,0 +1,5 @@
+Probe boot.img SHA256 cbcbb07facbaf65a785a5be6f7738d0adde2e5882d668afcf76a9686151ae6c2
+Attempt 1: fastboot transfer OKAY 1.390s; Booting OKAY 5.075s. USB shell unavailable after 45-second polling window. Subsequent phone.py connection timed out. Device detected as Motorola Fastboot chef S.
+Attempt 2: fastboot transfer OKAY 1.391s; Booting OKAY 5.077s. No USB shell reached; device detected in fastboot.
+Baseline temporarily booted and shell reached after each attempt. No partitions flashed. No probe runtime commands executed successfully.
+Bootloader reason: Reboot mode set to fastboot. This does not establish root cause.

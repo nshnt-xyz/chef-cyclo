@@ -1,0 +1,567 @@
+--- a/include/linux/sde_io_util.h
++++ b/include/linux/sde_io_util.h
+@@ -33,14 +33,14 @@
+ 	void __iomem *base;
+ };
+ 
+-void dss_reg_w(struct dss_io_data *io, u32 offset, u32 value, u32 debug);
+-u32 dss_reg_r(struct dss_io_data *io, u32 offset, u32 debug);
+-void dss_reg_dump(void __iomem *base, u32 len, const char *prefix, u32 debug);
++void sde_dss_reg_w(struct dss_io_data *io, u32 offset, u32 value, u32 debug);
++u32 sde_dss_reg_r(struct dss_io_data *io, u32 offset, u32 debug);
++void sde_dss_reg_dump(void __iomem *base, u32 len, const char *prefix, u32 debug);
+ 
+-#define DSS_REG_W_ND(io, offset, val)  dss_reg_w(io, offset, val, false)
+-#define DSS_REG_W(io, offset, val)     dss_reg_w(io, offset, val, true)
+-#define DSS_REG_R_ND(io, offset)       dss_reg_r(io, offset, false)
+-#define DSS_REG_R(io, offset)          dss_reg_r(io, offset, true)
++#define DSS_REG_W_ND(io, offset, val)  sde_dss_reg_w(io, offset, val, false)
++#define DSS_REG_W(io, offset, val)     sde_dss_reg_w(io, offset, val, true)
++#define DSS_REG_R_ND(io, offset)       sde_dss_reg_r(io, offset, false)
++#define DSS_REG_R(io, offset)          sde_dss_reg_r(io, offset, true)
+ 
+ enum dss_vreg_type {
+ 	DSS_REG_LDO,
+@@ -91,21 +91,21 @@
+ 	struct dss_clk *clk_config;
+ };
+ 
+-int msm_dss_ioremap_byname(struct platform_device *pdev,
++int sde_dss_ioremap_byname(struct platform_device *pdev,
+ 	struct dss_io_data *io_data, const char *name);
+-void msm_dss_iounmap(struct dss_io_data *io_data);
++void sde_dss_iounmap(struct dss_io_data *io_data);
+ 
+-int msm_dss_enable_gpio(struct dss_gpio *in_gpio, int num_gpio, int enable);
+-int msm_dss_gpio_enable(struct dss_gpio *in_gpio, int num_gpio, int enable);
++int sde_dss_enable_gpio(struct dss_gpio *in_gpio, int num_gpio, int enable);
++int sde_dss_gpio_enable(struct dss_gpio *in_gpio, int num_gpio, int enable);
+ 
+-int msm_dss_config_vreg(struct device *dev, struct dss_vreg *in_vreg,
++int sde_dss_config_vreg(struct device *dev, struct dss_vreg *in_vreg,
+ 	int num_vreg, int config);
+-int msm_dss_enable_vreg(struct dss_vreg *in_vreg, int num_vreg,	int enable);
++int sde_dss_enable_vreg(struct dss_vreg *in_vreg, int num_vreg,	int enable);
+ 
+-int msm_dss_get_clk(struct device *dev, struct dss_clk *clk_arry, int num_clk);
+-void msm_dss_put_clk(struct dss_clk *clk_arry, int num_clk);
+-int msm_dss_clk_set_rate(struct dss_clk *clk_arry, int num_clk);
+-int msm_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable);
++int sde_dss_get_clk(struct device *dev, struct dss_clk *clk_arry, int num_clk);
++void sde_dss_put_clk(struct dss_clk *clk_arry, int num_clk);
++int sde_dss_clk_set_rate(struct dss_clk *clk_arry, int num_clk);
++int sde_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable);
+ 
+ int sde_i2c_byte_read(struct i2c_client *client, uint8_t slave_addr,
+ 		       uint8_t reg_offset, uint8_t *read_buf);
+--- a/drivers/gpu/drm/msm/hdmi/hdmi_hdcp.c
++++ b/drivers/gpu/drm/msm/hdmi/hdmi_hdcp.c
+@@ -599,7 +599,7 @@
+ 	aksv[4] =  link0_aksv_1        & 0xFF;
+ 
+ 	/* Write An to offset 0x18 */
+-	rc = hdmi_ddc_write(hdmi, HDCP_PORT_ADDR, 0x18, (u8 *)link0_an,
++	rc = msm_drm_hdmi_ddc_write(hdmi, HDCP_PORT_ADDR, 0x18, (u8 *)link0_an,
+ 		(u16)sizeof(link0_an));
+ 	if (rc) {
+ 		pr_err("%s:An write failed\n", __func__);
+@@ -608,7 +608,7 @@
+ 	DBG("Link0-An=%08x%08x", link0_an[0], link0_an[1]);
+ 
+ 	/* Write AKSV to offset 0x10 */
+-	rc = hdmi_ddc_write(hdmi, HDCP_PORT_ADDR, 0x10, aksv, 5);
++	rc = msm_drm_hdmi_ddc_write(hdmi, HDCP_PORT_ADDR, 0x10, aksv, 5);
+ 	if (rc) {
+ 		pr_err("%s:AKSV write failed\n", __func__);
+ 		return rc;
+@@ -626,7 +626,7 @@
+ 	u32 reg[2], data[2];
+ 
+ 	/* Read BKSV at offset 0x00 */
+-	rc = hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x00, bksv, 5);
++	rc = msm_drm_hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x00, bksv, 5);
+ 	if (rc) {
+ 		pr_err("%s:BKSV read failed\n", __func__);
+ 		return rc;
+@@ -663,7 +663,7 @@
+ 	u32 reg, data;
+ 	u8 bcaps;
+ 
+-	rc = hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x40, &bcaps, 1);
++	rc = msm_drm_hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x40, &bcaps, 1);
+ 	if (rc) {
+ 		pr_err("%s:BCAPS read failed\n", __func__);
+ 		return rc;
+@@ -750,7 +750,7 @@
+ 		return rc;
+ 
+ 	/* Read R0' at offset 0x08 */
+-	rc = hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x08, buf, 2);
++	rc = msm_drm_hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x08, buf, 2);
+ 	if (rc) {
+ 		pr_err("%s:R0' read failed\n", __func__);
+ 		return rc;
+@@ -803,7 +803,7 @@
+ 	u8 buf[2];
+ 
+ 	/* Read BSTATUS at offset 0x41 */
+-	rc = hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x41, buf, 2);
++	rc = msm_drm_hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x41, buf, 2);
+ 	if (rc) {
+ 		pr_err("%s: BSTATUS read failed\n", __func__);
+ 		goto error;
+@@ -876,7 +876,7 @@
+ 	timeout_count = 100;
+ 	do {
+ 		/* Read BCAPS at offset 0x40 */
+-		rc = hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x40, &bcaps, 1);
++		rc = msm_drm_hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x40, &bcaps, 1);
+ 		if (rc) {
+ 			pr_err("%s: BCAPS read failed\n", __func__);
+ 			return rc;
+@@ -939,7 +939,7 @@
+ 
+ 	for (i = 0; i < size; i++) {
+ 		rd = &reg_data[i];
+-		rc = hdmi_ddc_read(hdmi, HDCP_PORT_ADDR,
++		rc = msm_drm_hdmi_ddc_read(hdmi, HDCP_PORT_ADDR,
+ 			rd->off, (u8 *)&data[i], (u16)sizeof(data[i]));
+ 		if (rc) {
+ 			pr_err("%s: Read %s failed\n", __func__, rd->name);
+@@ -964,7 +964,7 @@
+ 
+ 	ksv_bytes = 5 * hdcp_ctrl->dev_count;
+ 
+-	rc = hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x43,
++	rc = msm_drm_hdmi_ddc_read(hdmi, HDCP_PORT_ADDR, 0x43,
+ 		hdcp_ctrl->ksv_list, ksv_bytes);
+ 	if (rc)
+ 		pr_err("%s: KSV FIFO read failed\n", __func__);
+--- a/drivers/gpu/drm/msm/hdmi/hdmi_util.c
++++ b/drivers/gpu/drm/msm/hdmi/hdmi_util.c
+@@ -71,7 +71,7 @@
+ 	return 0;
+ }
+ 
+-int hdmi_ddc_read(struct hdmi *hdmi, u16 addr, u8 offset,
++int msm_drm_hdmi_ddc_read(struct hdmi *hdmi, u16 addr, u8 offset,
+ u8 *data, u16 data_len, bool self_retry)
+ {
+ 	int rc;
+@@ -109,7 +109,7 @@
+ 
+ #define HDCP_DDC_WRITE_MAX_BYTE_NUM 1024
+ 
+-int hdmi_ddc_write(struct hdmi *hdmi, u16 addr, u8 offset,
++int msm_drm_hdmi_ddc_write(struct hdmi *hdmi, u16 addr, u8 offset,
+ 				   u8 *data, u16 data_len, bool self_retry)
+ {
+ 	int rc;
+--- a/drivers/gpu/drm/msm/hdmi-staging/sde_hdmi.c
++++ b/drivers/gpu/drm/msm/hdmi-staging/sde_hdmi.c
+@@ -1876,7 +1876,7 @@
+ 		break;
+ 	}
+ 
+-	rc = hdmi_ddc_read(hdmi, dev_addr, offset, data_buf,
++	rc = msm_drm_hdmi_ddc_read(hdmi, dev_addr, offset, data_buf,
+ 					   data_len, true);
+ 	if (rc) {
+ 		SDE_ERROR("DDC Read failed for %d\n", data_type);
+@@ -1949,7 +1949,7 @@
+ 		dev_addr = 0xA8;
+ 		data_len = 1;
+ 		offset = HDMI_SCDC_TMDS_CONFIG;
+-		rc = hdmi_ddc_read(hdmi, dev_addr, offset, &read_val,
++		rc = msm_drm_hdmi_ddc_read(hdmi, dev_addr, offset, &read_val,
+ 						   data_len, true);
+ 		if (rc) {
+ 			SDE_ERROR("scdc read failed\n");
+@@ -1974,7 +1974,7 @@
+ 		return -EINVAL;
+ 	}
+ 
+-	rc = hdmi_ddc_write(hdmi, dev_addr, offset, data_buf,
++	rc = msm_drm_hdmi_ddc_write(hdmi, dev_addr, offset, data_buf,
+ 						data_len, true);
+ 	if (rc) {
+ 		SDE_ERROR("DDC Read failed for %d\n", data_type);
+--- a/drivers/gpu/drm/msm/hdmi-staging/sde_hdmi_util.c
++++ b/drivers/gpu/drm/msm/hdmi-staging/sde_hdmi_util.c
+@@ -455,7 +455,7 @@
+ 		}
+ 
+ 		/* Calling upstream ddc read method */
+-		status = hdmi_ddc_read(hdmi, ddc_data->dev_addr,
++		status = msm_drm_hdmi_ddc_read(hdmi, ddc_data->dev_addr,
+ 			ddc_data->offset,
+ 			ddc_data->data_buf, ddc_data->request_len,
+ 			false);
+@@ -512,7 +512,7 @@
+ 	}
+ 
+ 	return rc;
+-} /* hdmi_ddc_read */
++} /* msm_drm_hdmi_ddc_read */
+ 
+ int sde_hdmi_ddc_write(void *cb_data)
+ {
+@@ -557,7 +557,7 @@
+ 			hdmi->busy_wait_us = busy_wait_us;
+ 		}
+ 
+-		status = hdmi_ddc_write(hdmi,
++		status = msm_drm_hdmi_ddc_write(hdmi,
+ 			ddc_data->dev_addr, ddc_data->offset,
+ 			ddc_data->data_buf, ddc_data->data_len,
+ 			false);
+@@ -581,7 +581,7 @@
+ 	HDMI_UTIL_DEBUG("%s: success\n", ddc_data->what);
+ error:
+ 	return status;
+-} /* hdmi_ddc_write */
++} /* msm_drm_hdmi_ddc_write */
+ 
+ bool sde_hdmi_tx_is_hdcp_enabled(struct sde_hdmi *hdmi_ctrl)
+ {
+--- a/drivers/gpu/drm/msm/sde_io_util.c
++++ b/drivers/gpu/drm/msm/sde_io_util.c
+@@ -18,7 +18,7 @@
+ #include <linux/sde_io_util.h>
+ 
+ #define MAX_I2C_CMDS  16
+-void dss_reg_w(struct dss_io_data *io, u32 offset, u32 value, u32 debug)
++void sde_dss_reg_w(struct dss_io_data *io, u32 offset, u32 value, u32 debug)
+ {
+ 	u32 in_val;
+ 
+@@ -41,10 +41,10 @@
+ 			(u32)(unsigned long)(io->base + offset),
+ 			value, in_val);
+ 	}
+-} /* dss_reg_w */
+-EXPORT_SYMBOL(dss_reg_w);
+-
+-u32 dss_reg_r(struct dss_io_data *io, u32 offset, u32 debug)
++} /* sde_dss_reg_w */
++EXPORT_SYMBOL(sde_dss_reg_w);
++
++u32 sde_dss_reg_r(struct dss_io_data *io, u32 offset, u32 debug)
+ {
+ 	u32 value;
+ 
+@@ -66,19 +66,19 @@
+ 			(u32)(unsigned long)(io->base + offset), value);
+ 
+ 	return value;
+-} /* dss_reg_r */
+-EXPORT_SYMBOL(dss_reg_r);
+-
+-void dss_reg_dump(void __iomem *base, u32 length, const char *prefix,
++} /* sde_dss_reg_r */
++EXPORT_SYMBOL(sde_dss_reg_r);
++
++void sde_dss_reg_dump(void __iomem *base, u32 length, const char *prefix,
+ 	u32 debug)
+ {
+ 	if (debug)
+ 		print_hex_dump(KERN_INFO, prefix, DUMP_PREFIX_OFFSET, 32, 4,
+ 			(void *)base, length, false);
+-} /* dss_reg_dump */
+-EXPORT_SYMBOL(dss_reg_dump);
+-
+-static struct resource *msm_dss_get_res_byname(struct platform_device *pdev,
++} /* sde_dss_reg_dump */
++EXPORT_SYMBOL(sde_dss_reg_dump);
++
++static struct resource *sde_dss_get_res_byname(struct platform_device *pdev,
+ 	unsigned int type, const char *name)
+ {
+ 	struct resource *res = NULL;
+@@ -88,10 +88,10 @@
+ 		DEV_ERR("%s: '%s' resource not found\n", __func__, name);
+ 
+ 	return res;
+-} /* msm_dss_get_res_byname */
+-EXPORT_SYMBOL(msm_dss_get_res_byname);
+-
+-int msm_dss_ioremap_byname(struct platform_device *pdev,
++} /* sde_dss_get_res_byname */
++EXPORT_SYMBOL(sde_dss_get_res_byname);
++
++int sde_dss_ioremap_byname(struct platform_device *pdev,
+ 	struct dss_io_data *io_data, const char *name)
+ {
+ 	struct resource *res = NULL;
+@@ -102,9 +102,9 @@
+ 		return -EINVAL;
+ 	}
+ 
+-	res = msm_dss_get_res_byname(pdev, IORESOURCE_MEM, name);
++	res = sde_dss_get_res_byname(pdev, IORESOURCE_MEM, name);
+ 	if (!res) {
+-		DEV_ERR("%pS->%s: '%s' msm_dss_get_res_byname failed\n",
++		DEV_ERR("%pS->%s: '%s' sde_dss_get_res_byname failed\n",
+ 			__builtin_return_address(0), __func__, name);
+ 		return -ENODEV;
+ 	}
+@@ -118,10 +118,10 @@
+ 	}
+ 
+ 	return 0;
+-} /* msm_dss_ioremap_byname */
+-EXPORT_SYMBOL(msm_dss_ioremap_byname);
+-
+-void msm_dss_iounmap(struct dss_io_data *io_data)
++} /* sde_dss_ioremap_byname */
++EXPORT_SYMBOL(sde_dss_ioremap_byname);
++
++void sde_dss_iounmap(struct dss_io_data *io_data)
+ {
+ 	if (!io_data) {
+ 		DEV_ERR("%pS->%s: invalid input\n",
+@@ -134,10 +134,10 @@
+ 		io_data->base = NULL;
+ 	}
+ 	io_data->len = 0;
+-} /* msm_dss_iounmap */
+-EXPORT_SYMBOL(msm_dss_iounmap);
+-
+-int msm_dss_config_vreg(struct device *dev, struct dss_vreg *in_vreg,
++} /* sde_dss_iounmap */
++EXPORT_SYMBOL(sde_dss_iounmap);
++
++int sde_dss_config_vreg(struct device *dev, struct dss_vreg *in_vreg,
+ 	int num_vreg, int config)
+ {
+ 	int i = 0, rc = 0;
+@@ -210,10 +210,10 @@
+ 		goto vreg_unconfig;
+ 	}
+ 	return rc;
+-} /* msm_dss_config_vreg */
+-EXPORT_SYMBOL(msm_dss_config_vreg);
+-
+-int msm_dss_enable_vreg(struct dss_vreg *in_vreg, int num_vreg, int enable)
++} /* sde_dss_config_vreg */
++EXPORT_SYMBOL(sde_dss_config_vreg);
++
++int sde_dss_enable_vreg(struct dss_vreg *in_vreg, int num_vreg, int enable)
+ {
+ 	int i = 0, rc = 0;
+ 	bool need_sleep;
+@@ -282,10 +282,10 @@
+ 	}
+ 
+ 	return rc;
+-} /* msm_dss_enable_vreg */
+-EXPORT_SYMBOL(msm_dss_enable_vreg);
+-
+-int msm_dss_enable_gpio(struct dss_gpio *in_gpio, int num_gpio, int enable)
++} /* sde_dss_enable_vreg */
++EXPORT_SYMBOL(sde_dss_enable_vreg);
++
++int sde_dss_enable_gpio(struct dss_gpio *in_gpio, int num_gpio, int enable)
+ {
+ 	int i = 0, rc = 0;
+ 
+@@ -322,10 +322,10 @@
+ 			gpio_free(in_gpio[i].gpio);
+ 
+ 	return rc;
+-} /* msm_dss_enable_gpio */
+-EXPORT_SYMBOL(msm_dss_enable_gpio);
+-
+-void msm_dss_put_clk(struct dss_clk *clk_arry, int num_clk)
++} /* sde_dss_enable_gpio */
++EXPORT_SYMBOL(sde_dss_enable_gpio);
++
++void sde_dss_put_clk(struct dss_clk *clk_arry, int num_clk)
+ {
+ 	int i;
+ 
+@@ -334,10 +334,10 @@
+ 			clk_put(clk_arry[i].clk);
+ 		clk_arry[i].clk = NULL;
+ 	}
+-} /* msm_dss_put_clk */
+-EXPORT_SYMBOL(msm_dss_put_clk);
+-
+-int msm_dss_get_clk(struct device *dev, struct dss_clk *clk_arry, int num_clk)
++} /* sde_dss_put_clk */
++EXPORT_SYMBOL(sde_dss_put_clk);
++
++int sde_dss_get_clk(struct device *dev, struct dss_clk *clk_arry, int num_clk)
+ {
+ 	int i, rc = 0;
+ 
+@@ -355,13 +355,13 @@
+ 	return rc;
+ 
+ error:
+-	msm_dss_put_clk(clk_arry, num_clk);
+-
+-	return rc;
+-} /* msm_dss_get_clk */
+-EXPORT_SYMBOL(msm_dss_get_clk);
+-
+-int msm_dss_clk_set_rate(struct dss_clk *clk_arry, int num_clk)
++	sde_dss_put_clk(clk_arry, num_clk);
++
++	return rc;
++} /* sde_dss_get_clk */
++EXPORT_SYMBOL(sde_dss_get_clk);
++
++int sde_dss_clk_set_rate(struct dss_clk *clk_arry, int num_clk)
+ {
+ 	int i, rc = 0;
+ 
+@@ -392,10 +392,10 @@
+ 	}
+ 
+ 	return rc;
+-} /* msm_dss_clk_set_rate */
+-EXPORT_SYMBOL(msm_dss_clk_set_rate);
+-
+-int msm_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable)
++} /* sde_dss_clk_set_rate */
++EXPORT_SYMBOL(sde_dss_clk_set_rate);
++
++int sde_dss_enable_clk(struct dss_clk *clk_arry, int num_clk, int enable)
+ {
+ 	int i, rc = 0;
+ 
+@@ -419,7 +419,7 @@
+ 			}
+ 
+ 			if (rc) {
+-				msm_dss_enable_clk(&clk_arry[i],
++				sde_dss_enable_clk(&clk_arry[i],
+ 					i, false);
+ 				break;
+ 			}
+@@ -440,8 +440,8 @@
+ 	}
+ 
+ 	return rc;
+-} /* msm_dss_enable_clk */
+-EXPORT_SYMBOL(msm_dss_enable_clk);
++} /* sde_dss_enable_clk */
++EXPORT_SYMBOL(sde_dss_enable_clk);
+ 
+ 
+ int sde_i2c_byte_read(struct i2c_client *client, uint8_t slave_addr,
+--- a/drivers/gpu/drm/msm/sde_power_handle.c
++++ b/drivers/gpu/drm/msm/sde_power_handle.c
+@@ -660,20 +660,20 @@
+ 		goto parse_vreg_err;
+ 	}
+ 
+-	rc = msm_dss_config_vreg(&pdev->dev,
++	rc = sde_dss_config_vreg(&pdev->dev,
+ 				mp->vreg_config, mp->num_vreg, 1);
+ 	if (rc) {
+ 		pr_err("vreg config failed rc=%d\n", rc);
+ 		goto vreg_err;
+ 	}
+ 
+-	rc = msm_dss_get_clk(&pdev->dev, mp->clk_config, mp->num_clk);
++	rc = sde_dss_get_clk(&pdev->dev, mp->clk_config, mp->num_clk);
+ 	if (rc) {
+ 		pr_err("clock get failed rc=%d\n", rc);
+ 		goto clk_err;
+ 	}
+ 
+-	rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
++	rc = sde_dss_clk_set_rate(mp->clk_config, mp->num_clk);
+ 	if (rc) {
+ 		pr_err("clock set rate failed rc=%d\n", rc);
+ 		goto bus_err;
+@@ -699,9 +699,9 @@
+ data_bus_err:
+ 	sde_power_reg_bus_unregister(phandle->reg_bus_hdl);
+ bus_err:
+-	msm_dss_put_clk(mp->clk_config, mp->num_clk);
++	sde_dss_put_clk(mp->clk_config, mp->num_clk);
+ clk_err:
+-	msm_dss_config_vreg(&pdev->dev, mp->vreg_config, mp->num_vreg, 0);
++	sde_dss_config_vreg(&pdev->dev, mp->vreg_config, mp->num_vreg, 0);
+ vreg_err:
+ 	devm_kfree(&pdev->dev, mp->vreg_config);
+ 	mp->num_vreg = 0;
+@@ -727,9 +727,9 @@
+ 
+ 	sde_power_reg_bus_unregister(phandle->reg_bus_hdl);
+ 
+-	msm_dss_put_clk(mp->clk_config, mp->num_clk);
+-
+-	msm_dss_config_vreg(&pdev->dev, mp->vreg_config, mp->num_vreg, 0);
++	sde_dss_put_clk(mp->clk_config, mp->num_clk);
++
++	sde_dss_config_vreg(&pdev->dev, mp->vreg_config, mp->num_vreg, 0);
+ 
+ 	if (mp->clk_config)
+ 		devm_kfree(&pdev->dev, mp->clk_config);
+@@ -788,7 +788,7 @@
+ 		goto end;
+ 
+ 	if (enable) {
+-		rc = msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg, enable);
++		rc = sde_dss_enable_vreg(mp->vreg_config, mp->num_vreg, enable);
+ 		if (rc) {
+ 			pr_err("failed to enable vregs rc=%d\n", rc);
+ 			goto vreg_err;
+@@ -801,18 +801,18 @@
+ 			goto reg_bus_hdl_err;
+ 		}
+ 
+-		rc = msm_dss_enable_clk(mp->clk_config, mp->num_clk, enable);
++		rc = sde_dss_enable_clk(mp->clk_config, mp->num_clk, enable);
+ 		if (rc) {
+ 			pr_err("clock enable failed rc:%d\n", rc);
+ 			goto clk_err;
+ 		}
+ 	} else {
+-		msm_dss_enable_clk(mp->clk_config, mp->num_clk, enable);
++		sde_dss_enable_clk(mp->clk_config, mp->num_clk, enable);
+ 
+ 		sde_power_reg_bus_update(phandle->reg_bus_hdl,
+ 							max_usecase_ndx);
+ 
+-		msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg, enable);
++		sde_dss_enable_vreg(mp->vreg_config, mp->num_vreg, enable);
+ 	}
+ 
+ end:
+@@ -822,7 +822,7 @@
+ clk_err:
+ 	sde_power_reg_bus_update(phandle->reg_bus_hdl, prev_usecase_ndx);
+ reg_bus_hdl_err:
+-	msm_dss_enable_vreg(mp->vreg_config, mp->num_vreg, 0);
++	sde_dss_enable_vreg(mp->vreg_config, mp->num_vreg, 0);
+ vreg_err:
+ 	phandle->current_usecase_ndx = prev_usecase_ndx;
+ 	mutex_unlock(&phandle->phandle_lock);
+@@ -848,7 +848,7 @@
+ 				rate = mp->clk_config[i].max_rate;
+ 
+ 			mp->clk_config[i].rate = rate;
+-			rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
++			rc = sde_dss_clk_set_rate(mp->clk_config, mp->num_clk);
+ 			break;
+ 		}
+ 	}
+--- a/drivers/gpu/drm/msm/hdmi/hdmi.h
++++ b/drivers/gpu/drm/msm/hdmi/hdmi.h
+@@ -218,9 +218,9 @@
+ /*
+  * DDC utility functions
+  */
+-int hdmi_ddc_read(struct hdmi *hdmi, u16 addr, u8 offset,
++int msm_drm_hdmi_ddc_read(struct hdmi *hdmi, u16 addr, u8 offset,
+ 				  u8 *data, u16 data_len, bool self_retry);
+-int hdmi_ddc_write(struct hdmi *hdmi, u16 addr, u8 offset,
++int msm_drm_hdmi_ddc_write(struct hdmi *hdmi, u16 addr, u8 offset,
+ 				   u8 *data, u16 data_len, bool self_retry);
+ /*
+  * hdcp

@@ -1,0 +1,4 @@
+ae5244e4eb6fdd57b0039dbb6c5ddb4d248ea811c8bf998a5f56104fde6fa189  out/kernel-drm/.config
+a69a6173b8a40fcb8731622cea697afd036e2b39f380b1c70e102a2db46ca5c6  out/kernel-drm/vmlinux
+c5547d99fbd5df97bc67cfe36a500098b36d556ecbc3c730cc1777fc0d11ccba  out/kernel-drm/Module.symvers
+3b0d04deb2b8a114f862d97a04643e761be44c3f9793b7f33bfb428f640a00a3  out/kernel-drm/arch/arm64/boot/Image.gz-dtb

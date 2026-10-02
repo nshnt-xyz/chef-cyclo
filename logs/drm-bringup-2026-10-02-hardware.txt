@@ -1,0 +1,137 @@
+cat /sys/class/graphics/fb0/mdp/caps; ls /sys/class/graphics/fb0/mdp; cat /s
+ys/class/kgsl/kgsl-3d0/gpu_model; cat /sys/class/kgsl/kgsl-3d0/gpu_available_fre
+quencies; find /sys/bus/platform/drivers -maxdepth 1 -name '*mdss*'; dmesg | gre
+p -E 'MDSS|mdss|DSI|dsi|mdp|adreno|kgsl' | head -65; echo CYCL0_COMMAND_DONE
+mdp_version=5
+hw_rev=805437440
+pipe_count:6
+pipe_num:0 pipe_type:vig pipe_ndx:1 rects:1 pipe_is_handoff:0 display_id:0 fmts_supported:247,255,252,31,32,255,249,255,255,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+pipe_num:1 pipe_type:vig pipe_ndx:2 rects:1 pipe_is_handoff:0 display_id:-1 fmts_supported:247,255,252,31,32,255,249,255,255,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+pipe_num:6 pipe_type:dma pipe_ndx:64 rects:2 pipe_is_handoff:0 display_id:0 fmts_supported:51,224,0,22,0,191,248,255,255,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+pipe_num:7 pipe_type:dma pipe_ndx:128 rects:2 pipe_is_handoff:0 display_id:-1 fmts_supported:51,224,0,22,0,191,248,255,255,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+pipe_num:12 pipe_type:dma pipe_ndx:4096 rects:2 pipe_is_handoff:0 display_id:-1 fmts_supported:51,224,0,22,0,191,248,255,255,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+pipe_num:10 pipe_type:cursor pipe_ndx:1024 rects:1 pipe_is_handoff:0 display_id:-1 fmts_supported:18,96,0,0,0,15,0,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+rot_input_fmts=119 254 28 30 0 255 249 255 171 30 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+rot_output_fmts=119 254 28 30 0 255 249 255 171 30 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+wb_output_fmts=119 252 28 30 32 255 249 255 171 22 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+rgb_pipes=0
+vig_pipes=2
+dma_pipes=3
+blending_stages=7
+cursor_pipes=1
+max_cursor_size=512
+smp_count=0
+smp_size=0
+smp_mb_per_pipe=0
+max_downscale_ratio=4
+max_upscale_ratio=20
+wb_intf_index=0
+fmt_mt_nv12_factor=8
+fmt_mt_factor=4
+fmt_linear_factor=1
+scale_factor=1
+xtra_ff_factor=2
+amortizable_threshold=25
+system_overhead_lines=2
+max_bandwidth_low=6600000
+max_bandwidth_high=6600000
+max_pipe_width=2560
+max_mixer_width=2560
+max_pipe_bw=3100000
+max_mdp_clk=412500000
+clk_fudge_factor=105,100
+max_dest_scaler_input_width=2048
+max_dest_scaler_output_width=2560
+dest_scaler_count=2
+max_dest_scale_up=20
+features= ubwc wb_ubwc decimation src_split dynamic_bw_limit qseed3 dest_scaler separate_rotator concurrent_writeback vig_csc_db
+bw_mode_bitmap
+c900000.qcom,mdss_mdp:qcom,mdss_fb_primary
+c900000.qcom,mdss_mdp:qcom,mdss_fb_wfd
+c900000.qcom,mdss_mdp:qcom,smmu_mdp_sec_cb
+c900000.qcom,mdss_mdp:qcom,smmu_mdp_unsec_cb
+caps
+driver
+driver_override
+modalias
+of_node
+power
+subsystem
+uevent
+Adreno509v1
+430000000 370000000 266000000 160000000 
+/sys/bus/platform/drivers/mdss_smmu
+/sys/bus/platform/drivers/mdss_dp
+/sys/bus/platform/drivers/mdss_fb
+/sys/bus/platform/drivers/mdss_wb
+/sys/bus/platform/drivers/mdss_dsi_ctrl
+/sys/bus/platform/drivers/mdss_rotator
+/sys/bus/platform/drivers/mdss_dsi
+/sys/bus/platform/drivers/mdss_pll
+[    0.000000,0] Kernel command line: rcupdate.rcu_expedited=1 console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 sched_enable_hmp=1 sched_enable_power_aware=1 service_locator.enable=1 swiotlb=1 loop.max_part=7 androidboot.hab.csv=39 androidboot.hab.product=chef androidboot.hab.cid=50 buildvariant=user quiet root=/dev/mmcblk0p67 androidboot.verifiedbootstate=orange androidboot.keymaster=1 androidboot.bootdevice=c0c4000.sdhci androidboot.serialno=ZF6223WZGL androidboot.device=chef androidboot.revision=pvt androidboot.hwrev=0xC000 androidboot.radio=APAC androidboot.powerup_reason=0x00004000 androidboot.bootreason=reboot msm_poweroff.download_mode=0 androidboot.wifimacaddr=30:4B:07:6F:0D:76,30:4B:07:6F:0D:77 androidboot.btmacaddr=30:4B:07:6F:0D:75 androidboot.bootloader=MBM-3.0-chef_retail-06369b83c90-210922 androidboot.carrier=retin androidboot.build_vars=black androidboot.hardware.sku=XT1942-2 androidboot.secure_hardware=1 androidboot.cid=0x0032 androidboot.write_protect=0 androidboot.veritymode=disabled androidboot.bl_state=2 androidboot.mode=normal androidboot.baseband=msm mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi androidboot.slot_suffix=_a skip_initramfs rootwait ro init=/init androidboot.dtb_idx=-1347440721 androidboot.dualsim=true
+[    0.221204,4] irq: no irq domain found for /soc/qcom,mdss_mdp@c900000 !
+[    0.304653,5] mdss_pll_probe: MDSS pll label = MDSS DSI 0 PLL
+[    0.304661,5] mdss_pll_probe: mdss_pll_probe: label=MDSS DSI 0 PLL PLL SSC enabled
+[    0.305593,5] mdss_pll c994400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    0.305602,5] mdss_pll c994400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    0.305609,5] mdss_pll c994400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    0.306186,5] dsi_pll_clock_register_14nm: Registered DSI PLL ndx=0 clocks successfully
+[    0.306225,5] mdss_pll_probe: MDSS pll label = MDSS DSI 1 PLL
+[    0.306231,5] mdss_pll_probe: mdss_pll_probe: label=MDSS DSI 1 PLL PLL SSC enabled
+[    0.306433,5] mdss_pll c996400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    0.306440,5] mdss_pll c996400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    0.306453,5] mdss_pll c996400.qcom,mdss_dsi_pll: Failed to create debugfs directory
+[    0.306880,5] dsi_pll_clock_register_14nm: Registered DSI PLL ndx=1 clocks successfully
+[    0.306909,5] mdss_pll_probe: MDSS pll label = MDSS DP PLL
+[    0.326355,5] arm-smmu 5040000.arm,smmu-kgsl: regulator defer delay 80
+[    0.326748,5] arm-smmu 5040000.arm,smmu-kgsl: found 8 context interrupt(s) but have 5 context banks. assuming 5 context interrupts.
+[    1.602267,4] mdss_mdp_probe+0x268/0x13dc->msm_dss_ioremap_byname: 'vbif_nrt_phys' msm_dss_get_res_byname failed
+[    1.602729,4] mdss_mdp_irq_clk_setup: unable to get core gdsc regulator
+[    1.604595,4] mdss_mdp_pipe_addr_setup: type:0 ftchid:-1 xinid:0 num:0 rect:0 ndx:0x1 prio:0
+[    1.604600,4] mdss_mdp_pipe_addr_setup: type:0 ftchid:-1 xinid:4 num:1 rect:0 ndx:0x2 prio:1
+[    1.604627,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:1 num:6 rect:0 ndx:0x40 prio:2
+[    1.604631,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:1 num:6 rect:1 ndx:0x40 prio:2
+[    1.604636,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:5 num:7 rect:0 ndx:0x80 prio:3
+[    1.604641,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:5 num:7 rect:1 ndx:0x80 prio:3
+[    1.604645,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:9 num:12 rect:0 ndx:0x1000 prio:4
+[    1.604651,4] mdss_mdp_pipe_addr_setup: type:2 ftchid:-1 xinid:9 num:12 rect:1 ndx:0x1000 prio:4
+[    1.604662,4] mdss_mdp_pipe_addr_setup: type:3 ftchid:-1 xinid:2 num:10 rect:0 ndx:0x400 prio:0
+[    1.604671,4] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-pipe-sw-reset-off : u32 array read
+[    1.604742,4] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-ib-factor-overlap : u32 array read
+[    1.604750,4] mdss_mdp_parse_dt_handler: Error from prop qcom,mdss-bus-througput-factor : u32 array read
+[    1.605502,4] iommu: Adding device c900000.qcom,mdss_mdp:qcom,smmu_mdp_unsec_cb to group 6
+[    1.605749,4] iommu: Adding device c900000.qcom,mdss_mdp:qcom,smmu_mdp_sec_cb to group 7
+[    1.605870,4] mdss_mdp_probe: mdss version = 0x30020000, bootloader display is on, num 1, intf_sel=0x00000100
+[    1.607526,4] mdss_smmu_probe: iommu v2 domain[0] mapping and clk register successful!
+[    1.607749,4] mdss_smmu_probe: iommu v2 domain[2] mapping and clk register successful!
+[    1.610375,4] mdss_dsi_ctrl_probe: DSI Ctrl name = MDSS DSI CTRL->0
+[    1.610784,4] mdss_panel_parse_panel_config_dt: BL: panel = mipi_mot_vid_tianma_nt_fhd_618, manufacture_id(0xDA) = 0x2 controller_ver(0xDB) = 0x61 controller_drv_ver(0XDC) = 0x21, full = 0x0000000000216102
+[    1.610793,4] mdss_dsi_find_panel_of_node: cmdline:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi panel_name:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0
+[    1.610866,4] mdss_dsi_panel_init: Panel Name = mipi_mot_vid_tianma_nt_fhd_618
+[    1.610942,4] mdss_dsi_parse_split_link_settings: enable 0 sublinks-count 0 lanes per sublink 0
+[    1.610968,4] mdss_dsi_panel_timing_from_dt: found new timing "qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0" (fffffff739673298)
+[    1.610986,4] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-post-panel-on-command
+[    1.610999,4] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-timing-switch-command
+[    1.611004,4] mdss_dsi_panel_get_dsc_cfg_np: cannot find dsc config node:config0
+[    1.611088,4] mdss_dsi_parse_panel_features: ulps feature disabled
+[    1.611092,4] mdss_dsi_parse_panel_features: ulps during suspend feature disabled
+[    1.611097,4] mdss_dsi_parse_dms_config: dynamic switch feature enabled: 0
+[    1.611141,4] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-lp-mode-on
+[    1.611149,4] mdss_dsi_parse_dcs_cmds: failed, key=qcom,mdss-dsi-lp-mode-off
+[    1.611167,4] mdss_dsi_set_refresh_rate_range:2796, Unable to read min refresh rate
+[    1.611173,4] mdss_dsi_set_refresh_rate_range:2811, Unable to read max refresh rate
+[    1.611192,4] mdss_panel_parse_param_prop: HBM feature enabled with 2 dt cmds
+[    1.611194,4] mdss_panel_parse_param_prop: HBM type = 1
+[    1.611213,4] mdss_panel_parse_param_prop: CABC feature enabled with 3 dt cmds
+[    1.611407,4] mdss_dsi_parse_ctrl_params:4581 Unable to read qcom,display-id, data=0000000000000000,len=20
+[    1.611441,4] mdss_dsi_parse_gpio_params: bklt_en gpio not specified
+[    1.611445,4] mdss_dsi_parse_gpio_params: avdd_en gpio not specified
+[    1.611472,4] mdss_dsi_parse_gpio_params:4645, tp reset gpio not specified
+[    1.611531,4] msm_dss_get_res_byname: 'dsi_phy_regulator' resource not found
+[    1.611548,4] mdss_dsi_retrieve_ctrl_resources+0x170/0x1f4->msm_dss_ioremap_byname: 'dsi_phy_regulator' msm_dss_get_res_byname failed
+[    1.611555,4] mdss_dsi_retrieve_ctrl_resources: ctrl_base=ffffff80086f2000 ctrl_size=400 phy_base=ffffff80086f4400 phy_size=588
+[    1.611676,4] dsi_panel_device_register: Continuous splash enabled
+[    1.611800,4] Unable to find fb node for device: c994000.qcom,mdss_dsi_ctrl0
+[    1.612037,4] mdss_register_panel: adding framebuffer device c994000.qcom,mdss_dsi_ctrl0
+CYCL0_COMMAND_DONE
+/ # 

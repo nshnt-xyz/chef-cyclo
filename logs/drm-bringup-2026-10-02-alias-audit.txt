@@ -1,0 +1,25 @@
+DRM no-binding alias audit: cached live DT compatible values vs registration tables
+Legacy DRM DSI disabled in probe; Adreno registration stubbed by built-in KGSL.
+msm_drv.c: qcom,mdp: absent
+msm_drv.c: qcom,sde-kms: absent
+msm_smmu.c: qcom,smmu_sde_nrt_sec: absent
+msm_smmu.c: qcom,smmu_sde_nrt_unsec: absent
+msm_smmu.c: qcom,smmu_sde_sec: absent
+msm_smmu.c: qcom,smmu_sde_unsec: absent
+dsi-staging/dsi_display.c: qcom,dsi-display: absent
+dsi-staging/dsi_ctrl.c: qcom,dsi-ctrl-hw-v1.4: absent
+dsi-staging/dsi_ctrl.c: qcom,dsi-ctrl-hw-v2.0: absent
+dsi-staging/dsi_phy.c: qcom,dsi-phy-v1.0: absent
+dsi-staging/dsi_phy.c: qcom,dsi-phy-v2.0: absent
+dsi-staging/dsi_phy.c: qcom,dsi-phy-v3.0: absent
+dsi-staging/dsi_phy.c: qcom,dsi-phy-v4.0: absent
+hdmi-staging/sde_hdmi.c: qcom,hdmi-display: absent
+hdmi/hdmi.c: qcom,hdmi-tx-8084: absent
+hdmi/hdmi.c: qcom,hdmi-tx-8660: absent
+hdmi/hdmi.c: qcom,hdmi-tx-8960: absent
+hdmi/hdmi.c: qcom,hdmi-tx-8974: absent
+hdmi/hdmi.c: qcom,hdmi-tx-8994: absent
+hdmi/hdmi.c: qcom,hdmi-tx-8996: absent
+hdmi/hdmi.c: qcom,hdmi-tx-8998: absent
+edp/edp.c: qcom,mdss-edp: absent
+matching aliases: []
