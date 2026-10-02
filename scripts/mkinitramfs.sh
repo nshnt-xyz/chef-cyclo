@@ -75,6 +75,10 @@ cp -a out/rootfs/. "$ROOT"/
 mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
          "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus
 cp -a initramfs/. "$ROOT"/
+# cp -a keeps the checkout's modes, which follow the user's umask. NM's
+# dispatcher refuses group/other-writable scripts, so a umask-002 checkout
+# silently disabled the overlap guard and chrony refresh: strip those bits.
+(cd initramfs && find . -mindepth 1 ! -type l -print0) | (cd "$ROOT" && xargs -0 chmod go-w)
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \

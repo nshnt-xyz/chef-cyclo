@@ -10,6 +10,15 @@ KERNEL=${KERNEL:-out/kernel/arch/arm64/boot/Image.gz-dtb}
 RAMDISK=${RAMDISK:-out/initramfs.cpio.gz}
 OUT=${OUT:-out/boot.img}
 
+# alldefconfig silently drops options whose dependencies are unmet; refuse a
+# default-kernel image missing the classic Bluetooth / AF_ALG options.
+if [ "$KERNEL" = out/kernel/arch/arm64/boot/Image.gz-dtb ]; then
+    for opt in BT_RFCOMM BT_RFCOMM_TTY BT_BNEP BT_BNEP_MC_FILTER BT_BNEP_PROTO_FILTER \
+               BT_HIDP BT_HCIVHCI CRYPTO_USER_API_HASH CRYPTO_USER_API_SKCIPHER; do
+        grep -qx "CONFIG_$opt=y" out/kernel/.config || { echo "CONFIG_$opt missing from out/kernel/.config" >&2; exit 1; }
+    done
+fi
+
 CMDLINE="console=ttyMSM0,115200,n8 androidboot.console=ttyMSM0 earlycon=msm_serial_dm,0xc170000 androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 sched_enable_hmp=1 sched_enable_power_aware=1 service_locator.enable=1 swiotlb=1 loop.max_part=7 androidboot.hab.csv=39 androidboot.hab.product=chef androidboot.hab.cid=50 buildvariant=user"
 
 python3 toolchain/mkbootimg/mkbootimg.py \

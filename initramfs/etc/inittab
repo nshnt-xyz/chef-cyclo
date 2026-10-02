@@ -1,8 +1,16 @@
 # busybox init. /init has already done the mounts and USB gadget setup.
-::respawn:/usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh
+# The shell gets root's home and session bus (below) the way a desktop login would.
+::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'
 ::respawn:/usr/sbin/udhcpd -f /etc/udhcpd.conf
 ::respawn:/bin/sh -c 'if [ ! -e /run/dbus-helper-ready ]; then sleep 10; exit 1; fi; exec /usr/bin/dbus-daemon --system --nofork --nopidfile'
-::respawn:/bin/sh -c 'while [ ! -S /run/dbus/system_bus_socket ]; do sleep 1; done; exec /usr/lib/bluetooth/bluetoothd -n'
+# A PAN link (bnep*) must not reach the root telnet on the USB subnet (Linux
+# answers for 172.16.42.1 on any interface), the same rule wifi-usb-guard sets
+# for wlan0. bluetoothd does not start without it.
+::respawn:/bin/sh -c 'while [ ! -S /run/dbus/system_bus_socket ]; do sleep 1; done; iptables-legacy -w 5 -C INPUT -i bnep+ -d 172.16.42.0/24 -j DROP 2>/dev/null || iptables-legacy -w 5 -I INPUT 1 -i bnep+ -d 172.16.42.0/24 -j DROP || { echo "cyclo: BNEP ingress guard failed, bluetoothd not started" > /dev/kmsg; sleep 10; exit 1; }; exec /usr/lib/bluetooth/bluetoothd -n'
+# Root's session bus at the standard XDG path, for session services such as
+# obexd (bluez-obexd, D-Bus activated) and PipeWire run by hand, without
+# dbus-run-session. Volatile.
+::respawn:/bin/sh -c 'mkdir -p /run/user/0 && chmod 700 /run/user/0 || exit 1; export HOME=/root XDG_RUNTIME_DIR=/run/user/0; exec /usr/bin/dbus-daemon --session --nofork --nopidfile --address=unix:path=/run/user/0/bus'
 ::once:/bin/sh -c 'exec /usr/bin/gps-up > /run/gps-up.log 2>&1'
 ::respawn:/usr/bin/wifi-nm
 # Client-only NTP, no network command/server listener; state is volatile.

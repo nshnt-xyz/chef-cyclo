@@ -8,6 +8,15 @@ These are plans, not implemented behavior. Package versions and candidate approa
 
 Pair/connect real HR, speed/cadence, and power sensors through BlueZ and verify GATT notifications. Scanning and IBS sleep are already verified; see [Bluetooth](../features/bluetooth.md). Persist pairing keys once [writable storage](storage-and-boot.md#persistent-storage) exists and compare BT asleep/off current with the power measurements.
 
+## Standard Bluetooth tooling
+
+Goal: any ordinary BlueZ client installed with `apk add` (or added to the rootfs) works as it would on a desktop distribution. The classic protocol layers, dual mode, root's session bus and the tool-first guide are done and live-verified; see [Bluetooth](../features/bluetooth.md). Remaining:
+
+- **Persistence**: `/var/lib/bluetooth` and `apk add`ed packages are lost at reboot until [writable storage](storage-and-boot.md#persistent-storage) exists.
+- **Classic HID**: not exercised live (no classic keyboard or mouse was available). Pair one and confirm `/dev/input` events through bluetoothd's default uhid path, then once with `UserspaceHID=false` for kernel HIDP.
+- **NetworkManager PAN**: needs `networkmanager-bluetooth` and a deliberate change to NM's `unmanaged-devices` policy; the `bnep+` ingress rule already keeps PAN off the USB telnet.
+- **Audio over Bluetooth**: A2DP through PipeWire/WirePlumber or bluez-alsa is untested; HFP voice needs the unwired board PCM path.
+
 ## Wi-Fi
 
 [Standard NetworkManager Wi-Fi](../features/wifi-ui.md) is verified on clean

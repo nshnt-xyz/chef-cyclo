@@ -1,0 +1,66 @@
+Standard Bluetooth tooling live validation, 2026-10-02 (bt_impl; filtered)
+
+Raw drivers, transcripts and pulled /run/bttest archives:
+~/chef-cyclo-evidence/bt-tooling-live-20261002/ (boot1-bttest.tgz a2047054..., boot2-bttest.tgz b926dc76...).
+Peer: the build PC's adapter 90:CC:DF:AC:DE:55 (BlueZ, made pairable/discoverable only for the run, phone
+bond removed on both sides afterwards, PC restored to Discoverable no / Pairable no). No classic HID device available.
+Wi-Fi credentials were typed at nmcli --ask with echo off; they appear in no evidence file, and the RAM profile was deleted.
+
+Boot 1: boot.img c7b5ae55dcfadfa7594922f9ff53df1e9fa99a39831e4275028d726e6db19b35 (kernel #16, config only)
+- /proc/config.gz: BT_RFCOMM, BT_RFCOMM_TTY, BT_BNEP (+MC/PROTO filters), BT_HIDP, BT_HCIVHCI, CRYPTO_USER_API(_HASH,_SKCIPHER) =y.
+  dmesg: RFCOMM TTY/socket ver 1.11, BNEP ver 1.3 filters protocol multicast, HIDP ver 1.2, Virtual HCI ver 1.5.
+  /proc/net/protocols lists HIDP BNEP RFCOMM ALG SCO L2CAP HCI; /dev/vhci, /dev/uhid present.
+- Telnet shell env: HOME=/root XDG_RUNTIME_DIR=/run/user/0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus.
+  /run/user/0 700 root; session dbus-daemon pid 624 alongside the system bus; ListNames over the session bus OK.
+- rfkill: hci0 and phy0 unblocked (bt_power soft-blocked is the platform switch, as before).
+  btmgmt info: current settings powered ssp br/edr le secure-conn (no connectable/discoverable).
+- iptables-legacy -S INPUT: -A INPUT -d 172.16.42.0/24 -i bnep+ -j DROP and the wlan0 rule; ip rule 142 present;
+  listeners only TCP 172.16.42.1:23 and UDP usb0:67; modem crash_count 0 0 0 0; NM/wpa_supplicant/chrony/gps-up up.
+- Discovery (dual, 20 s): 13 devices; btmgmt find -l: 43 LE dev_found. 6 s after: rx_ibs_state=0 tx_ibs_state=0,
+  ttyHS0 (c1af000.uart) suspended, active 0 ms of 30 s.
+- Pairing with the PC: first attempt failed (phone bluetoothctl's yes/no prompt not seen by the driver); retried with
+  --agent NoInputNoOutput on both sides: Pairing successful, link key type 0x04, Bonded yes, SDP services resolved.
+- l2ping 3/3. Phone-initiated `bluetoothctl connect`: br-connection-unknown, PC terminated (no shared profile).
+  PC-initiated connect: phone accepted the page, ServicesResolved yes, then "No more profiles to connect to".
+- rfcomm bind 0 <PC> 22 created /dev/rfcomm0; open + write: PC RFCOMM server (python socket, ch 22) received
+  b'hello-from-chef', phone read back "pong:hello-from-chef"; after rfcomm release the node was still listed
+  immediately and gone by the next command.
+- obexd: bluez-obexd 5.86-r2 + icu-data-en, icu-libs, libxml2, libical served over USB HTTP, `apk add --no-network`
+  (signed, verified with /etc/apk/keys). org.bluez.obex in ListActivatableNames; gdbus introspect activated
+  /usr/lib/bluetooth/obexd -n with XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS/HOME=/root. Client1.CreateSession to the PC
+  with Target opp returned /org/bluez/obex/client/session0 (OBEX connect succeeded).
+  No file was pushed. The cleanup Client1.RemoveSession call (string and objectpath forms) returned
+  org.bluez.obex.Error.InvalidArguments; the session object's owner had already exited, likely releasing it.
+- bt-up restart in dual: kill btattach 842 -> 3747, "shutting down the running WCN3990 firmware", setup 1.08 s,
+  address re-set; rescan 33 devices; IBS both asleep, UART suspended 30/30 s.
+- Finding: 156 "hci0 ACL packet for unknown connection handle 3804" lines in bursts from 101 s (first dual discovery).
+  3804 = 0x0EDC = 0x2EDC & 0x0FFF, the QCA firmware debug-log handle. Fixed in hci_qca (boot 2).
+- Finding: NM dispatcher scripts were packed 0775 (umask-002 checkout, cp -a) and nm-dispatcher ignored them, so
+  chrony stayed unsynchronised (8 unknown sources, 1970, HTTPS cert "not yet valid"). chmod 755 in RAM + nmcli con up:
+  chrony Leap Normal, clock 2026-10-02, HTTPS 200. Fixed in mkinitramfs.sh (boot 2).
+- Wi-Fi: nmcli --ask connect TP-Link_E975 2427 MHz, 192.168.0.116/24, ping 5/5.
+- Current A/B attempt 1 invalid: USB stayed connected (status Charging throughout).
+
+Boot 2: boot.img cb497b2a9c45661560bf52839e6760ad7c658c38b653bb0b5b3ab4922b0f5bf2
+  (kernel #17 = config + hci_qca QCA_DEBUG_HANDLE -> hci_recv_diag; initramfs overlay chmod go-w)
+- Dispatcher scripts 0755 on the device. Discovery 9 devices, 38 LE dev_found, IBS asleep afterwards.
+- btmon during a 20 s discovery: 13 "Vendor Diagnostic" frames beginning dc 2e (0x2EDC). Unknown-handle dmesg lines: 0
+  for the whole boot (discovery, pairing, l2ping, rfcomm, btmon).
+- Current A/B, USB unplugged (Discharging in every sample), panel off (fblog idled), unbonded, 6 x 45 x 1 s samples of
+  battery/current_now after 15 s settle:
+    block1 le 104.4 mA sd 22.9 | block2 dual 102.3 sd 21.1 | block3 le 97.5 sd 2.6
+    block4 dual 97.4 sd 2.2   | block5 le 104.5 sd 27.1   | block6 dual 96.9 sd 2.1
+  Quiet blocks: le 97.5, dual 97.4/96.9 mA, no resolvable difference; the noisy blocks (1, 5 le; 2 dual) show isolated
+  spikes not tied to mode. UART runtime-active time 0 ms in every block.
+- Side effect of the A/B: btmgmt bredr off/on cleared SSP (settings lost "ssp"); the next pairing fell back to legacy PIN
+  and failed. `btmgmt ssp on` restored it; pairing then succeeded (production bluetoothd does not toggle BR/EDR).
+- l2ping 3/3; rfcomm bind -> /dev/rfcomm0 -> "pong:hello-from-chef"; IBS asleep and UART suspended 30/30 s after disconnect.
+- Page scan: bonded -> hciconfig PSCAN; `btmgmt connectable off` -> still PSCAN; `bluetoothctl remove` -> no PSCAN.
+  Page scan follows bonded BR/EDR devices (kernel accept list), not the connectable setting.
+- Wi-Fi: fresh nmcli --ask association; with no manual step chrony Leap Normal (1970 -> 2026-10-02), HTTPS 200,
+  ping 5/5; bnep+ and wlan0 DROP rules, table 142, listeners TCP 172.16.42.1:23 + UDP usb0:67 only; crash_count 0; hci0.
+- Rerun on cb497b2a (kernel #17): bt-up restart (btattach 844 -> 13721, pre-shutdown, setup 1.08 s, address re-set),
+  rescan 31 devices, IBS both asleep and UART suspended 30/30 s, unknown-handle lines 0; apk add bluez-obexd and session-bus
+  activation again OK (org.bluez.obex owned, obexd -n with XDG_RUNTIME_DIR). Raw: boot2-restart-obex.txt.
+- Not exercised: classic HID input (no device), PAN/BNEP link, HIDP with UserspaceHID=false, bluetooth-meshd, btvirt
+  (not in the image), PipeWire/WirePlumber, idle current with a bonded device (page scan on).
