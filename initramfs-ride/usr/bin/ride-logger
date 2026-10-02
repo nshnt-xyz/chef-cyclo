@@ -2,8 +2,8 @@
 # ride-logger: unattended GPS logging for the temporary "ride" boot image.
 #
 # Started once from the ride image's inittab (`::once:`, never respawn: it
-# starts exactly one gps-up, and gps-up owns the modem's lifetime). It brings
-# the modem up through gps-up, waits for the QMUX bridge socket, enables the
+# borrows init's resident gps-up; it never stops or restarts that owner). It
+# waits for the shared owner and QMUX bridge socket, enables the
 # standard NMEA sentences, starts one LOC session and keeps a single
 # `qmicli --loc-follow-nmea --loc-follow-position-report` follower running,
 # restarting the follower (never gps-up) if it dies or stalls. Everything
@@ -38,7 +38,7 @@
 #
 # Stop: `touch /run/ride/stop` (or `curl http://172.16.42.1/cgi-bin/stop`) or
 # a TERM: the follower is interrupted, the LOC session stopped, the CID
-# released and gps-up terminated (it shuts the modem down cleanly).
+# released. Shared gps-up stays resident for NetworkManager and Bluetooth.
 #
 # Safety model unchanged: nothing here touches a block device or mounts
 # anything; the only writes are to /run and sysfs (vibrator, fblog flag).
@@ -51,6 +51,10 @@ set -u
 D=${RIDE_DIR:-/run/ride}
 QMICLI=${RIDE_QMICLI:-qmicli}
 GPS_UP=${RIDE_GPS_UP:-gps-up}
+GPS_SHARED=${RIDE_SHARED_MODEM:-1}
+if [ "$GPS_SHARED" = 1 ]; then
+    . "${RIDE_MODEM_OWNER_LIB:-/usr/lib/chef/modem-owner.sh}"
+fi
 SOCK=${RIDE_QMUX_SOCKET:-/run/qmux_socket}
 KMSG=${RIDE_KMSG:-/dev/kmsg}
 VIB=${RIDE_VIBRATOR:-/sys/class/timed_output/vibrator/enable}
@@ -72,6 +76,7 @@ FOLLOW_FAST_S=${RIDE_FOLLOW_FAST_S:-30}
 HEARTBEAT_S=${RIDE_HEARTBEAT_S:-60}
 
 GPS_PID=
+GPS_OWNER=
 FOLLOW_PID=
 READER_PID=
 CID=
@@ -281,11 +286,24 @@ stop_follow() {
 	rm -f "$D/follow.fifo"
 }
 
+gps_alive() {
+    if [ "$GPS_SHARED" = 1 ]; then
+        [ -n "$GPS_PID" ] && [ "$(modem_owner_pid)" = "$GPS_PID" ] &&
+            [ "$(cat "${MODEM_OWNER_LOCK:-/run/gps-up.lock}/owner" 2>/dev/null)" = "$GPS_OWNER" ]
+    else
+        child_alive "$GPS_PID"
+    fi
+}
+
 stop_modem() {
 	# Bounded LOC teardown, then gps-up (whose cleanup shuts the modem down).
-	if [ -n "$CID" ] && [ -S "$SOCK" ] && child_alive "$GPS_PID"; then
+	if [ -n "$CID" ] && [ -S "$SOCK" ] && gps_alive; then
 		[ "$SESSION_STARTED" -eq 1 ] && qstep loc-stop --client-cid="$CID" --client-no-release-cid --loc-stop --loc-session-id=1
 		qstep loc-release --client-cid="$CID" --loc-noop
+	fi
+	if [ "$GPS_SHARED" = 1 ]; then
+		GPS_PID=
+		return
 	fi
 	if child_alive "$GPS_PID"; then
 		log "stopping gps-up (modem shutdown)"
@@ -362,21 +380,30 @@ log "ride logger starting; logs in $D"
 
 sleep "$SETTLE_S"
 
-# --- modem: exactly one gps-up, never respawned ------------------------------
+# --- modem: borrow boot owner, or explicit standalone test mode ---------------
 set_status GPS-UP
-"$GPS_UP" > "$D/gps-up.log" 2>&1 &
-GPS_PID=$!
-event "gps-up-start pid=$GPS_PID"
-log "gps-up started (pid $GPS_PID), waiting for the qmux socket (up to ${SOCKET_WAIT_S}s)"
-
-i=0
-while [ ! -S "$SOCK" ]; do
-	[ "$STOP_REQ" -eq 0 ] || finish signal
-	child_alive "$GPS_PID" || { wait "$GPS_PID" 2>/dev/null; fail "gps-up exited (rc $?) before the qmux socket appeared; see gps-up.log"; }
-	[ "$i" -lt $((SOCKET_WAIT_S * 2)) ] || fail "no $SOCK after ${SOCKET_WAIT_S}s (modem did not come up)"
-	sleep 0.5
-	i=$((i + 1))
-done
+if [ "$GPS_SHARED" = 1 ]; then
+    i=0
+    until GPS_PID=$(modem_owner_pid); do
+        [ "$STOP_REQ" -eq 0 ] || finish signal
+        [ "$i" -lt $((SOCKET_WAIT_S * 2)) ] || fail "shared modem owner not ready after ${SOCKET_WAIT_S}s"
+        sleep 0.5; i=$((i + 1))
+    done
+    GPS_OWNER=$(cat "${MODEM_OWNER_LOCK:-/run/gps-up.lock}/owner")
+    event "gps-up-borrow pid=$GPS_PID"
+    log "borrowing shared gps-up (pid $GPS_PID); no modem lifecycle ownership"
+else
+    "$GPS_UP" > "$D/gps-up.log" 2>&1 &
+    GPS_PID=$!
+    event "gps-up-start pid=$GPS_PID"
+    i=0
+    while [ ! -S "$SOCK" ]; do
+        [ "$STOP_REQ" -eq 0 ] || finish signal
+        child_alive "$GPS_PID" || { wait "$GPS_PID" 2>/dev/null; fail "gps-up exited (rc $?) before the qmux socket appeared; see gps-up.log"; }
+        [ "$i" -lt $((SOCKET_WAIT_S * 2)) ] || fail "no $SOCK after ${SOCKET_WAIT_S}s (modem did not come up)"
+        sleep 0.5; i=$((i + 1))
+    done
+fi
 event "qmux-socket"
 log "qmux socket up at uptime $(up)"
 
@@ -384,7 +411,7 @@ log "qmux socket up at uptime $(up)"
 i=0
 while ! qstep version-info --get-service-version-info; do
 	[ "$STOP_REQ" -eq 0 ] || finish signal
-	child_alive "$GPS_PID" || fail "gps-up exited while waiting for the bridge"
+	gps_alive || fail "gps-up exited while waiting for the bridge"
 	i=$((i + 1))
 	[ "$i" -lt "$READY_TRIES" ] || fail "bridge not answering the version query after $READY_TRIES tries"
 	sleep 2
@@ -431,7 +458,10 @@ fi
 while :; do
 	[ "$STOP_REQ" -eq 0 ] || finish signal
 	[ ! -e "$D/stop" ] || finish stop-file
-	child_alive "$GPS_PID" || { wait "$GPS_PID" 2>/dev/null; fail "gps-up exited (rc $?): modem lifetime ended; see gps-up.log"; }
+	gps_alive || {
+        if [ "$GPS_SHARED" = 0 ]; then wait "$GPS_PID" 2>/dev/null; rc=$?; else rc=unavailable; fi
+        fail "gps-up exited (rc $rc): modem lifetime ended; see gps-up.log"
+    }
 	t=$(up_int)
 	if ! child_alive "$FOLLOW_PID"; then
 		wait "$FOLLOW_PID" 2>/dev/null; rc=$?

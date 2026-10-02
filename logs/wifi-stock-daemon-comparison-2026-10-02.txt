@@ -1,0 +1,13 @@
+Exact backed-up stock daemon, stock kernel with initramfs parser string disabled, current Linux RAM userspace.
+Android property/logging shim and absent PM registration failure shim; WLFW transport and encoder unmodified.
+Fresh modem boot, no earlier userspace WLFW client; no daemon calibration files present.
+wlfw_send_ind_register_req: result 0, error 0, fw_status_valid 1, fw_status 0x4
+MSA is ready
+wlfw_send_cap_req: result 0, error 0
+wlfw_send_cap_req: chip_id: 0x140, chip_family 0x4002, board_id: 0xff, soc_id: 0x40050000, fw_version: 0x101402cd, fw_build_timestamp: 2021-07-08 11:19
+wlfw_send_bdf_download_req: device:chef, radio:APAC, carrier:retin
+wlfw_send_bdf_download_req: BDF file found: /firmware/image/bdwlan_chef.bin
+wlfw_send_bdf_download_req: bdf type 0,result 1, error 1
+wlfw_send_cal_report_req: result 0, error 0
+wlfw_qmi_ind_cb: Receive Ind : 0x21
+State: 0xd85(QMI CONN | FW READY | SSR REGISTERED | PDR REGISTERED | MSA0 ASSIGNED | WLAN FW EXISTS)

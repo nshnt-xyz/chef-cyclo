@@ -1,0 +1,38 @@
+#!/bin/sh
+# Device-specific readiness only; NetworkManager owns association/DHCP.
+set -eu
+if [ -e /run/wifi-nm-mode ]; then
+    [ -e /run/wifi-usb-guard-ready ] || { echo 'USB protection not ready' >&2; exit 1; }
+fi
+IFACE=wlan0
+. /usr/lib/chef/modem-owner.sh
+modem_owner_pid >/dev/null || { echo "shared modem owner is not ready" >&2; exit 1; }
+if [ ! -d "/sys/class/net/$IFACE" ]; then
+    # One initialization attempt per boot. Failure remains diagnosable and
+    # cannot trigger repeated board downloads when NM is respawned.
+    mkdir /run/wlan-prepare || { echo 'WLAN preparation already attempted this boot' >&2; exit 1; }
+    [ -S /run/qmux_socket ] || { echo 'start gps-up first; Wi-Fi currently requires its resident modem/support stack' >&2; exit 1; }
+    # Motorola's matching driver consumes the two device-specific bootarg MACs.
+    # Require valid unicast addresses; never print or generate a shared fallback.
+    awk '
+    { for(i=1;i<=NF;i++) if($i ~ /^androidboot.wifimacaddr=/) {
+        sub(/^androidboot.wifimacaddr=/,"",$i)
+        if(split($i,a,",")!=2) exit 1
+        for(j=1;j<=2;j++) {
+            if(split(a[j],b,":")!=6) exit 1
+            for(k=1;k<=6;k++) if(b[k]!~/^[0-9a-fA-F][0-9a-fA-F]$/) exit 1
+            if(b[1]!~/^[0-9a-fA-F][02468aAcCeE]$/ || a[j]=="00:00:00:00:00:00") exit 1
+        }
+        found=1
+    }} END { if(!found) exit 1 }' /proc/cmdline || {
+        echo 'device Wi-Fi MAC bootarg missing or invalid; refusing a shared default' >&2; exit 1;
+    }
+    wlan-fw /lib/firmware
+    insmod /lib/modules/wlan.ko
+    n=0
+    while [ ! -d "/sys/class/net/$IFACE" ]; do
+        n=$((n + 1))
+        [ "$n" -lt 30 ] || { echo 'driver did not create wlan0' >&2; exit 1; }
+        sleep 1
+    done
+fi

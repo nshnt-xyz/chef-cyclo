@@ -6,7 +6,7 @@
 
 Modem boot, LOC discovery/start/stop, NMEA streaming, and outdoor fixes were live-verified by 2026-09-18. The terrace run measured ≤78 seconds cold time-to-first-fix and 5 m uncertainty at the first position fix. gpsd received a matching 3D fix on 2026-09-19.
 
-The baseline keeps GPS manual while a demand-driven manager is pending. This is no longer waiting on initial modem/LOC verification. The [temporary ride image](ride-logging.md) owns an automatic logging lifecycle, but does not run the gpsd/broker pipeline described here.
+The clean standard-NetworkManager baseline verifies one shared resident modem owner at boot. Baseline LOC acquisition and gpsd remain opt-in. The temporary ride variant is excluded from this final validation; no new ride lifecycle acceptance is claimed. Earlier device verification used manual modem startup.
 
 ## Components and lifecycle
 
@@ -24,11 +24,14 @@ The modem needs both service-registry and TFTP/RFS support to survive startup. `
 
 ## Start and inspect manually
 
-Use a fresh baseline boot and the phone's telnet shell. Start one `gps-up`. If the socket does not appear, inspect `/run/gps-up.log` and stop the wait rather than launching another copy. Proceed only once the service-version query succeeds. Substitute the allocated CID below; it is not guaranteed to be 1.
+Use a fresh baseline boot and the phone's telnet shell. New builds already start gps-up once. If readiness does not appear, inspect `/run/gps-up.log` rather than launching another copy. Proceed only once the service-version query succeeds. Substitute the allocated CID below; it is not guaranteed to be 1.
 
 ```sh
-gps-up > /run/gps-up.log 2>&1 &
-while [ ! -S /run/qmux_socket ]; do sleep 1; done; sleep 2
+. /usr/lib/chef/modem-owner.sh
+n=0; until modem_owner_pid >/dev/null; do
+    n=$((n+1)); [ "$n" -lt 240 ] || break; sleep 1
+done
+modem_owner_pid >/dev/null || exit 1
 qmicli -d /run/qmux_socket --get-service-version-info > /dev/null   # bridge ready (retry if it times out)
 qmicli -d /run/qmux_socket --loc-noop --client-no-release-cid         # note the CID
 CID=1   # replace 1 with the CID returned above
@@ -37,7 +40,7 @@ qmicli -d /run/qmux_socket --client-cid=$CID --client-no-release-cid --loc-start
 gpsd -N -n -b -D2 udp://127.0.0.1:20175 > /run/gpsd.log 2>&1 &
 mkdir -p /run/gps
 qmicli -d /run/qmux_socket --client-cid=$CID --client-no-release-cid --loc-follow-nmea 2> /run/gps/follow.err \
-  | nmea-broker -t -l /run/gps/nmea.log > /run/gps/follow.raw 2> /run/gps/broker.log &
+  | nmea-broker -n -t -l /run/gps/nmea.log > /run/gps/follow.raw 2> /run/gps/broker.log &
 (printf '?WATCH={"enable":true,"json":true}\n'; sleep 15) | nc 127.0.0.1 2947 | tee /run/gps/gpsd-watch.json
 ```
 
@@ -45,7 +48,7 @@ The recorded live test received `DEVICES`, populated `SKY`, and `TPV mode:3`, wi
 
 ## Stop cleanly
 
-Interrupt the running `qmicli --loc-follow-nmea` process and let the broker drain/exit. Using the same allocated CID, send `--loc-stop` with `--loc-session-id=1` and `--client-no-release-cid`; then release that CID with `--loc-noop` without `--client-no-release-cid`. Stop gpsd, then send TERM to the `gps-up` process so its cleanup stops helpers, closes the modem, and unmounts firmware. Confirm the helpers and `/run/qmux_socket` are gone. The ride image supplies its own [stop endpoint](ride-logging.md#retrieve-logs-and-stop).
+Interrupt the running `qmicli --loc-follow-nmea` process and let the broker drain/exit. Using the same allocated CID, send `--loc-stop` with `--loc-session-id=1` and `--client-no-release-cid`; then release that CID with `--loc-noop` without `--client-no-release-cid`. Stop gpsd and your follower/broker. Leave the shared gps-up owner running for Wi-Fi and other clients; do not signal or reap it. It performs support/modem cleanup at orderly system shutdown. The ride image supplies its own [stop endpoint](ride-logging.md#retrieve-logs-and-stop).
 
 ## Broker, time, and client behavior
 
@@ -55,7 +58,9 @@ The broker sends one `$…*hh\r\n` UDP datagram per checksum-verified sentence t
 
 `-t` tees input unchanged; `-l FILE` writes `<uptime> <sentence>`. The terrace feed delivered GGA/RMC/GSA/VTG and three GSV sentences per 1 Hz cycle, with `$GP` talkers; GLONASS also appeared in QMI position reports. Empty pre-fix sentences still had valid checksums.
 
-On the first valid status-A RMC, the broker sets system time once per process only if the clock is before 2000-01-01; pre-2020 RMC dates are rejected. `-n` disables this. It never writes the RTC. Initial gpsd bogus-time warnings are expected before that step. This kernel's `shmget` returns `ENOSYS`; JSON clients work, but chrony SHM integration needs kernel support or a different handoff.
+New builds run client-only chrony with no UDP server/command listener. Use broker
+`-n` (as above) so chrony owns wall-clock adjustment; GPS SHM remains unavailable.
+For an explicit offline fallback without chrony synchronization, the broker sets system time once per process only if the clock is before 2000-01-01; pre-2020 RMC dates are rejected. `-n` disables this. It never writes the RTC. Initial gpsd bogus-time warnings are expected before that step. This kernel's `shmget` returns `ENOSYS`; JSON clients work, but chrony SHM integration needs kernel support or a different handoff.
 
 ## Transport and storage constraints
 

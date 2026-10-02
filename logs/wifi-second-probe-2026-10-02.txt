@@ -1,0 +1,109 @@
+cat /tmp/wlan-fw-calprobe.log; cat /sys/kernel/debug/icnss/stats; cat /sys/b
+us/msm_subsys/devices/subsys3/crash_count; netstat -lnt; printf "\nCHEF_DONE_262
+7264337fe\n"
+response msg=0020 TLVs: 02 04 00 00 00 00 00 10 08 00 05 00 00 00 00 00 00 00
+response msg=0024 TLVs: 02 04 00 00 00 00 00 10 08 00 40 01 00 00 02 40 00 00 12 04 00 00 00 05 40 13 15 00 cd 02 14 10 10 32 30 32 31 2d 30 37 2d 30 38 20 31 31 3a 31 39 14 4f 00 51 43 5f 49 4d 41 47 45 5f 56 45 52 53 49 4f 4e 5f 53 54 52 49 4e 47 3d 57 4c 41 4e 2e 48 4c 2e 31 2e 30 2e 31 2e 63 32 2d 30 30 37 31 37 2d 51 43 41 48 4c 53 57 4d 54 50 4c 5a 2d 31 2e 33 39 33 31 38 37 2e 32 2e 34 31 34 37 38 34 2e 31
+response msg=0033 TLVs: 02 04 00 00 00 00 00
+wlan-fw: board 0xff, BDF 19152 bytes
+BDF segment=0 count=6144 end=0
+response msg=0025 TLVs: 02 04 00 00 00 00 00
+BDF segment=1 count=6144 end=0
+response msg=0025 TLVs: 02 04 00 00 00 00 00
+BDF segment=2 count=6144 end=0
+response msg=0025 TLVs: 02 04 00 00 00 00 00
+BDF segment=3 count=720 end=1
+wlan-fw: QMI 0x0025 error 1
+research: probing CAL_REPORT after rejected final chunk
+response msg=0025 TLVs: 02 04 00 01 00 01 00
+response msg=0026 TLVs: 02 04 00 00 00 00 00
+wlan-fw: firmware ready
+        ind_register_req: 1
+       ind_register_resp: 1
+        ind_register_err: 0
+            msa_info_req: 1
+           msa_info_resp: 1
+            msa_info_err: 0
+           msa_ready_req: 1
+          msa_ready_resp: 1
+           msa_ready_err: 0
+           msa_ready_ind: 0
+                 cap_req: 1
+                cap_resp: 1
+                 cap_err: 0
+      pin_connect_result: 1
+                 cfg_req: 2
+                cfg_resp: 2
+             cfg_req_err: 0
+                mode_req: 4
+               mode_resp: 4
+            mode_req_err: 0
+                 ini_req: 2
+                ini_resp: 2
+             ini_req_err: 0
+               vbatt_req: 0
+              vbatt_resp: 0
+           vbatt_req_err: 0
+          rejuvenate_ind: 0
+      rejuvenate_ack_req: 0
+     rejuvenate_ack_resp: 0
+      rejuvenate_ack_err: 0
+   recovery.pdr_fw_crash: 0
+ recovery.pdr_host_error: 0
+  recovery.root_pd_crash: 0
+recovery.root_pd_shutdown: 0
+
+<------------------ PM stats ------------------->
+              pm_suspend: 0
+          pm_suspend_err: 0
+               pm_resume: 0
+           pm_resume_err: 0
+        pm_suspend_noirq: 0
+    pm_suspend_noirq_err: 0
+         pm_resume_noirq: 0
+     pm_resume_noirq_err: 0
+           pm_stay_awake: 9
+                pm_relax: 9
+
+<------------------ IRQ stats ------------------->
+CE_ID  IRQ  Request     Free   Enable  Disable
+   0:   76        2        2        0        0
+   1:   77        2        2        0        0
+   2:   78        2        2        0        0
+   3:   79        2        2        0        0
+   4:   80        2        2        0        0
+   5:   81        2        2        0        0
+   6:   82        2        2        0        0
+   7:   83        2        2        0        0
+   8:   84        2        2        0        0
+   9:   85        2        2        0        0
+  10:   86        2        2        0        0
+  11:   87        2        2        0        0
+
+<---------------- FW Capability ----------------->
+Chip ID: 0x140
+Chip family: 0x4002
+Board ID: 0xff
+SOC Info: 0x40050000
+Firmware Version: 0x101402cd
+Firmware Build Timestamp: 2021-07-08 11:19
+Firmware Build ID: QC_IMAGE_VERSION_STRING=WLAN.HL.1.0.1.c2-00717-QCAHLSWMTPLZ-1.393187.2.414784.1
+
+<----------------- Events stats ------------------->
+                  Events           Posted        Processed
+           SERVER_ARRIVE                1                1
+             SERVER_EXIT                0                0
+                FW_READY                1                1
+         REGISTER_DRIVER                1                1
+       UNREGISTER_DRIVER                0                0
+         PD_SERVICE_DOWN                0                0
+           IDLE_SHUTDOWN                2                2
+            IDLE_RESTART                1                1
+
+State: 0xd8d(QMI CONN | FW READY | DRIVER PROBED | SSR REGISTERED | PDR REGISTERED | MSA0 ASSIGNED | WLAN FW EXISTS)
+0
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State
+tcp        0      0 172.16.42.1:23          0.0.0.0:*               LISTEN
+
+CHEF_DONE_2627264337fe
+~ # [6n

@@ -13,7 +13,7 @@ fastboot boot out/boot-ride.img        # never flash it; Power+VolDown returns t
 
 What happens after boot, all narrated on the panel (`ride:` lines through `fblog`) and in `/run/ride/supervisor.log`:
 
-1. `ride-logger` (inittab `once`, never respawned) starts the one `gps-up` of this boot, waits for `/run/qmux_socket`, checks the bridge with `--get-service-version-info`, allocates a LOC client, sets NMEA types `gga|rmc|gsv|gsa|vtg`, starts session 1 and runs a single `qmicli --loc-follow-nmea --loc-follow-position-report` (one client, one process — host-verified to register both event kinds in one request).
+1. `ride-logger` (inittab `once`, never respawned) borrows init's one resident `gps-up` after validating owner PID/start-time and readiness, waits for `/run/qmux_socket`, checks the bridge with `--get-service-version-info`, allocates a LOC client, sets NMEA types `gga|rmc|gsv|gsa|vtg`, starts session 1 and runs a single `qmicli --loc-follow-nmea --loc-follow-position-report` (one client, one process — host-verified to register both event kinds in one request).
 2. **Success**: `ride: OK: logging …` on the panel, two short buzzes, `status` = `LOGGING`. 45 s later the panel is idled (`/run/fblog.off` + fblog restart, the documented protocol) to save power — the phone looks off but is logging. **Failure** at any point (gps-up dies, no socket, bridge silent, LOC start refused, follower dying repeatedly): `ride: FAILED: <reason>` on the panel, three long buzzes, the panel is woken again if it had been idled, `status` = `FAILED: …`, and the evidence stays in `/run/ride`. The modem is never restarted; a failed boot is simply rebooted.
 3. During the ride the follower is supervised: it is restarted if it exits or produces nothing for 60 s (the LOC session persists in the modem); five deaths in a row within 30 s count as failure. A heartbeat with counters and battery % goes to `events.log` every 60 s.
 
@@ -25,14 +25,14 @@ Getting the logs back (reconnect USB while it is still booted; the host gets its
 curl http://172.16.42.1/                              # status: state, counters, last events, last NMEA/position
 curl -o ride.tgz http://172.16.42.1/cgi-bin/ride.tgz   # everything under /run/ride as a tarball
 curl -O http://172.16.42.1/log/nmea.log               # or any single file (Range supported)
-curl http://172.16.42.1/cgi-bin/stop                  # optional: stop cleanly (LOC stop, CID release, gps-up TERM)
+curl http://172.16.42.1/cgi-bin/stop                  # optional: stop logging (LOC stop, CID release; shared modem stays running)
 curl 'http://172.16.42.1/cgi-bin/screen?on'           # wake the panel (or: telnet → rm /run/fblog.off; kill $(pidof fblog))
 telnet 172.16.42.1                                    # recovery shell as always; `reboot` when done
 ```
 
 ## Recorded files
 
-Files: `meta.txt` (image/kernel/battery/start uptime + wallclock — note the clock is 1970 until something sets it), `events.log` (`<uptime> <utc> <event>`: `gps-up-start`, `qmux-socket`, `bridge-ready`, `loc-start` (the time-to-first-fix reference), `first-nmea`, `first-gga-fix`, `first-rmc-valid`, `first-position-fix`, heartbeats, follower restarts, stop/failure), `nmea.log` (`<uptime> <sentence>`; `cut -d' ' -f2-` gives the pristine NMEA stream), `positions.log` (one line per position report), `follow.raw` (the follower's stdout byte for byte), `follow.err`, `qmicli-*.txt` (verbose raw frames of every setup/teardown step), `gps-up.log`, `supervisor.log`, `status`, `counters`.
+Files: `meta.txt` (image/kernel/battery/start uptime + wallclock — note the clock is 1970 until something sets it), `events.log` (`<uptime> <utc> <event>`: `gps-up-borrow`, `qmux-socket`, `bridge-ready`, `loc-start` (the time-to-first-fix reference), `first-nmea`, `first-gga-fix`, `first-rmc-valid`, `first-position-fix`, heartbeats, follower restarts, stop/failure), `nmea.log` (`<uptime> <sentence>`; `cut -d' ' -f2-` gives the pristine NMEA stream), `positions.log` (one line per position report), `follow.raw` (the follower's stdout byte for byte), `follow.err`, `qmicli-*.txt` (verbose raw frames of every setup/teardown step), `supervisor.log` (shared modem log: `/run/gps-up.log`), `status`, `counters`.
 
 ## Limitations
 

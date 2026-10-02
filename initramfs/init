@@ -28,6 +28,15 @@ mount -t configfs configfs /sys/kernel/config
 mkdir -p /run/dbus /var/lib/dbus
 dbus-uuidgen --ensure 2>/dev/null
 
+# apk --usermode/no-scripts and root-owned cpio omit the privileged activation
+# helper metadata. Only the system-bus account may execute this root helper.
+if chown root:messagebus /usr/libexec/dbus-daemon-launch-helper &&
+   chmod 4750 /usr/libexec/dbus-daemon-launch-helper; then
+    touch /run/dbus-helper-ready
+else
+    log "D-Bus launch-helper setup failed; system bus will remain unavailable"
+fi
+
 log "starting ($(uname -r))"
 buzz 150
 
@@ -94,6 +103,24 @@ if ip link set "$IFACE" up 2>/dev/null; then
 else
     log "no $IFACE interface"
 fi
+
+printf '%s\n' "$IFACE" > /run/usb-interface
+
+# Initialize native device metadata before NetworkManager starts. Preserve
+# kernel names; packaged eudev has no predictive net-renaming rule. Coldplug
+# only net: probing every storage/input device delayed boot and settle timed
+# out on this kernel. Existing nodes remain devtmpfs (mdev fallback); new
+# device events are still handled by the resident udev daemon.
+mkdir -p /run/udev
+if /sbin/udevd --daemon && udevadm trigger --action=add --subsystem-match=net && udevadm settle --timeout=20; then
+    touch /run/udev-ready
+else
+    log "udev initialization failed; NetworkManager will remain unavailable"
+fi
+
+# Reserve WLAN ownership before any concurrent init consumers exist.
+# No manual supplicant/DHCP may run in this standard-NM image, even on failure.
+touch /run/wifi-nm-mode
 
 # Hand over to busybox init: /etc/inittab keeps telnetd, udhcpd, dbus,
 # bluetoothd and the Bluetooth attach (bt-up) running.

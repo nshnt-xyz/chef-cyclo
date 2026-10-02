@@ -6,9 +6,15 @@ The goal is a standalone bike computer with a Linux UI, GPS ride recording, and 
 
 ## Current status
 
-As of 2026-09-19, the phone boots an Alpine-based Linux userspace through `fastboot boot`. USB networking, Bluetooth LE scanning and sleep, display and touch, GPS fixes through gpsd, side-button screen control and shutdown, and speaker playback through the ADSP have been verified on-device.
+As of 2026-10-02, the phone boots an Alpine-based Linux userspace through `fastboot boot`. USB networking, Bluetooth LE scanning and sleep, display and touch, GPS fixes through gpsd, side-button screen control and shutdown, speaker playback through the ADSP, and standard NetworkManager WPA2 Wi-Fi with Internet/DNS connectivity have been verified on-device.
 
-GPS is started manually in the baseline image. A separate temporary ride image starts GPS logging automatically. The bike-computer application, persistent storage, Wi-Fi, and standalone boot are still planned; connecting real BLE sensors remains to be tested.
+The baseline starts one shared resident modem support stack and uses standard
+[NetworkManager Wi-Fi tools](docs/features/wifi-ui.md). Clean baseline startup,
+automatic chrony time synchronization, verified HTTPS and signed apk tool
+installation are verified. Profiles and credentials stay in RAM. The temporary
+ride variant is excluded from this final validation at the user's request and
+retained pending planned removal. The bike-computer application, persistent
+storage and standalone boot remain planned; real BLE sensors remain untested.
 
 ## Start here
 
@@ -25,7 +31,7 @@ The current workflow boots images temporarily; nothing is flashed. Stock Android
 
 Ride recordings live in RAM and disappear on shutdown, reboot, or battery loss. [Download them over USB](docs/features/ride-logging.md) before stopping the phone. Modem EFS writes stay in RAM shadows; real EFS and `persist` must not be written by this workflow.
 
-The USB shell is passwordless root at `telnet 172.16.42.1`. Its current listener is not restricted to USB; network exposure must be addressed before enabling Wi-Fi.
+The USB shell is passwordless root at `telnet 172.16.42.1`. The listener binds only to the USB address 172.16.42.1.
 
 ## Repository
 

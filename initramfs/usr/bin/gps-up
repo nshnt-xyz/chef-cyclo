@@ -16,11 +16,9 @@
 # which is what makes rmtfs's own unsuffixed-then-suffixed lookup land on
 # fsg_$SLOT. The other slot's fsg is never read, sized, linked or retried.
 #
-# Manual opt-in only (not in inittab yet) while this is being verified live:
-# run it by hand from the telnet shell with `gps-up &`. Promote it to
-# inittab as a `once` entry (not `respawn` — each respawn reopens
-# /dev/subsys_modem, which restarts the modem) only after §5 of the GPS
-# handoff passes on-device.
+# Shared boot-resident modem/support owner, started once by inittab. Never
+# respawn automatically: failure leaves GPS/WLAN unavailable until recovery.
+# Owner PID/starttime and readiness are published in the private lock directory.
 set -u
 
 LOCK=/run/gps-up.lock
@@ -153,6 +151,7 @@ log() {
 cleanup() {
 	status=$?
 	trap - EXIT HUP INT TERM
+	rm -f "$LOCK/ready"
 	[ -n "$QMUX_PID" ] && kill "$QMUX_PID" 2>/dev/null
 	[ -n "$TFTP_PID" ] && kill "$TFTP_PID" 2>/dev/null
 	[ -n "$SERVREG_PID" ] && kill "$SERVREG_PID" 2>/dev/null
@@ -163,6 +162,7 @@ cleanup() {
 	[ -n "$RMTFS_PID" ] && wait "$RMTFS_PID" 2>/dev/null
 	[ "$MODEM_FD_OPEN" -eq 1 ] && exec 3<&-
 	[ "$FIRMWARE_MOUNTED" -eq 1 ] && umount /firmware 2>/dev/null
+	rm -f "$LOCK/owner" "$LOCK/owner.tmp"
 	rmdir "$LOCK" 2>/dev/null
 	exit "$status"
 }
@@ -177,6 +177,11 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 	exit 1
 fi
 trap cleanup EXIT HUP INT TERM
+chmod 700 "$LOCK"
+OWNER_START=$(awk 'sub(/^.*\) /, "") { print $20 }' /proc/$$/stat)
+[ -n "$OWNER_START" ] || exit 1
+printf '%s %s\n' "$$" "$OWNER_START" > "$LOCK/owner.tmp"
+mv "$LOCK/owner.tmp" "$LOCK/owner"
 
 mkdir -p /firmware /dev/disk/by-partlabel /sys/kernel/debug
 mount -t debugfs debugfs /sys/kernel/debug 2>/dev/null
@@ -359,6 +364,8 @@ if ! kill -0 "$QMUX_PID" 2>/dev/null; then
 	log "qmux bridge failed to stay up"
 	exit 1
 fi
+[ -S /run/qmux_socket ] || { log "qmux socket missing"; exit 1; }
+touch "$LOCK/ready"
 log "modem up, qmux bridge on /run/qmux_socket"
 
 # Keep the /dev/subsys_modem fd held while all supporting services are

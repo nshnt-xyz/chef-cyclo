@@ -1,0 +1,27 @@
+NetworkManager1.52.2 RAM research on existing reviewed ride image
+No flash. Display /run/fblog.off set, fblog had no/dev/fb0 fd.
+NMwithoutudev: reason71 linknotinitialized
+eudev3.2.14 daemon +coldplugnet beforeNM startup; productioncpio rootownership required forwifi plugin
+NM managesonlywlan0; USB,loopback,WWAN,virtualdevicesunmanaged
+Global wpa_supplicant -u -O/run/wpa_supplicant, no legacy udhcpc ormanualsupplicant
+nmcli conaddsave no profile autoconnectno psk-flags2, secretviaecho-disabled--ask
+WPA2association2.4GHz DHCP192.168.0.116 DNS192.168.0.1 defaultmetric100
+Internet/localhostping5/5, DNSvalid, GPSLOC0 hci0present crash_count0
+Default wpa_cli -iwlan0 works; gdbusintrospects normalNMAPI
+Power-saveon: idlelocalping~100ms inmostsamples; one~1.6ms
+iptables-legacy1.8.13: packageiptablesalso required forsharedstandardtargetextension. USBdestDROP rule installed/checkedrc0.
+
+Localiperf3.20 hostEthernet192.168.0.172 versusphoneWiFi192.168.0.116, singleTCPstream10s
+2.4GHz receiver upload23.0598Mbps download28.2036Mbps, retransmits0
+5GHz nmcli--ask activated TP-Link_E975 5G; frequency5745MHz; DHCPsameaddress; localping3/3
+No credentials orhardwareaddresses included.
+5GHz receiver upload59.3943Mbps download69.5126Mbps, retransmits0. Power-saveon bothbands.
+5GHz CloudflareverifiedHTTPS25MB down43.8/up47.4Mbps atthislatermeasurement.
+
+Chrony4.8 clock prerequisite RAMprobe:
+pool pool.ntp.org iburst; makestep1.0 3; drift/run/chrony/drift; Unixcommand/run/chrony/chronyd.sock; port0 cmdport0
+Initialrootdaemon selectedsource7s, stepped1.470101s
+ExistingntpUID/GID123; createdfreechrony124 andowned/run/chrony chrony:chrony0700
+chronyd -d -u chrony works; chronycUnixtracking LeapNormal, systemoffset0.000005733s; psUIDchrony
+NoUDP123/323IPv4/IPv6listeners
+NoRTC/stockwrites. Cleanboot1970bootstrap remains imageacceptancecheck.

@@ -1,8 +1,12 @@
 # busybox init. /init has already done the mounts and USB gadget setup.
-::respawn:/usr/sbin/telnetd -F -l /bin/sh
+::respawn:/usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh
 ::respawn:/usr/sbin/udhcpd -f /etc/udhcpd.conf
-::respawn:/usr/bin/dbus-daemon --system --nofork --nopidfile
+::respawn:/bin/sh -c 'if [ ! -e /run/dbus-helper-ready ]; then sleep 10; exit 1; fi; exec /usr/bin/dbus-daemon --system --nofork --nopidfile'
 ::respawn:/bin/sh -c 'while [ ! -S /run/dbus/system_bus_socket ]; do sleep 1; done; exec /usr/lib/bluetooth/bluetoothd -n'
+::once:/bin/sh -c 'exec /usr/bin/gps-up > /run/gps-up.log 2>&1'
+::respawn:/usr/bin/wifi-nm
+# Client-only NTP, no network command/server listener; state is volatile.
+::respawn:/bin/sh -c 'mkdir -p /run/chrony && chown chrony:chrony /run/chrony && chmod 700 /run/chrony && exec /usr/sbin/chronyd -d -u chrony -f /etc/chrony/chrony.conf'
 ::respawn:/usr/bin/bt-up
 # On-device boot/probe output: paints /dev/kmsg on the panel, read-only, no
 # touch. Holds /dev/fb0 for the life of the boot (the panel is off otherwise);
@@ -20,7 +24,7 @@
 # Log extraction over the USB network: busybox httpd on 172.16.42.1:80 serving
 # /usr/share/ride/www (status page, /log/<file> = /run/ride, cgi-bin/ride.tgz,
 # stop, screen). Respawned so evidence stays reachable even if the logger fails.
-::respawn:/bin/busybox-extras httpd -f -p 80 -h /usr/share/ride/www
+::respawn:/bin/busybox-extras httpd -f -p 172.16.42.1:80 -h /usr/share/ride/www
 # The ride logger itself: `once`, never respawn -- it starts the one gps-up of
 # this boot (gps-up owns the modem lifetime) and reports failure on the panel
 # and the vibrator instead of retrying the modem.

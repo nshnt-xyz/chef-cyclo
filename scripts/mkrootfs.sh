@@ -4,7 +4,7 @@
 # static x86_64 apk does the job with --no-scripts; whatever the skipped
 # post-install scripts would have done (users, machine-id) is provided by the
 # initramfs/ overlay instead. The package cache lives under toolchain/ so a
-# rebuild is offline.
+# rebuild can reuse the local cache.
 set -eu
 cd "$(dirname "$0")/.."
 APK=toolchain/apk/apk.static
@@ -24,9 +24,16 @@ CACHE=$PWD/toolchain/apk/cache
 # pulls ncurses/fftw/dialog, ~6 MB, for tools we don't need (amixer/aplay
 # have no functional advantage here over tinymix/tinyplay). tinymix's
 # control names match stock's mixer_paths.xml verbatim.
+# UI/network tools: real iproute2 (ip/tc/ss), util-linux-misc provides rfkill.
+# The prebuilt CA bundle works with --no-scripts; no trust-store regeneration
+# is required. jq supports native ip/rfkill JSON workflows. tcpdump/iperf3
+# are manual diagnostics only; no capture, server or extra manager is started.
 PKGS="alpine-baselayout musl busybox busybox-extras
       dbus bluez bluez-btmgmt bluez-btmon bluez-deprecated
-      qmi-utils gpsd tinyalsa"
+      qmi-utils gpsd tinyalsa wpa_supplicant iw
+      iproute2 util-linux-misc curl ca-certificates-bundle jq tcpdump iperf3
+      networkmanager networkmanager-wifi networkmanager-cli networkmanager-tui
+      eudev glib apk-tools iptables iptables-legacy chrony"
 
 rm -rf "$ROOT"
 mkdir -p "$ROOT" "$CACHE"
@@ -35,8 +42,12 @@ mkdir -p "$ROOT" "$CACHE"
        --repository "$ALPINE/main" --repository "$ALPINE/community" \
        --cache-dir "$CACHE" --no-scripts --no-interactive --usermode \
        add $PKGS
-# Not needed at runtime and only confuses a later apk run on the device.
-rm -rf "$ROOT/var/cache/apk" "$ROOT/etc/apk/keys"
+# Keep runtime apk, repositories and public signing keys so standard Wi-Fi
+# tools can be installed normally. Downloads/caches remain volatile in RAM.
+rm -rf "$ROOT/var/cache/apk"
+mkdir -p "$ROOT/etc/apk/keys"
+cp toolchain/apk/keys/* "$ROOT/etc/apk/keys/"
+printf '%s/main\n%s/community\n' "$ALPINE" "$ALPINE" > "$ROOT/etc/apk/repositories"
 
 du -sh "$ROOT"
 ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/dbus-daemon" \

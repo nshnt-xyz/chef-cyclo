@@ -631,3 +631,408 @@ GPS/modem startup, audio playback, suspend endurance, buttons pressed physically
 **Live, run 2** (image `d1c4e041`, `sensord` `0494d086`): calibrated after 6 holds from the live bias [0.401, 0.193, 0.085] G. Shake PASS (std 2.2 deg against the gyro reference), quick turn PASS (+0.3 deg). Turns FAIL: after the calibration flip the filter stayed disturbed and up to 36 deg off the rotation vector for about 20 s (steps 61.1 / 105.4 / 84.9 / 82.9 against gyro 92.9 / 89.7 / 89.8 / 93.0). tilt.up +30 deg against the gyro reference while the rotation vector agreed with our heading; handlebar and lean poses were not reached (29 to 48 deg pitch). 45 % of heading lines flagged disturbed.
 
 **Decision.** Stopped here: the user judged it good enough. Open accuracy items are listed in the [sensors plan](research/sensors.md#results-2026-10-01-stopped-here-as-good-enough). Persist: 0 writes in both sessions; stock `sns.reg` identical before and after each. Evidence: `logs/compass-live-test-2026-10-01-*`.
+
+## 2026-10-01 — Wi-Fi implementation build (connectivity not yet verified)
+
+Added a manually invoked WLAN session, runtime-only credentials, WLAN DHCP,
+source-built matching qcacld module and bounded AF_MSM_IPC WLFW board-data
+helper. Both telnet listeners and ride HTTP now bind the USB address only.
+GPS listener behavior and BT shared-rail pre-shutdown remain unchanged.
+
+Host validation: `make -C tools test-wifi` passes the simulated firmware
+lifecycle (including present/absent optional board capability, stale status,
+transport flow-control and 6144-byte chunks) and DHCP routing/USB-overlap/error
+checks. Strict musl helper compilation, shell syntax checks and `git diff
+--check` pass. Module vermagic matches `4.4.192-cyclo+`; no stock precompiled
+WLAN module was used. Debug sections are stripped from the packaged module.
+
+Implementation image `out/boot.img` SHA-256:
+`dd0ea631a1b046821a4086336b3f01d5ca97b97c425c0933563df94c7a53e708`.
+Module `out/wifi/wlan.ko` SHA-256:
+`ba2fc53b8815ba9fc04f9f87979ba652b455518111affc25a8eb4181606c931d`.
+Ride image `out/boot-ride.img` SHA-256:
+`06c59544d6b65fc603b4bd28732e47e8a966affcfa0b77528896f82af74cddf2`.
+Both images include the production DMON helper. These are build results, not
+a claim of association or Internet connectivity.
+Live board-data initialization remains blocked: the lead's baseline probe
+reached WLFW v1/instance0 with resident gps-up, completed registration/MSA and
+CAP, then the production anonymous-client helper's first BDF_DOWNLOAD message
+`0x25` returned QMI error `1`. The lead verified the transferred chef BDF
+against the host backup; this implementation image had not been booted for
+that probe. A separate research helper with stock DMON client registration
+advanced to the final segment before the same error. Stock disassembly then
+confirmed DMON client ID `0x444d4f4e`; production registration was updated to
+that separate userspace identity and regression-tested before a clean-boot
+retry. Driver/network acceptance is still pending. See
+the [Wi-Fi investigation](research/wifi.md).
+
+
+## 2026-10-02 — Live userland fixes
+
+The baseline starts without `/etc/resolv.conf`. Wi-Fi startup now records
+whether the resolver exists and restores either its original contents or its
+original absence on teardown. Host tests execute both save/restore cases.
+The packaged wpa_passphrase stdin reader requires a TTY, so `wifi-up` now uses
+`wifi-psk`, a small stdin-only PBKDF2-HMAC-SHA1 helper. It outputs only a hex SSID
+and derived PSK into the private runtime config. Independent Python hashlib
+vectors, input bounds and config-escaping tests pass; reviewer also verified
+randomized vectors with ASan/UBSan. Both images above were repacked with these
+fixes. Production still treats any BDF QMI failure as fatal; diagnostic network
+success does not establish production board-data initialization success.
+
+
+The lead subsequently verified the fixes through a RAM copy on the live
+baseline: private piped stdin, initially absent resolver, WPA2 association,
+DHCP, Internet ping and DNS all passed. `wifi-down` removed the session,
+restored resolver absence and preserved the USB route. BT restart during the
+diagnostic association preserved connectivity, with modem crash_count zero.
+These checks used diagnostic firmware initialization and therefore do not
+resolve production startup. The lead also compared the final BDF request with
+Qualcomm qmi-framework encoding: the 758-byte request matched byte-for-byte;
+active modem BDF/firmware hashes matched the packaged blobs. The unresolved
+final-segment error remains a firmware/data/state question. Production keeps
+strict failure handling and does not send CAL_REPORT after rejected BDF data.
+
+
+Build integration review found and closed two fail-open paths: module builds
+now use fresh Git archive exports of all three pinned commits, excluding cached
+untracked/ignored inputs; firmware packing requires a successful listing and
+exact board-ID filenames before mandatory extraction. A fresh archived build
+completed, and all 425 imported module symbol CRCs match the current kernel
+Module.symvers. Both packed variants were refreshed. Host regressions cover
+failed/empty/generic-only firmware listings and pinned export isolation against
+untracked/ignored header fixtures; `make -C tools test-wifi` passes. Actual
+stock listing/extraction succeeded for both roots. The artifact hashes above
+were refreshed for this build. No device control or BDF bypass was performed.
+
+
+## 2026-10-02 — Exact chef vendor lifecycle compatibility
+
+The lead ran the backed-up stock cnss-daemon on a fresh stock-kernel/RAM-userspace
+boot. It completed the chef BDF transfer, received final result `1`/error `1`,
+then successfully sent CAL_REPORT and received FW_READY. Static disassembly
+confirmed that after transport-successful full transfer it returns success;
+transport errors and error `0x30` are handled differently. This supersedes the
+earlier assumption that every nonzero business result must abort startup.
+See [filtered empirical evidence](../logs/wifi-stock-daemon-comparison-2026-10-02.txt)
+and the [research record](research/wifi.md).
+
+Production now implements only that narrow compatibility case: explicit `chef`
+device-tree model identity; board `0xff`; CAP chip `0x140`, family `0x4002`, SoC
+`0x40050000`, firmware `0x101402cd`; and same-open-file SHA-256 matching
+`b72b699075a087fe5c299a83768f2c2c1a8dbbea576099c80183970f32b8c43c`.
+Every earlier chunk must have succeeded and the final chunk must complete the
+full transfer with exactly result `1`/error `1`. The helper warns and still
+requires successful CAL_REPORT and an actual FW_READY indication. All other
+errors remain fatal. No generic bypass was introduced.
+
+Reviewer-approved host validation includes 14 simulated lifecycle scenarios,
+checksum/boot/CAP mismatches, early/middle/other failures, CAL_REPORT failure
+and FW_READY timeout. An independent unmocked checksum harness verified the
+real chef BDF pin, rejection of other bytes and file-position restoration.
+Strict musl compilation and integrated Wi-Fi tests pass. Both images were
+repacked; their updated hashes are above. First-client live validation of this
+final implementation remains pending with the lead.
+
+
+## 2026-10-02 — Final baseline Wi-Fi live acceptance
+
+The lead clean-booted baseline `out/boot.img`, SHA-256
+`dd0ea631a1b046821a4086336b3f01d5ca97b97c425c0933563df94c7a53e708`.
+Normal `wifi-up` was the first userspace WLFW client; it logged the narrowly
+gated chef compatibility warning, then received FW_READY, associated through
+WPA2 and acquired DHCP with the correct WLAN subnet/default and USB route.
+Subsequent Internet ping passed 5/5 and DNS resolved example.com. WPA
+disconnect/reconnect passed. Restarting init-owned bt-up during association
+recovered hci0 and Internet ping passed 3/3; modem crash_count stayed zero.
+GPS LOC noop succeeded before and after Wi-Fi down.
+
+Actual listeners were USB-only telnet and gpsd on 127.0.0.1/::1; WLAN TCP
+23/80/2947 were closed. The initial resolver file was absent. Asynchronous
+wifi-down cleanup completed, removed `/run/wifi`, restored resolver absence
+and left only the USB route. Private piped passphrase input used the packaged
+stdin-only PSK helper. No credentials or device MACs are recorded here.
+
+Evidence: [filtered final baseline checks](../logs/wifi-production-live-2026-10-02.txt).
+
+This establishes working manual Wi-Fi in the final baseline. The ride image
+is packed with identical helpers/module and USB-only HTTP binding, but live
+ride HTTP/WLAN coexistence, WLAN current and long-ride reliability remain
+pending. No automatic association or persistent credential store was added;
+Wi-Fi still requires resident gps-up and does not own modem shutdown. Final
+feature/roadmap documentation now reflects these verified boundaries.
+
+
+## 2026-10-02 — Ride Wi-Fi and USB HTTP coexistence
+
+The lead temporarily booted final ride image `out/boot-ride.img`, SHA-256
+`06c59544d6b65fc603b4bd28732e47e8a966affcfa0b77528896f82af74cddf2`.
+Normal first-client wifi-up logged the chef compatibility warning and reached
+FW_READY, WPA2 association, DHCP and DNS. USB HTTP returned 200 while WLAN
+was associated. Actual HTTP/telnet listeners were USB-only; WLAN TCP ports
+23/80/2947 were closed. hci0 was present, GPS LOC returned success and modem
+crash_count stayed zero. Initial Internet ping lost one packet; settled-ping
+then passed 5/5 with zero loss, and wget http://example.com returned zero.
+See [filtered production acceptance](../logs/wifi-production-live-2026-10-02.txt).
+The ride image remains connected
+in RAM; no flashing was performed. This closes live ride HTTP/WLAN coexistence;
+current measurements and long-ride reliability remain separate work.
+
+## 2026-10-02 — Standard NetworkManager/shared modem images (controlled validation)
+
+Replaced the proposed custom Wi-Fi adapter with standard NetworkManager 1.52.2,
+libnm, nmcli/nmtui, system D-Bus and a D-Bus-activated wpa_supplicant using
+`/run/wpa_supplicant`. Added eudev coldplug, runtime apk repositories/public
+keys, iproute2 ip/tc/ss, rfkill, curl/CA, jq, tcpdump/iperf3 and both iptables
+packages (explicit legacy backend, shared target extensions). Diagnostic
+capture/server utilities are not started automatically.
+
+Both images start one gps-up with init `once`; owner PID/start-time and QMUX
+readiness are published inside its private lock. NM restarts independently,
+with only one firmware preparation attempt per boot and no modem restart.
+Ride logging borrows the shared owner and stops only its own LOC session,
+CID and follower. Manual wifi-up refuses the static NM configuration as well
+as runtime mode/PID, including the startup interval. NM alone owns WLAN
+supplicant/DHCP; all non-wlan0 devices remain unmanaged. Profiles and secrets
+remain RAM-only; no credentials are seeded.
+
+Before preparing WLAN, a fail-closed legacy INPUT rule drops wlan0 traffic to
+172.16.42.0/24; a dedicated policy route keeps USB destinations on USB. NM's
+dispatcher disconnects overlapping leases on activation/renewal and also on
+address-query failure. This dispatcher is not a pre-address veto. Actual
+complete guard/policy validation with exact/broad overlaps remains required.
+
+Validation: `make -C tools test-wifi` PASS, gps-up selection regression18/18,
+ride logger92/0 including shared-owner survival after clean LOC/follower stop,
+shell syntax and `git diff --check` PASS. Both packed roots match current
+lifecycle/config/dispatcher sources, contain legacy target extensions, no
+custom wifi-ui and no runtime files/profiles (an empty /run/lock is packaged).
+Both kernel payloads match current Image.gz-dtb; all425 imported module CRCs
+match current Module.symvers. Fresh archived module builds embed randomized
+build-directory names in __FILE__; final repack uses the same freshly built
+module in both variants. Cpio ownership is root for native NM plugins.
+
+Final controlled-validation artifacts (not yet automatic-boot acceptance):
+
+- `out/boot.img`: `eeb9df3e44b588f146c1399164af609b0ce9c8dd09bc0ce675cde1d6e8c08a85`
+- `out/boot-ride.img`: `c81ca9888a007fd427facbbfcc258a272e11973bc6a854141f228394d32401c8`
+- both packaged wlan.ko: `a7a7d1c782fea8a9ce968b440f2e00f64f4a2263b356209847bd19afa130a3ae`
+
+Lead's isolated RAM standard-NM probe already passed scans, memory-profile
+WPA2 activation via secret prompt, internal DHCP/DNS/default route plus USB,
+Internet traffic, GPS/BT coexistence and native wpa_cli. 2.4/5GHz local iperf
+results are in [filtered research evidence](../logs/wifi-networkmanager-probe-2026-10-02.txt).
+These results do not establish automatic startup of the new images or their
+complete ingress/policy protection. Lead owns first boot, overlapping-address
+probes, standard radio/disconnect controls and shared ride-stop verification.
+Always-resident modem current and long-ride reliability remain pending.
+
+Follow-up prerequisite: added client-only chrony4.8 to the standard images,
+with pool.ntp.org/iburst, makestep1.0 3, no NTP-server/UDP-command listener
+(port0/cmdport0), private volatile Unix control/state and no RTC/SHM writes.
+The above eeb9df3e/c81ca988 builds are superseded by this follow-up, not the
+final standard handoff. Lead's RAM client selected a source in7s and confirmed
+no123/323 listeners, but chronyc requires the named chrony account even when
+called by root. Explicit UID/GID102 records and packaging collision checks now
+support chronyd privilege-drop to chrony and native chronyc; final target
+privilege-drop/time/HTTPS validation remains required. GPS examples use
+nmea-broker -n under chrony, with the existing offline bootstrap correction
+available only as a deliberate fallback.
+
+Lead's privilege-drop RAM probe also passed: chronyd ran as dedicated chrony,
+selected a pool source in5s, Unix chronyc reported Leap Normal and ~5us system
+offset, and no123/323 listeners. Research used free UID124; source uses free
+UID/GID102 with explicit collision checks. The user/group names and private
+chrony-owned0700 directory are the runtime contract, not a hard-coded numeric
+identity in the daemon. This confirms dropped-user feasibility on kernel4.4,
+not clean-boot clock readiness of the images below.
+
+Chrony-inclusive controlled-validation image hashes (supersede the prior
+standard candidates):
+
+- baseline `out/boot.img`: `e0cf689b38ec0699976fb43f7f9637869ca2bd5f190817b00f931395ad5132be`
+- ride `out/boot-ride.img`: `fef10cffebe2128eed72877b54f4d06f548eaf689b44933a9aead71d2f6926df`
+- both packaged module/out/wifi/wlan.ko: `c93eb67cfdd6d5b21360fc7a1fd5b47557d6c3a632563d2c60c370abaeb37d6f`
+
+Both roots match final accounts/inittabs/config/binaries and lifecycle sources;
+all425 module CRCs still match current symvers. Account gate regression checks
+actual production code for valid records, UID/GID collisions and wrong IDs;
+PASS within the integrated Wi-Fi suite. No device action performed by the
+implementation agent. Clean automatic boot, exact/broad USB-overlap protection,
+shared ride stop, time synchronization and verified HTTPS/apk are the live
+handoff checks; no final runtime/security acceptance is claimed here.
+
+### Standard boot follow-up: network-only eudev coldplug
+
+Lead booted the chrony-inclusive baseline e0cf689b. USB appeared after about20s,
+`/run/udev-ready` was absent, and NM correctly stayed unavailable. There was one
+gps-up owner, chronyd ran as UID102, and the legacy USB guard/table142 existed;
+the clock remained1970 without association. The original all-device trigger
+plus20s global settle did not complete successfully. Earlier lead research had
+verified net-only coldplug with NM. Restrict boot `udevadm trigger` to
+`--subsystem-match=net`, keeping bounded settle and fail-closed readiness.
+Existing nodes remain devtmpfs (or the existing mdev fallback); the resident
+udev daemon still handles subsequent genuine device events. No modem restart
+or device control was performed by implementation.
+
+The actual coldplug block is host-regressed with daemon, trigger and settle
+failures plus complete success: only success creates readiness, and trigger
+arguments select net only. Integrated `make -C tools test-wifi`, syntax and
+diff checks PASS. Both images are repacked with this narrow /init change;
+their kernel/module/accounts/chrony/ownership/isolation setup is unchanged.
+Clean new-image coldplug/NM startup and subsequent acceptance remain lead-owned.
+
+Net-only coldplug candidates (supersede e0cf689b/fef10cff):
+
+- baseline: `68cdba0ee06960a7498bb21c1e5a87accc5c593103a8ea93f6e8b8e54023e8f7`
+- ride: `4d46ebc412a51379a5f6b24a905cca1cbd2090e136a60826f98d99c10151c049`
+- unchanged both modules: `c93eb67cfdd6d5b21360fc7a1fd5b47557d6c3a632563d2c60c370abaeb37d6f`
+
+Packed /init matches source in both roots; both boot kernel/ramdisk payloads
+match built outputs and cpio entries remain root-owned. Controlled validation
+only; no automatic NM startup acceptance is inferred from this repack.
+
+### Standard boot follow-up: D-Bus activation helper metadata
+
+During lead's follow-up RAM readiness diagnostic, NM started but WPA D-Bus
+activation failed `Spawn.ExecFailed: Permission denied`. apk usermode/no-scripts
+left `/usr/libexec/dbus-daemon-launch-helper` mode0750; root-owned cpio made its
+group root, so the dropped messagebus daemon could not execute it. The earlier
+RAM probe's manual WPA launch had hidden this package setup requirement.
+
+Restore the standard activation helper metadata in /init: chown root:messagebus
+then chmod4750, before the system bus starts. Only complete success publishes
+readiness; both inittabs block system-bus startup if setup fails, while USB
+still starts. No manual WPA supervisor workaround is introduced, so standard
+WPA and dispatcher service activation use the real D-Bus helper. Packaging now
+requires the helper executable and checks named messagebus UID/GID101 uniqueness
+and collisions, with no extra members admitted to its group. No world execute
+or broader permission changes are applied.
+
+Actual metadata block regressions check chown/chmod order, exact4750/group,
+success readiness and each failure; actual account gates reject bus identity
+collisions and extra group membership. Integrated Wi-Fi suite PASS, syntax and
+diff checks PASS. Runtime SUID metadata and dropped-bus WPA/dispatcher activation
+remain clean-image live checks owned by lead; no final activation acceptance is
+claimed here.
+
+D-Bus-metadata candidates (supersede net-only candidates; include both fixes):
+
+- baseline: `55bb3a660bdeb85e5c7526e9f161b64f90dc50d693fc22ffe5517a25899d2da1`
+- ride: `61402e07c248f8fb5ffb3fc812ee9ef861c5852f093540c7354236532d50ad03`
+- unchanged both modules: `c93eb67cfdd6d5b21360fc7a1fd5b47557d6c3a632563d2c60c370abaeb37d6f`
+
+Both /init/inittab sources match packed roots; post-cpio /init restores helper
+root:messagebus4750 at runtime. Source gate also rejects another user's primary
+GID101, not just duplicate UID or supplemental membership; regression PASS.
+
+### Standard boot follow-up: chrony DNS refresh after WLAN activation
+
+Clean baseline55bb passed network-only coldplug and runtime helper
+root:messagebus4750; one gps-up/NM/D-Bus WPA/chrony started automatically, with
+chrony UID102. Native nmcli secret-prompt5GHz activation succeeded, USB remained
+unmanaged and display was off. No RAM startup workaround was applied.
+
+Chrony had started before DNS and retained8 unknown sources after association,
+leaving the clock1970 and certificate-checked curl/apk unusable. Lead's native
+Unix `chronyc refresh` immediately resolved the pool and received NTP samples.
+Add a separate NM dispatcher for wlan0 up/dhcp4-change/dhcp6-change: bounded
+5s Unix chronyc DNS refresh, warning on failure then success exit. It never
+changes the clock itself, drops WLAN, starts a second daemon or disables TLS.
+The earlier overlap dispatcher/ingress protection is unchanged. Real hook host
+regressions cover refresh success, error, timeout and irrelevant interface/down
+events; all remain nonfatal. Integrated Wi-Fi suite, syntax and diff checks PASS.
+Automatic clean-boot1970->current time and verified HTTPS/apk remain lead-owned.
+
+Lead's55bb live static broad172.16.0.200/16 activation invoked the automatic
+overlap dispatcher and disconnected/removed the WLAN address; USB table142
+remained intact and the shared owner stayed stable. An exact-subnet static
+reapply stayed connected after3s; manually invoking the hook disconnected it.
+Initial interpretation as a missing reapply event was wrong. Lead's RAM debug
+hook explicitly recorded wlan0reapply with an empty IPv4 list; the overlapping
+address appeared about5s later. NM documentation confirms reapply is supported.
+Continuous ingress/USB routing remained protective throughout. Fresh exact
+activation/DHCP overlap and corrected reapply settling remain lead-owned.
+
+Corrected reapply handling now watches a bounded10s/11sample window, including
+old-normal->later-overlap transitions. Activation/DHCP hooks wait if IPv4 is
+still empty. Final empty state is accepted only for explicit disabled/ignore
+IPv4 profiles; missing UUID/query errors/expected-but-empty state disconnect.
+Read-only profile queries are bounded5s. Actual-source regressions cover these
+transitions, late-safe addresses, disabled/ignore, missing method/query failure
+and the iteration bound; PASS. This is bounded observation rather than atomic
+pre-address rejection; permanent ingress/policy isolation remains independent.
+The same new image also includes best-effort chrony DNS refresh on link/DHCP.
+
+Combined chrony-refresh/reapply-transition candidates:
+
+- baseline: `0d17d4c40b1dc3ce48b8e31e21492c3eac13de4f83c8e392a1cad8d48aace2ac`
+- ride: `1a225ee747be2119162ab7e31d355e1d342d49bac2d3b9788c1ace47515e8b22`
+- unchanged both modules: `c93eb67cfdd6d5b21360fc7a1fd5b47557d6c3a632563d2c60c370abaeb37d6f`
+
+These supersede55bb/61402e07 and include both new dispatcher paths, with
+otherwise unchanged kernel/runtime setup. Tightened regression asserts exactly
+11 samples for late-safe/empty reapply paths and rejects missing UUID. Final
+clean-boot automatic clock and real reapply transition validation remain pending.
+
+Additional clean55bb baseline acceptance (before the combined follow-up):
+standard2.4GHz nmcli activation, ping5/5 and HTTPS200; native wpa_cli PONG and
+NetworkManager gdbus API; USB remains strictly unmanaged even after a managed
+request; legacywifi-up refuses; LOC noop succeeds. Installed standard tool paths
+are present, volatile profiles have no saved PSK and stay private. NM disconnect
+clears WLAN addressing/routes/DNS nameservers while keeping one NM/supplicant/
+gps-up owner and USB table142. HTTPS on55bb follows lead's manual chrony DNS
+refresh, not proof of automatic time recovery. Evidence:
+[standard NM live log](../logs/wifi-standard-nm-live-2026-10-02.txt).
+Combined0d17d4c4/1a225ee7 candidates remain pending clean automatic clock,
+corrected reapply and final ride acceptance; previous tests are not substituted
+for those changed paths.
+
+## 2026-10-02 — Final standard NetworkManager baseline accepted
+
+Final clean temporary baseline boot:
+`out/boot.img` SHA256
+`0d17d4c40b1dc3ce48b8e31e21492c3eac13de4f83c8e392a1cad8d48aace2ac`.
+No RAM startup repair, manual chrony refresh, certificate bypass, flash or commit.
+Code/images were frozen after this pass; follow-up changes are documentation only.
+[Filtered production evidence](../logs/wifi-standard-nm-live-2026-10-02.txt)
+is owned by lead; research details remain in [Wi-Fi research](research/wifi.md).
+
+- Automatic net coldplug, root:messagebus4750 D-Bus activation and one shared
+  gps-up/NM/D-Bus supplicant/chrony startup passed; no competing udhcpc.
+- Native5GHz nmcli WPA2 connection, reconnect and radio off/on passed. Final
+  settled Internet ping5/5, certificate-checked HTTPS200 and wpa_cli PONG passed.
+  Earlier55bb also verified native2.4GHz, gdbus and strict USB unmanaged behavior.
+- Automatic chrony1970-to-2026 synchronization with no manual refresh passed;
+  dedicated UID102, Leap Normal and0.281us observed system offset. Signed apk
+  repository update, ethtool7.0 install and execution passed with TLS checks.
+- Both exact172.16.42.200/24 and broad172.16.0.200/16 static reapply automatically
+  disconnected and removed WLAN IPv4. USB route table142 remained intact with
+  source172.16.42.1. The bounded dispatcher is not atomic pre-address rejection;
+  ingress/policy protection remains independent. Actual overlapping DHCP leases
+  remain untested live; those code paths have host regressions.
+- GPS LOC noop returned0; shared owner PID617/start483 remained unchanged,
+  hci0 stayed present and modem crash_count remained0. Existing BT shared-rail
+  pre-shutdown behavior is preserved; no new final-image BT restart test claimed.
+- Actual listeners: TCP172.16.42.1:23 and USB DHCP UDP67 only; no UDP123/323.
+  Host USB23 was reachable while WLAN23/80/2947 were closed. Display stayed off,
+  with no observed fblog framebuffer descriptor.
+- Device was left5GHz-connected with credentials RAM-only. Earlier55bb verified
+  disconnect cleanup of WLAN addresses/routes/DNS while retaining shared support,
+  USB routing and private profiles without a saved PSK.
+
+Final acceptance is **baseline only**. At the user's explicit request the new
+ride image was not live-tested and is excluded; its files/artifact remain
+untouched pending the user's planned removal. Earlier manual ride results are
+historical evidence and do not establish the new standard-NM ride lifecycle.
+GPS/NTP modernization is deferred; keep current chrony, with no separate time
+unit or new GPS fallback. Always-resident current, persistent credentials,
+nonroot UI authorization and long-run reliability remain future work.
+
+Implementation review closed all actionable static/protocol/build findings;
+Wi-Fi host suites, gps-up18/18 and shared-owner ride host92/0 previously passed.
+Ride host/build checks do not constitute final live ride acceptance. Final
+baseline kernel/ramdisk, root-owned cpio and current dispatchers/module were
+independently reviewed; module SHA256 remains
+`c93eb67cfdd6d5b21360fc7a1fd5b47557d6c3a632563d2c60c370abaeb37d6f`
+with425 imported CRCs matching current Module.symvers.

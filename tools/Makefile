@@ -37,13 +37,13 @@ INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
 BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond powerd wavtone tas2560-send-cal \
-       afe-topology-cal tert-tx-hold
+       afe-topology-cal tert-tx-hold wifi-psk
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog \
             tests/test-nmea-broker tests/test-buttond tests/test-powerd tests/test-wavtone \
-            tests/test-tas2560-send-cal tests/test-afe-topology-cal tests/test-tert-tx-hold
+            tests/test-tas2560-send-cal tests/test-afe-topology-cal tests/test-tert-tx-hold tests/test-wlan-fw
 
-.PHONY: all test test-shell clean
+.PHONY: all test test-shell test-wifi clean
 
 all: $(BIN) $(VENDOR_OBJ)
 
@@ -171,7 +171,20 @@ tert-tx-hold: tert-tx-hold.c
 tests/test-tert-tx-hold: tests/test_tert_tx_hold.c tert-tx-hold.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-test: $(TEST_BIN) test-shell
+tests/test-wlan-fw: tests/test_wlan_fw.c wlan-fw.c qmux.c qmux.h msmipc.h
+	$(CC) $(ALL_CFLAGS) -Wno-cpp -o $@ tests/test_wlan_fw.c qmux.c $(LDFLAGS)
+
+wifi-psk: wifi-psk.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+test-wifi: tests/test-wlan-fw wifi-psk
+	./tests/test-wlan-fw
+	python3 tests/test_wifi.py
+	python3 tests/test_wifi_psk.py
+	python3 tests/test_wifi_build.py
+	python3 tests/test_wifi_nm.py
+
+test: $(TEST_BIN) test-shell wifi-psk
 	./tests/test-qmux
 	./tests/test-msmipc
 	./tests/test-fbtouch
@@ -183,6 +196,11 @@ test: $(TEST_BIN) test-shell
 	./tests/test-tas2560-send-cal
 	./tests/test-afe-topology-cal
 	./tests/test-tert-tx-hold
+	./tests/test-wlan-fw
+	python3 tests/test_wifi.py
+	python3 tests/test_wifi_psk.py
+	python3 tests/test_wifi_build.py
+	python3 tests/test_wifi_nm.py
 
 # gps-up (initramfs/) selection-logic regression and the ride image's
 # ride-logger (initramfs-ride/) supervision/failure/HTTP-extraction
@@ -202,4 +220,4 @@ test-shell: powerd
 
 clean:
 	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond powerd wavtone \
-		tas2560-send-cal afe-topology-cal tert-tx-hold $(TEST_BIN)
+		tas2560-send-cal afe-topology-cal tert-tx-hold wifi-psk $(TEST_BIN)

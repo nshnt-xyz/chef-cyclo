@@ -25,6 +25,6 @@ Live checks: confirm host enumeration and DHCP, ping and telnet, then unplug/rep
 
 ## Limitations
 
-The passwordless telnet listener currently binds all interfaces. Before Wi-Fi is enabled, bind it to 172.16.42.1 or replace it with key-authenticated dropbear. See [connectivity plans](../next-steps/connectivity-and-sensors.md). A failed fastboot bulk transfer is a separate host-controller issue covered in [build troubleshooting](../building.md#build-and-boot-troubleshooting).
+Both images bind the passwordless telnet listener to 172.16.42.1; the ride HTTP listener also binds that USB address. See [connectivity plans](../next-steps/connectivity-and-sensors.md). A failed fastboot bulk transfer is a separate host-controller issue covered in [build troubleshooting](../building.md#build-and-boot-troubleshooting).
 
 See the [build log](../build-log.md) entries for first boot (2026-09-13) and ride testing (2026-09-18) for evidence.

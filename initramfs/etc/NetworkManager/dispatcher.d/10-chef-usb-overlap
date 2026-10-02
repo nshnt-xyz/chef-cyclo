@@ -1,0 +1,43 @@
+#!/bin/sh
+# NM owns DHCP. Reject overlapping leases after activation/renewal/reapply.
+# The preinstalled ingress guard protects USB throughout address transitions.
+set -eu
+[ "${1:-}" = wlan0 ] || exit 0
+case "${2:-}" in up|dhcp4-change|reapply) ;; *) exit 0 ;; esac
+disconnect() { nmcli --wait 0 device disconnect wlan0; }
+n=0
+while :; do
+    addresses=$(ip -4 -o addr show dev wlan0) || { disconnect; exit 1; }
+    if ! printf '%s\n' "$addresses" | awk '
+    function num(s, a,i,v) {
+        split(s,a,"."); v=0; for(i=1;i<=4;i++) v=v*256+a[i]; return v
+    }
+    $3=="inet" {
+        split($4,a,"/"); block=2^(32-a[2]); start=int(num(a[1])/block)*block
+        usb=num("172.16.42.0"); if(start<=usb+255 && start+block-1>=usb) bad=1
+    }
+    END {exit bad ? 1 : 0}'; then
+        echo 'chef Wi-Fi: refusing IPv4 subnet overlapping USB 172.16.42.0/24' >&2
+        # Never wait for a disconnect dispatcher invocation from this hook.
+        disconnect
+        exit 0
+    fi
+    # Reapply is emitted during the address transition, sometimes before the
+    # old address is removed. Observe the entire bounded window, not just the
+    # first nonempty sample. Other events only wait when IPv4 is still empty.
+    [ "${2:-}" = reapply ] || [ -z "$addresses" ] || exit 0
+    [ "$n" -lt 10 ] || break
+    sleep 1
+    n=$((n+1))
+done
+[ -z "$addresses" ] || exit 0
+# Empty is legitimate only when the selected profile explicitly disables IPv4.
+# Dispatcher supplies CONNECTION_UUID; missing/query-failed state is unsafe.
+method=
+if [ -n "${CONNECTION_UUID:-}" ]; then
+    method=$(/bin/busybox timeout 5 nmcli -g ipv4.method connection show uuid "$CONNECTION_UUID") || method=
+fi
+case "$method" in disabled|ignore) exit 0 ;; esac
+echo 'chef Wi-Fi: IPv4 state unavailable after settling; disconnecting' >&2
+disconnect
+exit 1

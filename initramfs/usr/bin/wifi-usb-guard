@@ -1,0 +1,14 @@
+#!/bin/sh
+# Enforce USB-only destinations before WLAN can receive any address.
+set -eu
+rm -f /run/wifi-usb-guard-ready
+read -r usb < /run/usb-interface
+case "$usb" in ''|*[!a-zA-Z0-9_.:-]*) exit 1 ;; esac
+[ -d "/sys/class/net/$usb" ]
+iptables-legacy -w 5 -C INPUT -i wlan0 -d 172.16.42.0/24 -j DROP 2>/dev/null ||
+    iptables-legacy -w 5 -I INPUT 1 -i wlan0 -d 172.16.42.0/24 -j DROP
+# A broad WLAN lease must not capture the USB subnet's outgoing route.
+ip route replace 172.16.42.0/24 dev "$usb" src 172.16.42.1 table 142
+ip rule show | grep -q '^142:.*to 172.16.42.0/24 lookup 142' ||
+    ip rule add priority 142 to 172.16.42.0/24 table 142
+touch /run/wifi-usb-guard-ready

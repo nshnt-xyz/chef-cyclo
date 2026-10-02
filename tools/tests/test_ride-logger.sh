@@ -205,7 +205,9 @@ cat < "$T/kmsg" >> "$T/kmsg.log" & KMSG_CAT=$!
 cat < "$T/vib" >> "$T/vib.log" & VIB_CAT=$!
 exec 8> "$T/kmsg" 9> "$T/vib"
 start_logger() {
-	RIDE_DIR=$T/ride RIDE_QMICLI=$T/bin/stub-qmicli RIDE_GPS_UP=$T/bin/stub-gps-up \
+	RIDE_SHARED_MODEM=${SHARED_MODE:-0} RIDE_MODEM_OWNER_LIB=$PWD/initramfs/usr/lib/chef/modem-owner.sh \
+    MODEM_OWNER_LOCK=$T/owner MODEM_QMUX_SOCKET=$T/qmux_socket \
+    RIDE_DIR=$T/ride RIDE_QMICLI=$T/bin/stub-qmicli RIDE_GPS_UP=$T/bin/stub-gps-up \
 	RIDE_QMUX_SOCKET=$T/qmux_socket RIDE_KMSG=$T/kmsg RIDE_VIBRATOR=$T/vib RIDE_FBLOG_OFF=$T/fblog.off \
 	RIDE_BATTERY=$T RIDE_USB_PSY=$T/usbpsy RIDE_PC_PSY=$T/pcpsy RIDE_POWER_STATE=${POWER_STATE:-$T/no-power-state} RIDE_SETTLE_S=0 RIDE_SOCKET_WAIT_S=3 RIDE_READY_TRIES=3 RIDE_QMI_TIMEOUT_S=5 \
 	RIDE_STALL_S=2 RIDE_SCREEN_OFF_AFTER_S=${SCREEN_OFF:-2} RIDE_FOLLOW_MAX_FAST_FAILS=3 RIDE_FOLLOW_FAST_S=5 \
@@ -223,6 +225,23 @@ ev() { grep -q "$1" "$T/ride/events.log" 2>/dev/null; }
 no_stubs_left() {
 	! pgrep -f "$T/bin/stub-follow" >/dev/null && ! pgrep -f "$T/bin/stub-gps-up" >/dev/null
 }
+
+# Shared mode must release LOC/follower while leaving the non-child modem owner alive.
+reset_tree ok
+mkdir -p "$T/owner"
+"$T/bin/stub-gps-up" > "$T/shared-gps.log" 2>&1 & SHARED_PID=$!
+START=$(awk 'sub(/^.*\) /, "") {print $20}' /proc/$SHARED_PID/stat)
+printf '%s %s\n' "$SHARED_PID" "$START" > "$T/owner/owner"
+touch "$T/owner/ready"
+SHARED_MODE=1 SCREEN_OFF=0 start_logger
+wait_for "10: shared logging" 15 '[ "$(status)" = LOGGING ]'
+touch "$T/ride/stop"
+wait_logger 15
+check "10: shared stop clean" '[ "$rc" = 0 ] && [ -e "$T/loc-stop.calls" ]'
+check "10: shared owner survives" 'kill -0 "$SHARED_PID" && [ ! -e "$T/gps-up.term" ]'
+check "10: borrowed owner recorded, no duplicate launch" 'ev "gps-up-borrow" && ! ev "gps-up-start"'
+check "10: own follower stopped" '! pgrep -f "$T/bin/stub-follow" >/dev/null'
+kill -TERM "$SHARED_PID"; wait "$SHARED_PID"
 
 echo "test_ride-logger: logger under '$SH'"
 

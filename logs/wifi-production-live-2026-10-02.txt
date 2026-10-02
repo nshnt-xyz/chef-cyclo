@@ -1,0 +1,37 @@
+Reviewed production baseline temporary boot
+SHA256 dd0ea631a1b046821a4086336b3f01d5ca97b97c425c0933563df94c7a53e708
+Normal wifi-up, first userspace WLFW client:
+wlan-fw: board 0xff, BDF 19152 bytes
+wlan-fw: WARNING: exact stock chef final BDF result=1 error=1; following verified vendor CAL_REPORT lifecycle
+wlan-fw: firmware ready
+Wi-Fi associated with DHCP
+ssid=TP-Link_E975
+wpa_state=COMPLETED
+ip_address=192.168.0.116
+WPA2-PSK / CCMP
+default via 192.168.0.1 dev wlan0 metric 100
+172.16.42.0/24 dev usb0 src 172.16.42.1
+192.168.0.0/24 dev wlan0 src 192.168.0.116
+Initial ping 3 sent / 2 received; subsequent 5/5 and 3/3.
+DNS example.com resolved after reconnect settled.
+WPA disconnect/reconnect: PASS
+Init-owned Bluetooth restart: hci0 restored; ping 3/3
+GPS LOC no-op before/after down: return0
+modem crash_count=0
+TCP listeners: 172.16.42.1:23; 127.0.0.1:2947; ::1:2947
+WLAN TCP23/80/2947 closed; USB TCP23 open
+wifi-down asynchronous cleanup: private state removed, resolver absence restored, only USB route remains
+Full wifi-up restart: COMPLETED, same DHCP address, ping3/3
+Credentials omitted. Hardware addresses omitted.
+
+Reviewed ride image temporary boot
+SHA256 06c59544d6b65fc603b4bd28732e47e8a966affcfa0b77528896f82af74cddf2
+Normal wifi-up first userspace WLFW client: warning, FW_READY, WPA2, DHCP192.168.0.116
+DNS example.com resolved
+USB ride HTTP200 during association; TCPHTTP/Telnet bound172.16.42.1 only
+WLAN23/80/2947 closed
+hci0 present; GPS LOC return0; modem crash_count0
+Initial ping3sent/2received; settled ping recorded below.
+No flash. Device session volatile.
+Settled ride ping5/5, 0%loss; wget http://example.com return0
+WLAN default/connected routes and USB connected route coexist.

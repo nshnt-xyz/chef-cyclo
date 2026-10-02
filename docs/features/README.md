@@ -2,13 +2,14 @@
 
 [Project overview](../../README.md) · [Build and boot](../building.md) · [Next steps](../next-steps/README.md)
 
-These guides describe current behavior and how to work on it. Verification status comes from recorded device tests through 2026-10-01; planned behavior belongs in next steps.
+These guides describe current behavior and how to work on it. Verification status comes from recorded device tests through 2026-10-02; planned behavior belongs in next steps.
 
 | Feature | Current state |
 |---|---|
 | [USB networking](usb-networking.md) | NCM, DHCP, and recovery shell work; unplug/replug verified. |
+| [Wi-Fi](wifi.md) | Standard baseline NM/WPA2, automatic chrony/HTTPS/apk and static-overlap rejection verified; ride excluded from current acceptance. |
 | [Bluetooth](bluetooth.md) | BlueZ LE scan, restart, and IBS sleep verified; real sensor pairing still pending. |
-| [GPS](gps.md) | Modem/LOC and gpsd 3D fixes verified; baseline lifecycle is manual. |
+| [GPS](gps.md) | Modem/LOC and gpsd 3D fixes verified; new builds keep shared modem support resident; LOC acquisition remains opt-in on baseline. |
 | [Display and touch](display-and-touch.md) | Log screen, framebuffer handoff, backlight, and multitouch verified. |
 | [Buttons and power-off](buttons-and-power-off.md) | Baseline screen toggle, gesture claims, and clean shutdown verified. |
 | [Battery and charging](battery-and-charging.md) | Kernel charging proven live (wall charger +302 mAh in 14 min, 1.98 A peak); `powerd` low-battery warn/shutdown, 44/42 °C charge throttle and `/run/power` log live-verified 2026-09-26; `Full` and a real drain not yet seen. |

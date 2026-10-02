@@ -1,0 +1,20 @@
+#!/bin/sh
+# NM restarts independently; this never starts/restarts/kills modem support.
+set -eu
+. /usr/lib/chef/modem-owner.sh
+fail() { echo "wifi-nm: $*" >&2; sleep 10; exit 1; }
+touch /run/wifi-nm-mode
+wifi-usb-guard || fail 'USB ingress/routing protection failed'
+[ -e /run/udev-ready ] || fail 'udev coldplug did not complete'
+[ ! -d /run/wifi ] || fail 'manual Wi-Fi session owns WLAN'
+n=0
+until [ -S /run/dbus/system_bus_socket ] && modem_owner_pid >/dev/null; do
+    n=$((n+1)); [ "$n" -lt 600 ] || fail 'shared modem/system bus readiness timeout (no modem restart)'
+    sleep 1
+done
+mkdir -p /run/NetworkManager/system-connections /run/wpa_supplicant
+chmod 700 /run/NetworkManager/system-connections
+wifi-prepare || fail 'firmware/module preparation failed'
+# Publish NM mode before the exec so diagnostic helpers cannot race its startup.
+touch /run/wifi-nm-mode
+exec /usr/sbin/NetworkManager --no-daemon

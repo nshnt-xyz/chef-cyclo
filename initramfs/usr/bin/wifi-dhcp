@@ -1,0 +1,42 @@
+#!/bin/sh
+# udhcpc hook, deliberately restricted to Wi-Fi; never alter USB addressing.
+set -eu
+[ "${interface:-}" = wlan0 ] || exit 1
+trap 'touch /run/wifi/dhcp.failed' EXIT
+case "$1" in
+bound|renew)
+    # Refuse any offered subnet overlapping the USB /24, including broad masks.
+    awk -v addr="$ip" -v mask="${subnet:-255.255.255.0}" '
+    function number(s, a,n,i,v) {
+        n=split(s,a,"."); if(n!=4) exit 2
+        v=0; for(i=1;i<=4;i++) {
+            if(a[i]!~/^[0-9]+$/ || a[i]>255) exit 2
+            v=v*256+a[i]
+        } return v
+    }
+    BEGIN {
+        x=number(addr); m=number(mask); block=4294967296-m
+        # A contiguous IPv4 mask has a power-of-two host range.
+        b=block; while(b>1 && b%2==0) b=b/2
+        if(b!=1) exit 2
+        start=int(x/block)*block; end=start+block-1
+        usb=number("172.16.42.0")
+        if(start<=usb+255 && end>=usb) exit 1
+    }' || { echo 'invalid DHCP subnet or overlap with USB network' >&2; exit 1; }
+    ip addr flush dev wlan0
+    ip route flush dev wlan0
+    ifconfig wlan0 "$ip" netmask "${subnet:-255.255.255.0}"
+    for gateway in ${router:-}; do
+        ip route add default via "$gateway" dev wlan0 metric 100
+        break
+    done
+    : > /etc/resolv.conf
+    for server in ${dns:-}; do printf 'nameserver %s\n' "$server" >> /etc/resolv.conf; done
+    touch /run/wifi/dhcp.ready
+    ;;
+deconfig)
+    ip addr flush dev wlan0
+    rm -f /run/wifi/dhcp.ready
+    ;;
+esac
+trap - EXIT

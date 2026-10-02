@@ -1,0 +1,81 @@
+#!/bin/sh
+# Manual foreground Wi-Fi session. Secrets exist only in private /run files.
+set -eu
+if [ -e /etc/NetworkManager/conf.d/90-chef.conf ] || [ -e /run/wifi-nm-mode ] || pidof NetworkManager >/dev/null 2>&1; then
+    echo "NetworkManager owns WLAN; use nmcli/nmtui (manual wifi-up refused)" >&2
+    exit 1
+fi
+IFACE=wlan0
+RUN=/run/wifi
+case "${1:-}" in
+--status)
+    iw dev "$IFACE" link
+    if [ -S "$RUN/control/$IFACE" ]; then
+        wpa_cli -p "$RUN/control" -i "$IFACE" status
+    fi
+    ip addr show dev "$IFACE"
+    exit ;;
+--down)
+    if [ -r "$RUN/owner.pid" ]; then
+        kill -TERM "$(cat "$RUN/owner.pid")"
+    fi
+    exit ;;
+esac
+[ "${1:-}" != -- ] || shift
+[ "$#" -eq 1 ] || { echo 'usage: wifi-up SSID (WPA2 passphrase on stdin); wifi-status; wifi-down' >&2; exit 1; }
+wifi-prepare
+umask 077
+mkdir "$RUN" || { echo 'Wi-Fi session already exists; use wifi-down first' >&2; exit 1; }
+WPA_PID=
+DHCP_PID=
+cleanup() {
+    trap - EXIT HUP INT TERM
+    [ -z "$DHCP_PID" ] || { kill "$DHCP_PID" 2>/dev/null || :; wait "$DHCP_PID" 2>/dev/null || :; }
+    [ -z "$WPA_PID" ] || { kill "$WPA_PID" 2>/dev/null || :; wait "$WPA_PID" 2>/dev/null || :; }
+    ip addr flush dev "$IFACE" || :
+    ip link set "$IFACE" down || :
+    if [ -f "$RUN/resolv.conf" ]; then
+        cat "$RUN/resolv.conf" > /etc/resolv.conf
+    elif [ -e "$RUN/resolv.absent" ]; then
+        rm -f /etc/resolv.conf
+    fi
+    rm -rf "$RUN"
+}
+trap cleanup EXIT
+trap 'exit 0' HUP INT TERM
+printf '%s\n' "$$" > "$RUN/owner.pid"
+if [ -e /etc/resolv.conf ]; then
+    cp /etc/resolv.conf "$RUN/resolv.conf"
+else
+    touch "$RUN/resolv.absent"
+fi
+printf 'ctrl_interface=%s/control\nupdate_config=0\n' "$RUN" > "$RUN/wpa.conf"
+# Read secret bytes through stdin; emit only a hex SSID and derived PSK.
+wifi-psk "$1" >> "$RUN/wpa.conf"
+ip link set "$IFACE" up
+wpa_supplicant -D nl80211 -i "$IFACE" -c "$RUN/wpa.conf" > "$RUN/wpa.log" 2>&1 &
+WPA_PID=$!
+n=0
+until wpa_cli -p "$RUN/control" -i "$IFACE" status 2>/dev/null | grep -q '^wpa_state=COMPLETED$'; do
+    kill -0 "$WPA_PID" 2>/dev/null || { echo 'supplicant failed' >&2; exit 1; }
+    n=$((n + 1))
+    [ "$n" -lt 60 ] || { echo 'Wi-Fi association timed out' >&2; exit 1; }
+    sleep 1
+done
+udhcpc -f -i "$IFACE" -s /usr/bin/wifi-dhcp -p "$RUN/udhcpc.pid" > "$RUN/dhcp.log" 2>&1 &
+DHCP_PID=$!
+n=0
+while [ ! -e "$RUN/dhcp.ready" ]; do
+    [ ! -e "$RUN/dhcp.failed" ] || { echo "DHCP hook failed" >&2; exit 1; }
+    kill -0 "$DHCP_PID" 2>/dev/null || exit 1
+    n=$((n + 1))
+    [ "$n" -lt 60 ] || { echo "DHCP timed out" >&2; exit 1; }
+    sleep 1
+done
+echo "Wi-Fi associated with DHCP; wifi-status for details"
+# Keep ownership of the session; Ctrl-C or wifi-down tears down only Wi-Fi.
+while kill -0 "$WPA_PID" 2>/dev/null && kill -0 "$DHCP_PID" 2>/dev/null; do
+    [ ! -e "$RUN/dhcp.failed" ] || exit 1
+    sleep 1
+done
+exit 1

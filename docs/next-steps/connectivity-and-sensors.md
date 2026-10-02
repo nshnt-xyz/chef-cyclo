@@ -10,9 +10,28 @@ Pair/connect real HR, speed/cadence, and power sensors through BlueZ and verify 
 
 ## Wi-Fi
 
-qcacld + firmware blobs from stock, wpa_supplicant, then NTP pool for chrony ([time synchronization](gps-and-time.md#time-synchronization)) and XTRA assistance ([warm starts](gps-and-time.md#warm-starts-and-assistance)) and log upload without the USB cable. WCN3990 shares rails with BT, so BT restarts must keep using the pre-shutdown path once Wi-Fi is up. Measure Wi-Fi off vs. associated current during a ride.
+[Standard NetworkManager Wi-Fi](../features/wifi-ui.md) is verified on clean
+baseline0d17: automatic shared modem/NM/supplicant startup, native5GHz,
+automatic chrony1970-to-current time, verified HTTPS and signed apk installation.
+Exact/broad static reapply rejection and radio off/on passed with USB routing,
+BT presence and zero modem crashes retained. Earlier55bb covers2.4GHz,
+standard APIs, strict USB unmanaged behavior and disconnect cleanup. Final5GHz reconnect/ping5/5/HTTPS200, native wpa_cli, GPS LOC noop and
+USB-only listeners passed, with no UDP123/323 listener. Ride is excluded from current
+acceptance; its files are retained pending the user's planned removal.
 
-**Before Wi-Fi ships**: `telnetd` is a passwordless root shell on every interface today, fine on the USB link only — bind it to `usb0` (`telnetd -b 172.16.42.1`) or replace it with dropbear + keys, and keep 2947/chrony loopback-only.
+Remaining work: build a UI on native NM/libnm APIs; add deliberate credential
+persistence once writable storage exists; measure the always-resident stack and
+associated/disabled current and assess demand-driven power management and long
+rides. Controlled overlapping DHCP leases remain untested live (host checks
+cover the hook). GPS/time architecture modernization is deferred: retain the
+implemented client-only chrony, with no added time unit or new GPS fallback.
+Future assistance/log-upload work is in [GPS/time](gps-and-time.md).
+
+USB remains unmanaged with its DHCP server. Ingress protection and dedicated
+USB routing are independent of bounded dispatcher sampling. Telnet binds to
+172.16.42.1; gpsd stays loopback-only when manually started. Chrony has no NTP
+server or UDP command listener and uses private Unix control. Preserve BT's
+verified pre-shutdown restart behavior.
 
 ## Audio
 

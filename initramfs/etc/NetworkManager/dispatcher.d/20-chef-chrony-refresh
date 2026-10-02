@@ -1,0 +1,9 @@
+#!/bin/sh
+# Retry pool DNS after WLAN has an address/resolver; chrony starts before DNS.
+# Time synchronization is optional to WLAN activation; never disconnect it here.
+[ "${1:-}" = wlan0 ] || exit 0
+case "${2:-}" in up|dhcp4-change|dhcp6-change) ;; *) exit 0 ;; esac
+if ! /bin/busybox timeout 5 chronyc -h /run/chrony/chronyd.sock refresh >/dev/null 2>&1; then
+    echo 'chef chrony: DNS refresh unavailable; time synchronization remains pending' >&2
+fi
+exit 0

@@ -20,6 +20,48 @@ set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
 
+for bin in wpa_supplicant wpa_cli iw ip tc ss rfkill curl jq tcpdump iperf3 NetworkManager nmcli nmtui gdbus udevd udevadm apk iptables-legacy chronyd chronyc; do
+    [ -x "out/rootfs/usr/sbin/$bin" ] || [ -x "out/rootfs/usr/bin/$bin" ] || [ -x "out/rootfs/sbin/$bin" ] || [ -x "out/rootfs/bin/$bin" ] || {
+        echo "missing $bin; rerun scripts/mkrootfs.sh" >&2; exit 1;
+    }
+done
+
+[ -s out/rootfs/etc/ssl/certs/ca-certificates.crt ] || { echo "missing CA bundle; rerun scripts/mkrootfs.sh" >&2; exit 1; }
+
+for asset in usr/lib/libnm.so.0 usr/share/dbus-1/system.d/org.freedesktop.NetworkManager.conf \
+             usr/share/dbus-1/system.d/wpa_supplicant.conf \
+             usr/share/dbus-1/system-services/fi.w1.wpa_supplicant1.service \
+             etc/apk/repositories usr/lib/xtables/libxt_standard.so \
+             usr/libexec/dbus-daemon-launch-helper \
+             usr/libexec/nm-dispatcher \
+             usr/share/dbus-1/system-services/org.freedesktop.nm_dispatcher.service \
+             usr/share/dbus-1/system.d/nm-dispatcher.conf; do
+    [ -s "out/rootfs/$asset" ] || { echo "missing standard Wi-Fi asset $asset; rerun scripts/mkrootfs.sh" >&2; exit 1; }
+done
+[ -x out/rootfs/usr/libexec/dbus-daemon-launch-helper ] || { echo "missing executable D-Bus launch helper" >&2; exit 1; }
+[ -x out/rootfs/usr/libexec/nm-dispatcher ] || { echo "missing executable NM dispatcher" >&2; exit 1; }
+set -- out/rootfs/usr/lib/NetworkManager/*/libnm-device-plugin-wifi.so
+[ -s "$1" ] || { echo "missing NetworkManager Wi-Fi plugin" >&2; exit 1; }
+set -- out/rootfs/etc/apk/keys/*.pub
+[ -s "$1" ] || { echo "missing runtime apk public signing keys" >&2; exit 1; }
+
+# Skipped apk account scripts: chronyc needs the named account even as root.
+# Reject a future overlay ID collision rather than ambiguously drop privileges.
+awk -F: '$1=="chrony" {n++; if($3!=102 || $4!=102) bad=1}
+           $3==102 && $1!="chrony" {bad=1}
+           END {exit (n!=1 || bad)}' initramfs/etc/passwd || { echo 'invalid/colliding chrony account' >&2; exit 1; }
+awk -F: '$1=="chrony" {n++; if($3!=102) bad=1}
+           $3==102 && $1!="chrony" {bad=1}
+           END {exit (n!=1 || bad)}' initramfs/etc/group || { echo 'invalid/colliding chrony group' >&2; exit 1; }
+
+# Only the dedicated bus identity may execute the setuid activation helper.
+awk -F: '$1=="messagebus" {n++; if($3!=101 || $4!=101) bad=1}
+           ($3==101 || $4==101) && $1!="messagebus" {bad=1}
+           END {exit (n!=1 || bad)}' initramfs/etc/passwd || { echo 'invalid/colliding bus account' >&2; exit 1; }
+awk -F: '$1=="messagebus" {n++; if($3!=101 || $4!="") bad=1}
+           $3==101 && $1!="messagebus" {bad=1}
+           END {exit (n!=1 || bad)}' initramfs/etc/group || { echo 'invalid/colliding bus group' >&2; exit 1; }
+
 VARIANT=${VARIANT:-}
 case "$VARIANT" in
 "")   ROOT=out/initramfs-root;      OUTCPIO=out/initramfs.cpio.gz ;;
@@ -71,6 +113,38 @@ else
     echo "warning: $BTIMG not readable, no Bluetooth firmware in the image" >&2
 fi
 
+# Build the matching source module; never reuse Android's precompiled wlan.ko.
+scripts/build-wifi.sh
+mkdir -p "$ROOT/lib/modules" "$ROOT/lib/firmware/wlan/qca_cld"
+cp out/wifi/wlan.ko "$ROOT/lib/modules/wlan.ko"
+extract_wifi() {
+    image=$1 source=$2 target=$3
+    [ -r "$image" ] || { echo "missing Wi-Fi firmware source $image" >&2; exit 1; }
+    debugfs -R "dump $source $target" "$image" >/dev/null 2>&1
+    [ -s "$target" ] || { echo "missing required Wi-Fi blob $source" >&2; exit 1; }
+}
+extract_wifi stock/partitions/modem_a.img /image/wlanmdsp.mbn "$ROOT/lib/firmware/wlanmdsp.mbn"
+extract_wifi stock/partitions/modem_a.img /image/bdwlan_chef.bin "$ROOT/lib/firmware/bdwlan_chef.bin"
+extract_wifi stock/partitions/vendor_a.img /etc/wifi/WCNSS_qcom_cfg.ini "$ROOT/lib/firmware/wlan/qca_cld/WCNSS_qcom_cfg.ini"
+# Pack every board-specific file, preserving firmware-provided names.
+# debugfs can return success even when a requested directory is absent, so
+# require a successful listing AND a nonempty set before emitting an image.
+if ! WIFI_LIST=$(debugfs -R 'ls /image' stock/partitions/modem_a.img 2>&1); then
+    echo "cannot list required Wi-Fi board firmware" >&2; exit 1
+fi
+if ! WIFI_BOARDS=$(printf '%s\n' "$WIFI_LIST" | tr ' ' '\n' | grep '^bdwlan\.[A-Za-z0-9]*$'); then
+    echo "no board-specific Wi-Fi firmware in stock modem image" >&2; exit 1
+fi
+if ! printf '%s\n' "$WIFI_BOARDS" | grep -Eq '^bdwlan\.([0-9A-Fa-f]{3}|b[0-9A-Fa-f]{2})$'; then
+    echo "stock modem listing contains no exact board-ID BDF" >&2; exit 1
+fi
+for blob in $WIFI_BOARDS; do
+    extract_wifi stock/partitions/modem_a.img "/image/$blob" "$ROOT/lib/firmware/$blob"
+done
+# The matching Motorola driver reads per-device bootloader Wi-Fi MACs;
+# wifi-up validates the bootarg before module load. Do not invent wlan_mac.bin.
+# No stock persist writes, generated shared MAC or automatic driver startup.
+
 # GPS/QMI userspace helpers (musl aarch64, real libc unlike btprobe's
 # freestanding build): rmtfs, servreg-locator and tftp-server are ours;
 # msmipc.c/irsc.c/qmuxd-lite.c/qmux.c and the vendored tools/qrtr/ are the
@@ -96,6 +170,11 @@ MUSLCC=toolchain/aarch64-musl/bin/aarch64-buildroot-linux-musl-gcc
 QRTR_DIR=tools/qrtr
 KHDR="-I kernel/include/uapi -I kernel/include"
 [ -x "$MUSLCC" ] || { echo "missing musl cross compiler; run scripts/setup-toolchain.sh" >&2; exit 1; }
+"$MUSLCC" -Wall -Wextra -Werror -O2 -static -o "$ROOT/usr/bin/wifi-psk" tools/wifi-psk.c
+
+"$MUSLCC" -Wall -Wextra -Werror -Wno-cpp -O2 -static $KHDR -I tools -I "$QRTR_DIR" \
+    -o "$ROOT/usr/bin/wlan-fw" tools/wlan-fw.c tools/qmux.c tools/msmipc.c
+
 for src in tools/msmipc.c tools/irsc.c tools/qmux.c tools/qmuxd-lite.c \
            "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" \
            tools/rmtfs/qmi_rmtfs.c tools/rmtfs/rmtfs.c tools/rmtfs/sharedmem.c \

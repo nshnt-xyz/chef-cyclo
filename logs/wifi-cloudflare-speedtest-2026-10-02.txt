@@ -1,0 +1,29 @@
+Cloudflare HTTPS curl throughput tests, 2026-10-02
+Official endpoints: https://speed.cloudflare.com/__down?bytes=25000000 and POST https://speed.cloudflare.com/__up
+Host Ethernet; phone WLAN forced --interface wlan0. Certificate validation enabled. Device RAM clock corrected from1970 to currentUTC. curl and CA bundle staged only under /tmp.
+25,000,000 bytes per comparable transfer; curl bytes/s multiplied by8/1e6 forMbps.
+
+Sequential host samples:
+download Bps63112825 (504.90Mbps),55372702 (442.98Mbps),64196884 (513.58Mbps),42134784 (337.08Mbps)
+upload Bps31872347 (254.98Mbps),29988208 (239.91Mbps)
+
+Phone sequential samples:
+download Bps8833769 (70.67Mbps),7504293 (60.03Mbps),7659086 (61.27Mbps)
+upload25MB Bps6330089 (50.64Mbps),8864201 (70.91Mbps)
+Initial smaller10MB upload Bps12072220 (96.58Mbps), excluded from25MB range.
+All successful HTTP200; exact expected byte counts.
+A host/phone overlapping run excluded from summary (host upload7,780,265Bps; phone download8,009,008Bps/upload7,506,184Bps).
+One100MB host endpoint query with extra test parameter returned403; excluded.
+This is single-request curl throughput, not the complete browser adaptive/parallel latency/jitter/packet-loss test.
+
+Host command (download bytes/sec):
+curl -4 --noproxy '*' -fSs --max-time 45 -o /dev/null -w '%{speed_download}\n' 'https://speed.cloudflare.com/__down?bytes=25000000'
+Host command (upload bytes/sec):
+head -c 25000000 /dev/zero | curl -4 --noproxy '*' -fSs --max-time 45 -H 'Content-Type: application/octet-stream' -H 'Expect:' --data-binary @- -o /dev/null -w '%{speed_upload}\n' 'https://speed.cloudflare.com/__up'
+For device commands also used --interface wlan0 and --cacert pointing to staged CA bundle.
+
+5GHz NetworkManager RAMprobe, power-saveon, sequential25MBrequests:
+SSID TP-Link_E975 5G, frequency5745MHz
+download Bps5469600 (43.7568Mbps),total4.570735s,status200,bytes25000000
+upload Bps5921967 (47.3757Mbps),total4.221587s,status200,bytes25000000
+Compared with earliermanual2.4tests, manager/power-save/time/radio conditions changed, so usepairedlocaliperf tests forbandcomparison.
