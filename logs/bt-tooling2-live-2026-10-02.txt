@@ -96,3 +96,60 @@ restored, PipeWire/WirePlumber stopped; the PC was left Pairable yes by the pair
 set back to no. The PC/phone bond is kept for the bonded idle-current run (to be removed afterwards).
 The phone still runs the RAM-only NM policy line (same as the repo); the logging dispatcher was removed.
 The ADSP stays up for the rest of this boot (audio-up), so the bonded idle-current run belongs on a fresh boot.
+
+Part 3: queued runs with the user at the phone (two more fastboot boots, nothing flashed)
+
+Boot b865690ebf34a4b01ed549b65a04006aaa678bd2d571f179b033fd465fde89b1 (kernel #18 = #17 + CRYPTO_USER_API_AEAD)
+- Image checks: uname #18, CONFIG_CRYPTO_USER_API_AEAD=y, NM unmanaged-devices ...,except:type:bt, WirePlumber
+  drop-in present.
+- Run A, mesh (phone/mesh.sh, mesh-run1.txt): bluetooth-meshd still "Mesh Crypto functions unavailable".
+  Cause: the 4.4 algif_aead recvmsg computed used -= assoclen + (enc ? tag : 0) and outlen = used, i.e. the
+  pre-4.9 layout where an encryption input reserves tag space; ell sends AAD || plaintext and reads
+  AAD || ciphertext || tag (4.9+ layout), so mesh_crypto_check_avail's AES-CCM test failed. bluetoothd got
+  hci0 back after the run (powered, scan 12 devices).
+- Run B, bonded idle current (phone/power_bonded.sh, runb/, runb-bttest.tgz 7cf190b9...): PC re-paired and
+  disconnected (1 link key, no ACL, PSCAN, settings without connectable); no audio-up, fblog on; battery 65 %.
+  First launch failed (the launch line's rm glob deleted the script); second timed out after 3 min waiting
+  for the unplug; third (10 min window) ran. Unplugged 2 s after STEP 1/2; status Discharging in all 270
+  samples; 6 x 45 x 1 s blocks after 15 s settle, page scan set with hciconfig (pscan followed by
+  `btmgmt connectable off`, which keeps PSCAN because of the bond):
+    block1 pscan 99.7 mA sd 2.0 | block2 noscan 98.8 sd 1.8 | block3 pscan 101.3 sd 22.0 (median 97.7)
+    block4 noscan 97.6 sd 2.1   | block5 pscan 104.0 sd 30.8 (median 96.7) | block6 noscan 96.9 sd 2.0
+  Three isolated samples at exactly 246.581 mA (one in block 3, two consecutive in block 5); without them
+  pscan 99.7/98.0/97.4 vs noscan 98.8/97.6/96.9. Page scan always came first while the current drifted down
+  0.56 mA per block (99.65 -> 96.86 over five block steps), so the raw +0.6 mA per pair is the drift; each
+  block against the mean of its two neighbours: block2 (noscan) +0.01, block3 (pscan) -0.23, block4 (noscan)
+  -0.10, block5 (pscan) +0.16 mA. No resolvable page-scan cost (review recomputation, confirmed). Unbonded reference (earlier the same day, boot cb497b2a): 97.4/96.9/97.5 mA quiet blocks.
+  UART runtime-active 0 ms in every block; scan state as set at the end of every block; restored PSCAN,
+  settings "powered ssp br/edr le secure-conn". Bond then removed on both sides (0 link keys, no PSCAN;
+  PC no longer lists the phone, Pairable no, Discoverable no).
+
+Boot 4886258b3e9709084c2a9e0c42212cf4b32b0d71ce36ba46dc7c6038a192e161 (kernel #19 = #18 + algif_aead backport,
+initramfs 9680c925 unchanged)
+- Kernel change (kernel submodule, crypto/algif_aead.c, uncommitted at the time): upstream 4.9 "crypto:
+  algif_aead - fix AEAD tag memory handling" ported by hand to the 4.4 sync-only recvmsg (encryption needs only
+  the AAD, outlen = used + tag for encryption and used - tag for decryption, used -= assoclen), plus every
+  mapped output scatterlist counted so unlock frees the last one (the old early break leaked its pinned pages)
+  and an explicit bound on the rsgl index (the leak is from code reading, not measured). Module.symvers
+  unchanged.
+- Run A again (mesh-run2.txt): meshd passed the crypto check: "Kernel mesh not supported for hci0",
+  "index 0 up:1 pwr: 0 mesh: 0", "Started mesh on hci 0", "Added Network Interface on /org/bluez/mesh";
+  org.bluez.mesh.Network1 introspected. mesh-cfgclient: "Cannot create /root/.config/meshcfg" (no ~/.config).
+- With `mkdir -p /root/.config` (mesh-run3.txt): mesh-cfgclient create -> "Created new node with token
+  1e96d83eee0ff048", attached, then a dev-key message and DeviceCompositionStatus from the local node
+  (CID 05f1, relay yes, friend yes, Configuration/Remote Provisioning/Private Beacon server+client models);
+  list-nodes: UUID C34CF91E528D48769993F75353EE6B93, primary 0001; list-unprovisioned empty.
+  ~/.config/meshcfg/config_db.json ("Mesh Config Client Network") and /var/lib/bluetooth/mesh/<uuid>/
+  (node.json, net_keys, dev_keys/0001, rpl) written. meshd beaconed ("beacon 1 for 1 nodes, period 20").
+  After `kill`: "Terminating"; bluetoothd re-powered hci0 ("powered ssp br/edr le secure-conn"), scan 14
+  devices. dmesg: 0 WARNING lines, no unknown-handle lines; UART suspended; meshd gone.
+  The PC adapter was not involved in any mesh step.
+- Review of #19 found two zero-length requests the relaxed size check made reachable (empty encryption
+  -> sg_mark_end on an empty TX list, an out-of-bounds slab write; bare-tag decryption -> no output entry,
+  stale rsgl[0]). Kernel #20 refuses both with EINVAL (boot.img 12973fc19d2922ad659dbcb7ad358aee6d975cb177e5d908045b2879fa0cedb4,
+  initramfs 9680c925 unchanged, Module.symvers unchanged). The backport is verified live only through meshd's
+  self-test and mesh traffic; no dedicated AF_ALG test was run.
+- Boot 12973fc1 (kernel #20, user-approved), mesh-run4-k20.txt: uname #20, AEAD=y, "Started mesh on hci 0",
+  mesh-cfgclient "Created new node with token 8bf088a382e56e02", dev key message + DeviceCompositionStatus,
+  list-nodes primary 0001, "Terminating"; bluetoothd re-powered hci0, scan 13 devices; dmesg 0 WARNING and
+  0 unknown-handle lines; UART suspended.

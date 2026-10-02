@@ -8,7 +8,7 @@ These guides describe current behavior and how to work on it. Verification statu
 |---|---|
 | [USB networking](usb-networking.md) | NCM, DHCP, and recovery shell work; unplug/replug verified. |
 | [Wi-Fi](wifi.md) | Standard baseline NM/WPA2, automatic chrony/HTTPS/apk and static-overlap rejection verified; ride excluded from current acceptance. |
-| [Bluetooth](bluetooth.md) | Dual-mode BlueZ with standard tooling: LE scan, restart and IBS sleep verified; classic pairing, rfcomm, session-bus obexd, HID (uhid and HIDP), PAN (incl. NetworkManager) and A2DP via PipeWire verified 2026-10-02; mesh and real sensor pairing still pending. |
+| [Bluetooth](bluetooth.md) | Dual-mode BlueZ with standard tooling: LE scan, restart and IBS sleep verified; classic pairing, rfcomm, session-bus obexd, HID (uhid and HIDP), PAN (incl. NetworkManager) and A2DP via PipeWire, meshd and bonded idle current verified 2026-10-02; real sensor pairing still pending. |
 | [GPS](gps.md) | Modem/LOC and gpsd 3D fixes verified; new builds keep shared modem support resident; LOC acquisition remains opt-in on baseline. |
 | [Display and touch](display-and-touch.md) | Log screen, framebuffer handoff, backlight, and multitouch verified. |
 | [Buttons and power-off](buttons-and-power-off.md) | Baseline screen toggle, gesture claims, and clean shutdown verified. |
