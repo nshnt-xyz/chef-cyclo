@@ -1,0 +1,19 @@
+uname -a; ls /run/udev-ready /run/input-udev-ready; cat /sys/class/leds/wled
+/brightness; nmcli device status; cat /proc/cmdline; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #1 SMP PREEMPT Sat Oct 3 12:57:42 IST 2026 aarch64 Linux
+/run/input-udev-ready  /run/udev-ready
+1542
+DEVICE         TYPE      STATE         CONNECTION
+wlan0          wifi      disconnected  --
+bond0          bond      unmanaged     --
+dummy0         dummy     unmanaged     --
+usb0           ethernet  unmanaged     --
+ip6_vti0       iptunnel  unmanaged     --
+ip6tnl0        iptunnel  unmanaged     --
+ip_vti0        iptunnel  unmanaged     --
+sit0           iptunnel  unmanaged     --
+lo             loopback  unmanaged     --
+p2p-dev-wlan0  wifi-p2p  unmanaged     --
+rcupdate.rcu_expedited=1 console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 sched_enable_hmp=1 sched_enable_power_aware=1 service_locator.enable=1 swiotlb=1 loop.max_part=7 androidboot.hab.csv=39 androidboot.hab.product=chef androidboot.hab.cid=50 buildvariant=user quiet root=/dev/mmcblk0p67 androidboot.verifiedbootstate=orange androidboot.keymaster=1 androidboot.bootdevice=c0c4000.sdhci androidboot.serialno=ZF6223WZGL androidboot.device=chef androidboot.revision=pvt androidboot.hwrev=0xC000 androidboot.radio=APAC androidboot.powerup_reason=0x00004000 androidboot.bootreason=reboot msm_poweroff.download_mode=0 androidboot.wifimacaddr=30:4B:07:6F:0D:76,30:4B:07:6F:0D:77 androidboot.btmacaddr=30:4B:07:6F:0D:75 androidboot.bootloader=MBM-3.0-chef_retail-06369b83c90-210922 androidboot.carrier=retin androidboot.build_vars=black androidboot.hardware.sku=XT1942-2 androidboot.secure_hardware=1 androidboot.cid=0x0032 androidboot.write_protect=0 androidboot.veritymode=disabled androidboot.bl_state=2 androidboot.mode=normal androidboot.baseband=msm mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi androidboot.slot_suffix=_a skip_initramfs rootwait ro init=/init androidboot.dtb_idx=-1347440721 androidboot.dualsim=true
+CYCL0_COMMAND_DONE
+/ #

@@ -1,0 +1,12 @@
+18687a1209077c45a92c67c66d8c057dafe5a139f05e73193d0ce8b9f5fd7ad5  out/boot.img
+ddea5396a36417c9c2f34ea108cd754b72f9be09c63d35e170aba7c7c8ee7164  out/kernel/arch/arm64/boot/Image.gz-dtb
+a953d71f2c4c36eb6437c620a318d2599215bd74e3bf2625fce94315485afcf9  out/kernel-drm-control/arch/arm64/boot/Image.gz-dtb
+72106f35ff49d216a5d03389c2626fb0e41a57704d48b6896e0463362e26c9f2  out/kernel-drm-core/arch/arm64/boot/Image.gz-dtb
+3b0d04deb2b8a114f862d97a04643e761be44c3f9793b7f33bfb428f640a00a3  out/kernel-drm/arch/arm64/boot/Image.gz-dtb
+c5b73a3ba49bbc6ac0984025ff3a2b99a75e688a53b33e49ff7489f3e0a552a5  out/drm-minimal/initramfs.cpio.gz
+a0904b11c74d8a514afaf7d2abb339eded272afba30f8200da549418b9ba8eb6  out/drm-minimal/control.img
+04edeac3abbb197f363c824232a0a6e6b7a15cee6cd424a2e43b042577f257e9  out/drm-lzma/baseline.cpio.lzma
+fd7c20fdcb04550b8c9b1b59a431900b36fe9346397e401187179be185da8585  out/drm-lzma/probe.cpio.lzma
+fb30c70093ab2555ca8b18e258d307da9c581bad0195882bf9155b8b65602ff9  out/drm-lzma/control.img
+37562476cadd0410c847a19779b78a77508b71b9c05b91624d35ab5278a6f3fe  out/drm-lzma/core.img
+9064f0ccdca6fd31c86814d4a00f4fa6813bb9c93ccc87bc2e7e2a538255cf3e  out/drm-lzma/drm.img

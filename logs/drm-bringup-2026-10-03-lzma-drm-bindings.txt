@@ -1,0 +1,55 @@
+for name in msm_drm dsi_phy drm_dsi_ctrl msm-dsi-display sde_hdmi msmdrm_smm
+u hdmi_msm msm_edp; do echo DRIVER=$name; ls -l /sys/bus/platform/drivers/$name
+2>/dev/null; done; echo FB_OWNER; readlink /sys/class/graphics/fb0/device/driver
+; echo DRI_NODES; ls -la /dev/dri 2>/dev/null; dmesg | grep -Ei "msm_drm|sde|drm
+|unknown symbol|version magic|disagrees about version"; echo CYCL0_COMMAND_DONE
+DRIVER=msm_drm
+total 0
+--w-------    1 root     root          4096 Jan 16 23:41 bind
+--w-------    1 root     root          4096 Jan 16 23:41 uevent
+--w-------    1 root     root          4096 Jan 16 23:41 unbind
+DRIVER=dsi_phy
+total 0
+--w-------    1 root     root          4096 Jan 16 23:41 bind
+--w-------    1 root     root          4096 Jan 16 23:41 uevent
+--w-------    1 root     root          4096 Jan 16 23:41 unbind
+DRIVER=drm_dsi_ctrl
+total 0
+--w-------    1 root     root          4096 Jan 16 23:41 bind
+--w-------    1 root     root          4096 Jan 16 23:41 uevent
+--w-------    1 root     root          4096 Jan 16 23:41 unbind
+DRIVER=msm-dsi-display
+total 0
+--w-------    1 root     root          4096 Jan 16 23:41 bind
+--w-------    1 root     root          4096 Jan 16 23:41 uevent
+--w-------    1 root     root          4096 Jan 16 23:41 unbind
+DRIVER=sde_hdmi
+total 0
+--w-------    1 root     root          4096 Jan 16 23:41 bind
+--w-------    1 root     root          4096 Jan 16 23:41 uevent
+--w-------    1 root     root          4096 Jan 16 23:41 unbind
+DRIVER=msmdrm_smmu
+total 0
+--w-------    1 root     root          4096 Jan 16 23:41 bind
+--w-------    1 root     root          4096 Jan 16 23:41 uevent
+--w-------    1 root     root          4096 Jan 16 23:41 unbind
+DRIVER=hdmi_msm
+total 0
+--w-------    1 root     root          4096 Jan 16 23:41 bind
+--w-------    1 root     root          4096 Jan 16 23:41 uevent
+--w-------    1 root     root          4096 Jan 16 23:41 unbind
+DRIVER=msm_edp
+total 0
+--w-------    1 root     root          4096 Jan 16 23:41 bind
+--w-------    1 root     root          4096 Jan 16 23:41 uevent
+--w-------    1 root     root          4096 Jan 16 23:41 unbind
+FB_OWNER
+DRI_NODES
+[    8.285800,4] [drm] Initialized drm 1.1.0 20060810
+[    8.729274,0] sensors_classdev_register,capsense_top
+[    8.729362,0] sensors_classdev_register,capsense_bottom
+[   10.393776,4] sde_smmu_callback: <SDEROT_INFO> sde_smmu_callback registered domain: 1
+[   10.393784,4] sde_smmu_callback: <SDEROT_INFO> sde_smmu_callback registered domain: 0
+[   10.395425,4] sde_rotator_evtlog_create_debugfs: evtlog_status: enable:1, panic:1, dump:2
+[   10.395483,4] sde_rotator c900000.qcom,mdss_rotator: <SDEROT_INFO> SDE v4l2 rotator probe success
+CYCL0_COMMAND_DONE

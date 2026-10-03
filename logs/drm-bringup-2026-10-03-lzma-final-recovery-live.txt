@@ -1,0 +1,26 @@
+uname -a; ls /run/udev-ready /run/input-udev-ready; cat /sys/class/leds/wled
+/brightness; libinput list-devices | grep -A 5 NVT; nmcli device status; lsmod |
+ grep wlan; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+/run/input-udev-ready  /run/udev-ready
+1542
+Device:                  NVTCapacitiveTouchScreen
+Kernel:                  /dev/input/event1
+Id:                      i2c:0000:0000
+Group:                   3
+Seat:                    seat0, default
+Capabilities:            touch
+DEVICE         TYPE      STATE         CONNECTION
+wlan0          wifi      disconnected  --
+bond0          bond      unmanaged     --
+dummy0         dummy     unmanaged     --
+usb0           ethernet  unmanaged     --
+ip6_vti0       iptunnel  unmanaged     --
+ip6tnl0        iptunnel  unmanaged     --
+ip_vti0        iptunnel  unmanaged     --
+sit0           iptunnel  unmanaged     --
+lo             loopback  unmanaged     --
+p2p-dev-wlan0  wifi-p2p  unmanaged     --
+wlan                 8380416  0
+CYCL0_COMMAND_DONE
+/ #

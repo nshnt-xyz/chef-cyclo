@@ -1,0 +1,12 @@
+uname -a; ls /run/udev-ready /run/input-udev-ready; cat /sys/class/leds/wled
+/brightness; dmesg | tail -5; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+/run/input-udev-ready  /run/udev-ready
+1542
+[   15.566735,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:14
+[   17.573386,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:13
+[   19.580070,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   21.586748,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[   23.593409,2] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:16
+CYCL0_COMMAND_DONE
+/ #

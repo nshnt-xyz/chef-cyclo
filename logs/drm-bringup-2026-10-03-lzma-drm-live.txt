@@ -1,0 +1,199 @@
+uname -a; cat /etc/drm-probe-build; ls /run/udev-ready /run/input-udev-ready
+; ls -la /sys/class/drm; grep drm /proc/devices; dmesg | grep -i drm; cat /sys/c
+lass/leds/wled/brightness; nmcli device status; lsmod | grep wlan; libinput list
+-devices | grep -A 5 NVT; display-touch-inventory --metadata-only; echo CYCL0_CO
+MMAND_DONE
+Linux (none) 4.4.192-cyclo+ #1 SMP PREEMPT Fri Oct 2 17:37:11 IST 2026 aarch64 Linux
+DRM builtin no-binding probe
+Kernel image sha256: 3b0d04deb2b8a114f862d97a04643e761be44c3f9793b7f33bfb428f640a00a3
+WLAN sha256: 1e57e58abe5687ac3f6348fefcc78891361f9f2dc9ce928e633c67c5ab825681
+/run/input-udev-ready  /run/udev-ready
+total 0
+drwxr-xr-x    2 root     root             0 Jan 16 23:41 .
+drwxr-xr-x   90 root     root             0 Jan 16 23:40 ..
+-r--r--r--    1 root     root          4096 Jan 16 23:41 version
+226 drm
+[    8.285800,4] [drm] Initialized drm 1.1.0 20060810
+1542
+DEVICE         TYPE      STATE         CONNECTION
+wlan0          wifi      disconnected  --
+bond0          bond      unmanaged     --
+dummy0         dummy     unmanaged     --
+usb0           ethernet  unmanaged     --
+ip6_vti0       iptunnel  unmanaged     --
+ip6tnl0        iptunnel  unmanaged     --
+ip_vti0        iptunnel  unmanaged     --
+sit0           iptunnel  unmanaged     --
+lo             loopback  unmanaged     --
+p2p-dev-wlan0  wifi-p2p  unmanaged     --
+wlan                 8380416  0
+Device:                  NVTCapacitiveTouchScreen
+Kernel:                  /dev/input/event1
+Id:                      i2c:0000:0000
+Group:                   3
+Seat:                    seat0, default
+Capabilities:            touch
+display/touch inventory: cached metadata; no fbdev open, vendor reads, event reads or grabs
+
+framebuffer fb0
+name: mdssfb_80000
+modes: U:1080x2246p-60
+virtual_size: 1080,4492
+bits_per_pixel: 32
+stride: 4352
+
+framebuffer fb1
+name: mdssfb_a0000
+modes: U:640x480p-60
+virtual_size: 640,960
+bits_per_pixel: 32
+stride: 2560
+
+input event0
+name: qpnp_pon
+phys: qpnp_pon/input0
+uniq:
+properties: 0
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 3
+capabilities/key: 14000000000000 0
+capabilities/rel: 0
+capabilities/abs: 0
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS ranges: skipped (metadata-only)
+
+input event1
+name: NVTCapacitiveTouchScreen
+phys: input/ts
+uniq:
+properties: 2
+id/bustype: 0018
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: b
+capabilities/key: 400 0 0 0 0 0
+capabilities/rel: 0
+capabilities/abs: 661800000000000
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS ranges: skipped (metadata-only)
+
+input event2
+name: hbtp_vm
+phys:
+uniq:
+properties: 2
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 7
+capabilities/key: 30000 0 0 0 0
+capabilities/rel: 3
+capabilities/abs: 0
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS ranges: skipped (metadata-only)
+
+input event3
+name: SX9310 Cap Touch top
+phys:
+uniq:
+properties: 0
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 9
+capabilities/key: 0
+capabilities/rel: 0
+capabilities/abs: 2000000
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS ranges: skipped (metadata-only)
+
+input event4
+name: SX9310 Cap Touch bottom
+phys:
+uniq:
+properties: 0
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 9
+capabilities/key: 0
+capabilities/rel: 0
+capabilities/abs: 2000000
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS ranges: skipped (metadata-only)
+
+input event5
+name: uinput-egis
+phys:
+uniq:
+properties: 0
+id/bustype: 0000
+id/vendor: 0000
+id/product: 0000
+id/version: 0000
+capabilities/ev: 3
+capabilities/key: 7fc000000000 0 0 0 0 0 0 0 0 0
+capabilities/rel: 0
+capabilities/abs: 0
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS ranges: skipped (metadata-only)
+
+input event6
+name: gpio-keys
+phys: gpio-keys/input0
+uniq:
+properties: 0
+id/bustype: 0019
+id/vendor: 0001
+id/product: 0001
+id/version: 0100
+capabilities/ev: 3
+capabilities/key: 8000000000000 0
+capabilities/rel: 0
+capabilities/abs: 0
+capabilities/msc: 0
+capabilities/led: 0
+capabilities/snd: 0
+capabilities/ff: 0
+capabilities/sw: 0
+properties/capabilities: raw kernel hex bitmaps; INPUT_PROP_DIRECT is bit 1
+ABS ranges: skipped (metadata-only)
+CYCL0_COMMAND_DONE
+/ #

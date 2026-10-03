@@ -1,0 +1,21 @@
+Observation recorded 2026-10-03T17:57:12.964905
+Image: out/drm-minimal/control.img
+Kernel: exact-config control a953d71f2c4c36eb6437c620a318d2599215bd74e3bf2625fce94315485afcf9
+Ramdisk: c5b73a3ba49bbc6ac0984025ff3a2b99a75e688a53b33e49ff7489f3e0a552a5
+45-second TCP172.16.42.1:23 poll: no shell
+Subsequent fastboot devices: empty
+Subsequent USB inventory:
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 001 Device 002: ID 1a34:f517 ACRUX Receiver Update
+Bus 001 Device 003: ID 046d:c53f Logitech, Inc. USB Receiver
+Bus 001 Device 004: ID 8087:0a2a Intel Corp. Bluetooth wireless interface
+Bus 001 Device 005: ID 05e3:0610 Genesys Logic, Inc. Hub
+Bus 001 Device 006: ID 046d:c548 Logitech, Inc. Logi Bolt Receiver
+Bus 001 Device 008: ID 2972:0062 FiiO Electronics Technology FIIO KA13
+Bus 001 Device 009: ID 342d:e484 Hangsheng R75 QMK
+Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 002 Device 002: ID 05e3:0626 Genesys Logic, Inc. Hub
+Bus 003 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+
+No minimal CORE boot performed. No execution stage or cause established. Physical recovery requested; baseline restoration pending. No flashing performed.

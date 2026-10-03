@@ -31,6 +31,17 @@ The kernel config combines stock Android's `sdm660-perf_defconfig`, `moto-sdm660
 
 `mkboot.sh` uses the stock `boot_a.img` header values and the built kernel/initramfs. A normal reboot returns to the flashed OS; see [device recovery](device.md#stock-backups-and-recovery).
 
+Before writing the boot image, `mkboot.sh` runs the Chef loader-budget preflight.
+It validates the first gzip member of `Image.gz-dtb` and checks its ARM64
+`image_size` against the fixed region budget observed in Chef's loader, including
+the page-rounded encoded ramdisk size. This is a Chef-specific check; see the
+[loader investigation](research/chef-loader-kernel-budget.md) for its assumptions.
+An overflow aborts before opening the output and suggests shrinking the ramdisk.
+Default gzip generation stays unchanged. An explicitly prepared alternative can
+be selected with `RAMDISK=path/to/initramfs.cpio.lzma OUT=path/to/boot.img sh scripts/mkboot.sh`;
+the target kernel must enable `CONFIG_RD_LZMA=y`. To check without packaging, run
+`python3 scripts/check-chef-loader-budget.py path/to/Image.gz-dtb path/to/ramdisk`.
+
 ## Rebuilding and testing changes
 
 - Kernel/config change: regenerate config if needed, run `kmake`, and repack the boot image.

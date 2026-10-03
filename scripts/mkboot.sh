@@ -10,6 +10,9 @@ KERNEL=${KERNEL:-out/kernel/arch/arm64/boot/Image.gz-dtb}
 RAMDISK=${RAMDISK:-out/initramfs.cpio.gz}
 OUT=${OUT:-out/boot.img}
 
+# Reject Chef's observed loader-space overflow before mkbootimg opens OUT.
+python3 scripts/check-chef-loader-budget.py "$KERNEL" "$RAMDISK"
+
 # alldefconfig silently drops options whose dependencies are unmet; refuse a
 # default-kernel image missing the classic Bluetooth / AF_ALG options.
 if [ "$KERNEL" = out/kernel/arch/arm64/boot/Image.gz-dtb ]; then
