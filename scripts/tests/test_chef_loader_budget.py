@@ -103,6 +103,25 @@ class ChefBudgetTests(unittest.TestCase):
         self.assertIn("Shrink the ramdisk", result.stderr)
         self.assertEqual(output.read_bytes(), b"protected existing output")
 
+    def test_mkboot_lzma_ramdisk_needs_rd_lzma(self):
+        tree = Path(self.tmp.name) / "kernel"
+        kernel = tree / "arch/arm64/boot/Image.gz-dtb"
+        kernel.parent.mkdir(parents=True)
+        kernel.write_bytes(gzip.compress(image(budget.kernel_capacity(4096)), mtime=0))
+        ramdisk = Path(self.tmp.name) / "initramfs.cpio.lzma"
+        ramdisk.write_bytes(b"r" * 4096)
+        output = Path(self.tmp.name) / "boot.img"
+        output.write_bytes(b"protected existing output")
+        (tree / ".config").write_text("CONFIG_RD_GZIP=y\n# CONFIG_RD_LZMA is not set\n")
+        result = subprocess.run(
+            ["sh", "scripts/mkboot.sh"], cwd=REPO,
+            env={**os.environ, "KERNEL": str(kernel), "RAMDISK": str(ramdisk), "OUT": str(output)},
+            capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("lacks CONFIG_RD_LZMA=y", result.stderr)
+        self.assertEqual(output.read_bytes(), b"protected existing output")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,108 @@
+chefui[demo]: start (pid 8068, fbdev backend, 33 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[demo] stats: fps 1 | cpu 1.5% | copy 2.43 Mpx 10.1 ms | pan avg 11.4 max 11.4 ms | wake 3
+chefui[demo] stats: fps 1 | cpu 1.0% | copy 2.43 Mpx 10.0 ms | pan avg 14.5 max 14.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.2 ms | pan avg 6.1 max 6.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 5.8 max 5.8 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 4.9 max 4.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 3.9 max 3.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.9 max 2.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.2 ms | pan avg 2.3 max 2.3 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.2 ms | pan avg 2.4 max 2.4 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.5 max 2.5 ms | wake 2
+chefui[demo]: notch calibration: --safe-top 116 physical pixels (not saved)
+chefui[demo] stats: fps 2 | cpu 1.7% | copy 2.46 Mpx 9.7 ms | pan avg 3.8 max 5.1 ms | wake 4
+chefui[demo]: notch calibration: --safe-top 112 physical pixels (not saved)
+chefui[demo]: notch calibration: --safe-top 108 physical pixels (not saved)
+chefui[demo]: notch calibration: --safe-top 104 physical pixels (not saved)
+chefui[demo] stats: fps 4 | cpu 6.5% | copy 9.70 Mpx 46.9 ms | pan avg 6.2 max 12.4 ms | wake 7
+chefui[demo]: notch calibration: --safe-top 100 physical pixels (not saved)
+chefui[demo]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[demo] stats: fps 3 | cpu 4.9% | copy 7.28 Mpx 35.7 ms | pan avg 6.6 max 10.1 ms | wake 7
+chefui[demo] stats: fps 1 | cpu 1.4% | copy 2.43 Mpx 13.3 ms | pan avg 2.0 max 2.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 13.9 max 13.9 ms | wake 2
+chefui[demo]: notch calibration: --safe-top 92 physical pixels (not saved)
+chefui[demo] stats: fps 2 | cpu 1.6% | copy 2.46 Mpx 9.2 ms | pan avg 10.3 max 13.0 ms | wake 4
+chefui[demo]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[demo] stats: fps 2 | cpu 2.9% | copy 4.85 Mpx 21.8 ms | pan avg 12.1 max 16.2 ms | wake 4
+chefui[demo] stats: fps 1 | cpu 1.3% | copy 2.43 Mpx 12.7 ms | pan avg 15.6 max 15.6 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 11.2 max 11.2 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 9.9 max 9.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 9.0 max 9.0 ms | wake 2
+chefui[demo] stats: fps 3 | cpu 0.2% | copy 0.08 Mpx 0.5 ms | pan avg 10.0 max 11.5 ms | wake 9
+chefui[demo] stats: fps 3 | cpu 0.2% | copy 0.09 Mpx 0.5 ms | pan avg 10.0 max 11.6 ms | wake 8
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.2 ms | pan avg 7.3 max 7.3 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.2 ms | pan avg 5.8 max 5.8 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 5.0 max 5.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 4.0 max 4.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.9 max 2.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.2 ms | pan avg 1.9 max 1.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 1.0 max 1.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 16.6 max 16.6 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 16.0 max 16.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 15.0 max 15.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 14.0 max 14.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 12.9 max 12.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 12.0 max 12.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 11.0 max 11.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 10.0 max 10.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 8.8 max 8.8 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 8.0 max 8.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 6.9 max 6.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 6.0 max 6.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 5.0 max 5.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 4.0 max 4.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.9 max 2.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 1.9 max 1.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 1.0 max 1.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 16.6 max 16.6 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.2 ms | pan avg 14.9 max 14.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 14.0 max 14.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.2 ms | pan avg 12.9 max 12.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 12.0 max 12.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 11.0 max 11.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 9.9 max 9.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 9.0 max 9.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 8.0 max 8.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 7.0 max 7.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 6.0 max 6.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 4.9 max 4.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 4.0 max 4.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.9 max 2.9 ms | wake 2
+RC_TAG=0

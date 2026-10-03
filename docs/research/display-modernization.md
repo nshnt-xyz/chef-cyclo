@@ -2,6 +2,8 @@
 
 [Research index](README.md) · [Roadmap](../next-steps/ui-and-ride-app.md) · [Existing contract](../features/display-and-touch.md)
 
+**Historical:** on 2026-10-03 the DRM/Wayland route was shelved in favour of LVGL on the existing fbdev; see the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack) and [prototype](lvgl-fbdev-prototype.md).
+
 Initial investigation: 2026-10-02. The target is native DRM/KMS, a current Wayland compositor and libinput. No DRM driver has been enabled or verified by this initial work.
 
 ## Verified baseline and first touch integration

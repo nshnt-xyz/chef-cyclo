@@ -1,0 +1,8 @@
+DEMO_PID=9101
+chefui[demo]: start (pid 9101, fbdev backend, 33 ms frames, rotation 90)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 2246x1080, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 1 | cpu 4.1% | copy 2.43 Mpx 36.3 ms | pan avg 16.4 max 16.4 ms | wake 2
+RC_TAG=0

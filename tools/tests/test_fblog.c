@@ -1,17 +1,36 @@
-/* Host unit tests for the pure parts of tools/fblog/fblog.c: /dev/kmsg
- * record parsing, the show/hide policy, the line ring, the wrapping
- * layout, glyph rendering into a fake RGBA8888 surface, the font table
- * and the header. No framebuffer, no kmsg -- fblog.c is included with
- * FBLOG_NO_MAIN so main() and the syscall-level daemon are compiled out.
+/* Host unit tests for tools/fblog/fblog.c: /dev/kmsg record parsing, the
+ * show/hide policy, the line ring, the wrapping layout, glyph rendering
+ * into a fake RGBA8888 surface, the font table and the header; and the
+ * daemon's borrow/resume path with the screen-off flag (tick(),
+ * idle_until_flag_gone()) against a temporary "fb" file, lock and flag,
+ * with ioctl() wrapped (-Wl,--wrap=ioctl) to play the MDSS fb ioctls and
+ * record their order. No real framebuffer or kmsg -- fblog.c is included
+ * with FBLOG_NO_MAIN so only main() is compiled out.
  * Build/run: see tools/Makefile ("make test").
  */
+#define _GNU_SOURCE
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #define FBLOG_NO_MAIN
 #include "../fblog/fblog.c"
+
+/* Integrated flag protocol: real buttond defaults drive the fblog idle loop. */
+#define BUTTOND_NO_MAIN
+#define kmsg_note buttond_kmsg_note
+#define g_stop buttond_g_stop
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#include "../buttond.c"
+#pragma GCC diagnostic pop
+#undef kmsg_note
+#undef g_stop
+
 
 static int g_failures;
 static int g_tests;
@@ -499,8 +518,437 @@ static void test_timing(void)
 	CHECK(next_timeout_ms(false, 0, false, 1) == 1);	/* never 0 while a retry is pending */
 }
 
+/* ---- daemon: borrow, resume, screen-off flag (wrapped ioctl) ---- */
+
+#define FAKE_W 64
+#define FAKE_H 40
+#define FAKE_STRIDE (FAKE_W * 4 + 64)
+
+struct ioctl_rec {
+	unsigned long req;
+	long arg;		/* FBIOBLANK level, FBIOPAN yoffset */
+	bool flag;		/* the screen-off flag existed at the call */
+};
+
+static struct ioctl_rec g_ioc[64];
+static int g_nioc;
+static const char *g_flag_path;	/* for the flag column of the log */
+
+int __real_ioctl(int fd, unsigned long req, ...);
+
+int __wrap_ioctl(int fd, unsigned long req, ...)
+{
+	va_list ap;
+	void *arg;
+
+	va_start(ap, req);
+	arg = va_arg(ap, void *);
+	va_end(ap);
+	switch (req) {
+	case FBIOGET_VSCREENINFO: case FBIOGET_FSCREENINFO: case FBIOBLANK:
+	case FBIOPAN_DISPLAY: case FBIOPUT_VSCREENINFO:
+		break;
+	default:
+		return __real_ioctl(fd, req, arg);
+	}
+	if (g_nioc < (int)(sizeof(g_ioc) / sizeof(g_ioc[0]))) {
+		g_ioc[g_nioc].req = req;
+		g_ioc[g_nioc].arg = req == FBIOBLANK ? (long)arg :
+				    req == FBIOPAN_DISPLAY ? (long)((struct fb_var_screeninfo *)arg)->yoffset : 0;
+		g_ioc[g_nioc].flag = g_flag_path && access(g_flag_path, F_OK) == 0;
+		g_nioc++;
+	}
+	if (req == FBIOGET_VSCREENINFO) {
+		struct fb_var_screeninfo v = rgba8888_var(FAKE_W, FAKE_H);
+
+		v.xres_virtual = FAKE_W;
+		v.yres_virtual = 2 * FAKE_H;
+		memcpy(arg, &v, sizeof(v));
+	} else if (req == FBIOGET_FSCREENINFO) {
+		struct fb_fix_screeninfo f;
+
+		memset(&f, 0, sizeof(f));
+		f.line_length = FAKE_STRIDE;
+		f.smem_len = FAKE_STRIDE * 2 * FAKE_H;
+		memcpy(arg, &f, sizeof(f));
+	} else if (req == FBIOPUT_VSCREENINFO) {
+		errno = EPERM;	/* fblog must never change the format */
+		return -1;
+	}
+	return 0;
+}
+
+static int ioc_count(unsigned long req, long arg)
+{
+	int i, n = 0;
+
+	for (i = 0; i < g_nioc; i++)
+		if (g_ioc[i].req == req && (arg < 0 || g_ioc[i].arg == arg))
+			n++;
+	return n;
+}
+
+struct dfix {
+	char dir[64];
+	char fb[96], lock[96], flag[96];
+	struct daemon d;
+};
+
+static void dfix_init(struct dfix *f)
+{
+	int fd;
+
+	snprintf(f->dir, sizeof(f->dir), "/tmp/fblog-daemon-test-XXXXXX");
+	CHECK(mkdtemp(f->dir) != NULL);
+	snprintf(f->fb, sizeof(f->fb), "%s/fb0", f->dir);
+	snprintf(f->lock, sizeof(f->lock), "%s/fb0.lock", f->dir);
+	snprintf(f->flag, sizeof(f->flag), "%s/fblog.off", f->dir);
+	fd = open(f->fb, O_RDWR | O_CREAT, 0600);
+	CHECK(fd >= 0 && ftruncate(fd, (off_t)FAKE_STRIDE * 2 * FAKE_H) == 0);
+	close(fd);
+	g_kmsg_path = "/dev/null";
+	g_bl_path = "/dev/null";
+	g_flag_path = f->flag;
+	g_nioc = 0;
+	memset(&f->d, 0, sizeof(f->d));
+	f->d.fbpath = f->fb;
+	f->d.off_path = f->flag;
+	f->d.bl = 96;
+	f->d.scale = 1;
+	f->d.max_kern_level = 3;
+	f->d.kfd = -1;
+	f->d.fb.fd = -1;
+	snprintf(f->d.release, sizeof(f->d.release), "test");
+	ring_init(&f->d.ring);
+	f->d.lockfd = fb_lock_open(f->lock);
+	CHECK(f->d.lockfd >= 0);
+}
+
+static void dfix_done(struct dfix *f)
+{
+	screen_off(&f->d);
+	if (f->d.lockfd >= 0)
+		close(f->d.lockfd);
+	unlink(f->fb);
+	unlink(f->lock);
+	unlink(f->flag);
+	rmdir(f->dir);
+	g_flag_path = NULL;
+}
+
+static void touch_file(const char *path)
+{
+	int fd = open(path, O_WRONLY | O_CREAT, 0644);
+
+	CHECK(fd >= 0);
+	close(fd);
+}
+
+/* A foreground client (chefui) takes the screen exclusively. */
+static int borrow(struct dfix *f)
+{
+	int fg = fb_lock_open(f->lock);
+
+	CHECK(fg >= 0);
+	CHECK(fb_lock_exclusive(fg, 100) == 0);
+	return fg;
+}
+
+static void test_daemon_resume_without_flag(void)
+{
+	struct dfix f;
+	int fg;
+
+	dfix_init(&f);
+	CHECK(tick(&f.d) == 0);
+	CHECK(f.d.fb_open && f.d.mapped && !f.d.paused && !f.d.idle);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);
+	CHECK(ioc_count(FBIOPAN_DISPLAY, -1) >= 1);
+
+	fg = borrow(&f);
+	CHECK(tick(&f.d) == 0);
+	CHECK(f.d.paused && !f.d.mapped && f.d.fb_open);	/* fd kept, mapping dropped */
+	close(fg);	/* chefui exits (or dies) with the screen on: no flag */
+
+	g_nioc = 0;
+	CHECK(tick(&f.d) == 0);
+	CHECK(!f.d.paused && !f.d.idle && f.d.mapped);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);	/* resumed */
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_POWERDOWN) == 0);
+	CHECK(ioc_count(FBIOPUT_VSCREENINFO, -1) == 0);
+	dfix_done(&f);
+}
+
+/* The spec case: resuming after a borrow with the flag present stays idle
+ * and closes fb0. */
+static void test_daemon_resume_with_flag(void)
+{
+	struct dfix f;
+	int fg, oldfd, again;
+
+	dfix_init(&f);
+	CHECK(tick(&f.d) == 0 && f.d.fb_open);
+	fg = borrow(&f);
+	CHECK(tick(&f.d) == 0 && f.d.paused);
+	oldfd = f.d.fb.fd;
+	touch_file(f.flag);	/* chefui turned the screen off ... */
+	close(fg);		/* ... and exited or died */
+
+	g_nioc = 0;
+	CHECK(tick(&f.d) == 0);
+	CHECK(f.d.idle && !f.d.paused && !f.d.fb_open && !f.d.mapped);
+	CHECK(f.d.fb.fd == -1);
+	CHECK(fcntl(oldfd, F_GETFD) == -1 && errno == EBADF);	/* fb0 really closed */
+	CHECK(g_nioc == 1);
+	CHECK(g_ioc[0].req == FBIOBLANK && g_ioc[0].arg == FB_BLANK_POWERDOWN);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 0);
+	CHECK(ioc_count(FBIOPAN_DISPLAY, -1) == 0);
+	/* the shared lock is not left held: a new foreground client gets it at once */
+	again = fb_lock_open(f.lock);
+	CHECK(fb_lock_exclusive(again, 0) == 0);
+	close(again);
+	dfix_done(&f);
+}
+
+/* Child: remove the flag after delay_ms, then exit. */
+static pid_t remove_later(const char *path, int delay_ms)
+{
+	pid_t p = fork();
+
+	if (p == 0) {
+		struct timespec ts = { delay_ms / 1000, (long)(delay_ms % 1000) * 1000000L };
+
+		nanosleep(&ts, NULL);
+		unlink(path);
+		_exit(0);
+	}
+	CHECK(p > 0);
+	return p;
+}
+
+static double mono_ms(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * 1e3 + ts.tv_nsec / 1e6;
+}
+
+static void idle_then_start(bool poll_only)
+{
+	struct dfix f;
+	pid_t child;
+	int status;
+	double t0;
+
+	dfix_init(&f);
+	f.d.idle_poll_only = poll_only;
+	touch_file(f.flag);
+	f.d.idle = true;
+	child = remove_later(f.flag, 600);
+	t0 = mono_ms();
+	CHECK(idle_until_flag_gone(&f.d) == 0);
+	CHECK(mono_ms() - t0 >= 500);		/* it really waited */
+	CHECK(!f.d.idle);
+	if (poll_only)
+		CHECK(f.d.idle_wakeups >= 2);	/* 250 ms rechecks */
+	else
+		CHECK(f.d.idle_wakeups == 1);	/* woken once, by the delete */
+	CHECK(waitpid(child, &status, 0) == child);
+	CHECK(g_nioc == 0);			/* fb0 untouched while idle */
+
+	CHECK(tick(&f.d) == 0);
+	CHECK(f.d.fb_open && f.d.mapped && !f.d.paused);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);
+	CHECK(ioc_count(FBIOPAN_DISPLAY, -1) >= 1);
+	dfix_done(&f);
+}
+
+static void test_daemon_idle_flag_removed(void)
+{
+	idle_then_start(false);
+	idle_then_start(true);
+}
+
+static void idle_stop_signal(int sig)
+{
+	(void)sig;
+	g_stop = 1;
+}
+
+static void test_daemon_idle_signal(void)
+{
+	for (int fallback = 0; fallback < 2; fallback++) {
+		struct dfix f;
+		int ready[2], status = 0;
+		char byte;
+		pid_t child, done;
+		double start;
+
+		dfix_init(&f);
+		touch_file(f.flag);
+		f.d.idle = true;
+		f.d.idle_poll_only = fallback;
+		CHECK(pipe(ready) == 0);
+		child = fork();
+		CHECK(child >= 0);
+		if (child == 0) {
+			close(ready[0]);
+			signal(SIGTERM, idle_stop_signal);
+			g_stop = 0;
+			alarm(3); /* Bound a broken indefinite inotify wait. */
+			if (write(ready[1], "r", 1) != 1)
+				_exit(2);
+			close(ready[1]);
+			_exit(idle_until_flag_gone(&f.d) == 1 && f.d.idle ? 0 : 1);
+		}
+		close(ready[1]);
+		CHECK(read(ready[0], &byte, 1) == 1);
+		close(ready[0]);
+		/* Let the child enter the idle wait before delivering SIGTERM. */
+		struct timespec settle = { 0, 100000000L };
+		nanosleep(&settle, NULL);
+		start = mono_ms();
+		CHECK(kill(child, SIGTERM) == 0);
+		do {
+			struct timespec retry = { 0, 10000000L };
+			done = waitpid(child, &status, WNOHANG);
+			if (done == 0)
+				nanosleep(&retry, NULL);
+		} while (done == 0 && mono_ms() - start < 1000);
+		CHECK(done == child);
+		if (done == 0) {
+			kill(child, SIGKILL);
+			waitpid(child, &status, 0);
+		}
+		CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+		CHECK(access(f.flag, F_OK) == 0);
+		CHECK(g_nioc == 0);
+		dfix_done(&f);
+	}
+}
+
+/* Flag removed while chefui still holds the lock (it turned the screen
+ * back on): fblog leaves idle into the borrowed state, then resumes once
+ * chefui exits. */
+static void test_daemon_idle_flag_removed_while_locked(void)
+{
+	struct dfix f;
+	pid_t child;
+	int status, fg;
+
+	dfix_init(&f);
+	touch_file(f.flag);
+	f.d.idle = true;
+	fg = borrow(&f);
+	child = remove_later(f.flag, 100);
+	CHECK(idle_until_flag_gone(&f.d) == 0);
+	CHECK(waitpid(child, &status, 0) == child);
+	CHECK(tick(&f.d) == 0);
+	CHECK(f.d.paused && !f.d.fb_open && !f.d.idle);
+	CHECK(g_nioc == 0);			/* nothing opened while borrowed */
+	CHECK(next_timeout_ms(f.d.dirty, 0, f.d.paused, 0) <= FB_LOCK_RETRY_MS);
+	CHECK(tick(&f.d) == 0 && f.d.paused);	/* still borrowed */
+	close(fg);				/* chefui exits with the screen on */
+	CHECK(tick(&f.d) == 0);
+	CHECK(!f.d.paused && f.d.fb_open && f.d.mapped && !f.d.idle);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);
+	dfix_done(&f);
+}
+
+static pid_t protocol_child;
+static int protocol_signals;
+static const char *protocol_flag;
+
+static void protocol_log(const char *fmt, ...)
+{
+	(void)fmt;
+}
+
+static int protocol_kill(const char *comm, int signal_number)
+{
+	CHECK(strcmp(comm, "fblog") == 0 && signal_number == SIGTERM);
+	CHECK(access(protocol_flag, F_OK) == 0); /* flag first, only off signals */
+	protocol_signals++;
+	return protocol_child > 0 && kill(protocol_child, signal_number) == 0 ? 1 : -ESRCH;
+}
+
+static int protocol_read(int fd, char expected)
+{
+	struct pollfd pfd = { .fd = fd, .events = POLLIN };
+	char value = 0;
+	return poll(&pfd, 1, 700) > 0 && read(fd, &value, 1) == 1 && value == expected;
+}
+
+static void test_buttond_fblog_wake_protocol(void)
+{
+	for (int fallback = 0; fallback < 2; fallback++) {
+		struct dfix f;
+		struct server buttons;
+		int ready[2], status;
+		pid_t child;
+		dfix_init(&f);
+		touch_file(f.flag);
+		f.d.idle = true;
+		f.d.idle_poll_only = fallback;
+		CHECK(pipe(ready) == 0);
+		child = fork();
+		CHECK(child >= 0);
+		if (child == 0) {
+			close(ready[0]);
+			g_stop = 0;
+			signal(SIGTERM, idle_stop_signal);
+			alarm(3);
+			(void)!write(ready[1], "r", 1);
+			if (idle_until_flag_gone(&f.d) || tick(&f.d) || !f.d.fb_open)
+				_exit(2);
+			(void)!write(ready[1], "o", 1);
+			/* Stay resident: a wake signal would cause premature blank. */
+			while (!g_stop) poll(NULL, 0, 100);
+			screen_off(&f.d);
+			(void)!write(ready[1], "c", 1);
+			_exit(0);
+		}
+		close(ready[1]);
+		protocol_child = child;
+		protocol_signals = 0;
+		protocol_flag = f.flag;
+		server_init(&buttons, 1500, 300);
+		buttons.off_path = f.flag;
+		buttons.log = protocol_log;
+		buttons.kill_comm = protocol_kill;
+		CHECK(protocol_read(ready[0], 'r'));
+		CHECK(screen_toggle(&buttons) == 0);
+		CHECK(protocol_signals == 0);
+		CHECK(protocol_read(ready[0], 'o'));
+		CHECK(waitpid(child, &status, WNOHANG) == 0); /* same daemon alive */
+		CHECK(screen_toggle(&buttons) == 1);
+		CHECK(protocol_signals == 1 && access(f.flag, F_OK) == 0);
+		CHECK(protocol_read(ready[0], 'c'));
+		CHECK(waitpid(child, &status, 0) == child);
+		CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+		close(ready[0]);
+		/* No daemon / delayed init respawn: wake is persistent state,
+		 * never a launch or signal. Next fblog start sees flag absent. */
+		protocol_child = -1;
+		CHECK(screen_toggle(&buttons) == 0 && access(f.flag, F_OK) != 0);
+		CHECK(protocol_signals == 1);
+		CHECK(idle_until_flag_gone(&f.d) == 0);
+		CHECK(tick(&f.d) == 0 && f.d.fb_open && !f.d.idle);
+		CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);
+		dfix_done(&f);
+	}
+}
+
 int main(void)
 {
+	(void)drain_kmsg;
+	test_buttond_fblog_wake_protocol();
+	test_daemon_resume_without_flag();
+	test_daemon_resume_with_flag();
+	test_daemon_idle_flag_removed();
+	test_daemon_idle_signal();
+	test_daemon_idle_flag_removed_while_locked();
 	test_timing();
 	test_lock_handshake();
 	test_kmsg_parse();

@@ -1,0 +1,63 @@
+[ 4740.683168,2] chefui[demo]: screen off (311 ms)
+[ 4742.105809,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4743.312622,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[ 4743.312637,3] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[ 4743.312650,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[ 4744.112466,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4746.119149,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4748.125810,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4750.132477,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4752.139139,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4752.566086,6] [NVT-ts] nvt_ts_suspend 1585: Touch is already suspend
+[ 4752.769139,4] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[ 4752.769176,4] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[ 4752.769181,4] mdss_dsi_cmds_tx: failed to call
+[ 4753.273591,4] fblog: /run/fblog.off present after the borrow: staying dark, /dev/fb0 closed
+[ 4754.145805,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:41
+[ 4756.152487,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:29
+[ 4758.159268,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4760.165802,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4762.172472,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4763.535739,0] Report pwrkey press event at: 1970-01-17 05:26:27 UTC
+[ 4763.723920,0] Report pwrkey release event at: 1970-01-17 05:26:27 UTC
+[ 4763.724081,0] buttond: screen on: removed /run/fblog.off; fblog wakes on flag removal or next init respawn
+[ 4763.724149,4] fblog: /run/fblog.off removed: leaving idle
+[ 4763.726557,4] mdss_dsi_on[0]+.
+[ 4763.760021,0] mdss_dsi_on[0]-.
+[ 4763.760064,0] mdss_dsi_panel_on[0]+.
+[ 4763.893706,1] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 4763.894103,1] mdss_dsi_post_panel_on[0]-.
+[ 4763.894200,1] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[ 4763.905795,1] [NVT-ts] nvt_ts_resume 1668: start
+[ 4763.905798,1] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4763.945803,1] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4763.959483,1] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4763.959505,1] [NVT-ts] nvt_ts_resume 1690: end
+[ 4764.179121,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4766.185803,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4768.192464,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4770.199129,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4772.205794,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4774.212463,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4776.219128,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4778.225795,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4780.232460,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4782.239127,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+PID=25023
+chefui[demo]: start (pid 25023, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: /run/fblog.off present: starting dark (1080x2246 from /sys/class/graphics/fb0/modes)
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen off (flag present)
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 0 | cpu 0.6% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 3
+total 0
+lrwx------    1 root     root            64 Jan 17 05:26 [1;36m0[m -> [1;35m/dev/pts/0[m
+l-wx------    1 root     root            64 Jan 17 05:26 [1;36m1[m -> [0;0m/tmp/chefui-start-dark.log[m
+l-wx------    1 root     root            64 Jan 17 05:26 [1;36m2[m -> [0;0m/tmp/chefui-start-dark.log[m
+lr-x------    1 root     root            64 Jan 17 05:26 [1;36m3[m -> [0;35mpipe:[26115][m
+l-wx------    1 root     root            64 Jan 17 05:26 [1;36m4[m -> [0;35mpipe:[26115][m
+lrwx------    1 root     root            64 Jan 17 05:26 [1;36m5[m -> [0;0m/run/fb0.lock[m
+lr-x------    1 root     root            64 Jan 17 05:26 [1;36m6[m -> [1;35m/dev/input/event1[m
+lrwx------    1 root     root            64 Jan 17 05:26 [1;36m7[m -> [1;35msocket:[26116][m
+RC_TAG=0

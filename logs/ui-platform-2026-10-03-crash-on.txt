@@ -1,0 +1,53 @@
+chefui[demo]: start (pid 3984, fbdev backend, 33 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 1 | cpu 1.4% | copy 2.43 Mpx 10.2 ms | pan avg 15.2 max 15.2 ms | wake 3
+649 /usr/bin/fblog
+[  558.206643,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  560.213315,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  562.219991,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  564.226644,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  566.233306,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  568.239976,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  570.246629,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  572.253329,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  574.259972,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  576.266641,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  578.273306,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  580.279964,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  582.286620,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  584.293303,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  586.299971,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  588.306641,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+[  590.313284,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  592.319985,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  594.326627,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  596.333287,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  597.610104,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[  597.610118,3] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[  597.610128,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[  598.339936,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  600.346633,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  602.353295,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  604.359954,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  606.366643,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  608.373288,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  610.379948,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  612.386650,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  614.393299,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  616.399967,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  618.406617,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  618.812089,5] chefui[demo]: start (pid 3984, fbdev backend, 33 ms frames, rotation 0)
+[  618.812217,5] chefui[demo]: lock acquired
+[  618.812266,5] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[  618.813537,6] fblog: paused: screen borrowed (/run/fb0.lock)
+[  618.818058,5] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[  618.818096,5] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[  618.818203,5] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[  620.413279,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:38
+[  620.813496,6] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[  620.897561,6] fblog: resumed
+[  622.419965,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+RC_TAG=0

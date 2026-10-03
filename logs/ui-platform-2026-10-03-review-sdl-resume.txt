@@ -1,0 +1,58 @@
+make: Entering directory '/home/nishant/code/chef-cyclo/tools/chefui'
+chefui[calibration-test]: start (pid 1607828, sdl backend, 16 ms frames, rotation 0)
+chefui[calibration-test]: SDL window 1080x2246 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 100 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 0 physical pixels (not saved)
+chefui[calibration-test]: exit (code 0)
+test-demo-host: 28/28 checks passed
+chefui[calibration-test]: start (pid 1607832, sdl backend, 16 ms frames, rotation 0)
+chefui[calibration-test]: SDL window 1080x2246 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: screen off
+chefui[calibration-test]: screen on
+chefui[calibration-test]: exit (code 0)
+test-host-off-before-frame: 8/8 checks passed
+chefui[calibration-test]: start (pid 1607834, sdl backend, 16 ms frames, rotation 90)
+chefui[calibration-test]: SDL window 2246x1080 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 100 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 0 physical pixels (not saved)
+chefui[calibration-test]: exit (code 0)
+test-demo-host: 28/28 checks passed
+chefui[calibration-test]: start (pid 1607836, sdl backend, 16 ms frames, rotation 90)
+chefui[calibration-test]: SDL window 2246x1080 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: screen off
+chefui[calibration-test]: screen on
+chefui[calibration-test]: exit (code 0)
+test-host-off-before-frame: 8/8 checks passed
+chefui[calibration-test]: start (pid 1607839, sdl backend, 16 ms frames, rotation 180)
+chefui[calibration-test]: SDL window 1080x2246 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 100 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 0 physical pixels (not saved)
+chefui[calibration-test]: exit (code 0)
+test-demo-host: 28/28 checks passed
+chefui[calibration-test]: start (pid 1607841, sdl backend, 16 ms frames, rotation 180)
+chefui[calibration-test]: SDL window 1080x2246 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: screen off
+chefui[calibration-test]: screen on
+chefui[calibration-test]: exit (code 0)
+test-host-off-before-frame: 8/8 checks passed
+chefui[calibration-test]: start (pid 1607847, sdl backend, 16 ms frames, rotation 270)
+chefui[calibration-test]: SDL window 2246x1080 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 100 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 96 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 0 physical pixels (not saved)
+chefui[calibration-test]: exit (code 0)
+test-demo-host: 28/28 checks passed
+chefui[calibration-test]: start (pid 1607849, sdl backend, 16 ms frames, rotation 270)
+chefui[calibration-test]: SDL window 2246x1080 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: screen off
+chefui[calibration-test]: screen on
+chefui[calibration-test]: exit (code 0)
+test-host-off-before-frame: 8/8 checks passed
+make: Leaving directory '/home/nishant/code/chef-cyclo/tools/chefui'

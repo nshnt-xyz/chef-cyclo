@@ -2,3 +2,6 @@
 	path = kernel
 	url = https://github.com/nshnt-xyz/kernel-msm.git
 	branch = chef-cyclo-qpts30.61-18-10
+[submodule "third_party/lvgl"]
+	path = third_party/lvgl
+	url = https://github.com/lvgl/lvgl.git

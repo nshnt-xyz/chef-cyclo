@@ -6,7 +6,7 @@
 
 Display/touch and `fblog` handoff were live-verified on 2026-09-18. `tools/fbdev.h` owns the shared framebuffer contract; `tools/fbtouch.c` is the reference foreground client; `tools/fblog/fblog.c` is the background log viewer. The generated `font9x15.h` uses the public-domain X11 misc-fixed font and can be regenerated with `tools/fblog/mkfont.py`.
 
-The baseline and ride images start `fblog` from inittab. It displays userspace `/dev/kmsg` messages and kernel errors (`KERN_ERR` or worse), newest at the bottom, with kernel release, uptime, and battery percentage. It opens no input devices and does not respond to touch.
+The image starts `fblog` from inittab. It displays userspace `/dev/kmsg` messages and kernel errors (`KERN_ERR` or worse), newest at the bottom, with kernel release, uptime, and battery percentage. It opens no input devices and does not respond to touch.
 
 ## Use
 
@@ -21,6 +21,15 @@ fbtouch bl 96
 
 `fbtouch show` borrows the display, draws a test pattern, and paints/logs touch contacts. On exit or death, `fblog` resumes, unblanks, and restores its backlight. `fbtouch bl` logs a marker that causes a commit; the 1 Hz heartbeat is the fallback for brightness writers that do not log.
 
+### The screen-off flag
+
+`/run/fblog.off` is the system-wide **"screen deliberately off"** flag. The path is historical and kept so existing scripts keep working; it is no longer specific to `fblog`. Everything that owns the screen follows it:
+
+- `fblog` started with the flag present idles without opening `/dev/fb0` (panel and touch IC stay powered down). While idle it sleeps on an inotify watch of `/run` and wakes only when an entry there is deleted or renamed away; once the flag is gone it starts drawing, or waits in the usual borrowed state if a foreground client holds the screen lock. If inotify is unavailable it rechecks every 250 ms and says so in kmsg.
+- When `fblog` resumes after a foreground client releases the screen lock, it checks the flag first. If the client left the screen off (it exited or was killed with the flag present), `fblog` does `FBIOBLANK POWERDOWN`, closes fb0 and idles as above instead of turning the panel back on.
+- Fullscreen [chefui](ui-platform.md) applications create the flag when they turn the screen off (after `POWERDOWN`) and remove it when they turn it on (before `UNBLANK`). Started with the flag present, they take the screen lock but do not open fb0 until their first screen-on. On exit they leave the flag as it is.
+- `buttond`'s default short power press creates the flag and signals fblog for screen-off; for screen-on it removes the flag only. The resident idle loop wakes through inotify or its 250 ms fallback. If fblog is absent or already exiting, init's next spawn observes the current flag; wake does not launch a second daemon.
+
 To idle the screen from the shell:
 
 ```sh
@@ -28,21 +37,19 @@ touch /run/fblog.off
 kill $(pidof fblog)
 ```
 
-To wake it:
+To wake it, remove the flag only. Do not signal after removal: that can terminate a just-woken fblog and blink the panel. If fblog is absent, its configured init respawn starts it with the current flag state; without supervision it must be started separately:
 
 ```sh
 rm /run/fblog.off
-kill $(pidof fblog)
 ```
 
-In the baseline image, a short power-button press performs that toggle. The ride image has no `buttond`; use its [HTTP screen control](ride-logging.md).
+A short power-button press performs that toggle; while a chefui application runs, it claims the press and toggles the screen itself.
 
 Edit `fblog` arguments in the applicable `etc/inittab`: `-b` brightness (default 96), `-s` glyph scale (default 2, 59×68 cells), `-k` maximum kernel log level, or `-a` all kernel messages.
 
 ## Read-only inventory and libinput diagnostics
 
-The baseline overlay includes `display-touch-inventory` (also inherited by the
-ride image). It reports every framebuffer's cached name, modes, virtual geometry,
+The overlay includes `display-touch-inventory`. It reports every framebuffer's cached name, modes, virtual geometry,
 bits per pixel and stride, then every evdev device's cached identity, properties
 and capability bitmaps. It uses BusyBox tools and the packaged `fbtouch input-info`
 command for all advertised ABS ranges, including slots and tracking IDs:
@@ -117,6 +124,27 @@ or physical controller health.
 - **Don't read `/proc/nvt_fw_version` (or the `buildid`/`ic_ver` sysfs) while the panel is off** — i.e. whenever nothing holds `/dev/fb0` open, or after a `POWERDOWN`. The proc `open()` does live I2C reads (`nvt_get_fw_info()`), and with the TDDI on the powered-down panel rails that is four `i2c-msm-v2 … check core_clk` timeouts, 46 `BUS ERROR` lines, ten `CTP_I2C_*: error, ret=-3`, four `FW info is broken`, a fallback to `abs_x_max=1080, abs_y_max=2246` (only a more permissive IRQ-side clamp; the evdev range set at probe stays 720x1600), `PID=0000`, the NVT ESD check switched off until the next touch report, and `EAGAIN` to userspace. So `EAGAIN` there is the *normal* answer from a correctly suspended IC and by itself does not indicate the un-suspended power-loss case above; the sign of that case is `Touch is already resume` on the next open of a panel that had gone dark. (`Touch is already resume` on the very first open after boot is expected instead: the driver has been awake since probe and the cont-splash panel was never blanked.) Live-verified 2026-09-18, second boot.
 
 The panel is 1080×2246, but the replacement NT36525 touch controller reports 720×1600. Scale from evdev ABS ranges, never assume raw coordinates are panel pixels. Trim IDs identify the IC; live PID/buildid reads are not stable identity. See the [device reference](../device.md).
+
+## UI content clearance
+
+The chefui platform preserves full-panel framebuffer and touch coordinates.
+Applications place ordinary controls under `chefui_content_root()` and use
+`chefui_root()` for full-panel backgrounds. A physical-top inset rotates with
+the display (logical top/left/bottom/right for 0/90/180/270°). The default **96 physical pixels**
+was visually calibrated by the user on **2026-10-03**, with device log
+`notch calibration: --safe-top 96 physical pixels`. This measures usable content
+clearance with a gap, not the hardware notch depth. It remains configurable
+through `chefui_config.safe_top_px` (0 selects the default, -1 disables it). The demo's
+`--calibrate-notch --safe-top N` guide adjusts clearance by 4 px with volume
+keys and logs the chosen value without saving it. See the
+[calibration procedure](../next-steps/ui-platform.md#safe-content-and-notch-calibration).
+Corner targets and contact dots still cover the full panel. Chefui defaults
+to a 16 ms refresh period (60 fps target); the demo retains `-f 30`, and apps
+can set an explicit refresh period. Rendering/copy/pan can limit actual rate.
+Brightness requests coalesce into the next scheduled frame; a minimal
+invalidation guarantees a commit even on a static page. Input callbacks do not
+wait for a brightness-only pan. While off, the requested level is retained and
+written before the first screen-on frame.
 
 ## Modify and verify
 

@@ -1,21 +1,22 @@
 #!/bin/sh
-# Build out/initramfs.cpio.gz: the Alpine rootfs from scripts/mkrootfs.sh
+# Build out/initramfs.cpio.lzma: the Alpine rootfs from scripts/mkrootfs.sh
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
 # the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
-# display/touch probe fbtouch, the on-device log screen fblog, the gpsd
-# feed nmea-broker, the button daemon buttond, the battery daemon powerd
-# and the ADSP bring-up +
+# display/touch probe fbtouch, the on-device log screen fblog, the UI
+# platform demo chefui-demo, the gpsd feed nmea-broker, the button daemon
+# buttond, the battery daemon powerd and the ADSP bring-up +
 # speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
 # TAS2560 calibration-control writer), the speaker-protection experiment
 # (afe-debug, spk-protect-probe, afe-topology-cal, tert-tx-hold) and the
 # sensors bring-up (sensors-up, sensord and its registry map) on top.
 #
-# VARIANT=ride additionally lays the initramfs-ride/ overlay on top (the
-# unattended GPS ride logger, its inittab entries and the HTTP extraction
-# CGIs -- see README "Temporary bike-ride GPS logging image") and writes
-# out/initramfs-ride.cpio.gz from out/initramfs-root-ride, leaving the
-# baseline out/initramfs.cpio.gz and out/initramfs-root untouched. Everything
-# else (helpers, firmware, seeds) is identical between the two.
+# Encoding: LZMA (xz --format=lzma -6) of the same deterministic newc cpio
+# stream. Chef's loader leaves the kernel only the region space the ramdisk
+# does not take (docs/research/chef-loader-kernel-budget.md): with the gzip
+# encoding the baseline had 68 KiB of margin, the LZMA encoding of the same
+# cpio about 13 MB (live-booted 2026-10-03). The kernel must have
+# CONFIG_RD_LZMA=y (checked against KCONFIG, default out/kernel/.config).
+# GZIP=1 restores the old gzip -9n encoding (out/initramfs.cpio.gz).
 set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
@@ -65,12 +66,23 @@ awk -F: '$1=="messagebus" {n++; if($3!=101 || $4!="") bad=1}
            $3==101 && $1!="messagebus" {bad=1}
            END {exit (n!=1 || bad)}' initramfs/etc/group || { echo 'invalid/colliding bus group' >&2; exit 1; }
 
-VARIANT=${VARIANT:-}
-case "$VARIANT" in
-"")   ROOT=out/initramfs-root;      OUTCPIO=out/initramfs.cpio.gz ;;
-ride) ROOT=out/initramfs-root-ride; OUTCPIO=out/initramfs-ride.cpio.gz ;;
-*)    echo "unknown VARIANT '$VARIANT' (empty or ride)" >&2; exit 1 ;;
+# gzip(1) itself reads $GZIP as options, so take the opt-out and unset it.
+USE_GZIP=${GZIP:-}
+unset GZIP
+case "$USE_GZIP" in
+"") OUTCPIO=out/initramfs.cpio.lzma ;;
+1)  OUTCPIO=out/initramfs.cpio.gz ;;
+*)  echo "GZIP must be empty or 1" >&2; exit 1 ;;
 esac
+ROOT=out/initramfs-root
+if [ -z "$USE_GZIP" ]; then
+    KCONFIG=${KCONFIG:-out/kernel/.config}
+    grep -qx 'CONFIG_RD_LZMA=y' "$KCONFIG" 2>/dev/null || {
+        echo "$KCONFIG lacks CONFIG_RD_LZMA=y: the kernel cannot unpack an LZMA ramdisk (GZIP=1 for gzip)" >&2
+        exit 1
+    }
+    command -v xz >/dev/null 2>&1 || { echo "xz (XZ Utils) is required for the LZMA ramdisk" >&2; exit 1; }
+fi
 rm -f "$OUTCPIO"
 rm -rf "$ROOT"
 mkdir -p "$ROOT"
@@ -87,18 +99,6 @@ chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
     "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
     "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \
     "$ROOT"/usr/bin/sensors-compass-run "$ROOT"/usr/bin/display-touch-inventory
-if [ "$VARIANT" = ride ]; then
-    for f in initramfs-ride/etc/inittab initramfs-ride/usr/bin/ride-logger \
-             initramfs-ride/usr/share/ride/www/cgi-bin/index.cgi \
-             initramfs-ride/usr/share/ride/www/cgi-bin/ride.tgz \
-             initramfs-ride/usr/share/ride/www/cgi-bin/stop \
-             initramfs-ride/usr/share/ride/www/cgi-bin/screen; do
-        [ -f "$f" ] || { echo "missing required ride overlay file: $f" >&2; exit 1; }
-    done
-    cp -a initramfs-ride/. "$ROOT"/
-    chmod 755 "$ROOT"/usr/bin/ride-logger "$ROOT"/usr/share/ride/www/cgi-bin/*
-    echo "applied initramfs-ride/ overlay (ride logger + httpd in inittab)"
-fi
 
 # Small libc-free helper used by bt-up to exercise /dev/btpower and the
 # WCN3990 UART; also a raw H4/QCA attach and LE scan for debugging without
@@ -296,6 +296,17 @@ echo "built $ROOT/usr/bin/nmea-broker"
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/buttond" tools/buttond.c
 echo "built $ROOT/usr/bin/buttond"
 
+# UI platform demo (tools/chefui/, docs/next-steps/ui-platform.md): LVGL
+# v9.6.0 (the third_party/lvgl submodule) rendering on the MDSS fbdev with
+# chefui's screen lock/flag handling, multitouch reader and buttond client;
+# chefui-demo is the platform's verification vehicle. tools/chefui's
+# Makefile builds it static with the musl cross compiler and strips it.
+# Manual opt-in from the telnet shell; inittab does not start it.
+[ -f third_party/lvgl/lvgl.h ] || { echo "missing LVGL: git submodule update --init third_party/lvgl" >&2; exit 1; }
+make -C tools/chefui -j"$(nproc)" device >/dev/null
+install -m 755 tools/chefui/build/device/chefui-demo "$ROOT/usr/bin/chefui-demo"
+echo "built $ROOT/usr/bin/chefui-demo"
+
 # Battery daemon (tools/powerd.c, docs/features/battery-and-charging.md):
 # low-battery warn/critical and clean shutdown (BatteryService clone),
 # power_supply CSV log + state file under /run/power, and the 44/42 C
@@ -392,7 +403,13 @@ else
 fi
 rm -rf "$MAPTMP"
 
-# newc format, everything owned by root, reproducible ordering.
-( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \
-    | cpio -0 -o -H newc --owner=+0:+0 --quiet ) | gzip -9n > "$OUTCPIO"
+# newc format, everything owned by root, reproducible ordering; the LZMA
+# (lzma_alone) container carries no timestamp, gzip -n drops it.
+if [ -z "$USE_GZIP" ]; then
+    ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \
+        | cpio -0 -o -H newc --owner=+0:+0 --quiet ) | xz --format=lzma -6 -c > "$OUTCPIO"
+else
+    ( cd "$ROOT" && find . -print0 | LC_ALL=C sort -z \
+        | cpio -0 -o -H newc --owner=+0:+0 --quiet ) | gzip -9n > "$OUTCPIO"
+fi
 ls -l "$OUTCPIO"

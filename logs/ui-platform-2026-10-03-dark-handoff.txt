@@ -1,0 +1,122 @@
+chefui[demo]: start (pid 25023, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: /run/fblog.off present: starting dark (1080x2246 from /sys/class/graphics/fb0/modes)
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen off (flag present)
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 0 | cpu 0.6% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 3
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo]: power.short: screen on
+chefui[demo]: screen on (242 ms)
+chefui[demo] stats: fps 1 | cpu 2.4% | copy 2.43 Mpx 12.8 ms | pan avg 13.8 max 13.8 ms | wake 43
+chefui[demo]: tap 1
+chefui[demo] stats: fps 15 | cpu 3.7% | copy 3.74 Mpx 24.3 ms | pan avg 7.7 max 13.5 ms | wake 66
+chefui[demo]: handoff to /tmp/chefui-demo-bright (dark)
+chefui[demo-peer]: start (pid 25023, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo-peer]: lock inherited (fd 5)
+chefui[demo-peer]: /run/fblog.off present: starting dark (1080x2246 from /sys/class/graphics/fb0/modes)
+chefui[demo-peer]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo-peer]: fbdev 1080x2246, logical 1080x2246, screen off (flag present)
+chefui[demo-peer]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo-peer] stats: fps 0 | cpu 0.6% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 3
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo-peer]: power.short: screen on
+chefui[demo-peer]: screen on (236 ms)
+chefui[demo-peer] stats: fps 1 | cpu 2.6% | copy 2.43 Mpx 15.5 ms | pan avg 13.2 max 13.2 ms | wake 39
+chefui[demo-peer] stats: fps 1 | cpu 1.6% | copy 2.43 Mpx 15.3 ms | pan avg 13.0 max 13.0 ms | wake 62
+chefui[demo-peer] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 10.4 max 10.4 ms | wake 63
+chefui[demo-peer] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 10.0 max 10.0 ms | wake 63
+chefui[demo-peer]: handoff to /tmp/chefui-demo-bright (dark)
+chefui[demo]: start (pid 25023, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock inherited (fd 5)
+chefui[demo]: /run/fblog.off present: starting dark (1080x2246 from /sys/class/graphics/fb0/modes)
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen off (flag present)
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 0 | cpu 0.4% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 3
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo]: power.short: screen on
+chefui[demo]: screen on (237 ms)
+chefui[demo] stats: fps 1 | cpu 2.6% | copy 2.43 Mpx 15.6 ms | pan avg 13.1 max 13.1 ms | wake 43
+chefui[demo] stats: fps 1 | cpu 1.8% | copy 2.43 Mpx 16.6 ms | pan avg 16.0 max 16.0 ms | wake 62
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 15.4 max 15.4 ms | wake 63
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 15.0 max 15.0 ms | wake 63
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 15.0 max 15.0 ms | wake 63
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 15.0 max 15.0 ms | wake 63
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 15.0 max 15.0 ms | wake 63
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 15.0 max 15.0 ms | wake 63
+chefui[demo] stats: fps 2 | cpu 0.2% | copy 0.06 Mpx 0.3 ms | pan avg 15.0 max 15.0 ms | wake 64
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 15.1 max 15.1 ms | wake 63
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.05 Mpx 0.3 ms | pan avg 14.9 max 14.9 ms | wake 63
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 15.0 max 15.0 ms | wake 63
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 14.9 max 14.9 ms | wake 64
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 14.0 max 14.0 ms | wake 64
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 14.0 max 14.0 ms | wake 64
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 13.0 max 13.0 ms | wake 64
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 12.0 max 12.0 ms | wake 64
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 11.1 max 11.1 ms | wake 64
+chefui[demo] stats: fps 1 | cpu 0.2% | copy 0.03 Mpx 0.2 ms | pan avg 10.0 max 10.0 ms | wake 64
+[ 3668.423604,0] chefui[demo]: screen released
+[ 3668.743541,5] fblog: resumed
+[ 3725.409661,1] chefui[demo]: start (pid 19700, fbdev backend, 16 ms frames, rotation 0)
+[ 3725.409841,1] chefui[demo]: lock acquired
+[ 3725.412803,5] fblog: paused: screen borrowed (/run/fb0.lock)
+[ 3725.416512,1] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[ 3725.416552,1] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[ 3725.416683,1] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[ 4740.371704,2] chefui[demo]: power.short: screen off
+[ 4740.683168,2] chefui[demo]: screen off (311 ms)
+[ 4753.273591,4] fblog: /run/fblog.off present after the borrow: staying dark, /dev/fb0 closed
+[ 4763.724149,4] fblog: /run/fblog.off removed: leaving idle
+[ 4763.894200,1] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[ 4783.066354,6] fblog: exiting: blanking before close
+[ 4785.068541,0] chefui[demo]: start (pid 25023, fbdev backend, 16 ms frames, rotation 0)
+[ 4785.068730,0] chefui[demo]: lock acquired
+[ 4785.068861,0] chefui[demo]: /run/fblog.off present: starting dark (1080x2246 from /sys/class/graphics/fb0/modes)
+[ 4785.074829,0] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[ 4785.074867,0] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen off (flag present)
+[ 4785.075010,0] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[ 4785.084924,0] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+[ 4796.172514,0] chefui[demo]: power.short: screen on
+[ 4796.175876,0] fblog: /run/fblog.off removed: leaving idle
+[ 4796.175944,0] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[ 4796.192733,7] fblog: paused: screen borrowed (/run/fb0.lock)
+[ 4796.414356,0] chefui[demo]: screen on (242 ms)
+[ 4797.851129,0] chefui[demo]: tap 1
+[ 4799.840516,0] chefui[demo]: handoff to /tmp/chefui-demo-bright (dark)
+[ 4799.842882,0] chefui[demo-peer]: start (pid 25023, fbdev backend, 16 ms frames, rotation 0)
+[ 4799.843077,0] chefui[demo-peer]: lock inherited (fd 5)
+[ 4799.843196,0] chefui[demo-peer]: /run/fblog.off present: starting dark (1080x2246 from /sys/class/graphics/fb0/modes)
+[ 4799.850144,0] chefui[demo-peer]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[ 4799.850187,0] chefui[demo-peer]: fbdev 1080x2246, logical 1080x2246, screen off (flag present)
+[ 4799.850331,0] chefui[demo-peer]: buttond connected (/run/buttond.sock), 3 claims
+[ 4811.021252,0] chefui[demo-peer]: power.short: screen on
+[ 4811.257780,0] chefui[demo-peer]: screen on (236 ms)
+[ 4816.183850,0] chefui[demo-peer]: handoff to /tmp/chefui-demo-bright (dark)
+[ 4816.186114,0] chefui[demo]: start (pid 25023, fbdev backend, 16 ms frames, rotation 0)
+[ 4816.186350,0] chefui[demo]: lock inherited (fd 5)
+[ 4816.186468,0] chefui[demo]: /run/fblog.off present: starting dark (1080x2246 from /sys/class/graphics/fb0/modes)
+[ 4816.193350,4] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[ 4816.193389,4] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen off (flag present)
+[ 4816.193500,4] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[ 4818.291078,0] chefui[demo]: power.short: screen on
+[ 4818.527774,0] chefui[demo]: screen on (237 ms)
+RC_TAG=0

@@ -1,0 +1,182 @@
+chefui[demo]: start (pid 25854, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 1 | cpu 1.5% | copy 2.43 Mpx 10.1 ms | pan avg 8.7 max 8.7 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 1.0% | copy 2.43 Mpx 10.1 ms | pan avg 11.5 max 11.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.2 ms | pan avg 3.3 max 3.3 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 1.9 max 1.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 1.0 max 1.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 16.7 max 16.7 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 16.1 max 16.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 15.0 max 15.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 14.0 max 14.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 13.0 max 13.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 12.0 max 12.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 10.9 max 10.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 10.1 max 10.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 9.0 max 9.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 8.0 max 8.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 7.0 max 7.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 6.0 max 6.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 4.9 max 4.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 3.9 max 3.9 ms | wake 2
+chefui[demo]: handoff to /tmp/chefui-demo-bright
+chefui[demo-peer]: start (pid 25854, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo-peer]: lock inherited (fd 5)
+chefui[demo-peer]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo-peer]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo-peer]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo-peer]: handoff to /tmp/chefui-demo-bright
+chefui[demo]: start (pid 25854, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock inherited (fd 5)
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 1 | cpu 1.9% | copy 2.43 Mpx 12.9 ms | pan avg 9.2 max 9.2 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 1.0% | copy 2.43 Mpx 10.1 ms | pan avg 16.5 max 16.5 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.1 ms | pan avg 8.7 max 8.7 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 7.0 max 7.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 6.1 max 6.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 5.1 max 5.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 4.0 max 4.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 3.1 max 3.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.1 max 2.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 1.1 max 1.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 16.7 max 16.7 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 16.2 max 16.2 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 15.2 max 15.2 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 14.2 max 14.2 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 13.1 max 13.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 12.1 max 12.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 11.0 max 11.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 10.2 max 10.2 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 9.1 max 9.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 8.1 max 8.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 7.1 max 7.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 6.1 max 6.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 5.1 max 5.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 4.1 max 4.1 ms | wake 2
+[ 4930.732433,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4930.789100,0] mdss_dsi_off[0]+.
+[ 4930.830933,0] mdss_dsi_off[0]-.
+[ 4930.832629,1] chefui[demo]: screen released
+[ 4930.835035,2] chefui[demo]: start (pid 25796, fbdev backend, 16 ms frames, rotation 0)
+[ 4930.835286,4] mdss_dsi_on[0]+.
+[ 4930.868705,4] mdss_dsi_on[0]-.
+[ 4930.868732,4] mdss_dsi_panel_on[0]+.
+[ 4931.002088,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 4931.002477,0] mdss_dsi_post_panel_on[0]-.
+[ 4931.015761,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 4931.015763,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4931.055771,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4931.069442,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4931.069462,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 4931.152566,7] fblog: resumed
+[ 4931.156480,2] chefui[demo]: lock acquired
+[ 4931.156558,2] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[ 4931.162789,0] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[ 4931.162826,0] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[ 4931.162965,0] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[ 4931.253047,7] fblog: paused: screen borrowed (/run/fb0.lock)
+[ 4932.739098,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4934.745768,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4936.752432,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4938.759096,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4940.765762,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4941.165061,0] chefui[demo]: exit (code 0)
+[ 4941.165331,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 4941.215763,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4941.219645,0] mdss_dsi_panel_off[0]+.
+[ 4941.429105,0] mdss_dsi_off[0]+.
+[ 4941.471080,0] mdss_dsi_off[0]-.
+[ 4941.473474,0] chefui[demo]: screen released
+[ 4941.475924,7] chefui[demo]: start (pid 25854, fbdev backend, 16 ms frames, rotation 0)
+[ 4941.476078,4] mdss_dsi_on[0]+.
+[ 4941.509581,5] mdss_dsi_on[0]-.
+[ 4941.509609,5] mdss_dsi_panel_on[0]+.
+[ 4941.643083,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 4941.643474,0] mdss_dsi_post_panel_on[0]-.
+[ 4941.655772,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 4941.655775,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4941.695765,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4941.709437,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4941.709461,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 4941.793565,6] fblog: resumed
+[ 4941.797362,0] chefui[demo]: lock acquired
+[ 4941.797439,0] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[ 4941.803378,0] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[ 4941.803414,0] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[ 4941.803546,0] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[ 4941.894052,6] fblog: paused: screen borrowed (/run/fb0.lock)
+[ 4942.772444,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:23
+[ 4944.779111,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4946.785766,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4948.792437,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4950.799111,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4952.805777,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:5
+[ 4954.812443,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:6
+[ 4956.225927,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[ 4956.225941,3] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[ 4956.225953,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[ 4956.819091,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4958.825771,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4960.832434,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4961.044101,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 4961.095767,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4961.110643,1] mdss_dsi_panel_off[0]+.
+[ 4961.319095,1] mdss_dsi_off[0]+.
+[ 4961.360843,1] mdss_dsi_off[0]-.
+[ 4961.362122,1] chefui[demo]: handoff to /tmp/chefui-demo-bright
+[ 4961.363920,1] chefui[demo-peer]: start (pid 25854, fbdev backend, 16 ms frames, rotation 0)
+[ 4961.364110,1] chefui[demo-peer]: lock inherited (fd 5)
+[ 4961.367518,1] mdss_dsi_on[0]+.
+[ 4961.400999,1] mdss_dsi_on[0]-.
+[ 4961.401034,1] mdss_dsi_panel_on[0]+.
+[ 4961.534451,1] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 4961.534843,1] mdss_dsi_post_panel_on[0]-.
+[ 4961.545753,1] [NVT-ts] nvt_ts_resume 1668: start
+[ 4961.545756,1] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4961.585757,1] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4961.599433,1] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4961.599459,1] [NVT-ts] nvt_ts_resume 1690: end
+[ 4961.606617,1] chefui[demo-peer]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[ 4961.606657,1] chefui[demo-peer]: fbdev 1080x2246, logical 1080x2246, screen on
+[ 4961.607002,1] chefui[demo-peer]: buttond connected (/run/buttond.sock), 3 claims
+[ 4962.302033,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 4962.352451,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4962.368620,1] mdss_dsi_panel_off[0]+.
+[ 4962.575773,1] mdss_dsi_off[0]+.
+[ 4962.617578,1] mdss_dsi_off[0]-.
+[ 4962.619806,1] chefui[demo-peer]: handoff to /tmp/chefui-demo-bright
+[ 4962.621513,1] chefui[demo]: start (pid 25854, fbdev backend, 16 ms frames, rotation 0)
+[ 4962.621701,1] chefui[demo]: lock inherited (fd 5)
+[ 4962.624157,1] mdss_dsi_on[0]+.
+[ 4962.657643,1] mdss_dsi_on[0]-.
+[ 4962.657680,1] mdss_dsi_panel_on[0]+.
+[ 4962.791070,1] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 4962.791446,1] mdss_dsi_post_panel_on[0]-.
+[ 4962.802421,1] [NVT-ts] nvt_ts_resume 1668: start
+[ 4962.802424,1] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4962.839082,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4962.842404,1] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4962.856105,1] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4962.856573,1] [NVT-ts] nvt_ts_resume 1690: end
+[ 4962.863425,1] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[ 4962.863465,1] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[ 4962.863616,1] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[ 4964.845765,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4966.852427,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4968.859097,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4970.865754,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4972.872431,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4974.879094,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4976.885763,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4978.892421,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4980.899098,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4982.905766,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4984.912431,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4986.919089,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+56
+RC_TAG=0

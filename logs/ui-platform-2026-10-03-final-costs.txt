@@ -1,0 +1,67 @@
+PID=25854
+chefui[demo]: start (pid 25612, fbdev backend, 33 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 29 | cpu 4.7% | copy 6.41 Mpx 28.5 ms | pan avg 13.9 max 16.7 ms | wake 48
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.73 Mpx 9.4 ms | pan avg 16.5 max 16.6 ms | wake 31
+chefui[demo] stats: fps 31 | cpu 2.5% | copy 1.85 Mpx 10.0 ms | pan avg 6.0 max 16.7 ms | wake 61
+chefui[demo] stats: fps 29 | cpu 2.3% | copy 1.71 Mpx 9.3 ms | pan avg 14.3 max 15.8 ms | wake 44
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.76 Mpx 9.5 ms | pan avg 12.5 max 16.6 ms | wake 38
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.78 Mpx 9.6 ms | pan avg 7.9 max 12.6 ms | wake 61
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.74 Mpx 9.5 ms | pan avg 6.8 max 16.4 ms | wake 43
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.76 Mpx 9.6 ms | pan avg 7.7 max 12.7 ms | wake 31
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.78 Mpx 9.7 ms | pan avg 8.2 max 16.5 ms | wake 48
+chefui[demo]: exit (code 0)
+chefui[demo]: screen released
+chefui[demo]: start (pid 25687, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 58 | cpu 6.9% | copy 7.85 Mpx 39.6 ms | pan avg 15.7 max 18.8 ms | wake 59
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.25 Mpx 18.8 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.26 Mpx 19.0 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 59 | cpu 4.2% | copy 3.19 Mpx 18.0 ms | pan avg 15.8 max 20.2 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.24 Mpx 18.8 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.26 Mpx 19.1 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 59 | cpu 4.2% | copy 3.19 Mpx 18.1 ms | pan avg 15.9 max 19.8 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.24 Mpx 19.0 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.26 Mpx 19.2 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.24 Mpx 18.7 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo]: exit (code 0)
+chefui[demo]: screen released
+chefui[demo]: start (pid 25739, fbdev backend, 33 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 30 | cpu 41.6% | copy 72.77 Mpx 310.6 ms | pan avg 9.1 max 16.7 ms | wake 61
+chefui[demo] stats: fps 31 | cpu 37.3% | copy 75.20 Mpx 276.2 ms | pan avg 5.7 max 16.6 ms | wake 41
+chefui[demo] stats: fps 30 | cpu 37.6% | copy 72.77 Mpx 272.1 ms | pan avg 5.7 max 7.6 ms | wake 31
+chefui[demo] stats: fps 30 | cpu 37.5% | copy 72.77 Mpx 272.3 ms | pan avg 5.7 max 7.6 ms | wake 31
+chefui[demo] stats: fps 30 | cpu 37.5% | copy 72.77 Mpx 272.6 ms | pan avg 5.6 max 7.6 ms | wake 31
+chefui[demo] stats: fps 30 | cpu 37.5% | copy 72.77 Mpx 272.6 ms | pan avg 5.6 max 7.6 ms | wake 31
+chefui[demo] stats: fps 30 | cpu 37.6% | copy 72.77 Mpx 273.0 ms | pan avg 5.6 max 7.6 ms | wake 31
+chefui[demo] stats: fps 30 | cpu 37.5% | copy 72.77 Mpx 271.8 ms | pan avg 5.7 max 7.6 ms | wake 31
+chefui[demo] stats: fps 30 | cpu 37.5% | copy 72.77 Mpx 272.2 ms | pan avg 5.7 max 7.6 ms | wake 31
+chefui[demo]: exit (code 0)
+chefui[demo]: screen released
+chefui[demo]: start (pid 25796, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 1 | cpu 1.5% | copy 2.43 Mpx 10.1 ms | pan avg 8.3 max 8.3 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 1.0% | copy 2.43 Mpx 10.0 ms | pan avg 11.6 max 11.6 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.2 ms | pan avg 3.3 max 3.3 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 1.9 max 1.9 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 1.0 max 1.0 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 16.7 max 16.7 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 16.1 max 16.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 15.1 max 15.1 ms | wake 2
+chefui[demo] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 14.0 max 14.0 ms | wake 2
+chefui[demo]: exit (code 0)
+chefui[demo]: screen released
+RC_TAG=0

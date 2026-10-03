@@ -1,0 +1,36 @@
+41a25738fa6890179f3f046affe2737b5213fe84d0dd32a2ef0a7f066be452c6  lvproto
+== idle
+fps 1 flush 1 | swz 9.99 ms 2.4 Mpx | pan avg 7.1 max 7.1 ms | handler 0.0 ms | wake 1 touch 0
+fps 1 flush 4 | swz 10.33 ms 2.5 Mpx | pan avg 12.7 max 12.7 ms | handler 24.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.51 ms 0.2 Mpx | pan avg 5.0 max 5.0 ms | handler 6.3 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.79 ms 0.2 Mpx | pan avg 2.7 max 2.7 ms | handler 4.9 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.84 ms 0.2 Mpx | pan avg 1.3 max 1.3 ms | handler 3.9 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.90 ms 0.2 Mpx | pan avg 0.3 max 0.3 ms | handler 2.9 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.84 ms 0.2 Mpx | pan avg 16.0 max 16.0 ms | handler 18.6 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.85 ms 0.2 Mpx | pan avg 15.4 max 15.4 ms | handler 18.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.84 ms 0.2 Mpx | pan avg 14.4 max 14.4 ms | handler 17.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.89 ms 0.2 Mpx | pan avg 13.4 max 13.4 ms | handler 16.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.83 ms 0.2 Mpx | pan avg 12.4 max 12.4 ms | handler 15.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 0.84 ms 0.2 Mpx | pan avg 11.3 max 11.3 ms | handler 13.9 ms | wake 2 touch 0
+== anim
+fps 59 flush 162 | swz 37.15 ms 8.0 Mpx | pan avg 15.6 max 16.2 ms | handler 967.0 ms | wake 59 touch 0
+fps 59 flush 226 | swz 20.07 ms 3.7 Mpx | pan avg 15.7 max 18.0 ms | handler 981.7 ms | wake 60 touch 0
+fps 60 flush 230 | swz 20.24 ms 3.8 Mpx | pan avg 15.8 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+fps 60 flush 230 | swz 20.22 ms 3.8 Mpx | pan avg 15.8 max 16.0 ms | handler 999.8 ms | wake 60 touch 0
+fps 59 flush 226 | swz 19.99 ms 3.7 Mpx | pan avg 15.8 max 17.5 ms | handler 982.7 ms | wake 60 touch 0
+fps 60 flush 230 | swz 20.23 ms 3.8 Mpx | pan avg 15.8 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+fps 60 flush 230 | swz 20.24 ms 3.8 Mpx | pan avg 15.8 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+fps 60 flush 230 | swz 20.22 ms 3.8 Mpx | pan avg 15.8 max 16.8 ms | handler 999.8 ms | wake 60 touch 0
+fps 60 flush 230 | swz 20.19 ms 3.8 Mpx | pan avg 15.8 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+fps 60 flush 230 | swz 20.27 ms 3.8 Mpx | pan avg 15.8 max 16.3 ms | handler 999.8 ms | wake 60 touch 0
+== full
+fps 31 flush 31 | swz 474.87 ms 148.0 Mpx | pan avg 14.3 max 14.9 ms | handler 999.6 ms | wake 30 touch 0
+fps 30 flush 30 | swz 459.40 ms 145.5 Mpx | pan avg 14.5 max 14.6 ms | handler 999.7 ms | wake 30 touch 0
+fps 30 flush 30 | swz 459.30 ms 145.5 Mpx | pan avg 14.5 max 14.6 ms | handler 999.7 ms | wake 30 touch 0
+fps 30 flush 30 | swz 459.32 ms 145.5 Mpx | pan avg 14.5 max 14.6 ms | handler 999.7 ms | wake 30 touch 0
+fps 30 flush 30 | swz 459.33 ms 145.5 Mpx | pan avg 14.5 max 14.5 ms | handler 999.7 ms | wake 30 touch 0
+fps 30 flush 30 | swz 459.40 ms 145.5 Mpx | pan avg 14.5 max 14.6 ms | handler 999.7 ms | wake 30 touch 0
+fps 30 flush 30 | swz 459.30 ms 145.5 Mpx | pan avg 14.5 max 14.6 ms | handler 999.7 ms | wake 30 touch 0
+fps 30 flush 30 | swz 459.31 ms 145.5 Mpx | pan avg 14.5 max 14.6 ms | handler 999.7 ms | wake 30 touch 0
+---dmesg
+RC_TAG=0

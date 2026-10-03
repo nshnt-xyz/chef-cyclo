@@ -1,0 +1,69 @@
+e3dacb1e7f9675e5254d92efab0d931e914e04ff5969ae7b1919c8ee990a678f  lvproto
+== mode []
+cpu 0.2% | fps 1 flush 4 | swz 0.84 ms 0.2 Mpx | pan avg 2.6 max 2.6 ms | handler 4.9 ms | wake 2 touch 0
+cpu 0.2% | fps 1 flush 4 | swz 0.80 ms 0.2 Mpx | pan avg 1.4 max 1.4 ms | handler 3.9 ms | wake 2 touch 0
+cpu 0.2% | fps 1 flush 4 | swz 0.79 ms 0.2 Mpx | pan avg 0.5 max 0.5 ms | handler 2.9 ms | wake 2 touch 0
+== mode [-a]
+cpu 5.6% | fps 60 flush 232 | swz 20.17 ms 3.7 Mpx | pan avg 15.8 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.6% | fps 60 flush 232 | swz 20.14 ms 3.7 Mpx | pan avg 15.8 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.6% | fps 60 flush 232 | swz 20.10 ms 3.7 Mpx | pan avg 15.8 max 16.0 ms | handler 999.8 ms | wake 60 touch 0
+== mode [-F]
+cpu 66.7% | fps 60 flush 60 | swz 459.02 ms 145.5 Mpx | pan avg 5.5 max 5.5 ms | handler 999.2 ms | wake 60 touch 0
+cpu 66.7% | fps 60 flush 60 | swz 459.04 ms 145.5 Mpx | pan avg 5.5 max 5.5 ms | handler 999.3 ms | wake 60 touch 0
+cpu 66.7% | fps 60 flush 60 | swz 459.06 ms 145.5 Mpx | pan avg 5.5 max 5.6 ms | handler 999.3 ms | wake 60 touch 0
+== cycles
+t=5 toggled wled=1542
+t=10 toggled wled=0
+t=15 toggled wled=1542
+t=20 toggled wled=0
+screen off: ok (314.1 ms)
+screen on: ok (235.2 ms)
+screen off: ok (318.2 ms)
+screen on: ok (236.2 ms)
+exit: restoring
+[ 4672.694635,4] mdss_dsi_panel_on[0]+.
+[ 4672.828135,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 4672.839161,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 4672.839164,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4672.879143,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4672.892835,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4672.893286,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 4672.978625,6] fblog: resumed
+[ 4672.985078,0] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[ 4673.079257,0] fblog: paused: screen borrowed (/run/fb0.lock)
+[ 4677.664739,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 4677.715820,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4677.729037,0] mdss_dsi_panel_off[0]+.
+[ 4682.704136,0] mdss_dsi_panel_on[0]+.
+[ 4682.837730,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 4682.849140,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 4682.849143,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4682.889143,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4682.902829,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4682.902855,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 4687.670731,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 4687.722483,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4687.738648,0] mdss_dsi_panel_off[0]+.
+[ 4692.709758,0] mdss_dsi_panel_on[0]+.
+[ 4692.843213,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 4692.855831,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 4692.855836,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4692.895814,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4692.909503,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4692.909530,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 4699.927189,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 4699.979144,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4699.994099,0] mdss_dsi_panel_off[0]+.
+== kill9
+wled=1542
+[ 4700.429138,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 4700.429141,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 4700.469149,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 4700.482830,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 4700.482852,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 4700.566586,4] fblog: resumed
+[ 4700.576226,0] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[ 4700.667494,4] fblog: paused: screen borrowed (/run/fb0.lock)
+[ 4704.257129,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[ 4704.333238,4] fblog: resumed
+RC_TAG=0

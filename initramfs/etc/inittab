@@ -17,12 +17,16 @@
 ::respawn:/bin/sh -c 'mkdir -p /run/chrony && chown chrony:chrony /run/chrony && chmod 700 /run/chrony && exec /usr/sbin/chronyd -d -u chrony -f /etc/chrony/chrony.conf'
 ::respawn:/usr/bin/bt-up
 # On-device boot/probe output: paints /dev/kmsg on the panel, read-only, no
-# touch. Holds /dev/fb0 for the life of the boot (the panel is off otherwise);
-# `touch /run/fblog.off; kill $(pidof fblog)` idles it, rm + kill brings it back.
+# touch. Holds /dev/fb0 for the life of the boot (the panel is off otherwise).
+# /run/fblog.off is the system-wide screen-off flag: `touch /run/fblog.off;
+# kill $(pidof fblog)` idles it, removing the flag brings it back (fblog
+# watches for that). Do not kill after removal: it can blank a just-woken
+# daemon. Init respawn sees current flag if fblog is absent. It stays dark when a
+# foreground client (chefui) exits with the flag present.
 ::respawn:/usr/bin/fblog
 # Side buttons: grabs the power/volume evdev nodes and publishes gestures on
 # /run/buttond.sock; with nothing claiming them a short power press toggles
-# the panel through the fblog.off protocol above, and power held 3 s (buzz
+# the panel through the screen-off flag above, and power held 3 s (buzz
 # at 1.5 s, long buzz at 3 s) then released runs `poweroff` -- the orderly
 # way down through this init (::shutdown, SIGTERM to all, RB_POWER_OFF).
 # The PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look.

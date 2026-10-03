@@ -1,0 +1,40 @@
+fb: 1080x2246 virt 1080x4492 bpp 32 stride 4352 smem 19554304 R0 G8 B16 A24/8
+touch: /dev/input/event1 fd 5
+[Warn]  (4512.044, +4512044)     lv_obj_remove_flag: Deprecated: use the dedicated lv_obj_set_<flag>() setters instead, e.g. lv_obj_set_hidden(obj, false). lv_obj.c:447
+first frame...
+first frame committed
+fps 1 flush 1 | swz 232.33 ms 2.4 Mpx | pan avg 4.8 max 4.8 ms | handler 54.4 ms | wake 1 touch 0
+fps 1 flush 4 | swz 8.64 ms 0.1 Mpx | pan avg 16.9 max 16.9 ms | handler 32.3 ms | wake 2 touch 0
+fps 1 flush 4 | swz 8.01 ms 0.1 Mpx | pan avg 0.6 max 0.6 ms | handler 15.3 ms | wake 2 touch 0
+fps 1 flush 4 | swz 8.04 ms 0.1 Mpx | pan avg 16.1 max 16.1 ms | handler 30.6 ms | wake 2 touch 0
+fps 1 flush 4 | swz 8.34 ms 0.1 Mpx | pan avg 15.1 max 15.1 ms | handler 30.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 8.26 ms 0.1 Mpx | pan avg 14.1 max 14.1 ms | handler 29.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 8.25 ms 0.1 Mpx | pan avg 13.2 max 13.2 ms | handler 28.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 8.24 ms 0.1 Mpx | pan avg 12.0 max 12.0 ms | handler 27.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 4.34 ms 0.1 Mpx | pan avg 16.4 max 16.4 ms | handler 27.1 ms | wake 2 touch 0
+fps 1 flush 4 | swz 4.25 ms 0.1 Mpx | pan avg 15.2 max 15.2 ms | handler 26.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 4.24 ms 0.1 Mpx | pan avg 14.2 max 14.2 ms | handler 25.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 4.25 ms 0.1 Mpx | pan avg 13.5 max 13.5 ms | handler 24.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 4.31 ms 0.1 Mpx | pan avg 12.4 max 12.4 ms | handler 23.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 4.09 ms 0.1 Mpx | pan avg 11.6 max 11.6 ms | handler 22.0 ms | wake 2 touch 0
+fps 1 flush 4 | swz 4.05 ms 0.1 Mpx | pan avg 10.6 max 10.6 ms | handler 21.0 ms | wake 2 touch 0
+exit: restoring
+---dmesg
+[ 4512.042526,2] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[ 4512.045989,4] fblog: paused: screen borrowed (/run/fb0.lock)
+[ 4512.459171,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:46
+[ 4514.465840,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:6
+[ 4516.472508,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:7
+[ 4518.479174,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:6
+[ 4520.485839,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:7
+[ 4522.492503,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:6
+[ 4524.499176,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:9
+[ 4526.505840,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:8
+[ 4528.075176,2] [NVT-ts] nvt_ts_suspend 1591: start
+[ 4528.125844,2] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4528.142054,2] mdss_dsi_panel_off[0]+.
+[ 4528.349180,2] mdss_dsi_off[0]+.
+[ 4528.390922,2] mdss_dsi_off[0]-.
+7051
+96
+RC_TAG=0

@@ -1,6 +1,6 @@
 /*
  * fbdev.h - the chef-cyclo framebuffer contract, shared by every client of
- * /dev/fb0 (fbtouch, fblog, later the UI). Header-only, static functions,
+ * /dev/fb0 (fbtouch, fblog, the chefui UI platform). Header-only, static functions,
  * no libc beyond ioctl/mmap/flock so it links freestanding-ish under musl.
  *
  * The 4.4 MDSS driver (mdss_fb.c) has two live-verified quirks (README
@@ -34,7 +34,17 @@
  *     POWERDOWN + close; the background client then resumes with an
  *     UNBLANK, a redraw and a backlight commit.
  * Locks die with their process, so a killed client never wedges the
- * screen. Nothing here touches any input device.
+ * screen. A foreground client may hand its exclusive lock to the program
+ * it execs (fd kept open without CLOEXEC, number in CHEFUI_LOCK_FD; see
+ * tools/chefui/fbscreen.c), so the background client never sees the
+ * screen free in between. Nothing here touches any input device.
+ *
+ * Screen-off flag: /run/fblog.off (the path is historical) means "screen
+ * deliberately off" system-wide. Whoever turns the panel off with
+ * POWERDOWN creates it afterwards and removes it before the next UNBLANK;
+ * a client started with it present does not open fb0 (the first open
+ * would light the panel); fblog checks it before resuming after a borrow
+ * and idles instead of unblanking (tools/fblog/fblog.c).
  */
 #ifndef CHEF_CYCLO_FBDEV_H
 #define CHEF_CYCLO_FBDEV_H
@@ -187,14 +197,23 @@ static inline void fb_unmap(struct fbdev *fb)
 	fb->surf.base = NULL;
 }
 
-/* Commit the visible page: mdss_fb_pan_display() blocks until the frame
- * is out, and applies any pending backlight level (quirk 1). */
-static inline int fb_commit(struct fbdev *fb)
+/* Show the page starting at row yoffset of the virtual area (page n of a
+ * double-buffered client is n * yres): mdss_fb_pan_display() blocks until
+ * the frame is out, and applies any pending backlight level (quirk 1).
+ * The var's format fields are left as read: FBIOPAN_DISPLAY never changes
+ * the format (FBIOPUT_VSCREENINFO would, and must never be used). */
+static inline int fb_pan(struct fbdev *fb, uint32_t yoffset)
 {
 	fb->var.xoffset = 0;
-	fb->var.yoffset = 0;
+	fb->var.yoffset = yoffset;
 	fb->var.activate = FB_ACTIVATE_VBL;
 	return ioctl(fb->fd, FBIOPAN_DISPLAY, &fb->var) < 0 ? -errno : 0;
+}
+
+/* Commit page 0, the only page single-buffered clients draw. */
+static inline int fb_commit(struct fbdev *fb)
+{
+	return fb_pan(fb, 0);
 }
 
 /* quirk 2: POWERDOWN through the fb core, then close. Safe to call with a

@@ -1,0 +1,30 @@
+chefui[demo]: start (pid 19321, fbdev backend, 33 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 30 | cpu 4.7% | copy 6.46 Mpx 28.7 ms | pan avg 8.4 max 16.5 ms | wake 61
+chefui[demo] stats: fps 31 | cpu 2.5% | copy 1.82 Mpx 9.9 ms | pan avg 10.4 max 15.6 ms | wake 62
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.78 Mpx 9.7 ms | pan avg 6.8 max 16.4 ms | wake 61
+chefui[demo] stats: fps 31 | cpu 2.5% | copy 1.81 Mpx 9.9 ms | pan avg 10.9 max 16.5 ms | wake 63
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.76 Mpx 9.5 ms | pan avg 6.6 max 11.5 ms | wake 61
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.78 Mpx 9.7 ms | pan avg 8.8 max 16.5 ms | wake 61
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.76 Mpx 9.5 ms | pan avg 9.9 max 14.6 ms | wake 62
+chefui[demo] stats: fps 31 | cpu 2.5% | copy 1.81 Mpx 9.8 ms | pan avg 6.7 max 16.4 ms | wake 62
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.78 Mpx 9.7 ms | pan avg 10.8 max 16.5 ms | wake 61
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.76 Mpx 9.6 ms | pan avg 6.9 max 11.6 ms | wake 61
+chefui[demo] stats: fps 31 | cpu 2.5% | copy 1.81 Mpx 9.8 ms | pan avg 8.5 max 16.5 ms | wake 63
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.78 Mpx 9.7 ms | pan avg 10.6 max 15.6 ms | wake 61
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.76 Mpx 9.6 ms | pan avg 6.1 max 16.5 ms | wake 61
+chefui[demo] stats: fps 31 | cpu 2.5% | copy 1.81 Mpx 9.9 ms | pan avg 10.3 max 16.5 ms | wake 63
+chefui[demo] stats: fps 30 | cpu 2.4% | copy 1.78 Mpx 9.7 ms | pan avg 6.6 max 11.6 ms | wake 61
+chefui[demo]: exit (code 0)
+chefui[demo]: screen released
+Connecting to 172.16.42.5:8766 (172.16.42.5:8766)
+saving to '/tmp/buttond-wake'
+buttond-wake         100% |****************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************************|  150k  0:00:00 ETA
+'/tmp/buttond-wake' saved
+a858f31f45481afda0f8d0072034dc92b37701db01805192cbcfd8afac2a78ea  /tmp/buttond-wake
+19688 /usr/bin/buttond
+PID=19700
+RC_TAG=0

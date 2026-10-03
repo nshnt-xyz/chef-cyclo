@@ -2,18 +2,18 @@
 
 [Project overview](../../README.md) · [Build and boot](../building.md) · [Next steps](../next-steps/README.md)
 
-These guides describe current behavior and how to work on it. Verification status comes from recorded device tests through 2026-10-02; planned behavior belongs in next steps.
+These guides describe current behavior and how to work on it. Verification status comes from recorded device tests through 2026-10-03; planned behavior belongs in next steps.
 
 | Feature | Current state |
 |---|---|
 | [USB networking](usb-networking.md) | NCM, DHCP, and recovery shell work; unplug/replug verified. |
-| [Wi-Fi](wifi.md) | Standard baseline NM/WPA2, automatic chrony/HTTPS/apk and static-overlap rejection verified; ride excluded from current acceptance. |
+| [Wi-Fi](wifi.md) | Standard baseline NM/WPA2, automatic chrony/HTTPS/apk and static-overlap rejection verified. |
 | [Bluetooth](bluetooth.md) | Dual-mode BlueZ with standard tooling: LE scan, restart and IBS sleep verified; classic pairing, rfcomm, session-bus obexd, HID (uhid and HIDP), PAN (incl. NetworkManager) and A2DP via PipeWire, meshd and bonded idle current verified 2026-10-02; real sensor pairing still pending. |
 | [GPS](gps.md) | Modem/LOC and gpsd 3D fixes verified; new builds keep shared modem support resident; LOC acquisition remains opt-in on baseline. |
+| [UI platform](ui-platform.md) | LVGL/fbdev + SDL platform, calibrated content clearance, 60 fps pacing and coalesced brightness; host-reviewed and live accepted; [final evidence](../../logs/ui-platform-2026-10-03-live-summary.md). |
 | [Display and touch](display-and-touch.md) | Log screen, framebuffer handoff, backlight, and multitouch verified. |
 | [Buttons and power-off](buttons-and-power-off.md) | Baseline screen toggle, gesture claims, and clean shutdown verified. |
 | [Battery and charging](battery-and-charging.md) | Kernel charging proven live (wall charger +302 mAh in 14 min, 1.98 A peak); `powerd` low-battery warn/shutdown, 44/42 °C charge throttle and `/run/power` log live-verified 2026-09-26; `Full` and a real drain not yet seen. |
-| [Temporary ride logging](ride-logging.md) | Automatic GPS capture and HTTP extraction verified; RAM-only, no button daemon. |
 | [On-board sensors](sensors.md) | Accelerometer, gyroscope, magnetometer, light and proximity through `sensord` (`/run/sensord.sock`, IIO units) live-verified 2026-09-26, including audio coexistence and 0 writes to persist; manual opt-in (`sensors-up`), magnetometer calibration verified September 27; compass accepted October 1 for orienting a stopped map, with documented accuracy limits. |
 | [Audio](audio.md) | `audio-up` ADSP boot/card and `speaker-test-tone` mmap playback live-verified 2026-09-19; manual opt-in, speaker protection abandoned September 26 after live experiments; conservative playback limits are permanent. |
 

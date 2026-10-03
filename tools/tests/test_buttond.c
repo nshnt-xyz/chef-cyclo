@@ -482,15 +482,18 @@ static void test_server_dispatch(void)
 	g_killed[0] = '\0';
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	CHECK(access(off, F_OK) != 0);
-	CHECK(strcmp(g_killed, "fblog/15") == 0);
+	CHECK(g_killed[0] == '\0');
 	CHECK(strstr(last_log(), "screen on: removed") != NULL);
+	CHECK(strstr(last_log(), "next init respawn") != NULL);
 	/* fblog not running: the flag is still set, the log says so */
 	g_kill_rc = -ESRCH;
 	rc = screen_toggle(&s);
 	CHECK(rc == 1 && access(off, F_OK) == 0);
 	CHECK(strstr(last_log(), "fblog not running") != NULL);
+	g_killed[0] = '\0';
 	rc = screen_toggle(&s);
 	CHECK(rc == 0 && access(off, F_OK) != 0);
+	CHECK(g_killed[0] == '\0');
 	g_kill_rc = 1;
 	/* flag directory missing: negative errno, nothing signalled */
 	s.off_path = "/nonexistent-dir/fblog.off";

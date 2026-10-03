@@ -1,0 +1,30 @@
+FLAG_PRESENT
+FLAG_RETAINED
+total 0
+lrwx------    1 root     root            64 Jan 17 05:26 [1;36m0[m -> [1;35m/dev/null[m
+lrwx------    1 root     root            64 Jan 17 05:26 [1;36m1[m -> [1;35m/dev/null[m
+lrwx------    1 root     root            64 Jan 17 05:26 [1;36m2[m -> [1;35m/dev/null[m
+lr-x------    1 root     root            64 Jan 17 05:26 [1;36m3[m -> [1;35m/dev/kmsg[m
+lrwx------    1 root     root            64 Jan 17 05:26 [1;36m4[m -> [0;0m/run/fb0.lock[m
+lr-x------    1 root     root            64 Jan 17 05:26 [1;36m5[m -> [1;31manon_inode:inotify[m
+[ 4740.422473,2] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4740.430193,2] mdss_dsi_panel_off[0]+.
+[ 4740.639137,2] mdss_dsi_off[0]+.
+[ 4740.680881,2] mdss_dsi_off[0]-.
+[ 4740.683168,2] chefui[demo]: screen off (311 ms)
+[ 4742.105809,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4743.312622,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[ 4743.312637,3] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[ 4743.312650,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[ 4744.112466,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4746.119149,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4748.125810,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4750.132477,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4752.139139,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4752.566086,6] [NVT-ts] nvt_ts_suspend 1585: Touch is already suspend
+[ 4752.769139,4] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[ 4752.769176,4] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[ 4752.769181,4] mdss_dsi_cmds_tx: failed to call
+[ 4753.273591,4] fblog: /run/fblog.off present after the borrow: staying dark, /dev/fb0 closed
+[ 4754.145805,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:41
+RC_TAG=0

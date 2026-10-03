@@ -1,0 +1,261 @@
+fb: 1080x2246 virt 1080x4492 bpp 32 stride 4352 smem 19554304 R0 G8 B16 A24/8
+touch calib x 0..720 y 0..1600
+touch: /dev/input/event1 fd 5
+[Warn]	(7602.497, +7602497)	 lv_obj_set_flag: Deprecated: use the dedicated lv_obj_set_<flag>() setters instead, e.g. lv_obj_set_hidden(obj, en). lv_obj.c:495
+[Warn]	(7602.497, +0)	 lv_obj_remove_flag: Deprecated: use the dedicated lv_obj_set_<flag>() setters instead, e.g. lv_obj_set_hidden(obj, false). lv_obj.c:447
+first frame...
+first frame committed
+buttond: ok claim power.short
+cpu 8.1% | fps 59 flush 164 | swz 39.15 ms 8.0 Mpx | pan avg 15.6 max 16.2 ms | handler 966.9 ms | wake 60 touch 0
+cpu 6.0% | fps 60 flush 232 | swz 20.06 ms 3.7 Mpx | pan avg 15.7 max 16.0 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 19.98 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 19.99 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 19.97 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.02 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 230 | swz 19.73 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 19.99 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.10 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.02 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.07 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.03 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.03 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 19.98 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.05 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.10 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.02 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.04 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.04 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 19.97 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.06 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.10 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.02 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.03 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.03 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+[7627.543] touch down 82,53
+[7627.710] touch up 82,53
+cpu 5.9% | fps 60 flush 232 | swz 20.03 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.6 ms | wake 60 touch 4
+[7628.577] touch down 1001,57
+[7628.777] touch up 1001,57
+cpu 6.0% | fps 60 flush 232 | swz 20.09 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.5 ms | wake 60 touch 5
+[7629.610] touch down 1005,2177
+[7629.843] touch up 1005,2177
+[7630.493] touch down 100,2226
+cpu 6.0% | fps 60 flush 232 | swz 20.12 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.4 ms | wake 60 touch 8
+[7630.643] touch up 100,2226
+cpu 6.0% | fps 60 flush 232 | swz 20.13 ms 3.8 Mpx | pan avg 15.7 max 15.9 ms | handler 999.6 ms | wake 60 touch 4
+cpu 5.9% | fps 60 flush 232 | swz 20.12 ms 3.8 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.10 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.06 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.9% | fps 60 flush 232 | swz 20.08 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+[7636.343] touch down 512,481
+[7636.427] touch up 512,481
+[7636.427] button tapped 1
+cpu 7.3% | fps 60 flush 238 | swz 29.06 ms 5.3 Mpx | pan avg 15.5 max 15.9 ms | handler 999.5 ms | wake 60 touch 3
+[7636.544] touch down 548,471
+[7636.610] touch up 548,471
+[7636.610] button tapped 2
+[7636.710] touch down 575,482
+[7636.794] touch up 575,482
+[7636.794] button tapped 3
+[7636.877] touch down 576,482
+[7636.977] touch up 576,482
+[7636.977] button tapped 4
+[7637.043] touch down 609,475
+[7637.127] touch up 609,475
+[7637.127] button tapped 5
+cpu 12.9% | fps 60 flush 262 | swz 65.23 ms 11.5 Mpx | pan avg 14.5 max 15.9 ms | handler 998.4 ms | wake 60 touch 10
+cpu 5.8% | fps 60 flush 232 | swz 20.08 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 20.12 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 20.06 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+[7641.510] touch down 440,702
+cpu 5.8% | fps 60 flush 232 | swz 20.08 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 1
+[7641.793] brightness 99
+[7641.843] brightness 97
+[7641.860] brightness 94
+[7641.877] brightness 91
+[7641.894] brightness 89
+[7641.910] brightness 87
+[7641.927] brightness 85
+[7641.944] brightness 82
+[7641.960] brightness 80
+[7641.977] brightness 77
+[7641.994] brightness 74
+[7642.010] brightness 71
+[7642.027] brightness 68
+[7642.044] brightness 66
+[7642.060] brightness 63
+[7642.077] brightness 61
+[7642.094] brightness 58
+[7642.110] brightness 56
+[7642.127] brightness 53
+[7642.144] brightness 51
+[7642.160] brightness 49
+[7642.177] brightness 47
+[7642.194] brightness 45
+[7642.210] brightness 44
+[7642.227] brightness 41
+[7642.244] brightness 40
+[7642.277] brightness 39
+[7642.294] brightness 37
+[7642.310] brightness 34
+[7642.327] brightness 32
+[7642.377] brightness 30
+[7642.394] brightness 27
+[7642.410] brightness 25
+[7642.427] brightness 24
+[7642.460] brightness 23
+[7642.477] brightness 21
+[7642.494] brightness 19
+[7642.510] brightness 17
+cpu 16.9% | fps 60 flush 273 | swz 86.46 ms 15.0 Mpx | pan avg 13.8 max 15.8 ms | handler 989.1 ms | wake 60 touch 45
+[7642.544] brightness 16
+[7642.560] brightness 15
+[7642.577] brightness 14
+[7642.610] brightness 13
+[7642.627] brightness 12
+[7642.644] brightness 11
+[7642.693] brightness 10
+[7642.710] brightness 9
+[7642.760] brightness 8
+[7642.810] brightness 7
+[7642.860] brightness 6
+[7642.943] brightness 5
+cpu 9.5% | fps 60 flush 245 | swz 43.02 ms 7.5 Mpx | pan avg 15.1 max 15.9 ms | handler 995.7 ms | wake 60 touch 23
+[7643.843] brightness 10
+[7643.860] brightness 15
+[7643.877] brightness 19
+[7643.894] brightness 21
+[7643.910] brightness 25
+[7643.927] brightness 28
+[7643.944] brightness 31
+[7643.960] brightness 35
+[7643.977] brightness 39
+[7643.994] brightness 42
+[7644.010] brightness 46
+[7644.027] brightness 50
+[7644.044] brightness 54
+[7644.060] brightness 58
+[7644.077] brightness 62
+[7644.094] brightness 66
+[7644.110] brightness 71
+[7644.127] brightness 74
+[7644.144] brightness 78
+[7644.160] brightness 81
+[7644.177] brightness 84
+[7644.194] brightness 88
+[7644.210] brightness 90
+[7644.227] brightness 93
+[7644.244] brightness 96
+[7644.260] brightness 98
+[7644.277] brightness 101
+[7644.294] brightness 103
+[7644.310] brightness 106
+[7644.327] brightness 109
+[7644.344] brightness 112
+[7644.360] brightness 115
+[7644.377] brightness 118
+[7644.394] brightness 122
+[7644.410] brightness 126
+[7644.427] brightness 130
+[7644.444] brightness 134
+[7644.460] brightness 137
+[7644.477] brightness 141
+[7644.494] brightness 145
+[7644.510] brightness 148
+cpu 16.6% | fps 60 flush 272 | swz 84.66 ms 14.8 Mpx | pan avg 13.9 max 15.7 ms | handler 988.6 ms | wake 60 touch 49
+[7644.527] brightness 151
+[7644.544] brightness 155
+[7644.560] brightness 158
+[7644.577] brightness 161
+[7644.594] brightness 164
+[7644.610] brightness 167
+[7644.627] brightness 170
+[7644.644] brightness 172
+[7644.660] brightness 175
+[7644.677] brightness 178
+[7644.694] brightness 180
+[7644.710] brightness 183
+[7644.727] brightness 186
+[7644.744] brightness 188
+[7644.760] brightness 191
+[7644.777] brightness 193
+[7644.794] brightness 195
+[7644.810] brightness 196
+[7644.827] brightness 198
+[7644.844] brightness 200
+[7644.860] brightness 202
+[7644.877] brightness 204
+[7644.894] brightness 206
+[7644.910] brightness 208
+[7644.927] brightness 210
+[7644.944] brightness 213
+[7644.960] brightness 216
+[7644.977] brightness 219
+[7644.994] brightness 221
+[7645.010] brightness 224
+[7645.027] brightness 226
+[7645.044] brightness 228
+[7645.060] brightness 229
+[7645.093] brightness 230
+[7645.110] brightness 232
+[7645.127] brightness 234
+[7645.144] brightness 235
+[7645.177] brightness 236
+[7645.194] brightness 237
+[7645.210] brightness 238
+[7645.244] brightness 239
+[7645.260] brightness 241
+[7645.277] brightness 242
+[7645.310] brightness 243
+[7645.327] brightness 244
+[7645.344] brightness 245
+[7645.393] brightness 246
+[7645.444] brightness 247
+[7645.460] brightness 248
+cpu 20.5% | fps 60 flush 282 | swz 103.20 ms 17.8 Mpx | pan avg 13.2 max 15.9 ms | handler 985.4 ms | wake 60 touch 52
+[7645.527] brightness 249
+[7645.577] brightness 250
+[7645.610] brightness 251
+[7645.677] brightness 252
+[7645.694] brightness 253
+[7645.760] brightness 254
+[7645.810] brightness 255
+cpu 8.0% | fps 60 flush 239 | swz 31.93 ms 5.7 Mpx | pan avg 15.3 max 15.9 ms | handler 997.3 ms | wake 60 touch 19
+[7647.410] touch up 1017,707
+cpu 6.4% | fps 60 flush 234 | swz 22.64 ms 4.2 Mpx | pan avg 15.6 max 15.9 ms | handler 999.3 ms | wake 60 touch 8
+cpu 6.4% | fps 60 flush 234 | swz 24.11 ms 4.4 Mpx | pan avg 15.6 max 15.9 ms | handler 999.7 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 20.04 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+buttond: event power.short
+screen off: ok (318.9 ms)
+buttond: event power.short
+screen on: ok (234.9 ms)
+cpu 5.8% | fps 53 flush 208 | swz 17.90 ms 3.3 Mpx | pan avg 15.7 max 15.9 ms | handler 883.2 ms | wake 56 touch 0
+cpu 8.1% | fps 59 flush 224 | swz 40.37 ms 8.3 Mpx | pan avg 15.6 max 16.1 ms | handler 1001.7 ms | wake 59 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.89 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.83 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.72 ms 3.7 Mpx | pan avg 15.7 max 16.0 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.7% | fps 59 flush 229 | swz 21.12 ms 3.7 Mpx | pan avg 15.5 max 20.2 ms | handler 969.3 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.63 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.69 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.7% | fps 59 flush 229 | swz 21.18 ms 3.7 Mpx | pan avg 15.6 max 19.7 ms | handler 977.5 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.75 ms 3.8 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.67 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.7% | fps 59 flush 228 | swz 21.20 ms 3.7 Mpx | pan avg 15.6 max 19.4 ms | handler 976.4 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.63 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.64 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+[7666.855] touch down 576,475
+[7666.939] touch up 576,475
+[7666.939] button tapped 6
+cpu 8.2% | fps 59 flush 240 | swz 36.55 ms 6.5 Mpx | pan avg 15.2 max 18.9 ms | handler 975.0 ms | wake 60 touch 3
+cpu 5.8% | fps 60 flush 232 | swz 21.69 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.69 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.7% | fps 59 flush 229 | swz 21.21 ms 3.7 Mpx | pan avg 15.7 max 18.5 ms | handler 980.6 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.64 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.77 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.7% | fps 59 flush 229 | swz 21.24 ms 3.7 Mpx | pan avg 15.7 max 18.0 ms | handler 982.6 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.68 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 21.64 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.7% | fps 59 flush 228 | swz 21.24 ms 3.7 Mpx | pan avg 15.7 max 16.7 ms | handler 982.6 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 22.38 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 22.56 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+exit: restoring

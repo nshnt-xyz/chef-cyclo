@@ -1,0 +1,24 @@
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+44.50 342.43
+[0;0m/run/dbus-helper-ready[m     [0;0m/run/input-udev-ready[m      [0;0m/run/udev-ready[m            [0;0m/run/wifi-nm-mode[m          [0;0m/run/wifi-usb-guard-ready[m
+649 /usr/bin/fblog
+DEVICE         TYPE      STATE         CONNECTION
+[31mwlan0[0m          [31mwifi[0m      [31mdisconnected[0m  [31m--[0m
+[2mbond0[0m          [2mbond[0m      [2munmanaged[0m     [2m--[0m
+[2mdummy0[0m         [2mdummy[0m     [2munmanaged[0m     [2m--[0m
+[2musb0[0m           [2methernet[0m  [2munmanaged[0m     [2m--[0m
+[2mip6_vti0[0m       [2miptunnel[0m  [2munmanaged[0m     [2m--[0m
+[2mip6tnl0[0m        [2miptunnel[0m  [2munmanaged[0m     [2m--[0m
+[2mip_vti0[0m        [2miptunnel[0m  [2munmanaged[0m     [2m--[0m
+[2msit0[0m           [2miptunnel[0m  [2munmanaged[0m     [2m--[0m
+[2mlo[0m             [2mloopback[0m  [2munmanaged[0m     [2m--[0m
+[2mp2p-dev-wlan0[0m  [2mwifi-p2p[0m  [2munmanaged[0m     [2m--[0m
+3c1b6113578863ff84cef48c0b353141c3cb8aae3b681bd38127b7b417b55611  /usr/bin/chefui-demo
+[   11.113232,5] cyclo-init: starting (4.4.192-cyclo+)
+[   11.119680,5] cyclo-init: loopback up, 127.0.0.1/8
+[   11.128804,5] cyclo-init: gadget bound to a800000.dwc3
+[   11.135588,5] cyclo-init: usb0 up, 172.16.42.1/24
+[   26.805988,1] cyclo-init: input coldplug starting
+[   26.806339,0] cyclo-init: exec init
+[   26.832243,1] cyclo-init: input coldplug ready
+RC_TAG=0

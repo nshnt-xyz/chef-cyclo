@@ -7,8 +7,29 @@
 set -eu
 cd "$(dirname "$0")/.."
 KERNEL=${KERNEL:-out/kernel/arch/arm64/boot/Image.gz-dtb}
-RAMDISK=${RAMDISK:-out/initramfs.cpio.gz}
+# LZMA ramdisk by default (scripts/mkinitramfs.sh); GZIP=1 for the gzip one.
+if [ "${GZIP:-}" = 1 ]; then
+    RAMDISK=${RAMDISK:-out/initramfs.cpio.gz}
+else
+    RAMDISK=${RAMDISK:-out/initramfs.cpio.lzma}
+fi
+unset GZIP
 OUT=${OUT:-out/boot.img}
+
+# An LZMA ramdisk needs CONFIG_RD_LZMA=y in the kernel being packed: its
+# build tree's .config (KCONFIG to override).
+case "$RAMDISK" in
+*.lzma)
+    case "$KERNEL" in
+    */arch/arm64/boot/Image.gz-dtb) KCONFIG=${KCONFIG:-${KERNEL%/arch/arm64/boot/Image.gz-dtb}/.config} ;;
+    *) KCONFIG=${KCONFIG:-} ;;
+    esac
+    if [ -n "$KCONFIG" ] && ! grep -qx 'CONFIG_RD_LZMA=y' "$KCONFIG" 2>/dev/null; then
+        echo "$KCONFIG lacks CONFIG_RD_LZMA=y: $RAMDISK cannot be unpacked by this kernel" >&2
+        exit 1
+    fi
+    ;;
+esac
 
 # Reject Chef's observed loader-space overflow before mkbootimg opens OUT.
 python3 scripts/check-chef-loader-budget.py "$KERNEL" "$RAMDISK"

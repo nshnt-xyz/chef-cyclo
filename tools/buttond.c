@@ -35,9 +35,11 @@
  * the screen toggle stays snappy.
  *
  * Built-in defaults (used when nobody claims the gesture):
- *   power.short  toggle the panel through fblog's documented idle protocol:
- *                create/remove /run/fblog.off and SIGTERM the running fblog,
- *                which init respawns (idling, or back on the panel).
+ *   power.short  toggle the panel through the system-wide screen-off flag:
+ *                off creates /run/fblog.off then SIGTERMs fblog; on only
+ *                removes the flag to wake its resident idle loop. init
+ *                respawn observes the flag if fblog is absent. chefui
+ *                applications claim power.short and use the same flag.
  *   power.long   clean power-off, in three steps so a 1.5 s hold on its own
  *                does nothing irreversible: at the long threshold a short
  *                buzz ("keep holding, release to cancel"); if the key is
@@ -613,11 +615,12 @@ static void server_client_input(struct server *s, struct client *c)
 /* -------------------------------------------------- default actions */
 
 /*
- * fblog's documented idle protocol: the flag file decides what the
- * respawned fblog does, the signal makes init respawn it now. Toggle =
- * flip the flag, then signal. Returns 1 when the screen was asked to go
- * off, 0 when asked to come back, negative errno if the flag could not be
- * changed (then nothing is signalled).
+ * Screen-off: create the flag and signal fblog to POWERDOWN, then init
+ * respawns it idle. Screen-on: remove the flag only; resident fblog wakes
+ * via inotify (or fallback recheck). If absent/exiting, init's next spawn
+ * sees the removed flag. Signalling after removal would kill a just-woken
+ * fblog and blink the panel until init respawns it again.
+ * Returns 1 for off, 0 for on, or negative errno on flag failure.
  */
 static int screen_toggle(struct server *s)
 {
@@ -635,6 +638,10 @@ static int screen_toggle(struct server *s)
 	} else if (unlink(s->off_path) && errno != ENOENT) {
 		s->log("screen on: remove %s: %s", s->off_path, strerror(errno));
 		return -errno;
+	}
+	if (!off) {
+		s->log("screen on: removed %s; fblog wakes on flag removal or next init respawn", s->off_path);
+		return 0;
 	}
 	killed = s->kill_comm("fblog", SIGTERM);
 	rc = off ? 1 : 0;

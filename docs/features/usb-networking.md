@@ -15,16 +15,16 @@ ping 172.16.42.1
 telnet 172.16.42.1
 ```
 
-The shell is root with no password. In the phone shell, `reboot` returns to the flashed OS. Download any RAM-only evidence first. The ride image additionally exposes [HTTP log extraction](ride-logging.md).
+The shell is root with no password. In the phone shell, `reboot` returns to the flashed OS. Download any RAM-only evidence first.
 
 ## Modify and verify
 
-Relevant files are `initramfs/init`, `initramfs/etc/udhcpd.conf`, and both overlays' `etc/inittab`. Change gadget/address setup in `/init` and daemon arguments in the appropriate inittab, then rebuild that image. Keep the loopback configuration: gpsd and its UDP broker depend on it.
+Relevant files are `initramfs/init`, `initramfs/etc/udhcpd.conf`, and `initramfs/etc/inittab`. Change gadget/address setup in `/init` and daemon arguments in the inittab, then rebuild the image. Keep the loopback configuration: gpsd and its UDP broker depend on it.
 
-Live checks: confirm host enumeration and DHCP, ping and telnet, then unplug/replug and confirm recovery. The 2026-09-18 ride tests verified NCM re-enumeration, DHCP, and HTTP after reconnecting. The host-side MAC was observed to vary; do not rely on a fixed interface name.
+Live checks: confirm host enumeration and DHCP, ping and telnet, then unplug/replug and confirm recovery. The 2026-09-18 tests (on the since-dropped ride image) verified NCM re-enumeration, DHCP, and HTTP after reconnecting. The host-side MAC was observed to vary; do not rely on a fixed interface name.
 
 ## Limitations
 
-Both images bind the passwordless telnet listener to 172.16.42.1; the ride HTTP listener also binds that USB address. See [connectivity plans](../next-steps/connectivity-and-sensors.md). A failed fastboot bulk transfer is a separate host-controller issue covered in [build troubleshooting](../building.md#build-and-boot-troubleshooting).
+The image binds the passwordless telnet listener to 172.16.42.1. See [connectivity plans](../next-steps/connectivity-and-sensors.md). A failed fastboot bulk transfer is a separate host-controller issue covered in [build troubleshooting](../building.md#build-and-boot-troubleshooting).
 
-See the [build log](../build-log.md) entries for first boot (2026-09-13) and ride testing (2026-09-18) for evidence.
+See the [build log](../build-log.md) entries for first boot (2026-09-13) and USB replug testing (2026-09-18) for evidence.

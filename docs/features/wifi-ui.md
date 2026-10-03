@@ -15,8 +15,6 @@ GPS LOC noop succeeded with the same owner, hci0 present and zero modem crashes.
 Only USB TCP23/UDP67 listened; WLAN23/80/2947 and UDP123/323 were closed. Earlier55bb evidence
 also covers2.4GHz, native wpa_cli/D-Bus, strict USB unmanaged state and disconnect
 cleanup. See the [filtered baseline evidence](../../logs/wifi-standard-nm-live-2026-10-02.txt).
-Final acceptance excludes the ride variant at the user's request; its newly
-built artifact is untested and retained pending the user's planned removal.
 
 Boot coldplugs eudev network metadata, restores the standard D-Bus activation
 helper to root:messagebus mode4750 before starting the bus, reserves NM ownership,

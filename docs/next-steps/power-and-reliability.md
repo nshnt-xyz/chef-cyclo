@@ -8,12 +8,12 @@ These are plans, not implemented behavior. Package versions and candidate approa
 
 The [feature guide](../features/battery-and-charging.md) owns the implemented charging and `powerd` policy. Remaining validation and integration:
 
-- **Ride drain:** run the ride image with GPS active, unplugged for at least 1 h, then retrieve `/run/power/log.csv` for %/h and mean current. Do not span plug events when calculating drain.
+- **Ride drain:** run the image with GPS (and later the recorder) active, unplugged for at least 1 h, then retrieve `/run/power/log.csv` for %/h and mean current. Do not span plug events when calculating drain.
 - **Full and recharge:** observe a long charge to 100% and confirm recharge restarts correctly.
 - **Thermal and source coverage:** verify throttle step-down and normal 44/42 °C behavior, and an SDP source. The 68 °C and empty-battery shutdown paths were not observed at real thresholds; retain that verification limitation without deliberately overheating the phone. Investigate stock's below-44 °C throttle before claiming thermal-policy parity.
 - **Effective FCC logging:** add `main/constant_charge_current_max` to power logs; the battery-profile vote does not show the throttle's effective limit.
 - **Off-mode charging:** implement our charger mode after [standalone boot](storage-and-boot.md#standalone-boot). Today shutdown with USB returns to Android's charger.
-- **Persistent cycle/age and power logs:** integrate after [writable storage](storage-and-boot.md#persistent-storage). RAM ride logs are still lost at low-battery shutdown.
+- **Persistent cycle/age and power logs:** integrate after [writable storage](storage-and-boot.md#persistent-storage). Anything kept in RAM is still lost at low-battery shutdown.
 
 Acceptance details and original completed test steps are retained in the [research record](../research/battery-and-charging.md).
 

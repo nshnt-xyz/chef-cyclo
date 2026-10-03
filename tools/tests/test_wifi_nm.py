@@ -46,7 +46,7 @@ assert nm.index('wifi-usb-guard ||') < nm.index('wifi-prepare ||') < nm.index('e
 print('test_wifi_nm: owner identity, dispatcher overlap/error, boot ownership PASS')
 # Exercise production account collision gates before privilege-dropping daemon setup.
 source=(R/'scripts/mkinitramfs.sh').read_text()
-account_gate=source.split('# Skipped apk account scripts:',1)[1].split('VARIANT=${VARIANT:-}',1)[0]
+account_gate=source.split('# Skipped apk account scripts:',1)[1].split('# gzip(1) itself reads $GZIP',1)[0]
 # Restore the first comment line removed by split.
 account_gate='# Skipped apk account scripts:'+account_gate
 with tempfile.TemporaryDirectory() as t:

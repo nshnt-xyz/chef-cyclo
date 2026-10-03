@@ -6,7 +6,7 @@
 
 Modem boot, LOC discovery/start/stop, NMEA streaming, and outdoor fixes were live-verified by 2026-09-18. The terrace run measured ≤78 seconds cold time-to-first-fix and 5 m uncertainty at the first position fix. gpsd received a matching 3D fix on 2026-09-19.
 
-The clean standard-NetworkManager baseline verifies one shared resident modem owner at boot. Baseline LOC acquisition and gpsd remain opt-in. The temporary ride variant is excluded from this final validation; no new ride lifecycle acceptance is claimed. Earlier device verification used manual modem startup.
+The clean standard-NetworkManager baseline verifies one shared resident modem owner at boot. Baseline LOC acquisition and gpsd remain opt-in. Unattended logging was live-verified on a temporary ride image (2026-09-18, since dropped; see the [build log](../build-log.md)). Earlier device verification used manual modem startup.
 
 ## Components and lifecycle
 
@@ -48,7 +48,7 @@ The recorded live test received `DEVICES`, populated `SKY`, and `TPV mode:3`, wi
 
 ## Stop cleanly
 
-Interrupt the running `qmicli --loc-follow-nmea` process and let the broker drain/exit. Using the same allocated CID, send `--loc-stop` with `--loc-session-id=1` and `--client-no-release-cid`; then release that CID with `--loc-noop` without `--client-no-release-cid`. Stop gpsd and your follower/broker. Leave the shared gps-up owner running for Wi-Fi and other clients; do not signal or reap it. It performs support/modem cleanup at orderly system shutdown. The ride image supplies its own [stop endpoint](ride-logging.md#retrieve-logs-and-stop).
+Interrupt the running `qmicli --loc-follow-nmea` process and let the broker drain/exit. Using the same allocated CID, send `--loc-stop` with `--loc-session-id=1` and `--client-no-release-cid`; then release that CID with `--loc-noop` without `--client-no-release-cid`. Stop gpsd and your follower/broker. Leave the shared gps-up owner running for Wi-Fi and other clients; do not signal or reap it. It performs support/modem cleanup at orderly system shutdown.
 
 ## Broker, time, and client behavior
 
@@ -80,7 +80,7 @@ Write modem sysfs control values without a trailing newline where required: the 
 
 ## Modify and verify
 
-Run `make -C tools test` (which includes the GPS startup and ride-logger shell suites), plus the relevant component suites: `make -C tools/rmtfs test`, `make -C tools/servreg-locator test`, and `make -C tools/tftp test`. The tests cover transport/bridge framing, storage offsets, slot validation and lifecycle safeguards, service replies, bounded TFTP behavior, and broker filtering/framing/time handling. Rebuild rootfs if packages change, then initramfs and boot image.
+Run `make -C tools test` (which includes the GPS startup shell suite), plus the relevant component suites: `make -C tools/rmtfs test`, `make -C tools/servreg-locator test`, and `make -C tools/tftp test`. The tests cover transport/bridge framing, storage offsets, slot validation and lifecycle safeguards, service replies, bounded TFTP behavior, and broker filtering/framing/time handling. Rebuild rootfs if packages change, then initramfs and boot image.
 
 Live checks: modem survives startup, services are discovered, QMUX answers, LOC starts, outdoor NMEA/gpsd fixes agree, and teardown leaves no owned helpers. Capture image hashes and logs; preserve the no-writes-to-EFS/persist policy and verify it with appropriate evidence. Precise GPS archives may exist only locally; the public history retains redacted summaries.
 

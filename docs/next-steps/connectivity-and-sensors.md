@@ -26,8 +26,7 @@ automatic chrony1970-to-current time, verified HTTPS and signed apk installation
 Exact/broad static reapply rejection and radio off/on passed with USB routing,
 BT presence and zero modem crashes retained. Earlier55bb covers2.4GHz,
 standard APIs, strict USB unmanaged behavior and disconnect cleanup. Final5GHz reconnect/ping5/5/HTTPS200, native wpa_cli, GPS LOC noop and
-USB-only listeners passed, with no UDP123/323 listener. Ride is excluded from current
-acceptance; its files are retained pending the user's planned removal.
+USB-only listeners passed, with no UDP123/323 listener.
 
 Remaining work: build a UI on native NM/libnm APIs; add deliberate credential
 persistence once writable storage exists; measure the always-resident stack and

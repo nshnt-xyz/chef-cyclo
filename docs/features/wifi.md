@@ -5,14 +5,13 @@ with one boot-resident modem owner and volatile profiles. Clean automatic
 startup, native5GHz, automatic chrony clock correction, verified HTTPS and signed
 apk installation passed, as did exact/broad static reapply rejection and radio
 off/on. Final5GHz reconnect, settled ping5/5, HTTPS200, native wpa_cli PONG,
-GPS LOC noop and USB-only listeners passed with hci0 present and crash_count0. Ride is
-excluded from current acceptance at the user's request; no new ride test is
-claimed. The older manual workflow below is historical and refused in NM builds.
+GPS LOC noop and USB-only listeners passed with hci0 present and crash_count0.
+The older manual workflow below is historical and refused in NM builds.
 
 ## Earlier manual workflow and device evidence
 
 Manual WPA2/DHCP/Internet/DNS, reconnect, BT coexistence and cleanup were
-verified on baseline/ride images on 2026-10-02.
+verified on the baseline image (and the since-dropped ride image) on 2026-10-02.
 
 Start `gps-up` first and keep it running: Wi-Fi currently depends on its
 modem, IRSC and support services. `wifi-up` uses `wlan-fw` to initialize board
@@ -52,8 +51,7 @@ There is no boot-time association, open-network mode or enterprise setup.
 Wi-Fi down leaves the module and firmware resident and disables wlan0; it does
 not establish that the WLAN hardware is powered off.
 
-Both image variants bind telnet to 172.16.42.1; ride HTTP binds
-172.16.42.1:80. Keep gpsd without `-G` so its client port stays on loopback. Earlier manual images had no chrony. New standard builds add client-only chrony
+The image binds telnet to 172.16.42.1. Keep gpsd without `-G` so its client port stays on loopback. Earlier manual images had no chrony. New standard builds add client-only chrony
 with `port 0`/`cmdport 0` and root-only Unix control, described in the
 [standard guide](wifi-ui.md). Wi-Fi teardown never controls the
 shared BT rails, and bt-up retains its vendor pre-shutdown restart sequence.
@@ -75,12 +73,7 @@ succeeded before and after Wi-Fi down. Teardown removed the private session,
 restored resolver absence and left only the USB route.
 
 Actual listeners were verified: telnet on USB only and gpsd on 127.0.0.1/::1;
-WLAN TCP ports 23, 80 and 2947 were closed. The final ride image also passed normal first-client initialization,
-WPA2/DHCP/DNS and USB HTTP 200 while associated. Its HTTP/telnet listeners were
-USB-only and WLAN ports 23/80/2947 were closed; hci0 remained present, GPS LOC
-returned success and modem crash_count stayed zero. Its initial Internet ping
-lost one packet; settled ping passed 5/5 with zero loss and an HTTP request to
-example.com returned success. Current measurements do not establish WLAN
+WLAN TCP ports 23, 80 and 2947 were closed. Current measurements do not establish WLAN
 power-off current or long-ride reliability. Record future image hashes and
 device evidence in the [build log](../build-log.md).
 

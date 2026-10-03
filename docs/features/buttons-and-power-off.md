@@ -6,11 +6,11 @@
 
 `tools/buttond.c` runs from the baseline `initramfs/etc/inittab`. It exclusively grabs the power/volume evdev devices (`qpnp_pon`, observed as event0; `gpio-keys`, observed as event6), discovers them by key capabilities, and skips ABS devices so touch remains available.
 
-- Short power press toggles the log screen using `/run/fblog.off` and an `fblog` restart.
+- Short power press toggles the screen using the system-wide screen-off flag `/run/fblog.off`: off creates the flag then sends SIGTERM to fblog; on removes it only, waking the resident idle loop. If fblog is absent or exiting, init respawn observes the current flag; buttond does not launch a second daemon. A running [chefui](ui-platform.md) application claims `power.short` and toggles the screen itself (same flag).
 - Hold power: a short buzz at 1.5 seconds arms shutdown; release before 3 seconds to cancel. After the long buzz at 3 seconds, release to run `sync` and orderly `poweroff`.
 - Unclaimed volume gestures and chords are logged without an action.
 
-Toggle, gesture delivery/claims, shutdown cancellation, and shutdown were live-verified on 2026-09-19. The ride overlay does **not** start `buttond`; its logger owns screen state.
+Toggle, gesture delivery/claims, shutdown cancellation, and shutdown were live-verified on 2026-09-19.
 
 ## Inspect and integrate
 

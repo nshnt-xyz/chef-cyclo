@@ -1,0 +1,42 @@
+FLAG_PRESENT
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+chefui[demo] stats: fps 0 | cpu 0.0% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 2
+FLAG_RETAINED
+649 /usr/bin/fblog
+total 0
+lrwx------    1 root     root            64 Jan 17 05:00 [1;36m0[m -> [1;35m/dev/null[m
+lrwx------    1 root     root            64 Jan 17 05:00 [1;36m1[m -> [1;35m/dev/null[m
+lrwx------    1 root     root            64 Jan 17 05:00 [1;36m2[m -> [1;35m/dev/null[m
+lr-x------    1 root     root            64 Jan 17 05:00 [1;36m3[m -> [1;35m/dev/kmsg[m
+lrwx------    1 root     root            64 Jan 17 05:00 [1;36m4[m -> [0;0m/run/fb0.lock[m
+lr-x------    1 root     root            64 Jan 17 05:00 [1;36m5[m -> [1;31manon_inode:inotify[m
+[ 3168.321296,1] buttond: power.short -> 1 claimant
+[ 3168.323550,0] chefui[demo]: power.short: screen off
+[ 3168.323569,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 3168.376114,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 3168.390516,0] mdss_dsi_panel_off[0]+.
+[ 3168.599442,0] mdss_dsi_off[0]+.
+[ 3168.641344,0] mdss_dsi_off[0]-.
+[ 3168.642923,1] chefui[demo]: screen off (319 ms)
+[ 3168.879458,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3168.916261,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[ 3168.916272,3] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[ 3168.916285,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[ 3170.886110,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3172.892775,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3174.899449,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3176.906117,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3178.912789,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3180.919448,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3182.926112,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3183.442762,7] [NVT-ts] nvt_ts_suspend 1585: Touch is already suspend
+[ 3183.642771,5] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[ 3183.642808,5] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[ 3183.642813,5] mdss_dsi_cmds_tx: failed to call
+[ 3184.147150,5] fblog: /run/fblog.off present after the borrow: staying dark, /dev/fb0 closed
+[ 3184.932781,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:47
+RC_TAG=0

@@ -1,0 +1,55 @@
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+54.96 417.05
+[0;0m/run/dbus-helper-ready[m     [0;0m/run/input-udev-ready[m      [0;0m/run/udev-ready[m            [0;0m/run/wifi-nm-mode[m          [0;0m/run/wifi-usb-guard-ready[m
+47938d394b48bf4f8f9a9a3c343d4369887711dbeda7e21e8846528e84faaf1d  /usr/bin/chefui-demo
+a858f31f45481afda0f8d0072034dc92b37701db01805192cbcfd8afac2a78ea  /usr/bin/buttond
+648 /usr/bin/fblog
+[31mwlan0[0m:[31mwifi[0m:[31mdisconnected[0m
+[2mbond0[0m:[2mbond[0m:[2munmanaged[0m
+[2mdummy0[0m:[2mdummy[0m:[2munmanaged[0m
+[2musb0[0m:[2methernet[0m:[2munmanaged[0m
+[2mip6_vti0[0m:[2miptunnel[0m:[2munmanaged[0m
+[2mip6tnl0[0m:[2miptunnel[0m:[2munmanaged[0m
+[2mip_vti0[0m:[2miptunnel[0m:[2munmanaged[0m
+[2msit0[0m:[2miptunnel[0m:[2munmanaged[0m
+[2mlo[0m:[2mloopback[0m:[2munmanaged[0m
+[2mp2p-dev-wlan0[0m:[2mwifi-p2p[0m:[2munmanaged[0m
+chefui[demo]: start (pid 1176, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 60 | cpu 6.5% | copy 7.95 Mpx 36.2 ms | pan avg 15.6 max 16.2 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.2% | copy 3.21 Mpx 17.1 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.27 Mpx 17.4 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.24 Mpx 17.2 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo]: exit (code 0)
+chefui[demo]: screen released
+[   11.360098,7] cyclo-init: starting (4.4.192-cyclo+)
+[   11.366468,7] cyclo-init: loopback up, 127.0.0.1/8
+[   11.375976,7] cyclo-init: gadget bound to a800000.dwc3
+[   11.382698,7] cyclo-init: usb0 up, 172.16.42.1/24
+[   11.709687,1] cyclo-init: input coldplug starting
+[   11.710060,0] cyclo-init: exec init
+[   11.722371,0] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[   11.727918,0] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[   11.733886,2] cyclo-init: input coldplug ready
+[   55.055426,1] chefui[demo]: start (pid 1176, fbdev backend, 16 ms frames, rotation 0)
+[   55.055679,1] chefui[demo]: lock acquired
+[   55.056883,5] fblog: paused: screen borrowed (/run/fb0.lock)
+[   55.062448,1] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[   55.062491,1] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[   55.062634,1] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[   59.080167,0] chefui[demo]: exit (code 0)
+[   59.400901,0] chefui[demo]: screen released
+RC_TAG=0
+648 /usr/bin/fblog
+[   55.055679,1] chefui[demo]: lock acquired
+[   55.056883,5] fblog: paused: screen borrowed (/run/fb0.lock)
+[   55.062448,1] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[   55.062491,1] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[   55.062634,1] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[   59.080167,0] chefui[demo]: exit (code 0)
+[   59.400901,0] chefui[demo]: screen released
+[   59.720688,4] fblog: resumed
+RC_TAG=0

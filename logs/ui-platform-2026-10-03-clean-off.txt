@@ -1,0 +1,32 @@
+FLAG_PRESENT
+FLAG_RETAINED
+total 0
+lrwx------    1 root     root            64 Jan 17 05:28 [1;36m0[m -> [1;35m/dev/null[m
+lrwx------    1 root     root            64 Jan 17 05:28 [1;36m1[m -> [1;35m/dev/null[m
+lrwx------    1 root     root            64 Jan 17 05:28 [1;36m2[m -> [1;35m/dev/null[m
+lr-x------    1 root     root            64 Jan 17 05:28 [1;36m3[m -> [1;35m/dev/kmsg[m
+lrwx------    1 root     root            64 Jan 17 05:28 [1;36m4[m -> [0;0m/run/fb0.lock[m
+lr-x------    1 root     root            64 Jan 17 05:28 [1;36m5[m -> [1;31manon_inode:inotify[m
+[ 4850.109124,1] [NVT-ts] nvt_ts_suspend 1643: end
+[ 4850.111845,1] mdss_dsi_panel_off[0]+.
+[ 4850.319116,1] mdss_dsi_off[0]+.
+[ 4850.360867,1] mdss_dsi_off[0]-.
+[ 4850.362173,1] chefui[demo]: screen off (306 ms)
+[ 4850.465782,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4851.192599,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[ 4851.192615,3] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[ 4851.192629,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[ 4852.472448,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4854.479113,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4856.485784,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4858.492449,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4860.499111,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 4861.565508,1] chefui[demo]: exit on signal 15
+[ 4861.565791,1] [NVT-ts] nvt_ts_suspend 1585: Touch is already suspend
+[ 4861.769125,1] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[ 4861.769178,1] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[ 4861.769185,1] mdss_dsi_cmds_tx: failed to call
+[ 4862.273731,7] fblog: /run/fblog.off present after the borrow: staying dark, /dev/fb0 closed
+[ 4862.273743,1] chefui[demo]: screen released
+[ 4862.505792,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:41
+RC_TAG=0

@@ -1,0 +1,115 @@
+make: Entering directory '/home/nishant/code/chef-cyclo/tools'
+sh tests/test_powerd.sh
+test_powerd.sh: 33 passed, 0 failed
+sh tests/test_gps-up.sh
+PASS: 18/18 checks passed
+sh tests/test_audio-up.sh
+audio-up: servreg-locator exited before TEST service became ready
+audio-up: boot_adsp node missing or not writable
+PASS: 28/28 checks passed
+sh tests/test_speaker-test-tone.sh
+PASS: 90/90 checks passed
+sh tests/test_afe-debug.sh
+PASS: 78/78 checks passed
+sh tests/test_spk-protect-probe.sh
+PASS: 243/243 checks passed
+sh tests/test_acdb-afe-topology.sh
+PASS: 19/19 checks passed
+input-info requires -i eventdev
+ABS 0x35: unavailable: Input/output error
+input: /dev/input/event7: ABS capabilities unavailable: Inappropriate ioctl for device
+input: /dev/input/event7: Permission denied
+test-display-input-info: passed
+python3 tests/test_display_touch_inventory.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.023s
+
+OK
+./tests/test-qmux
+PASS: 388/388 checks passed
+./tests/test-msmipc
+PASS: 43/43 checks passed
+./tests/test-fbtouch
+test-fbtouch: 71/71 checks passed
+./tests/test-fblog
+test-fblog: 2107/2107 checks passed
+./tests/test-nmea-broker
+nmea-broker: system clock set from RMC: 2026-09-18T17:15:41Z (was 100800, epoch 1789751741)
+nmea-broker: system clock already set (1789751736), leaving it alone
+nmea-broker: system clock already set (946684800), leaving it alone
+nmea-broker: system clock set from RMC: 2026-09-18T17:15:41Z (was 946684799, epoch 1789751741)
+nmea-broker: RMC date 2019-10-06 is before 2020, not trusted for the clock
+nmea-broker: RMC date 2000-01-01 is before 2020, not trusted for the clock
+nmea-broker: RMC date 2019-12-31 is before 2020, not trusted for the clock
+nmea-broker: system clock set from RMC: 2020-01-01T00:00:00Z (was 86400, epoch 1577836800)
+nmea-broker: settimeofday failed: Operation not permitted (not retried)
+nmea-broker: first sentence forwarded: $GPGGA
+nmea-broker: system clock set from RMC: 2026-09-18T17:15:41Z (was 86400, epoch 1789751741)
+nmea-broker: first sentence forwarded: $GPVTG
+nmea-broker: first sentence forwarded: $GPGGA
+nmea-broker: eof: lines=3 overlong=0 sentences=2 forwarded=1 dropped=1 send_failed=0 rmc_valid=0 clock=untouched
+test-nmea-broker: 273 checks, 0 failures
+./tests/test-buttond
+test-buttond: 241/241 checks passed
+./tests/test-powerd
+test-powerd: 147/147 checks passed
+./tests/test-wavtone
+wavtone: 47/47 checks passed
+./tests/test-tas2560-send-cal
+tas2560-send-cal: 83/83 checks passed
+./tests/test-afe-topology-cal
+afe-topology-cal: 172/172 checks passed
+./tests/test-tert-tx-hold
+tert-tx-hold: 98/98 checks passed
+./tests/test-wlan-fw
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: firmware ready
+wlan-fw: firmware ready
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: WARNING: exact stock chef final BDF result=1 error=1; following verified vendor CAL_REPORT lifecycle
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 2
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: WARNING: exact stock chef final BDF result=1 error=1; following verified vendor CAL_REPORT lifecycle
+wlan-fw: QMI 0x0026 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: WARNING: exact stock chef final BDF result=1 error=1; following verified vendor CAL_REPORT lifecycle
+wlan-fw: firmware indication timeout
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw: board 0xff, BDF 12289 bytes
+wlan-fw: QMI 0x0025 result 1 error 1
+wlan-fw flow control, stale status, peer selection and BDF chunks: PASS
+python3 tests/test_wifi.py
+Wi-Fi DHCP routing, USB overlap, failure propagation: PASS
+Wi-Fi resolver present/absent restoration: PASS
+python3 tests/test_wifi_psk.py
+Wi-Fi stdin PSK vectors, length bounds and config escaping: PASS
+python3 tests/test_wifi_build.py
+Wi-Fi build listing failure gates and pinned export isolation: PASS
+python3 tests/test_wifi_nm.py
+test_wifi_nm: owner identity, dispatcher overlap/error, boot ownership PASS
+test_wifi_nm: actual chrony account collision gates PASS
+test_wifi_nm: independent network/input coldplug and fail-closed readiness PASS
+test_wifi_nm: strict D-Bus helper setup and failure gating PASS
+test_wifi_nm: chrony link-refresh success/error/timeout remain nonfatal PASS
+test_wifi_nm: bounded reapply transition/late-overlap/empty-profile validation PASS
+make: Leaving directory '/home/nishant/code/chef-cyclo/tools'

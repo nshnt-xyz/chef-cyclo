@@ -96,8 +96,10 @@ test-display-inventory:
 fblog/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-tests/test-fblog: tests/test_fblog.c fblog/fblog.c fblog/font9x15.h fbdev.h
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+# ioctl() is wrapped so the daemon's borrow/resume/idle path runs against a
+# temporary file standing in for fb0.
+tests/test-fblog: tests/test_fblog.c buttond.c fblog/fblog.c fblog/font9x15.h fbdev.h
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) -Wl,--wrap=ioctl
 
 # gpsd feed (nmea-broker.c): qmicli follower stdout -> one UDP datagram per
 # valid NMEA sentence to gpsd on loopback, optional tee/log, set-once clock
@@ -210,16 +212,12 @@ test: $(TEST_BIN) test-shell wifi-psk test-display-inventory
 	python3 tests/test_wifi_build.py
 	python3 tests/test_wifi_nm.py
 
-# gps-up (initramfs/) selection-logic regression and the ride image's
-# ride-logger (initramfs-ride/) supervision/failure/HTTP-extraction
-# regression (stub gps-up/qmicli, real busybox httpd); neither is a build
-# product of this directory, but this is the natural place to run them
-# alongside the rest of the GPS test suite. See tests/test_gps-up.sh and
-# tests/test_ride-logger.sh.
+# gps-up (initramfs/) selection-logic regression; not a build product of
+# this directory, but this is the natural place to run it alongside the
+# rest of the GPS test suite. See tests/test_gps-up.sh.
 test-shell: powerd
 	sh tests/test_powerd.sh
 	sh tests/test_gps-up.sh
-	sh tests/test_ride-logger.sh
 	sh tests/test_audio-up.sh
 	sh tests/test_speaker-test-tone.sh
 	sh tests/test_afe-debug.sh

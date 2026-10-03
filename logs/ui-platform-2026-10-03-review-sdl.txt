@@ -1,0 +1,5 @@
+chefui[demo]: start (pid 1531078, sdl backend, 16 ms frames, rotation 90)
+chefui[demo]: SDL window 2246x1080 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[demo] stats: fps 32 | cpu 7.4% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 255
+chefui[demo] stats: fps 31 | cpu 6.9% | copy 0.00 Mpx 0.0 ms | pan avg 0.0 max 0.0 ms | wake 259
+chefui[demo]: exit (code 0)

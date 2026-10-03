@@ -2,6 +2,8 @@
 
 [Display research](display-modernization.md) · [Roadmap](../next-steps/ui-and-ride-app.md)
 
+**Historical:** on 2026-10-03 the DRM/Wayland route was shelved in favour of LVGL on the existing fbdev; see the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack) and [prototype](lvgl-fbdev-prototype.md).
+
 Latest October 3 result: both DRM-core and full built-in DRM configurations now boot with unchanged userspace reencoded to smaller LZMA ramdisks. DRM initialization is observed, but no DRM card or native scanout exists. The [actual loader budget investigation](chef-loader-kernel-budget.md) records the binary research, failed minimal control calibration, successful full-userspace tests and remaining limits. Earlier failures below are historical evidence, not the current runtime status.
 
 Started 2026-10-02 after committing initial standard touch work as `173ab54`. Coordinator owns research and device tests; fresh Herdr implementation/review sessions own the isolated compile experiment and independent review. This record distinguishes source support, compilation, module initialization and physical scanout.

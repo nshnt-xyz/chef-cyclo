@@ -1,0 +1,50 @@
+downs=11 taps=6
+buttond: ok claim power.short
+[7627.543] touch down 82,53
+[7628.577] touch down 1001,57
+[7629.610] touch down 1005,2177
+[7630.493] touch down 100,2226
+[7636.343] touch down 512,481
+[7636.427] button tapped 1
+[7636.544] touch down 548,471
+[7636.610] button tapped 2
+[7636.710] touch down 575,482
+[7636.794] button tapped 3
+[7636.877] touch down 576,482
+[7636.977] button tapped 4
+[7637.043] touch down 609,475
+[7637.127] button tapped 5
+[7641.510] touch down 440,702
+buttond: event power.short
+screen off: ok (318.9 ms)
+buttond: event power.short
+screen on: ok (234.9 ms)
+[7666.855] touch down 576,475
+[7666.939] button tapped 6
+exit: restoring
+[7641.793] brightness 99
+[7645.810] brightness 255
+[7642.943] brightness 5
+[7645.810] brightness 255
+cpu 5.8% | fps 60 flush 232 | swz 22.38 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+cpu 5.8% | fps 60 flush 232 | swz 22.56 ms 3.7 Mpx | pan avg 15.7 max 15.9 ms | handler 999.8 ms | wake 60 touch 0
+---dmesg
+[ 7479.008840,2] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[ 7515.696455,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 7515.748602,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 7516.965249,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 7517.019403,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 7601.470797,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 7601.521914,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 7601.971912,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 7602.025626,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 7602.495710,3] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[ 7650.392824,2] [NVT-ts] nvt_ts_suspend 1591: start
+[ 7650.445290,3] [NVT-ts] nvt_ts_suspend 1643: end
+[ 7653.731894,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 7653.785634,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 7679.321299,2] [NVT-ts] nvt_ts_suspend 1591: start
+[ 7679.371883,2] [NVT-ts] nvt_ts_suspend 1643: end
+[ 7679.821882,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 7679.875589,0] [NVT-ts] nvt_ts_resume 1690: end
+RC_TAG=0

@@ -1,0 +1,172 @@
+make: Entering directory '/home/nishant/code/chef-cyclo/tools/chefui'
+build/test/test-copy
+make build/host/chefui-demo
+make[1]: Entering directory '/home/nishant/code/chef-cyclo/tools/chefui'
+-rwxrwxr-x 1 nishant nishant 896376 Oct  3 22:49 build/device/chefui-demo
+chefui[calibration-test]: start (pid 1562841, sdl backend, 33 ms frames, rotation 0)
+test-copy: 2362/2362 checks passed
+build/test/test-plan
+make[1]: 'build/host/chefui-demo' is up to date.
+make[1]: Leaving directory '/home/nishant/code/chef-cyclo/tools/chefui'
+run: build/host/chefui-demo [-a] [-r 90] ...  (P = power, Up/Down = volume)
+test-plan: 34/34 checks passed
+build/test/test-touch
+test-touch: 71/71 checks passed
+build/test/test-buttons
+chefui[calibration-test]: SDL window 1080x2246 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 124 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 0 physical pixels (not saved)
+chefui[calibration-test]: exit (code 0)
+test-demo-host: 26/26 checks passed
+chefui[calibration-test]: start (pid 1562858, sdl backend, 33 ms frames, rotation 90)
+test-buttons: 47/47 checks passed
+build/test/test-fbscreen
+chefui[calibration-test]: SDL window 2246x1080 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 124 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 0 physical pixels (not saved)
+chefui[calibration-test]: exit (code 0)
+test-demo-host: 26/26 checks passed
+chefui[calibration-test]: start (pid 1562864, sdl backend, 33 ms frames, rotation 180)
+chefui[calibration-test]: SDL window 1080x2246 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[calibration-test]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 124 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 0 physical pixels (not saved)
+chefui[calibration-test]: exit (code 0)
+test-demo-host: 26/26 checks passed
+chefui[calibration-test]: start (pid 1562869, sdl backend, 33 ms frames, rotation 270)
+test-fbscreen: 134/134 checks passed
+build/test/test-chefui
+chefui[test]: start (pid 1562876, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock acquired
+chefui[calibration-test]: SDL window 2246x1080 at zoom 0.40 (P: power, Up/Down: volume, Shift: long, Ctrl+P: double)
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[calibration-test]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[test]: fbdev 120x200, logical 120x200, screen on
+chefui[calibration-test]: notch calibration: --safe-top 124 physical pixels (not saved)
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[calibration-test]: notch calibration: --safe-top 120 physical pixels (not saved)
+chefui[calibration-test]: notch calibration: --safe-top 0 physical pixels (not saved)
+chefui[calibration-test]: exit (code 0)
+test-demo-host: 26/26 checks passed
+chefui[test]: exit on signal 15
+chefui[test]: screen released
+chefui[test]: start (pid 1562930, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock acquired
+chefui[test]: /tmp/chefui-e2e-rZhAKf/fblog.off present: starting dark (120x200 from /tmp/chefui-e2e-rZhAKf/modes)
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[test]: fbdev 120x200, logical 120x200, screen off (flag present)
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: power.short: screen on
+chefui[test]: screen on (0 ms)
+chefui[test]: power.short: screen off
+chefui[test]: screen off (0 ms)
+chefui[test]: buttond connection lost (closed); reconnecting every 1000 ms
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: power.short: screen on
+chefui[test]: screen on (0 ms)
+chefui[test]: power.short: screen off
+chefui[test]: screen off (0 ms)
+chefui[test]: exit on signal 2
+chefui[test]: screen released
+chefui[test]: start (pid 1562951, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock acquired
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[test]: fbdev 120x200, logical 120x200, screen on
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: exit (code 7)
+chefui[test]: screen released
+chefui[test]: start (pid 1562960, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock acquired
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[test]: fbdev 120x200, logical 120x200, screen on
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: screen off (0 ms)
+chefui[test]: power.short: screen on
+chefui[test]: screen on (0 ms)
+chefui[test]: screen off (0 ms)
+chefui[test]: exit on signal 15
+chefui[test]: screen released
+chefui[test]: start (pid 1562964, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock acquired
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[test]: fbdev 120x200, logical 120x200, screen on
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: exit on signal 15
+chefui[test]: screen released
+chefui[test]: start (pid 1562969, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock acquired
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[test]: fbdev 120x200, logical 120x200, screen on
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: exit on signal 15
+chefui[test]: screen released
+chefui[test]: start (pid 1562974, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock acquired
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[test]: fbdev 120x200, logical 120x200, screen on
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: exit on signal 15
+chefui[test]: screen released
+chefui[safe-test]: start (pid 1562975, fbdev backend, 33 ms frames, rotation 0)
+chefui[safe-test]: lock acquired
+chefui[safe-test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[safe-test]: fbdev 120x200, logical 120x200, screen on
+chefui[safe-test]: buttond not reachable at /tmp/chefui-e2e-rZhAKf/buttond.sock; retrying every 1000 ms
+chefui[safe-test]: exit (code 0)
+chefui[safe-test]: screen released
+chefui[safe-test]: start (pid 1562976, fbdev backend, 33 ms frames, rotation 90)
+chefui[safe-test]: lock acquired
+chefui[safe-test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[safe-test]: fbdev 120x200, logical 200x120, screen on
+chefui[safe-test]: buttond not reachable at /tmp/chefui-e2e-rZhAKf/buttond.sock; retrying every 1000 ms
+chefui[safe-test]: exit (code 0)
+chefui[safe-test]: screen released
+chefui[safe-test]: start (pid 1562977, fbdev backend, 33 ms frames, rotation 180)
+chefui[safe-test]: lock acquired
+chefui[safe-test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[safe-test]: fbdev 120x200, logical 120x200, screen on
+chefui[safe-test]: buttond not reachable at /tmp/chefui-e2e-rZhAKf/buttond.sock; retrying every 1000 ms
+chefui[safe-test]: exit (code 0)
+chefui[safe-test]: screen released
+chefui[safe-test]: start (pid 1562978, fbdev backend, 33 ms frames, rotation 270)
+chefui[safe-test]: lock acquired
+chefui[safe-test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[safe-test]: fbdev 120x200, logical 200x120, screen on
+chefui[safe-test]: buttond not reachable at /tmp/chefui-e2e-rZhAKf/buttond.sock; retrying every 1000 ms
+chefui[safe-test]: exit (code 0)
+chefui[safe-test]: screen released
+chefui[bad-inset]: start (pid 1562979, fbdev backend, 33 ms frames, rotation 0)
+chefui[bad-inset]: lock acquired
+chefui[bad-inset]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[bad-inset]: fbdev 120x200, logical 120x200, screen on
+chefui[bad-inset]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[bad-inset]: invalid safe top inset 200
+chefui[bad-inset]: screen released
+chefui[bad-inset]: start (pid 1562983, fbdev backend, 33 ms frames, rotation 0)
+chefui[bad-inset]: lock acquired
+chefui[bad-inset]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[bad-inset]: fbdev 120x200, logical 120x200, screen on
+chefui[bad-inset]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[bad-inset]: invalid safe top inset -2
+chefui[bad-inset]: screen released
+chefui[test]: start (pid 1562987, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock acquired
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[test]: fbdev 120x200, logical 120x200, screen on
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: handoff to /home/nishant/code/chef-cyclo/tools/chefui/build/test/test-chefui
+chefui[test]: start (pid 1562987, fbdev backend, 33 ms frames, rotation 0)
+chefui[test]: lock inherited (fd 7)
+chefui[test]: touch /tmp/chefui-e2e-rZhAKf/input/event0: x 0..720 y 0..1600, 10 slots
+chefui[test]: fbdev 120x200, logical 120x200, screen on
+chefui[test]: buttond connected (/tmp/chefui-e2e-rZhAKf/buttond.sock), 1 claim
+chefui[test]: exit (code 0)
+chefui[test]: screen released
+test-chefui: static page with a 1 Hz label: 6 wakeups in 3 s
+test-chefui: 231/231 checks passed
+make: Leaving directory '/home/nishant/code/chef-cyclo/tools/chefui'

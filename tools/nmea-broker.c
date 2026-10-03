@@ -6,8 +6,8 @@
  * NMEA stream comes out of `qmicli --loc-follow-nmea` on stdout, one
  * sentence per line with the modem's own CRLF still attached, interleaved
  * with the multi-line "[position report]" blocks when
- * --loc-follow-position-report is on too (the ride image runs both in one
- * process). This tool sits on that stdout and forwards every valid-looking
+ * --loc-follow-position-report is on too (one qmicli process can run
+ * both). This tool sits on that stdout and forwards every valid-looking
  * NMEA sentence -- "$...*hh", printable ASCII, checksum verified -- as one
  * UDP datagram ("$...*hh\r\n") to a gpsd started as
  *
@@ -19,14 +19,13 @@
  * order; a network send failure is counted, never fatal. UDP does not report
  * an absent listener, so packets sent before gpsd binds are simply discarded.
  *
- * The follower-side evidence path the ride image relies on is preserved:
+ * A follower-side evidence path can sit alongside:
  *   -t       tee: every stdin byte is passed through to stdout unchanged
- *            (so `qmicli ... | nmea-broker -t > follow.fifo` leaves
- *            ride-logger's follow_reader, follow.raw, nmea.log and
- *            positions.log exactly as they are today);
+ *            (so `qmicli ... | nmea-broker -t > follow.fifo` leaves a raw
+ *            capture of the follower stream untouched);
  *   -l FILE  append "<uptime> <sentence>" for every forwarded sentence,
- *            the same format as the ride image's nmea.log, so gpsd's
- *            output can be diffed against the raw stream (README 7.4).
+ *            so gpsd's output can be diffed against the raw stream
+ *            (README 7.4).
  *
  * Clock: the initramfs boots with a 1970 wallclock. From the first RMC with
  * status 'A' that carries both a time and a date, and only while the system
@@ -507,7 +506,7 @@ static int clock_set_system(time_t utc)
 	return settimeofday(&tv, NULL);
 }
 
-/* Same reference as /proc/uptime's first field (ride-logger's nmea.log). */
+/* Same reference as /proc/uptime's first field. */
 static double uptime_system(void)
 {
 	struct timespec ts;

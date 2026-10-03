@@ -1,0 +1,12 @@
+16769 /usr/bin/buttond
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.24 Mpx 17.3 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.23 Mpx 17.3 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.26 Mpx 17.4 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.21 Mpx 17.2 ms | pan avg 16.0 max 16.2 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.24 Mpx 17.3 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo]: buttond connection lost (closed); reconnecting every 1000 ms
+chefui[demo] stats: fps 60 | cpu 4.5% | copy 3.26 Mpx 17.5 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo] stats: fps 60 | cpu 4.4% | copy 3.24 Mpx 17.3 ms | pan avg 16.0 max 16.1 ms | wake 60
+chefui[demo] stats: fps 60 | cpu 4.3% | copy 3.24 Mpx 17.2 ms | pan avg 16.0 max 16.1 ms | wake 60
+RC_TAG=0

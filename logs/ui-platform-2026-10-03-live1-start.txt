@@ -1,0 +1,32 @@
+DEMO_PID=1175
+chefui[demo]: start (pid 1175, fbdev backend, 33 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[   38.480067,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:12
+[   40.486723,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   42.493394,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   44.500077,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:35
+[   46.506736,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:56
+[   48.513398,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   50.520066,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   52.526724,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   54.533399,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   56.540068,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   58.546729,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   60.553396,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   62.560074,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:2
+[   64.566730,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   66.573391,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[   67.100387,1] chefui[demo]: start (pid 1175, fbdev backend, 33 ms frames, rotation 0)
+[   67.100602,1] chefui[demo]: lock acquired
+[   67.100681,1] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   67.103621,4] fblog: paused: screen borrowed (/run/fb0.lock)
+[   67.106219,6] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[   67.106251,6] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[   67.106380,6] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[   67.956870,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[   67.956886,2] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[   67.956898,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+RC_TAG=0

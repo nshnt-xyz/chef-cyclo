@@ -1,0 +1,37 @@
+649 /usr/bin/fblog
+[  311.386670,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  313.393349,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  315.400010,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  317.406680,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  319.413339,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  321.420004,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  323.426674,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:89
+[  325.433339,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  327.440005,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  329.446673,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:4
+[  331.453338,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  333.460003,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[  335.466671,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:30
+[  335.503569,0] chefui[demo]: exit on signal 15
+[  335.503909,0] [NVT-ts] nvt_ts_suspend 1591: start
+[  335.556686,0] [NVT-ts] nvt_ts_suspend 1643: end
+[  335.559536,0] mdss_dsi_panel_off[0]+.
+[  335.766669,0] mdss_dsi_off[0]+.
+[  335.808492,0] mdss_dsi_off[0]-.
+[  335.809900,1] chefui[demo]: screen released
+[  335.812751,7] mdss_dsi_on[0]+.
+[  335.846190,7] mdss_dsi_on[0]-.
+[  335.846218,7] mdss_dsi_panel_on[0]+.
+[  335.979636,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[  335.980032,0] mdss_dsi_post_panel_on[0]-.
+[  335.993335,0] [NVT-ts] nvt_ts_resume 1668: start
+[  335.993338,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[  336.033344,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[  336.047011,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[  336.047033,0] [NVT-ts] nvt_ts_resume 1690: end
+[  336.130130,4] fblog: resumed
+[  336.223494,2] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[  336.223504,2] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[  336.223514,2] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[  337.473335,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:3
+RC_TAG=0

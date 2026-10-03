@@ -4,7 +4,7 @@
 
 ## Reproduce
 
-For a clean kernel checkout, apply the reviewed compatibility patch first with `git -C kernel apply ../kernel-config/drm-helper-namespace.patch` (skip if already applied). This changes shared kernel source; baseline artifacts must be preserved. The durable repository patch file makes the uncommitted source experiment reproducible; it introduces no config, DT or body changes.
+The reviewed DRM helper namespace separation is committed in the kernel submodule as `64fa801` (pinned by the parent repository on 2026-10-03), so a current checkout needs no patch step. `kernel-config/drm-helper-namespace.patch` is the historical form used before that commit; do not apply it to a tree that already contains `64fa801`. The change introduces no config, DT or function-body changes.
 
 From repository root, `scripts/build-drm-experiment.sh` starts a **built-in** DRM probe by copying the verified `out/kernel/.config` into `out/kernel-drm`. It uses `scripts/env.sh` compiler/host flags with an isolated output override. It enables DRM/MSM, backlight support and real staging HDMI; disables legacy DRM DSI, early-card, SDE writeback, generic backlight and LCD class. Staging DSI remains enabled. KGSL and FB_MSM_MDSS remain built in.
 

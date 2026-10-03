@@ -1,0 +1,31 @@
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 12.0 max 12.0 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 11.1 max 11.1 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 10.1 max 10.1 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 9.0 max 9.0 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.2 ms | pan avg 8.0 max 8.0 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 7.1 max 7.1 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.04 Mpx 0.3 ms | pan avg 6.0 max 6.0 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.05 Mpx 0.3 ms | pan avg 5.0 max 5.0 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 4.1 max 4.1 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 3.1 max 3.1 ms | wake 2
+chefui[demo-peer] stats: fps 1 | cpu 0.1% | copy 0.03 Mpx 0.2 ms | pan avg 2.0 max 2.0 ms | wake 2
+chefui[demo-peer] stats: fps 16 | cpu 0.8% | copy 0.39 Mpx 2.3 ms | pan avg 11.2 max 12.1 ms | wake 42
+[   26.821161,4] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   67.100387,1] chefui[demo]: start (pid 1175, fbdev backend, 33 ms frames, rotation 0)
+[   67.100602,1] chefui[demo]: lock acquired
+[   67.100681,1] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   67.106219,6] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[   67.106251,6] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[   67.106380,6] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[   93.680241,0] chefui[demo]: tap 1
+[   93.980250,0] chefui[demo]: tap 2
+[   94.313568,0] chefui[demo]: tap 3
+[   94.692048,0] chefui[demo]: tap 4
+[   95.080211,0] chefui[demo]: tap 5
+[  163.994088,1] chefui[demo]: handoff to /usr/bin/chefui-demo
+[  163.995741,1] chefui[demo-peer]: start (pid 1175, fbdev backend, 33 ms frames, rotation 0)
+[  163.995928,1] chefui[demo-peer]: lock inherited (fd 5)
+[  164.237626,1] chefui[demo-peer]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[  164.237668,1] chefui[demo-peer]: fbdev 1080x2246, logical 1080x2246, screen on
+[  164.237802,1] chefui[demo-peer]: buttond connected (/run/buttond.sock), 3 claims
+RC_TAG=0

@@ -1,0 +1,103 @@
+[ 3149.406907,0] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[ 3150.819444,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3152.826121,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:23
+[ 3154.832795,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:6
+[ 3156.839459,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3158.846120,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3160.852795,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3162.859460,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3164.866127,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3166.872787,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3168.176187,0] Report pwrkey press event at: 1970-01-17 04:59:51 UTC
+[ 3168.321166,0] Report pwrkey release event at: 1970-01-17 04:59:51 UTC
+[ 3168.321296,1] buttond: power.short -> 1 claimant
+[ 3168.323550,0] chefui[demo]: power.short: screen off
+[ 3168.323569,0] [NVT-ts] nvt_ts_suspend 1591: start
+[ 3168.376114,0] [NVT-ts] nvt_ts_suspend 1643: end
+[ 3168.390516,0] mdss_dsi_panel_off[0]+.
+[ 3168.599442,0] mdss_dsi_off[0]+.
+[ 3168.641344,0] mdss_dsi_off[0]-.
+[ 3168.642923,1] chefui[demo]: screen off (319 ms)
+[ 3168.879458,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3168.916261,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[ 3168.916272,3] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[ 3168.916285,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[ 3170.886110,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3172.892775,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3174.899449,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3176.906117,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3178.912789,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3180.919448,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3182.926112,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3183.442762,7] [NVT-ts] nvt_ts_suspend 1585: Touch is already suspend
+[ 3183.642771,5] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[ 3183.642808,5] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[ 3183.642813,5] mdss_dsi_cmds_tx: failed to call
+[ 3184.147150,5] fblog: /run/fblog.off present after the borrow: staying dark, /dev/fb0 closed
+[ 3184.932781,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:47
+[ 3186.939453,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:33
+[ 3188.946137,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3190.952778,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3192.959450,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3193.908432,0] Report pwrkey press event at: 1970-01-17 05:00:17 UTC
+[ 3194.097756,0] Report pwrkey release event at: 1970-01-17 05:00:17 UTC
+[ 3194.097949,5] fblog: /run/fblog.off removed: leaving idle
+[ 3194.105358,2] mdss_dsi_on[0]+.
+[ 3194.110551,1] buttond: screen on: removed /run/fblog.off, signalled fblog (1 process); init respawns it
+[ 3194.138854,2] mdss_dsi_on[0]-.
+[ 3194.138898,2] mdss_dsi_panel_on[0]+.
+[ 3194.272463,2] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 3194.272861,2] mdss_dsi_post_panel_on[0]-.
+[ 3194.273002,2] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[ 3194.286102,2] [NVT-ts] nvt_ts_resume 1668: start
+[ 3194.286105,2] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 3194.326126,2] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 3194.339783,2] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 3194.340245,2] [NVT-ts] nvt_ts_resume 1690: end
+[ 3194.422955,4] fblog: exiting: blanking before close
+[ 3194.423085,4] [NVT-ts] nvt_ts_suspend 1591: start
+[ 3194.476105,4] [NVT-ts] nvt_ts_suspend 1643: end
+[ 3194.489843,4] mdss_dsi_panel_off[0]+.
+[ 3194.699445,0] mdss_dsi_off[0]+.
+[ 3194.741245,0] mdss_dsi_off[0]-.
+[ 3194.946133,0] mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out. ret = 0x0
+[ 3194.946166,0] mdss_dsi_cmds2buf_tx: failed to call cmd_dma_tx for cmd = 0x51
+[ 3194.946170,0] mdss_dsi_cmds_tx: failed to call
+[ 3194.966112,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3196.451812,1] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[ 3196.468846,4] mdss_dsi_on[0]+.
+[ 3196.502333,0] mdss_dsi_on[0]-.
+[ 3196.502376,0] mdss_dsi_panel_on[0]+.
+[ 3196.635955,0] mdss_dsi_panel_on[0]-. Pwr_mode(0x0A) = 0x9c
+[ 3196.636339,0] mdss_dsi_post_panel_on[0]-.
+[ 3196.636432,0] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[ 3196.649437,0] [NVT-ts] nvt_ts_resume 1668: start
+[ 3196.649440,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[ 3196.689561,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[ 3196.703116,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[ 3196.703138,0] [NVT-ts] nvt_ts_resume 1690: end
+[ 3196.972785,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3198.979456,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3200.986106,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3202.992771,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3204.999438,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3207.006106,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3209.012764,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3211.019443,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3213.026109,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3215.032773,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3217.039440,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3218.732940,3] PMI: mmi_heartbeat_work: EB Input 0 mA, PMI Input 1500 mA, USBC CL 500 mA, DC 900 mA
+[ 3218.732952,3] PMI: mmi_heartbeat_work: Step State = MAX, EB State DISCONN
+[ 3218.732961,3] PMI: mmi_heartbeat_work: EFFECTIVE: FV = 4200000, CDIS = 0, FCC = 3000000, USBICL = 1500000, DCICL = 500000
+[ 3219.046104,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3221.052778,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3223.059442,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3225.066107,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3227.072770,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3229.079427,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3231.086103,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+[ 3233.092777,1] msm_dwc3_perf_vote_work: in_perf_mode:0, interrupts in last sample:0
+17024 /usr/bin/fblog
+ls: /run/fblog.off: No such file or directory
+RC_TAG=1

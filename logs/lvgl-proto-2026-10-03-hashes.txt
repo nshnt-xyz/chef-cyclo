@@ -1,0 +1,11 @@
+# LVGL fbdev prototype artifacts, 2026-10-03
+lvgl v9.6.0 tarball (codeload.github.com/lvgl/lvgl/tar.gz/refs/tags/v9.6.0):
+  b20ee3acc1bba13c62d854f9ebd62e4c51e0b443b1e0225892e86442defa84df
+lvproto binaries (static aarch64 musl, stripped), in run order:
+  971801611b81980e550b966630a5982c2dc680a95b9deb894c3a351442f87dae  direct-fb (smoke)
+  41a25738fa6890179f3f046affe2737b5213fe84d0dd32a2ef0a7f066be452c6  shadow (smoke)
+  e3dacb1e7f9675e5254d92efab0d931e914e04ff5969ae7b1919c8ee990a678f  shadow + cpu/SIGUSR1 (cpu-cycles-kill9)
+  697d8390f318f4a8d691cf287e120ef4139b0fef4663a453c0334b428943d12d  + touch logging (live1, raw coords)
+  live2: + MT calibration, gesture recognition on (live2)
+  faef6b92b616af0317757a6d2c46e52cc23196156d0cff3a504fabc8fe0608c2  + gesture recognition off (live3, final; source = lvgl-proto-2026-10-03-lvproto.c)
+phone: 4.4.192-cyclo+ #20 baseline, temporary boot; nothing flashed

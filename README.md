@@ -12,9 +12,10 @@ The baseline starts one shared resident modem support stack and uses standard
 [NetworkManager Wi-Fi tools](docs/features/wifi-ui.md). Clean baseline startup,
 automatic chrony time synchronization, verified HTTPS and signed apk tool
 installation are verified. Profiles and credentials stay in RAM. The temporary
-ride variant is excluded from this final validation at the user's request and
-retained pending planned removal. The bike-computer application, persistent
-storage and standalone boot remain planned; real BLE sensors remain untested.
+ride image was dropped on 2026-10-03.
+The UI platform (LVGL on the framebuffer) is being built; the bike-computer
+application, persistent storage and standalone boot remain planned; real BLE
+sensors remain untested.
 
 ## Start here
 
@@ -29,14 +30,15 @@ storage and standalone boot remain planned; real BLE sensors remain untested.
 
 The current workflow boots images temporarily; nothing is flashed. Stock Android remains the recovery path. Keep the verified stock partition backups, especially device-unique data.
 
-Ride recordings live in RAM and disappear on shutdown, reboot, or battery loss. [Download them over USB](docs/features/ride-logging.md) before stopping the phone. Modem EFS writes stay in RAM shadows; real EFS and `persist` must not be written by this workflow.
+Everything the image records lives in RAM and disappears on shutdown, reboot, or battery loss; copy evidence off over USB before stopping the phone. Modem EFS writes stay in RAM shadows; real EFS and `persist` must not be written by this workflow.
 
 The USB shell is passwordless root at `telnet 172.16.42.1`. The listener binds only to the USB address 172.16.42.1.
 
 ## Repository
 
 - `kernel/`, `kernel-config/` — Motorola Linux 4.4.192 tree and project configuration.
-- `initramfs/`, `initramfs-ride/` — baseline and temporary ride overlays.
+- `initramfs/` — the image's overlay (init, inittab, helper scripts, config).
+- `third_party/lvgl` — LVGL v9.6.0 submodule for the UI platform (`tools/chefui/`).
 - `tools/`, `scripts/` — device helpers, host tests, and image builds.
 - `stock/`, `logs/` — stock backups and development evidence; some artifacts are local-only.
 - `docs/` — guides, plans, and history.

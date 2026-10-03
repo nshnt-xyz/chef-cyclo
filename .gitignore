@@ -69,3 +69,6 @@ tools/sensord/tests/__pycache__/
 tools/__pycache__/
 
 tools/wifi-psk
+
+# chefui build tree (tools/chefui/Makefile)
+tools/chefui/build/
