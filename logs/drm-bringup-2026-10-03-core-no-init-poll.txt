@@ -1,0 +1,3 @@
+core-no-init shell unavailable after45s
+ZF6223WZGL	 fastboot
+

@@ -1,0 +1,10 @@
+{
+  "baseline_symbols": 10601,
+  "core_symbols": 10953,
+  "added_exports": 352,
+  "missing_exports": [],
+  "shared_crc_mismatches": {},
+  "baseline_module_layout": "0x710426d2",
+  "core_module_layout": "0x710426d2",
+  "evt_dtb_matches_baseline": true
+}

@@ -1,0 +1,3 @@
+core-even shell unavailable after45s
+ZF6223WZGL	 fastboot
+

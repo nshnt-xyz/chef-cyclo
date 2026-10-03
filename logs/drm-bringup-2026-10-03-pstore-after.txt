@@ -1,0 +1,20 @@
+mount -t pstore pstore /sys/fs/pstore; uname -a; cat /proc/consoles; ls -l /
+sys/fs/pstore; cat /sys/fs/pstore/console-ramoops*; dmesg | grep -E 'pstore|ramo
+ops|persistent_ram'; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+pstore-1             -W- (E  p a)
+total 0
+-r--r--r--    1 root     root             0 Jan 16 18:35 annotate-ramoops-0
+cat: can't open '/sys/fs/pstore/console-ramoops*': No such file or directory
+[    0.000000,0] Reserved memory: reserved region for node 'ramoops_mem_region': base 0x00000000af000000, size 0 MiB
+[    0.223564,4] persistent_ram: persistent_ram: paddr: 00000000af000000, vaddr: ffffff80081c0000, buf size = 0x1fff4
+[    0.223588,4] persistent_ram: persistent_ram: paddr: 00000000af020000, vaddr: ffffff8008680000, buf size = 0x3fff4
+[    0.223608,4] persistent_ram: persistent_ram: paddr: 00000000af060000, vaddr: ffffff8008700000, buf size = 0x3fff4
+[    0.223621,4] persistent_ram: persistent_ram: paddr: 00000000af0a0000, vaddr: ffffff80080f6000, buf size = 0x7f4
+[    0.224332,4] console [pstore-1] enabled
+[    0.224496,4] pstore: Registered ramoops as persistent store backend
+[    0.224507,4] ramoops: attached 0xc0000@0xaf000000, ecc: 0/0
+[   21.545557,1] persistent_ram: persistent_ram_annotation_merge: discarded 63
+[   21.545575,1] pstore: Created annotate-ramoops
+CYCL0_COMMAND_DONE
+/ # 

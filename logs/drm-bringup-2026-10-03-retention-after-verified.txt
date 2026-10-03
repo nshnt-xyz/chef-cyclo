@@ -1,0 +1,9 @@
+mount -t pstore pstore /sys/fs/pstore; uname -a; ls -l /sys/fs/pstore; cat /
+sys/fs/pstore/console-ramoops*; cat /proc/consoles; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+total 0
+-r--r--r--    1 root     root             0 Jan 16 18:42 annotate-ramoops-0
+cat: can't open '/sys/fs/pstore/console-ramoops*': No such file or directory
+pstore-1             -W- (E  p a)
+CYCL0_COMMAND_DONE
+/ # 

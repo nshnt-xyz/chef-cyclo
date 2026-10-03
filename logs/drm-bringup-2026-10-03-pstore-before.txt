@@ -1,0 +1,5 @@
+cat /proc/consoles; dmesg | grep -E 'pstore|ramoops|persistent_ram'; echo '<
+3>cyclo-drm-pstore-retention-20261003' > /dev/kmsg; sync; btprobe restart bootlo
+ader; echo CYCL0_COMMAND_DONE
+pstore-1             -W- (E  p a)
+

@@ -1,0 +1,40 @@
+uname -a; cat /proc/cmdline; dmesg | grep -E 'calling |initcall ' | head -12
+; ls -l /dev/block/bootdevice/by-name/kpan; readlink -f /dev/block/bootdevice/by
+-name/kpan; cat /proc/partitions | tail -12; busybox --list | grep -E 'httpd|bas
+e64|nc'; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+rcupdate.rcu_expedited=1 console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x37 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 sched_enable_hmp=1 sched_enable_power_aware=1 service_locator.enable=1 swiotlb=1 loop.max_part=7 androidboot.hab.csv=39 androidboot.hab.product=chef androidboot.hab.cid=50 buildvariant=user initcall_debug ignore_loglevel loglevel=8 quiet root=/dev/mmcblk0p67 androidboot.verifiedbootstate=orange androidboot.keymaster=1 androidboot.bootdevice=c0c4000.sdhci androidboot.serialno=ZF6223WZGL androidboot.device=chef androidboot.revision=pvt androidboot.hwrev=0xC000 androidboot.radio=APAC androidboot.powerup_reason=0x00004000 androidboot.bootreason=reboot msm_poweroff.download_mode=0 androidboot.wifimacaddr=30:4B:07:6F:0D:76,30:4B:07:6F:0D:77 androidboot.btmacaddr=30:4B:07:6F:0D:75 androidboot.bootloader=MBM-3.0-chef_retail-06369b83c90-210922 androidboot.carrier=retin androidboot.build_vars=black androidboot.hardware.sku=XT1942-2 androidboot.secure_hardware=1 androidboot.cid=0x0032 androidboot.write_protect=0 androidboot.veritymode=disabled androidboot.bl_state=2 androidboot.mode=normal androidboot.baseband=msm mdss_mdp.panel=1:dsi:0:qcom,mdss_dsi_mot_tianma_nt_618_fhd_vid_v0:config0:1:none:cfg:single_dsi androidboot.slot_suffix=_a skip_initramfs rootwait ro init=/init androidboot.dtb_idx=-1347440721 androidboot.dualsim=true
+[    0.002487,0] calling  trace_init_flags_sys_exit+0x0/0x1c @ 1
+[    0.002495,0] initcall trace_init_flags_sys_exit+0x0/0x1c returned 0 after 0 usecs
+[    0.002506,0] calling  trace_init_flags_sys_enter+0x0/0x1c @ 1
+[    0.002513,0] initcall trace_init_flags_sys_enter+0x0/0x1c returned 0 after 0 usecs
+[    0.002525,0] calling  cpu_suspend_init+0x0/0x4c @ 1
+[    0.002533,0] initcall cpu_suspend_init+0x0/0x4c returned 0 after 0 usecs
+[    0.002546,0] calling  asids_init+0x0/0xe4 @ 1
+[    0.002558,0] initcall asids_init+0x0/0xe4 returned 0 after 5 usecs
+[    0.002571,0] calling  spawn_ksoftirqd+0x0/0x40 @ 1
+[    0.003680,0] initcall spawn_ksoftirqd+0x0/0x40 returned 0 after 1074 usecs
+[    0.003690,0] calling  init_workqueues+0x0/0x434 @ 1
+[    0.007029,0] initcall init_workqueues+0x0/0x434 returned 0 after 3252 usecs
+ls: /dev/block/bootdevice/by-name/kpan: No such file or directory
+ 259       26         64 mmcblk0p58
+ 259       27         64 mmcblk0p59
+ 259       28       8192 mmcblk0p61
+ 259       29       8192 mmcblk0p62
+ 259       30      65536 mmcblk0p63
+ 259       31      65536 mmcblk0p64
+ 259       32     524288 mmcblk0p65
+ 259       33     524288 mmcblk0p66
+ 259       34    2621440 mmcblk0p67
+ 259       35    2621440 mmcblk0p68
+ 259       36   53993455 mmcblk0p69
+ 179       32       4096 mmcblk0rpmb
+base64
+fsync
+nc
+sync
+truncate
+tunctl
+uuencode
+CYCL0_COMMAND_DONE
+/ # 

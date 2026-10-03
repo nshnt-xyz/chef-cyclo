@@ -1,0 +1,2 @@
+Operator/tool observations: core.img SHA256 6ea50dcd450563f0d82ec449ab694ce560deeb4ea1938dc33a24a7b12ae6194c
+fastboot transfer OKAY1.446s; boot command OKAY5.084s. Core-only shell unavailable after45s socket polling. USB Motorola Fastboot chef S, serialZF6223WZGL. No probe shell/runtime commands succeeded.

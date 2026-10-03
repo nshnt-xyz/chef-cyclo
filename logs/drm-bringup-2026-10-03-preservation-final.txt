@@ -1,0 +1,13 @@
+out/kernel/.config: OK
+out/kernel/vmlinux: OK
+out/kernel/Module.symvers: OK
+out/kernel/arch/arm64/boot/Image.gz-dtb: OK
+out/boot.img: OK
+out/kernel-drm/.config: OK
+out/kernel-drm/vmlinux: OK
+out/kernel-drm/Module.symvers: OK
+out/kernel-drm/arch/arm64/boot/Image.gz-dtb: OK
+out/kernel-drm-control/.config: OK
+out/kernel-drm-control/vmlinux: OK
+out/kernel-drm-control/Module.symvers: OK
+out/kernel-drm-control/arch/arm64/boot/Image.gz-dtb: OK

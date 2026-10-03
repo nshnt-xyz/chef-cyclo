@@ -1,0 +1,17 @@
+{
+  "build_exit": 0,
+  "config_byte_identical_to_baseline": true,
+  "config_diff_bytes": 0,
+  "chef_evt_dtb_identical_to_baseline": true,
+  "chef_evt_dtb_identical_to_drm": true,
+  "baseline_symvers_symbols": 10601,
+  "control_symvers_symbols": 10601,
+  "missing_control_symbols": [],
+  "additional_control_symbols": [],
+  "crc_mismatches": {},
+  "module_layout_crc": {
+    "baseline": "0x710426d2",
+    "control": "0x710426d2"
+  },
+  "Image_gz_dtb_byte_identical_to_baseline": false
+}

@@ -1,0 +1,10 @@
+uname -a; echo '<3>cyclo-drm-pstore-retention-20261003-verified' > /dev/kmsg
+; dmesg | grep 'cyclo-drm-pstore-retention'; cat /proc/consoles; mount -t pstore
+ pstore /sys/fs/pstore; ls -l /sys/fs/pstore; echo CYCL0_COMMAND_DONE
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+[   40.443575,1] cyclo-drm-pstore-retention-20261003-verified
+pstore-1             -W- (E  p a)
+total 0
+-r--r--r--    1 root     root             0 Jan 16 18:41 annotate-ramoops-0
+CYCL0_COMMAND_DONE
+/ # 

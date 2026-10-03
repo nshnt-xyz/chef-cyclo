@@ -14,7 +14,7 @@ Acceptance: claims release on process death, UI restarts do not interrupt the re
 
 Direction agreed on 2026-10-02: modernize both the display and touch paths. Target a supported DRM/KMS display driver, a current Wayland compositor, and libinput for touchscreen handling. A polished framebuffer application alone does not complete this work. This is a hardware enablement project; support for this phone's exact panel and replacement touchscreen must be established before choosing a kernel or compositor.
 
-Initial support findings and evidence are in the [display modernization investigation](../research/display-modernization.md). The [DRM bring-up record](../research/drm-bringup.md) now includes successful isolated built-in compilation and two failed temporary boot probes; early boot diagnostics are the next prerequisite before hardware binding changes. Standard touch discovery can be brought up on the current kernel while the DRM board port is investigated separately.
+Initial support findings and evidence are in the [display modernization investigation](../research/display-modernization.md). The [DRM bring-up record](../research/drm-bringup.md) now includes successful isolated built-in compilation, a successful exact-baseline control boot, and failed DRM-core-only probes. Establish an observable early boot/capture path before hardware binding changes; core-only failure does not identify an MSM hardware driver bug. Standard touch discovery can be brought up on the current kernel while the DRM board port is investigated separately.
 
 ### Display investigation and bring-up
 

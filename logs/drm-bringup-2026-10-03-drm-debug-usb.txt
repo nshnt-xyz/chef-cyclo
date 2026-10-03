@@ -1,0 +1,5 @@
+0.014s Bus 001 Device 071: ID 22b8:2e80 Motorola PCS Fastboot chef S
+5.710s phone absent
+8.964s Bus 001 Device 072: ID 22b8:2e80 Motorola PCS Fastboot chef S
+44.911s phone absent
+No USB shell within 45s polling window
