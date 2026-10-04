@@ -6,7 +6,10 @@
 and `gnss_review` (review) on 2026-10-04. Phase 1 done 2026-10-04
 (`boot_a` holds `out/boot-abslot.img`; slot flags answered and handled by
 `abslot`, see [standalone boot](storage-and-boot.md#standalone-boot)).
-Phases 2 and 3 not started.
+Phase 2 on hold by the user (2026-10-04) before anything was written;
+`userdata` is untouched. Research notes, draft design and the phase 3
+timing baseline: [phase 2 notes](../../logs/install-layout-phase2-notes-2026-10-04.md).
+Phase 3 not started.
 
 ## Decision (user, 2026-10-04)
 
@@ -60,6 +63,9 @@ Magisk image is no longer required now that Android is retired, but the
 command and hashes stay in the docs).
 
 ### Phase 2: writable `/data` on `userdata`
+
+Start from the [phase 2 notes](../../logs/install-layout-phase2-notes-2026-10-04.md)
+(draft design, reviewer reminders, `CONFIG_EXT4_USERDATA_BLKNUM` to check).
 
 - Add Alpine `e2fsprogs`. ext4 only (`CONFIG_EXT4_FS=y`, no F2FS).
 - An explicit, one-time format command (for example `chef-storage format`)
