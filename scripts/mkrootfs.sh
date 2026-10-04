@@ -33,7 +33,7 @@ PKGS="alpine-baselayout musl busybox busybox-extras
       qmi-utils gpsd tinyalsa wpa_supplicant iw
       iproute2 util-linux-misc curl ca-certificates-bundle jq tcpdump iperf3
       networkmanager networkmanager-wifi networkmanager-cli networkmanager-tui
-      eudev libinput libinput-tools glib apk-tools iptables iptables-legacy chrony"
+      eudev glib apk-tools iptables iptables-legacy chrony"
 
 rm -rf "$ROOT"
 mkdir -p "$ROOT" "$CACHE"

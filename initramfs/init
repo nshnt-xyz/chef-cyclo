@@ -108,7 +108,7 @@ printf '%s\n' "$IFACE" > /run/usb-interface
 
 # Initialize native device metadata before NetworkManager starts. Preserve
 # kernel names; packaged eudev has no predictive net-renaming rule. Coldplug
-# net first: probing every storage/input device delayed boot and settle timed
+# only net: probing every storage/input device delayed boot and settle timed
 # out on this kernel. Existing nodes remain devtmpfs (mdev fallback); new
 # device events are still handled by the resident udev daemon.
 mkdir -p /run/udev
@@ -118,19 +118,6 @@ if /sbin/udevd --daemon; then
     else
         log "network udev initialization failed; NetworkManager will remain unavailable"
     fi
-    # Input classification (ID_INPUT_TOUCHSCREEN etc.) needs add events for
-    # devices registered before udevd started. Run after net settle so an
-    # input failure cannot hold up the NM readiness marker. Bound this
-    # background task to 10 seconds; never wait for it before exec init.
-    (
-        log "input coldplug starting"
-        if timeout -k 1 4 udevadm trigger --action=add --subsystem-match=input && udevadm settle --timeout=5; then
-            touch /run/input-udev-ready
-            log "input coldplug ready"
-        else
-            log "input coldplug failed or timed out; libinput discovery may be incomplete"
-        fi
-    ) &
 else
     log "udev initialization failed; NetworkManager will remain unavailable"
 fi

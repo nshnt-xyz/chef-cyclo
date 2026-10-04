@@ -290,7 +290,7 @@ and [current operating guide](../features/ui-platform.md).
 - GPU acceleration and multi-threaded rendering.
 - Asynchronous commits (non-blocking pan).
 - Renaming `/run/fblog.off`.
-- Removing `libinput`/`libinput-tools` from the rootfs. **Queued as the next task after this phase** (user decision 2026-10-03). They were only needed for the Wayland plan and manual diagnostics, and `libinput-tools` pulls in Python (about 124 MiB installed). Removing them should shrink the ramdisk substantially and widen the loader-budget margin. Update the input-coldplug docs and the libinput diagnostics in the display guide when doing so.
+- Removing `libinput`/`libinput-tools` from the rootfs. **Done 2026-10-04** (user decision 2026-10-03), see the [build log](../build-log.md). They were only needed for the Wayland plan and manual diagnostics, and `libinput-tools` pulled in Python. The input coldplug and the libinput diagnostics in the display guide went with them.
 
 ## Working rules for implementation and review
 

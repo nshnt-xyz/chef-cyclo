@@ -47,7 +47,7 @@ A short power-button press performs that toggle; while a chefui application runs
 
 Edit `fblog` arguments in the applicable `etc/inittab`: `-b` brightness (default 96), `-s` glyph scale (default 2, 59×68 cells), `-k` maximum kernel log level, or `-a` all kernel messages.
 
-## Read-only inventory and libinput diagnostics
+## Read-only inventory
 
 The overlay includes `display-touch-inventory`. It reports every framebuffer's cached name, modes, virtual geometry,
 bits per pixel and stride, then every evdev device's cached identity, properties
@@ -79,37 +79,20 @@ establish protocol B. Framebuffer geometry may be virtual; use the cached modes
 where provided for visible dimensions. Pixel channel layout is not available
 through these generic attributes, so no framebuffer ioctl is attempted.
 
-The rootfs packages `libinput` and `libinput-tools`. Boot coldplugs network devices
-first, keeping `/run/udev-ready` solely for NetworkManager. Input-only coldplug
-then runs in a background task (trigger TERM after 4 seconds, KILL after one more;
-settle timeout 5 seconds), without delaying the handoff to init. Its independent
-`/run/input-udev-ready` marker means classification completed. Settle watches the
-global udev queue, so unrelated events can cause input readiness to fail. Failure
-is logged and does not remove network readiness. Generic eudev `input_id`
-classifies this touchscreen; no device-specific rule or calibration is installed.
-
-After input readiness, manual diagnostics include:
-
-```sh
-udevadm info --query=property --path=/sys/class/input/event1
-libinput list-devices
-libinput debug-events --device /dev/input/event1
-```
-
-Select the event node by the inventory identity/capabilities; event numbers can
-change. These libinput commands are separate manual diagnostics that open input
-devices; `debug-events` consumes live events until interrupted. They are not
-started automatically and do not replace the display client or button daemon.
+Boot coldplugs only network devices, for NetworkManager (`/run/udev-ready`); input
+devices are not coldplugged and carry no udev classification. Nothing on the phone
+needs it: chefui, `fbtouch` and `buttond` read evdev directly and pick devices by
+capabilities (chefui takes the touchscreen by `INPUT_PROP_DIRECT` plus MT axes,
+`fbtouch` the first device with `ABS_MT_POSITION_X`, `buttond` the devices with
+power/volume keys and no ABS axes). libinput was removed from the rootfs on
+2026-10-04. Select the event node by the inventory identity/capabilities; event
+numbers can change. For live touch checks, use `fbtouch show` (above) or
+`chefui-demo` ([UI platform](ui-platform.md)).
 
 Host checks: `make -C tools test-display-inventory` exercises saved metadata
 fixtures with hazardous paths represented by FIFOs, and mocks the actual ABS
-command's open/ioctl/close calls including failure cleanup. `python3
-tools/tests/test_wifi_nm.py` checks independent net/input failure paths. Device
-validation remains necessary: compare boot-to-shell duration with the baseline,
-check input coldplug start/ready log timestamps and both readiness markers,
-verify `ID_INPUT_TOUCHSCREEN=1`, then compare inventory ranges with libinput
-classification and live touch behavior. Host checks cannot establish boot timing
-or physical controller health.
+command's open/ioctl/close calls including failure cleanup. Host checks cannot
+establish physical controller health.
 
 ## Framebuffer and touch contract
 
