@@ -1,0 +1,205 @@
+#!/bin/sh
+# Explicit provisioning only. Boot failures always fall back to RAM.
+set -eu
+SYS=${CHEF_STORAGE_SYS:-/sys/class/block}
+DEV=${CHEF_STORAGE_DEV:-/dev}
+CMDLINE=${CHEF_STORAGE_CMDLINE:-/proc/cmdline}
+MOUNTS=${CHEF_STORAGE_MOUNTS:-/proc/self/mountinfo}
+DATA=${CHEF_STORAGE_DATA:-/data}
+RUN=${CHEF_STORAGE_RUN:-/run}
+CONFIG=${CHEF_STORAGE_CONFIG:-/etc/chef/mke2fs.conf}
+LABEL=chefdata
+MARKER='chef-cyclo-data-v1'
+BYTES=55289298432
+mkdir -p "$RUN"
+log() {
+    # Early /init may inherit unusable console fds (console=null). Logging
+    # must not make a successful mount fail or prevent RAM-only boot.
+    echo "chef-storage: $*" >&2 || true
+    echo "chef-storage: $*" >> "$RUN/storage.log" || true
+    [ ! -c /dev/kmsg ] || echo "chef-storage: $*" 2>/dev/null > /dev/kmsg || true
+}
+fail() { log "$*"; return 1; }
+resolve() {
+    slot=; slot_count=0
+    for arg in $(cat "$CMDLINE"); do
+        case "$arg" in androidboot.slot_suffix=*) slot=${arg#*=}; slot_count=$((slot_count+1));; esac
+    done
+    [ "$slot_count" = 1 ] && [ "$slot" = _a ] || { fail 'refusing: active slot is not _a'; return 1; }
+    target=; count=0
+    for entry in "$SYS"/*; do
+        [ -f "$entry/uevent" ] || continue
+        if grep -qx 'PARTNAME=userdata' "$entry/uevent"; then
+            target=$entry; count=$((count+1))
+        fi
+    done
+    [ "$count" = 1 ] || { fail 'refusing: userdata PARTNAME is missing or ambiguous'; return 1; }
+    [ "$(grep -c '^PARTNAME=' "$target/uevent")" = 1 ] || { fail 'refusing: conflicting PARTNAME'; return 1; }
+    name=${target##*/}
+    node=$(readlink -f "$DEV/$name")
+    [ "$node" = "$DEV/$name" ] && [ -b "$node" ] || { fail 'refusing: target is not the expected block node'; return 1; }
+    grep -qx "DEVNAME=$name" "$target/uevent" && grep -qx 'DEVTYPE=partition' "$target/uevent" || { fail 'refusing: mismatched device metadata'; return 1; }
+    part=$(cat "$target/partition")
+    grep -qx "PARTN=$part" "$target/uevent" || { fail 'refusing: partition metadata mismatch'; return 1; }
+    sectors=$(cat "$target/size")
+    [ "$sectors" = 107986911 ] || { fail "refusing: userdata size is not $BYTES bytes"; return 1; }
+    major_minor=$(cat "$target/dev")
+    hex=$(stat -c '%t:%T' "$node")
+    actual="$(printf '%d' "0x${hex%:*}"):$(printf '%d' "0x${hex#*:}")"
+    [ "$actual" = "$major_minor" ] || { fail 'refusing: block node identity mismatch'; return 1; }
+    live_bytes=$(timeout -k 2 10 blockdev --getsize64 "$node") || { fail "refusing: block size probe failed"; return 1; }
+    [ "$live_bytes" = "$BYTES" ] || { fail 'refusing: live block size differs'; return 1; }
+    [ -r "$MOUNTS" ] && [ -r "${CHEF_STORAGE_SWAPS:-/proc/swaps}" ] || { fail 'refusing: cannot read mount/swap state'; return 1; }
+    mounted=$(awk -v dev="$major_minor" '$3==dev {found=1} END {print found+0}' "$MOUNTS") || { fail 'refusing: cannot inspect mounts'; return 1; }
+    [ "$mounted" = 0 ] || { fail 'refusing: userdata is already mounted'; return 1; }
+    swaps=$(awk 'NR>1 {print $1}' "${CHEF_STORAGE_SWAPS:-/proc/swaps}") || { fail 'refusing: cannot inspect swaps'; return 1; }
+    for swap in $swaps; do
+        if [ "$swap" = "$node" ] || { [ -b "$swap" ] && [ "$(stat -c '%t:%T' "$swap")" = "$hex" ]; }; then
+            fail 'refusing: userdata is active swap'; return 1
+        fi
+    done
+    [ -d "$target/holders" ] || { fail 'refusing: holders state missing'; return 1; }
+    holders=$(ls -A "$target/holders") || { fail 'refusing: cannot read holders'; return 1; }
+    if [ -n "$holders" ]; then
+        fail 'refusing: userdata has active block holders'; return 1
+    fi
+}
+label() { timeout -k 2 10 e2label "$node" 2>/dev/null; }
+ours() {
+    probed_label=$(label) || { fail "RAM-only: label probe failed"; return 1; }
+    [ "$probed_label" = "$LABEL" ] || { fail 'RAM-only: missing or foreign filesystem label'; return 1; }
+    value=$(timeout -k 2 10 debugfs -R 'cat /chef-layout' "$node" 2>/dev/null) || return 1
+    [ "$value" = "$MARKER" ] || { fail 'RAM-only: missing or foreign layout marker'; return 1; }
+}
+check() {
+    if timeout -k 5 60 e2fsck -p "$node" >> "$RUN/storage.log" 2>&1; then rc=0; else rc=$?; fi
+    log "e2fsck -p exit=$rc (60 s bound)"
+    case "$rc" in 0|1) return 0;; *) fail 'RAM-only: filesystem check failed'; return 1;; esac
+}
+mount_data() {
+    mkdir -p "$DATA" || return 1
+    timeout -k 5 20 mount -t ext4 -o noatime,nodiscard,commit=5,errors=remount-ro "$node" "$DATA"
+}
+consumers() {
+    mkdir -p "$DATA/v1/bluetooth" "$DATA/v1/networkmanager/system-connections" /var/lib/bluetooth /run/NetworkManager/system-connections || return 1
+    chmod 700 "$DATA/v1" "$DATA/v1/bluetooth" "$DATA/v1/networkmanager" "$DATA/v1/networkmanager/system-connections" || return 1
+    chown -R 0:0 "$DATA/v1/bluetooth" "$DATA/v1/networkmanager" || return 1
+    for profile in "$DATA/v1/networkmanager/system-connections"/* "$DATA/v1/networkmanager/system-connections"/.[!.]* "$DATA/v1/networkmanager/system-connections"/..?*; do
+        [ -e "$profile" ] || [ -L "$profile" ] || continue
+        [ -f "$profile" ] && [ ! -L "$profile" ] || return 1
+        chmod 600 "$profile" || return 1
+    done
+    timeout -k 5 10 mount --bind "$DATA/v1/bluetooth" /var/lib/bluetooth || return 1
+    timeout -k 5 10 mount --bind "$DATA/v1/networkmanager/system-connections" /run/NetworkManager/system-connections
+}
+# Check the entire filesystem, including aliases outside the consumer paths.
+aliases_remaining() {
+    [ -r "$MOUNTS" ] || return 2
+    remaining=$(awk -v dev="$major_minor" '$3==dev {n++} END {print n+0}' "$MOUNTS") || return 2
+    [ "$remaining" = 0 ] && return 1
+    return 0
+}
+detach_data() {
+    for path in /run/NetworkManager/system-connections /var/lib/bluetooth "$DATA"; do
+        timeout -k 2 8 umount "$path" 2>/dev/null || log "detach failed: $path"
+    done
+    if aliases_remaining; then log 'data aliases remain mounted';
+    else
+        rc=$?
+        [ "$rc" = 1 ] || { fail 'cannot verify residual data aliases'; return 1; }
+        log 'data fully unmounted'
+    fi
+}
+rollback() {
+    if timeout -k 2 8 mount -o remount,ro "$DATA"; then
+        detach_data || return 1
+        log 'remaining data aliases are read-only'
+        log 'consumer setup rolled back; persistent aliases are absent or read-only'
+    else
+        log 'rollback read-only transition failed; attempting detach'
+        detach_data || true
+        if aliases_remaining; then
+            fail 'storage rollback failed: writable aliases may remain'; return 1
+        else
+            rc=$?
+            [ "$rc" = 1 ] || { fail 'storage rollback failed: alias state unknown'; return 1; }
+        fi
+        log 'consumer setup rolled back; all persistent aliases detached'
+    fi
+}
+shutdown() {
+    # /data can be detached independently while a service alias survives.
+    # Find the trusted userdata device, then choose any existing alias.
+    target=; count=0
+    for entry in "$SYS"/*; do
+        [ -f "$entry/uevent" ] || continue
+        if grep -qx 'PARTNAME=userdata' "$entry/uevent"; then target=$entry; count=$((count+1)); fi
+    done
+    [ "$count" = 1 ] || { fail 'shutdown: userdata identity ambiguous'; return 1; }
+    name=${target##*/}
+    node=$(readlink -f "$DEV/$name") || return 1
+    [ "$node" = "$DEV/$name" ] && [ -b "$node" ] || return 1
+    grep -qx "DEVNAME=$name" "$target/uevent" || return 1
+    major_minor=$(cat "$target/dev") || return 1
+    hex=$(stat -c '%t:%T' "$node") || return 1
+    actual="$(printf '%d' "0x${hex%:*}"):$(printf '%d' "0x${hex#*:}")"
+    [ "$actual" = "$major_minor" ] || return 1
+    [ -r "$MOUNTS" ] || return 1
+    mounted_path=$(awk -v dev="$major_minor" '$3==dev {print $5; exit}' "$MOUNTS") || return 1
+    [ -n "$mounted_path" ] || return 0
+    if [ "${1:-}" = --pause-init ]; then
+        # An independent RAM-only watchdog also recovers SIGKILL/crash.
+        setsid sh -c 'sleep 120; kill -CONT 1' </dev/null >"$RUN/storage-watchdog.log" 2>&1 &
+        watchdog=$!
+        trap 'rc=$?; kill "$watchdog" 2>/dev/null || true; kill -CONT 1 2>/dev/null || true; exit "$rc"' 0
+        trap 'exit 1' HUP INT TERM
+        kill -TSTP 1 || return 1
+        sleep 1
+    fi
+    # BusyBox init invokes shutdown hooks before its global SIGTERM. Stop
+    # users of this filesystem first; init itself must survive this hook.
+    for sig in TERM KILL; do
+        for pid in $(timeout -k 2 5 fuser -m "$mounted_path" 2>/dev/null || true); do
+            case "$pid" in 1|$$|$PPID) continue;; esac
+            kill -"$sig" "$pid" 2>/dev/null || true
+        done
+        [ "$sig" != TERM ] || sleep 2
+    done
+    timeout -k 2 15 sync || log 'sync timed out'
+    # Ordinary remount changes the ext4 superblock, protecting every bind.
+    # Never detach first: a surviving independent alias could stay writable.
+    timeout -k 2 8 mount -o remount,ro "$mounted_path" || { fail 'data shutdown read-only transition failed'; return 1; }
+    log 'data filesystem globally read-only'
+    detach_data || return 1
+    log 'remaining data aliases are read-only'
+
+}
+case "${1:-status}" in
+status) cat "$RUN/storage.log" 2>/dev/null || true; mountpoint "$DATA" || true;;
+shutdown) shutdown "${2:-}";;
+boot)
+    exec 9>"$RUN/storage.lock"; flock -n 9 || exit 0
+    if resolve && ours && check && mount_data; then
+        if consumers; then log 'layout v1 mounted with BlueZ and NetworkManager';
+        else log 'consumer binds failed; rolling back persistent mounts'; rollback || log 'storage rollback failure; inspect mounts before using consumers'; fi
+    else log 'RAM-only boot'; fi
+    ;;
+format)
+    [ "$#" = 2 ] && [ "$2" = --yes-erase-userdata ] || { fail 'format requires --yes-erase-userdata'; exit 1; }
+    exec 9>"$RUN/storage.lock"; flock -n 9 || { fail 'storage operation in progress'; exit 1; }
+    resolve
+    old_label=$(label) || { fail "refusing: cannot read existing ext4 label"; exit 1; }
+    [ "$old_label" != "$LABEL" ] || { fail 'refusing: already provisioned'; exit 1; }
+    # These artifacts must be pulled and reviewed before invoking format.
+    export MKE2FS_CONFIG="$CONFIG"
+    mke2fs -t ext4 -O none,has_journal,ext_attr,resize_inode,dir_index,filetype,extent,64bit,flex_bg,sparse_super,large_file,huge_file,uninit_bg,dir_nlink,extra_isize -b 4096 -I 256 -m 1 -F -L "$LABEL" -E nodiscard,lazy_itable_init=0,lazy_journal_init=0 "$node" </dev/null
+    mount_data
+    printf '%s\n' "$MARKER" > "$DATA/chef-layout"
+    chmod 600 "$DATA/chef-layout"
+    mkdir -p "$DATA/v1/bluetooth" "$DATA/v1/networkmanager/system-connections"
+    chmod 700 "$DATA/v1" "$DATA/v1/bluetooth" "$DATA/v1/networkmanager" "$DATA/v1/networkmanager/system-connections"
+    sync; umount "$DATA"
+    log 'format complete; reboot to attach consumers'
+    ;;
+*) fail 'usage: chef-storage {status|boot|shutdown|format --yes-erase-userdata}'; exit 1;;
+esac

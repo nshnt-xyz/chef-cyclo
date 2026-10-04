@@ -4,10 +4,15 @@
 
 **Status:** handed to Herdr agents `gnss_impl` (implementation, live runs)
 and `gnss_review` (review) on 2026-10-04. Phase 1 done 2026-10-04
-(`boot_a` holds `out/boot-abslot.img`; slot flags answered and handled by
+(phase 1 installed `out/boot-abslot.img`; slot flags answered and handled by
 `abslot`, see [standalone boot](storage-and-boot.md#standalone-boot)).
-Phase 2 on hold by the user (2026-10-04) before anything was written;
-`userdata` is untouched. Research notes, draft design and the phase 3
+Phase 2 resumed on 2026-10-05 with Herdr agents `storage_impl` and
+`storage_review`, coordinated by `storage_research`. Reviewed provisioning
+of `userdata` is complete and reviewed `out/boot-data.img` (`df856fc3`) is
+installed in `boot_a`; real consumer persistence, one PMIC reset, three
+sysrq write-loss cycles and device regressions passed. The final shutdown
+fix makes the entire data filesystem read-only before detaching aliases,
+including when `/data` is absent. Research notes, draft design and the phase 3
 timing baseline: [phase 2 notes](../../logs/install-layout-phase2-notes-2026-10-04.md).
 Phase 3 not started.
 

@@ -18,3 +18,5 @@ These guides describe current behavior and how to work on it. Verification statu
 | [Audio](audio.md) | `audio-up` ADSP boot/card and `speaker-test-tone` mmap playback live-verified 2026-09-19; manual opt-in, speaker protection abandoned September 26 after live experiments; conservative playback limits are permanent. |
 
 When changing a feature, inspect the listed source files, run its host tests, rebuild the appropriate image, and distinguish build/host results from live verification. Update the guide when behavior changes and append dated evidence to the [build log](../build-log.md). Keep pending integration work in the linked plan.
+
+- [Persistent data](storage.md): explicit userdata provisioning, boot checks, BlueZ and NetworkManager state.

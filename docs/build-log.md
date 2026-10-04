@@ -1154,3 +1154,62 @@ Live, phone at a window, nothing flashed: `out/boot-gpstime1.img` `563df6af901eb
 - **Charger mode**: `poweroff` with USB attached brought the phone back in 24 s with `androidboot.mode=charger` and our full OS (follow-up recorded in the plan).
 
 Host: `make -C tools test` (with the new `tests/test_abslot.py`, 18) and `python3 -m unittest discover scripts/tests` (19) pass. [Live summary](../logs/install-layout-phase1-2026-10-04.txt); raw evidence in `~/chef-cyclo-evidence/install-layout-20261004/` (local). The coordinator promoted `out/boot-abslot.img` to the baseline `out/boot.img` (`833ea187`); the previous baseline `343fc3f7` is kept as `out/boot-gpstime3.img`.
+
+## 2026-10-05: phase 2 persistent data
+
+Herdr `storage_impl` implemented, `storage_review` reviewed, and
+`storage_research` coordinated phase 2 of the [install handoff](next-steps/install-layout-handoff.md).
+The user resumed the approved work. `userdata` was explicitly provisioned as
+ext4 `chefdata` with a layout marker and private versioned directories.
+`chef-storage` checks exact partition/slot/device identity and refusal rules,
+checks label/marker and bounded fsck before early mounts, and quiesces storage
+on shutdown. BlueZ and NetworkManager use persistent binds; root remains RAM.
+See the [storage guide](features/storage.md) and [live summary](../logs/install-layout-phase2-2026-10-05.txt).
+
+| Artifact | SHA-256 |
+|---|---|
+| First storage test image | `847d5efe3cc79e8730f398b95ae943a820828527e78e5aeea83092ad1c856fe6` |
+| Block-size status guard test image | `477826ca37855258f0e5a01f91acb8b856c23b05a4fd27b263b161fb6ae96341` |
+| Single-force format test image | `456a5c20333818bcbdbfd0b57fa94a19065506007c3fe96e79d2a9234d961b5b` |
+| Initial installed data image, retained `out/boot-data-pre-ro.img` | `86a5d207186707049ff08a068743bfd5f6c55f41a42b5f1d75a4e3cb59bf9891` |
+| Final global-read-only `out/boot-data.img` | `df856fc376e0b0c9581cd8bfc31da9bb992789754d668177e368914be64cb070` |
+| Unchanged `out/boot.img`, retained `out/boot-abslot.img` fallback | `833ea187738cf7e2f0505288591bf22cf72bea98091a549e8d700e1f88c9e554` |
+
+The current image is 36,032,512 bytes; encoded ramdisk 23,556,400 bytes;
+loader margin 23,826,432 bytes. Alpine e2fsprogs/e2fsprogs-extra 1.47.4 were
+added. The kernel stays unchanged; `EXT4_USERDATA_BLKNUM` has no runtime effect
+with `EXT4_FORCE_NODISCARD` disabled, and format/mount explicitly use nodiscard.
+
+The saved original raw superblock and `dumpe2fs -h`, actual kernel loop proof,
+ordinary loop-backed reboot and exact refusal tests were reviewed before any
+userdata write. The first attempt stopped at the extra mke2fs overwrite prompt
+without writes; single `-F` and noninteractive stdin were corrected and proved
+on an existing-ext4 loop before renewed clearance. Provisioning then completed
+with the label/marker and an unmounted clean fsck. A prototype repack lost
+existing overlay modes, corrected by a full build. Early `console=null` logging
+errors were made harmless, with closed-console tests. The final full host suite
+passes, including 52 storage tests under Bash/BusyBox ash and actual loop images.
+
+After exact image review and coordinator go-ahead, `current-slot:a` and the
+image SHA were rechecked, and only `boot_a` was flashed. Normal boot hash and
+early `/data` plus both service binds match; abslot is successful with retry6.
+A real host BlueZ bond and root-only saved NM profile survive, with unchanged
+private content hashes. The user-performed PMIC reset under writes caused journal
+recovery and clean boot fsck; both real consumers remained intact and unmounted
+`e2fsck -fn` passed. Three sysrq-b loss cycles also recovered with unchanged
+real consumer hashes and a final clean unmounted check. A privately saved
+root/600 Wi-Fi profile autoconnected after ordinary reboot, unchanged by hash;
+HTTPS returned200 with TLS verification. Audio playback completed, accel/mag
+samples arrived, chrony reported Normal and a GNSS lease reached an actual fix.
+Subsystem crash counts, including modem, and protected-partition write counters
+were zero. Final shutdown review added filesystem-wide RO before detach,
+including when `/data` is already absent; a RAM loop surviving alias rejected
+writes with EROFS and passed clean fsck. The final helper also completed an ordinary reboot with global RO and full
+unmount captured in kmsg, followed by unchanged Wi-Fi autoconnect. The final reviewed image was explicitly installed to `boot_a` after a fresh
+slot/hash check. Its installed image-prefix/helper hashes match, early check
+and all three mounts pass, Wi-Fi autoconnects after another ordinary reboot,
+and abslot remains successful/retry6 after30s. Final crash/protected-partition
+write counters are zero; actual consumer hashes remain unchanged. No phase 3 work or baseline promotion.
+
+Raw evidence: `~/chef-cyclo-evidence/storage-phase2-20261005/` (private, outside
+Git). Only credential-free summaries are tracked.

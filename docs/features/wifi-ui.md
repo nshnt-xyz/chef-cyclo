@@ -49,8 +49,10 @@ The Alpine v3.24 package set includes NetworkManager 1.52.2, libnm, nmcli,
 nmtui, eudev, gdbus, wpa_supplicant, iw, full iproute2 (ip/ss/tc), rfkill,
 curl/CA certificates, chronyd/chronyc, jq, tcpdump, iperf3 and legacy iptables with its shared
 extensions. Runtime `apk`, public keys and main/community repositories are
-retained. Compatible tools can be installed with ordinary `apk add`; packages,
-profiles and runtime files remain RAM-only. There are no seeded credentials or
+retained. Compatible tools can be installed with ordinary `apk add`; packages
+and runtime files remain RAM-only. With a provisioned phase 2 data volume,
+saved keyfiles persist through the [storage bind](storage.md); `save no`
+profiles remain volatile. There are no seeded credentials or
 connections. Root is the current authorization scope; a future nonroot UI
 needs deliberate D-Bus/polkit authorization.
 
@@ -71,9 +73,11 @@ nmcli connection down id ride-wifi
 Never pass a PSK in argv, shell history or logs. `nmcli --ask` uses a terminal
 prompt; automated clients should use libnm/D-Bus with in-memory secrets or a
 SecretAgent instead of piping a password into nmcli. Keyfiles are restricted to
-root under `/run/NetworkManager/system-connections`; even saved profiles vanish
-on reboot. `nmtui` provides the standard terminal UI. Persistent credential
-storage has not been introduced.
+root under `/run/NetworkManager/system-connections`, bound to
+`/data/v1/networkmanager/system-connections` on phase 2 images with healthy
+storage. Saved profiles persist there; RAM-only fallback loses them on reboot.
+`nmtui` provides the standard terminal UI. Keep `save no` and secret flags 2
+for the intentionally volatile interactive example above.
 
 For a GUI, use libnm or NetworkManager's system D-Bus API and property signals.
 AddAndActivateConnection2 supports memory/volatile profiles. Keep association,

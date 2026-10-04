@@ -238,6 +238,7 @@ test: $(TEST_BIN) test-shell wifi-psk abslot test-display-inventory
 	python3 tests/test_wifi_build.py
 	python3 tests/test_wifi_nm.py
 	python3 tests/test_abslot.py
+	python3 tests/test_storage.py
 
 # gps-up (initramfs/) selection-logic regression; not a build product of
 # this directory, but this is the natural place to run it alongside the

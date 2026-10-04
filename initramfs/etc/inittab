@@ -45,5 +45,6 @@
 # keeps counting and ends in fastboot. Logs to kmsg and /run/abslot.log.
 ::once:/bin/sh -c 'sleep 30; exec /usr/bin/abslot mark-successful >/dev/null'
 ::ctrlaltdel:/sbin/reboot
+::shutdown:/usr/bin/chef-storage shutdown
 ::shutdown:/bin/umount -a -r
-::restart:/sbin/init
+::restart:/bin/sh -c '/usr/bin/chef-storage shutdown; exec /sbin/init'

@@ -1,0 +1,111 @@
+Install layout phase 2, 2026-10-05 (local date; live runs begin 2026-10-04 UTC)
+Implementation: storage_impl; review: storage_review; coordination: storage_research.
+Phase 2 live acceptance passed. Phase 3 not started.
+
+Current installed boot_a:
+  out/boot-data.img
+  df856fc376e0b0c9581cd8bfc31da9bb992789754d668177e368914be64cb070
+  36,032,512 bytes; ramdisk 23,556,400; loader margin 23,826,432 bytes.
+Final helper:
+  f25af288bde206862d3415b1406f0be500cfcf4212924e3873ceb70fa135e0cc
+Config:
+  4f6d9ea6bf347d72f598036bbc251934660ec928b443d0cbfba437cdc1d82ea0
+Baseline out/boot.img and retained phase 1 fallback out/boot-abslot.img:
+  833ea187738cf7e2f0505288591bf22cf72bea98091a549e8d700e1f88c9e554
+
+Preformat review:
+  Unique slot _a; PARTNAME userdata => mmcblk0p69, 259:36.
+  107986911 sectors => 55289298432 bytes, also checked by blockdev.
+  Actual block-node identity matches; no mounts/alias mounts, swap or holders.
+  Original raw 1024-byte superblock and dumpe2fs header saved outside repo.
+  Raw SHA256 f6a7e9d31c9d7af73c3089f7ea42bcbbf847fc92d4b7381b6a5cfc85e4b9e74d.
+  Feature-proof loop on actual 4.4 kernel: exact pinned features, read-only
+  debugfs marker, both real service binds, e2fsck -p=0 and unmounted -fn=0.
+  BusyBox timeout TERM/KILL escalation => 137. Default init-owned reboot with
+  loop /data unmounted and USB returned; manual pause trap/watchdog reviewed.
+
+Format:
+  Review granted for each exact revision before provisioning.
+  First attempt stopped at e2fsprogs overwrite prompt, writes0 and original
+  raw superblock unchanged. Missing single -F corrected and re-reviewed;
+  actual existing-ext4 RAM loop reprovision with EOF stdin passed.
+  Approved one-time format completed. chefdata label, pinned features,
+  chef-cyclo-data-v1 marker, unmounted e2fsck -fn clean.
+  No automatic formatting; command refuses mounted/already provisioned data.
+
+Build/startup corrections:
+  Shortcut overlay repack bypassed script mode normalization. Full builder
+  restored gps-up/audio/sensors executable modes and NM dispatcher permissions;
+  chef-storage explicitly normalized to755.
+  Unusable console=null early-init stderr made top-level logger fail under
+  set-e after successful binds. Logger now best-effort; check captures status
+  with if rather than toggling global errexit. Early automatic startup now
+  records fsck0 and layout success; all three mounts are on259:36.
+  Host tests use isolated absolute stubs under Bash and BusyBox ash, plus
+  actual ext4 feature/marker/fsck and TERM/KILL tests: 52 cases green inside
+  full make -C tools test.
+
+Installation:
+  Exact current image/source/temp automatic mount proof and retained fallback
+  reviewed; coordinator released scoped boot_a flash hold.
+  Immediately rechecked current-slot:a and SHA, explicit flash boot_a only.
+  Normal boot partition prefix hash matches current image.
+  abslot marks successful=1, retry6; initial mark wrote expected4 GPT sectors.
+  out/boot.img unchanged. No set_active; no system_a or other partition flash.
+
+Consumers:
+  Actual host BlueZ bond/trust created; survives installed boot, l2ping3/3.
+  Actual saved NM BT-PAN keyfile reloads, mode600/root; consumer content hashes
+  kept privately and unchanged across tested boots.
+  Actual WiFi saved privately with root600 profile. Ordinary reboot changed
+  boot ID and autoconnected saved chef-storage-wifi without activation;
+  private profile hash unchanged. HTTPS status200/TLSverify0 and chronyNormal.
+  No credentials or key contents included in tracked evidence.
+
+Power loss:
+  User explicitly ready,10-second countdown then9-second Power-only hold.
+  Hardware reset/KPDPWR_N observed; USB down/return and bootreason recorded.
+  Unclean write loop had journal recovery; bootfsck0/layout success.
+  Last complete synthetic probe528 in both service directories; actual bond
+  and NM keyfile content hashes unchanged. Unmounted e2fsck -fn=0.
+  Three sysrq-b write-loop cycles passed journal replay, earlyfsck0/layout,
+  unchanged actual BlueZ/NM content hashes; cycle2 recovered temporary orphan
+  inode as expected. Final unmounted e2fsck -fn=0.
+  Mount commit=5 (normal journal transaction age, not a guarantee of recent
+  unsynced application-data durability); no discard.
+
+Raw private evidence:
+  ~/chef-cyclo-evidence/storage-phase2-20261005/
+  Preformat.tgz; loop-proof.tgz; single-force-loop-proof.txt;
+  postformat-verified.txt; normalized-auto-boot.txt; flash-boot-a.txt;
+  installed-ready.txt; consumers-before.txt; pmic-after.txt;
+  pmic-clean-fsck.txt; full build/test logs and reset-cycle evidence.
+  No credentials or keyfile/key contents copied to repository evidence.
+
+Regressions:
+  Speaker tinyplay completed, accelerometer/magnetometer samples delivered,
+  HTTPS200/TLSverify0 and chrony leapNormal. Actual GNSS manager lease reached
+  RUNNING/CID1/fix; all subsystem crash_count0 including modem.
+  Final protected-partition counters0; only userdata partition has writes.
+
+Final shutdown review:
+  Failure detaching a bind could leave an independent writable alias after
+  /data detached. Corrected shutdown to require filesystem-wide RO first,
+  then bounded detach and major:minor mountinfo verification. Missing /data
+  is handled by trusted userdata identity and an existing filesystem alias.
+  Boot rollback uses RO first or must verify every alias gone after failure.
+  Phone RAM loop proof: residual alias write EROFS, repeated shutdown with
+  /data absent still EROFS, unmounted clean fn0. 120s watchdog/bootloader wait
+  exceeds the 64s bounded shutdown work. Full52-case host suite green.
+  Final test image df856fc376e0b0c9581cd8bfc31da9bb992789754d668177e368914be64cb070.
+  36032512bytes/ramdisk23556400/margin23826432; source/staged/device match.
+  Temporary boot fsck0/layout/autoconnect; ordinary shutdown captured globalRO
+  and fullunmount before USB return and unchanged savedWiFi autoconnect.
+  Prior installed86a retained as out/boot-data-pre-ro.img. Exact finalimage
+  scoped reflash reviewed and executed after freshslot:a/SHAcheck. Final
+  installed prefix/helper hashes match, all three early mounts succeed,
+  abslot successful/retry6 after30s, savedWiFi autoconnects after an additional
+  ordinary reboot. All actual consumer hashes remain unchanged, root600
+  profiles, protected partition writes0, modem/subsystem crash_count0.
+  Evidence: installed-final-verified.txt, installed-final-ordinary-kmsg.txt,
+  installed-final-reboot-{after,timing,summary}.txt. No baseline promotion.

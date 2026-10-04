@@ -10,7 +10,7 @@ Decided 2026-10-04 (user): Android is retired. Writable state goes on `userdata`
 
 ## Standalone boot
 
-Done on 2026-10-04 as phase 1 of the [install layout handoff](install-layout-handoff.md): `boot_a` holds our image (`out/boot-abslot.img`, the `343fc3f7` baseline plus [`abslot`](#ab-slot-flags)), the phone cold-boots without a PC to a working system, and a normal reboot no longer starts Android. Evidence is in the [build log](../build-log.md#2026-10-04-our-image-in-boot_a). Phases 2 (`/data` on `userdata`) and 3 (root on `system_a`) are next.
+Done on 2026-10-04 as phase 1 of the [install layout handoff](install-layout-handoff.md): phase 1 installed our image (`out/boot-abslot.img`, the `343fc3f7` baseline plus [`abslot`](#ab-slot-flags)); phase 2 now has the reviewed `out/boot-data.img` (`df856fc3`) in `boot_a`. The phone cold-boots without a PC to a working system, and a normal reboot no longer starts Android. Evidence is in the [build log](../build-log.md#2026-10-04-our-image-in-boot_a). Phase 2 (`/data` on `userdata`) is provisioned and acceptance tested; phase 3 (root on `system_a`) remains untouched.
 
 ### Why flashing `boot_a` is recoverable
 
@@ -40,7 +40,7 @@ Done on 2026-10-04 as phase 1 of the [install layout handoff](install-layout-han
 | `stock/partitions/magisk_patched-v30.7-boot_a.img` (gitignored, build PC only; copy of `~/chef-cyclo-evidence/persistent-root-20260917-235600/exec/magisk_patched-v30.7-boot_a.img`) | `c6ab9f3a72cb9ccafeafb3deeec0265e8bd3d120d43477c3628435dbbb4ebc3f` | What `boot_a` held until 2026-10-04: stock Android 10 with Magisk v30.7 root. |
 | `stock/partitions/boot_a.img` | `c77eb87d128e8251e04da904555a9bc67228eedf0e91957f5fffbe5a5abf51f2` | Unrooted stock (2026-09-13 backup, also in `stock/partitions/SHA256SUMS`). |
 
-`stock/partitions/` is gitignored: these images and the GPT dumps exist only on the build PC and belong in the off-machine backup. Re-flashing either is no longer needed now that Android is retired, but the route stays: enter fastboot (VolDown through the Power-held reset), `fastboot getvar current-slot` must say `a`, `fastboot flash boot_a <image>`, `fastboot reboot`. Android only comes back with its matching `system_a` and a `userdata` it accepts (see [recovery](install-layout-handoff.md#recovery-story-to-document)); until phase 2 and 3 run, both are still Android's.
+`stock/partitions/` is gitignored: these images and the GPT dumps exist only on the build PC and belong in the off-machine backup. Re-flashing either is no longer needed now that Android is retired, but the route stays: enter fastboot (VolDown through the Power-held reset), `fastboot getvar current-slot` must say `a`, `fastboot flash boot_a <image>`, `fastboot reboot`. Android only comes back with its matching `system_a` and a `userdata` it accepts (see [recovery](install-layout-handoff.md#recovery-story-to-document)); phase 2 has replaced Android userdata with `chefdata`, so Android must never boot against it. `system_a` remains Android's old root until phase 3.
 
 ### Procedure (as run)
 
@@ -58,3 +58,22 @@ Done on 2026-10-04 as phase 1 of the [install layout handoff](install-layout-han
 ## Retire Android
 
 Decided by the user on 2026-10-04: Android is retired. `userdata` becomes `/data` and `system_a` our read-only root in phases 2 and 3 of the [install layout handoff](install-layout-handoff.md); `system_b` keeps Android's old slot-`_b` image.
+
+## Persistent storage
+
+Phase 2 implements `/data` on the exact `userdata` partition, an explicit
+confirmed one-time format, checked early mounts and orderly shutdown, and
+persistent BlueZ pairing state plus root-only NetworkManager keyfiles. The
+[storage guide](../features/storage.md) is the operating reference. It records
+the versioned layout, conservative ext4 profile and RAM-only fallback policy.
+Provisioning and live consumer/durability/regression acceptance passed:
+actual Wi-Fi autoconnect and BlueZ bonding persist, one PMIC reset and three
+sysrq write-loss cycles recover cleanly, and audio/sensors/HTTPS/chrony/GNSS
+regressions pass. See the [phase 2 build log](../build-log.md#2026-10-05-phase-2-persistent-data).
+
+Remaining storage work is phase 3: place the root on read-only `system_a` and
+boot with a small stage-1 initramfs and USB rescue fallback. Stage-1 must check
+a matching kernel/root build stamp before `switch_root`. Do not write
+`system_a` as part of phase 2. Later consumer migrations include rides, map
+tiles, calibration, power logs, RTC offset, chrony drift and GNSS shadow; the
+first phase 2 services do not make those follow-ups persistent.

@@ -57,7 +57,7 @@ Push a rebuilt static binary instead of rebooting when iterating on a tool;
 - **busybox, not GNU.** `base64` has no `-w` (the scripts wrap and rejoin);
   `/bin` holds only busybox, busybox-extras and sh, with applet links made by
   `/init` at boot.
-- **Everything on the phone is in RAM.** Pull evidence before rebooting.
+- **Evidence under `/run` and `/tmp` is in RAM.** Pull it before rebooting. A phase 2 image persists the reviewed BlueZ and NetworkManager directories under `/data`; see [storage](features/storage.md).
 - **`poweroff` with USB attached comes back.** The cable re-powers the phone in
   about 24 s (`androidboot.mode=charger`), and our full image boots. Unplug
   first if it should stay off.

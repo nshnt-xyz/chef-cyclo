@@ -24,7 +24,7 @@ set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
 
-for bin in wpa_supplicant wpa_cli iw ip tc ss rfkill curl jq tcpdump iperf3 NetworkManager nmcli nmtui gdbus udevd udevadm apk iptables-legacy chronyd chronyc; do
+for bin in wpa_supplicant wpa_cli iw ip tc ss rfkill curl jq tcpdump iperf3 NetworkManager nmcli nmtui gdbus udevd udevadm apk iptables-legacy chronyd chronyc mke2fs e2fsck debugfs dumpe2fs e2label blockdev; do
     [ -x "out/rootfs/usr/sbin/$bin" ] || [ -x "out/rootfs/usr/bin/$bin" ] || [ -x "out/rootfs/sbin/$bin" ] || [ -x "out/rootfs/bin/$bin" ] || {
         echo "missing $bin; rerun scripts/mkrootfs.sh" >&2; exit 1;
     }
@@ -98,7 +98,7 @@ cp -a initramfs/. "$ROOT"/
 # dispatcher refuses group/other-writable scripts, so a umask-002 checkout
 # silently disabled the overlap guard and chrony refresh: strip those bits.
 (cd initramfs && find . -mindepth 1 ! -type l -print0) | (cd "$ROOT" && xargs -0 chmod go-w)
-chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up \
+chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up "$ROOT"/usr/bin/chef-storage \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
     "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \

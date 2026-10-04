@@ -32,7 +32,7 @@ elif adb devices 2>/dev/null | grep -q 'device$'; then
     adb reboot bootloader
 elif ping -c1 -W1 172.16.42.1 >/dev/null 2>&1; then
     echo "our image on 172.16.42.1: btprobe restart bootloader"
-    python3 scripts/phone.py -t 20 run '(sleep 2; btprobe restart bootloader) </dev/null >/dev/null 2>&1 & sleep 1'
+    python3 scripts/phone.py -t 20 run 'setsid sh -c "cd /; if command -v chef-storage >/dev/null; then chef-storage shutdown --pause-init || exit 1; fi; sync; sleep 2; btprobe restart bootloader" </dev/null >/run/bootloader-restart.log 2>&1 & sleep 1'
 else
     echo "phone not in fastboot, adb or on 172.16.42.1" >&2
     exit 1
@@ -42,7 +42,7 @@ wait_fastboot() {
     i=0
     until in_fastboot; do
         i=$((i + 1))
-        [ $i -le 90 ] || { echo "no fastboot device after 90 s" >&2; return 1; }
+        [ $i -le 120 ] || { echo "no fastboot device after 120 s" >&2; return 1; }
         sleep 1
     done
 }

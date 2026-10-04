@@ -128,5 +128,6 @@ touch /run/wifi-nm-mode
 
 # Hand over to busybox init: /etc/inittab keeps telnetd, udhcpd, dbus,
 # bluetoothd and the Bluetooth attach (bt-up) running.
+/usr/bin/chef-storage boot || log "storage boot failed; continuing RAM-only"
 log "exec init"
 exec /sbin/init
