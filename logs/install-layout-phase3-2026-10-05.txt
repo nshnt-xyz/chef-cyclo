@@ -1,0 +1,289 @@
+# Install layout phase 3: read-only root on system_a, stage-1 boot_a (2026-10-05 local, 2026-10-04 UTC)
+# Raw evidence: ~/chef-cyclo-evidence/rootfs-phase3-20261005/ (local). No secrets, no positions, no MACs.
+
+## Images (installed: system_a.img 9c47c6b8, boot-stage1.img 5c509eb2)
+da2e6c6110b2d408f23f8a662f294d18fb95e26914718283bfd97f2a8e33bfa7  out/kernel/arch/arm64/boot/Image.gz-dtb
+9c47c6b813ae00b2126203e7ffdfb7c2edb5dff47bf91287f9ce71001b177c32  out/system_a.img
+f52cfe217ae7feeb323b2230bdd4bee30dce819c73dc2f18a06f155371450c0f  out/system_a.stamp
+17772389bd7cd98d5bb7a2438d38865fe096f32ee64416ee11b806410bb00a43  out/stage1.cpio.gz
+5c509eb2f16784c4fa3348901f197602a0109b47e92c92d8ca5214dc67676b53  out/boot-stage1.img
+df856fc376e0b0c9581cd8bfc31da9bb992789754d668177e368914be64cb070  out/boot.img
+df856fc376e0b0c9581cd8bfc31da9bb992789754d668177e368914be64cb070  out/boot-data.img
+boot-ram.img 7255afa3e80070fefd670c3008dfae8f2588a95a0aac24becfecd0edc733e07f (not installed; short regression passed)
+
+## Step 2 (second flash, 9c47c6b8): getvar before
+2026-10-04T21:03:57Z
+current-slot: a
+max-download-size: 536870912
+partition-size:system_a: 0x00000000a0000000
+slot-successful:a: yes
+slot-retry-count:a: 6
+slot-unbootable:a: no
+slot-unbootable:b: yes
+## flash
+checks ok slot=a size=0x00000000a0000000; flashing at 2026-10-04T21:04:05Z
+Sending sparse 'system_a' 1/1 (90184 KB)           OKAY [  2.229s]
+Writing 'system_a'                                 OKAY [ 20.529s]
+flash rc=0 at 2026-10-04T21:04:28Z
+## getvar after
+2026-10-04T21:04:28Z
+current-slot: a
+slot-successful:a: no
+slot-retry-count:a: 7
+slot-unbootable:a: no
+slot-unbootable:b: yes
+
+## Step 3: read-back on df856fc3 (setro first)
+BEFORE
+p67        0        0        0        0        0        0        0        0        0        0        0
+p38        0        0        0        0        0        0        0        0        0        0        0
+p34        4        0     4096       44        0        0        0        0        0       30       44
+p35        4        0     4096       40        0        0        0        0        0       27       40
+p36       20        0    20480       77        0        0        0        0        0       54       77
+p27        1        0        8        0        0        0        0        0        0        0        0
+getro=1
+9c47c6b813ae00b2126203e7ffdfb7c2edb5dff47bf91287f9ce71001b177c32  -
+/dev/mmcblk0p67 /run/sysa ext4 ro,relatime,norecovery 0 0
+chefroot
+f52cfe217ae7feeb323b2230bdd4bee30dce819c73dc2f18a06f155371450c0f  /run/sysa/etc/chef/build-stamp
+AFTER
+p67     5130       30  5243194    14117        0        0        0        0        0    10004    14110
+p38        0        0        0        0        0        0        0        0        0        0        0
+p34        4        0     4096       44        0        0        0        0        0       30       44
+p35        4        0     4096       40        0        0        0        0        0       27       40
+p36       20        0    20480       77        0        0        0        0        0       54       77
+p27        1        0        8        0        0        0        0        0        0        0        0
+boot_a marked successful (LBAs 122142697, 122142719, 12, 1 written and verified)
+host 1492 device 1492 differences 0
+
+## Step 4 (rescue, bad-stamp image 88a8943c)
+system_a build stamp does not match this boot image
+[    0.387100,6] Trying to unpack rootfs image as initramfs...
+[    0.413306,6] Freeing initrd memory: 984K
+[    3.643596,7] Freeing unused kernel memory: 8768K
+[    3.648262,7] cyclo-stage1: starting (4.4.192-cyclo+)
+[    3.747017,7] cyclo-stage1: found system_a /dev/mmcblk0p67 (259:34, 2684354560 bytes)
+[    3.749841,7] cyclo-stage1: system_a set read-only
+[    3.762402,2] cyclo-stage1: system_a superblock: ext4, chefroot, no journal
+[    3.768432,2] cyclo-stage1: system_a mounted read-only at /newroot
+[    3.775365,2] cyclo-stage1: RESCUE: system_a build stamp does not match this boot image
+[    3.790298,2] cyclo-stage1: gadget bound to a800000.dwc3
+[    3.795769,2] cyclo-stage1: usb0 up, 172.16.42.1/24
+getro=1
+p67       12       30      354        7        0        0        0        0        0        7        7
+p38        0        0        0        0        0        0        0        0        0        0        0
+p34        0        0        0        0        0        0        0        0        0        0        0
+p35        0        0        0        0        0        0        0        0        0        0        0
+p36        0        0        0        0        0        0        0        0        0        0        0
+p27        0        0        0        0        0        0        0        0        0        0        0
+/bin/busybox sh /init 
+exit:
+fastboot after ~5s
+current-slot: a
+slot-successful:a: yes
+slot-retry-count:a: 6
+slot-unbootable:a: no
+
+## Step 5 boot attempt 1 with f3e29128: rescue 'cannot unmount /dev before switch_root' (fixed in 5c509eb2)
+[    3.497568,7] cyclo-stage1: starting (4.4.192-cyclo+)
+[    3.598681,0] cyclo-stage1: found system_a /dev/mmcblk0p67 (259:34, 2684354560 bytes)
+[    3.601750,0] cyclo-stage1: system_a set read-only
+[    3.614684,0] cyclo-stage1: system_a superblock: ext4, chefroot, no journal
+[    3.622427,0] cyclo-stage1: system_a mounted read-only at /newroot
+[    3.625880,0] cyclo-stage1: system_a build stamp matches; switch_root
+[    3.632284,0] cyclo-stage1: RESCUE: cannot unmount /dev before switch_root
+[    3.647641,0] cyclo-stage1: gadget bound to a800000.dwc3
+[    3.653136,0] cyclo-stage1: usb0 up, 172.16.42.1/24
+watchdog proof on df856fc3:
+pid 1289
+total 0
+lrwx------    1 root     root            64 Oct  4 21:14 0 -> /dev/null
+lrwx------    1 root     root            64 Oct  4 21:14 1 -> /dev/null
+lrwx------    1 root     root            64 Oct  4 21:14 2 -> /dev/null
+1289 (timeout) S 1 1289 1289 0 -1
+after
+none
+
+## Step 5 summary (two boots of 5c509eb2)
+Step 5: fastboot boot out/boot-stage1.img 5c509eb2f16784c4fa3348901f197602a0109b47e92c92d8ca5214dc67676b53
+system_a 9c47c6b8 (stamp f52cfe21), kernel da2e6c61. Two separate boots, same hash.
+
+getvar before each: current-slot a, slot-successful:a yes, retry 6, unbootable no (b unbootable yes).
+
+                         boot 1      boot 2      df856fc3 baseline (RAM, LZMA 23 MB)
+unpack rootfs            0.387 s     0.387 s     0.387 s
+Freeing initrd (984K)    0.413 s     0.413 s     6.109 s (23004K)
+Freeing unused kernel    3.483 s     3.562 s     9.178 s
+cyclo-stage1 starting    3.488 s     3.566 s     -
+stamp matches; switch    3.612 s     3.697 s     -
+cyclo-init root ro       4.682 s     4.767 s     -
+  switch_root -> stage 2 1.070 s     1.070 s     (umount /dev retry waits out the busybox timeout watchdog)
+cyclo-init exec init     5.334 s     5.421 s     9.743 s
+USB network after fastboot boot: 10-12 s (baseline about 17-20 s)
+
+Per boot (step5-b{1,2}-*.txt):
+- stage-1 kmsg: starting, found system_a /dev/mmcblk0p67 (259:34, 2684354560 bytes), set read-only,
+  superblock ext4/chefroot/no journal, mounted read-only at /newroot, build stamp matches; switch_root;
+  then cyclo-init: root: read-only system_a.
+- /proc/mounts: /dev/mmcblk0p67 / ext4 ro,relatime,norecovery; getro 1; /var and /root tmpfs;
+  /data + /var/lib/bluetooth + /run/NetworkManager/system-connections from mmcblk0p69.
+- runtime-write diff: bind view of / (ro) listed after all services, sensors, audio-up and GPS ran:
+  1492 = 1492 paths, 0 differences vs out/system_a.manifest (lost+found excluded).
+- EROFS / "Read-only file system" over dmesg and /run, /var/log, /tmp: none.
+- dbus-helper-ready, udev-ready, wifi-nm-mode; helper 0:101 4750; dbus, NM, wpa_supplicant, bluetoothd,
+  chronyd, fblog, buttond, powerd, udhcpd, telnetd, gps-manager, udevd running.
+- wlan0 autoconnected; /etc/resolv.conf -> /run/NetworkManager/resolv.conf (1 nameserver); curl https 200.
+- hci0 UP RUNNING; chrony Leap Normal, synced; abslot "already marked successful, nothing written".
+- sensors-up: smgr ready, accel and magn samples. audio-up: adsp ONLINE, card 0 sdm660sndcard,
+  MultiMedia1 pcm 0. Audible speaker tone DEFERRED to the user (asleep).
+- GPS lease next to the window: RUNNING with fix within about 1 min both boots; gpsd SKY nSat 12 uSat 12,
+  TPV mode 3.
+- crash_count venus/a512_zap/adsp/modem 0.
+- write sectors (field 7) 0 on p67 (system_a), p38 (persist), p34/p35 (modemst1/2), p36 (fsg_a), p27 (fsc);
+  persist only read by sensors-up after setro.
+- firmware: only "Firmware build version" (Wi-Fi) as in the baseline; no Direct firmware load / user helper lines.
+- ps -o pid,ppid,args: no stage-1 leftovers, no timeout processes.
+- ordinary reboot: chef-storage shutdown logged "data filesystem globally read-only", "data fully unmounted",
+  "remaining data aliases are read-only"; came back in df856fc3: rootfs / rw, /init 89c1f4da.
+
+Image sizes: boot-stage1.img 13484032 bytes (df856fc3: 36032512), stage-1 ramdisk 1009167 bytes gzip;
+Chef loader margin 46374912 bytes (df856fc3 about 23.8 MB).
+
+## Step 6: getvar before
+2026-10-04T21:25:48Z
+current-slot: a
+slot-successful:a: yes
+slot-retry-count:a: 6
+slot-unbootable:a: no
+slot-successful:b: yes
+slot-unbootable:b: yes
+partition-size:boot_a: 0x0000000004000000
+## flash
+checks ok; flashing boot_a at 2026-10-04T21:25:48Z
+Sending 'boot_a' (13168 KB)                        OKAY [  0.325s]
+Writing 'boot_a'                                   OKAY [  0.158s]
+flash rc=0 at 2026-10-04T21:25:48Z
+## getvar after
+2026-10-04T21:25:48Z
+current-slot: a
+slot-successful:a: no
+slot-retry-count:a: 7
+slot-unbootable:a: no
+slot-unbootable:b: yes
+## first installed boot
+network after 18 s
+49.81 383.09
+0fc20b1f017c33bf13922be7139d6d77fcfc83924e058eabcb448eb952727ecb  /init
+f52cfe217ae7feeb323b2230bdd4bee30dce819c73dc2f18a06f155371450c0f  /etc/chef/build-stamp
+/dev/mmcblk0p67 / ext4 ro,relatime,norecovery 0 0
+[    3.486375,5] cyclo-stage1: starting (4.4.192-cyclo+)
+[    3.587843,0] cyclo-stage1: found system_a /dev/mmcblk0p67 (259:34, 2684354560 bytes)
+[    3.591185,0] cyclo-stage1: system_a set read-only
+[    3.604972,0] cyclo-stage1: system_a superblock: ext4, chefroot, no journal
+[    3.612586,0] cyclo-stage1: system_a mounted read-only at /newroot
+[    3.615418,0] cyclo-stage1: system_a build stamp matches; switch_root
+[    4.685102,1] cyclo-init: root: read-only system_a
+[    4.699671,1] cyclo-init: starting (4.4.192-cyclo+)
+[    5.362584,1] cyclo-init: exec init
+[   35.415932,3] abslot: boot_a p44 attr=0x0037000000000048 priority=3 active=1 retry=6 successful=0 unbootable=0
+[   35.415974,3] abslot: boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+[   35.416830,3] abslot: boot_a attr 0x0037000000000048 -> 0x0077000000000048
+[   35.422058,3] abslot: boot_a p44 attr=0x0077000000000048 priority=3 active=1 retry=6 successful=1 unbootable=0
+[   35.422078,3] abslot: boot_a marked successful (LBAs 122142697, 122142719, 12, 1 written and verified)
+## read-back (boot_a first 13484032 bytes, system_a full)
+p67      451       86    86466      864        0        0        0        0        0      627      860
+p44        0        0        0        0        0        0        0        0        0        0        0
+p38        0        0        0        0        0        0        0        0        0        0        0
+p34        4        0     4096       40        0        0        0        0        0       27       40
+p35        4        0     4096       40        0        0        0        0        0       27       40
+p36       20        0    20480      120        0        0        0        0        0       74      120
+p27        1        0        8        0        0        0        0        0        0        0        0
+getro67=1
+5c509eb2f16784c4fa3348901f197602a0109b47e92c92d8ca5214dc67676b53  -
+9c47c6b813ae00b2126203e7ffdfb7c2edb5dff47bf91287f9ce71001b177c32  -
+p67     5614       86  5327914    15390        0        0        0        0        0    10734    15374
+p44       30        0    27552      217        0        0        0        0        0      214      217
+p38        0        0        0        0        0        0        0        0        0        0        0
+p34        4        0     4096       40        0        0        0        0        0       27       40
+p35        4        0     4096       40        0        0        0        0        0       27       40
+p36       20        0    20480      120        0        0        0        0        0       74      120
+p27        1        0        8        0        0        0        0        0        0        0        0
+## ordinary reboot 1
+reboot-requested 21:27:50
+network after 22 s from request
+48.49 378.91
+/dev/mmcblk0p67 / ext4 ro,relatime,norecovery 0 0
+[    3.488359,7] cyclo-stage1: starting (4.4.192-cyclo+)
+[    3.589101,0] cyclo-stage1: found system_a /dev/mmcblk0p67 (259:34, 2684354560 bytes)
+[    3.592212,0] cyclo-stage1: system_a set read-only
+[    3.605382,0] cyclo-stage1: system_a superblock: ext4, chefroot, no journal
+[    3.613785,0] cyclo-stage1: system_a mounted read-only at /newroot
+[    3.617052,0] cyclo-stage1: system_a build stamp matches; switch_root
+[    4.687552,1] cyclo-init: root: read-only system_a
+[    5.337531,1] cyclo-init: exec init
+[   35.389768,3] abslot: boot_a already marked successful, nothing written
+chef-storage: data filesystem globally read-only
+chef-storage: data fully unmounted
+chef-storage: remaining data aliases are read-only
+## ordinary reboot 2
+reboot-requested 21:28:56
+network after 22 s from request
+48.50 379.40
+/dev/mmcblk0p67 / ext4 ro,relatime,norecovery 0 0
+[    3.494272,5] cyclo-stage1: starting (4.4.192-cyclo+)
+[    3.595019,0] cyclo-stage1: found system_a /dev/mmcblk0p67 (259:34, 2684354560 bytes)
+[    3.597986,0] cyclo-stage1: system_a set read-only
+[    3.611799,0] cyclo-stage1: system_a superblock: ext4, chefroot, no journal
+[    3.619683,0] cyclo-stage1: system_a mounted read-only at /newroot
+[    3.622387,1] cyclo-stage1: system_a build stamp matches; switch_root
+[    4.693230,0] cyclo-init: root: read-only system_a
+[    5.341113,1] cyclo-init: exec init
+[   35.365204,3] abslot: boot_a already marked successful, nothing written
+chef-storage: data filesystem globally read-only
+chef-storage: data fully unmounted
+chef-storage: remaining data aliases are read-only
+## regression on the installed image
+/dev/mmcblk0p67 / ext4 ro,relatime,norecovery 0 0
+[   35.365204,3] abslot: boot_a already marked successful, nothing written
+/dev/mmcblk0p67 / ext4 ro,relatime,norecovery 0 0
+0:101 4750 /usr/libexec/dbus-daemon-launch-helper
+https 200
+        UP RUNNING PSCAN 
+Leap status     : Normal
+boot_a already marked successful, nothing written
+venus 0
+a512_zap 0
+adsp 0
+modem 0
+p67      489       86   100162      930        0        0        0        0        0      714      930
+p38        0        0        0        0        0        0        0        0        0        0        0
+p34        4        0     4096       14        0        0        0        0        0       10       14
+p35        4        0     4096        7        0        0        0        0        0        7        7
+p36       20        0    20480       54        0        0        0        0        0       34       54
+p27        1        0        8        0        0        0        0        0        0        0        0
+== getro 1
+== timeout processes: none
+{"sensor":"accel","t":62078954976,
+{"sensor":"magn","t":62276767869,
+adsp state=ONLINE
+ 0 [sdm660sndcard  ]: sdm660-snd-card - sdm660-snd-card
+/dev/mmcblk0p67 /run/rootview ext4 ro,relatime,norecovery 0 0
+1494
+== EROFS grep
+kmsg: none
+logs: none
+== rootfs writes (ro mount, field 7 of p67 stays 0)
+p67     1373       86   180186     1934        0        0        0        0        0     1567     1930
+[   14.186170,0] [kworker/u16:8][0x19aea3ad][08:38:43.257136] wlan: [1228:I:WMA] wma_rx_service_ready_event: Firmware build version : 101402cd
+host 1492 device 1492 differences 0
+nSat=13 uSat=10
+"mode":3
+modem 0
+## final getvar
+2026-10-04T21:31:02Z
+current-slot: a
+slot-successful:a: yes
+slot-retry-count:a: 6
+slot-unbootable:a: no
+slot-successful:b: yes
+slot-unbootable:b: yes

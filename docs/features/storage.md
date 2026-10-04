@@ -79,8 +79,11 @@ Reserved follow-up locations, still volatile until their consumers migrate:
 | Chrony drift | `/data/v1/chrony` |
 | GNSS RAM shadow | `/data/v1/gnss` |
 
-The root filesystem remains in the boot image's RAM disk in phase 2.
-`system_a` is a separate phase 3 task. Recovery uses fastboot in the unchanged
+Since phase 3 the root filesystem is the read-only `system_a`
+([installed layout](../building.md#installed-layout-phase-3)); `/var` and
+`/root` are tmpfs seeded at boot, so state outside `/data` is lost at every
+reboot, as it was with the RAM root. The full RAM image (`out/boot-ram.img`)
+uses the same `/data` handling. Recovery uses fastboot in the unchanged
 bootloader, reached by holding VolDown through a Power-held reset. Flash a
 known-good `boot_a` image with an explicit `_a` target; never use
 `fastboot set_active`. See the [recovery guide](../device.md#stock-backups-and-recovery).

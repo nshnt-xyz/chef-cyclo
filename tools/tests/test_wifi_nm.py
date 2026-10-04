@@ -85,21 +85,28 @@ with tempfile.TemporaryDirectory() as t:
 print('test_wifi_nm: network-only coldplug and fail-closed readiness PASS')
 
 # Execute real metadata setup without invoking privileged host chown/chmod.
+# system_a carries the mode from the build (verify only, no writes); the RAM
+# cpio is root-owned and gets chown/chmod; any failure leaves the bus off.
 init=(R/'initramfs/init').read_text()
-setup=init.split('if chown root:messagebus',1)[1].split('log "starting',1)[0]
-setup='if chown root:messagebus'+setup
+setup=init.split('HELPER=/usr/libexec/dbus-daemon-launch-helper\n',1)[1].split('log "starting',1)[0]
+setup='HELPER=/usr/libexec/dbus-daemon-launch-helper\n'+setup
 with tempfile.TemporaryDirectory() as t:
     p=pathlib.Path(t);b=p/'bin';b.mkdir()
     for command in ('chown','chmod'):
         (b/command).write_text('#!/bin/sh\nprintf "%s %s\\n" "'+command+'" "$*" >> "$CALLS"\n[ "${SETUP_FAIL:-}" != "'+command+'" ]\n')
         (b/command).chmod(0o755)
+    (b/'stat').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$STATS"\necho "$MODE"\n')
+    (b/'stat').chmod(0o755)
     code='log() { :; }; '+setup.replace('/run/dbus-helper-ready',str(p/'ready'))
-    for failure in ('','chown','chmod'):
+    for mode,failure,ready,calls in [('0:101 4750','',True,False),('0:101 4750','chown',True,False),
+                                     ('0:0 755','',True,True),('0:0 755','chown',False,True),('0:0 755','chmod',False,True)]:
         (p/'ready').unlink(missing_ok=True);(p/'calls').unlink(missing_ok=True)
-        env=dict(os.environ,PATH=str(b)+':'+os.environ['PATH'],CALLS=str(p/'calls'),SETUP_FAIL=failure)
+        env=dict(os.environ,PATH=str(b)+':'+os.environ['PATH'],CALLS=str(p/'calls'),STATS=str(p/'stats'),SETUP_FAIL=failure,MODE=mode)
         subprocess.run(['sh','-c',code],env=env,check=True)
-        assert (p/'ready').exists()==(failure=='')
-        if failure=='':assert (p/'calls').read_text().splitlines()==['chown root:messagebus /usr/libexec/dbus-daemon-launch-helper','chmod 4750 /usr/libexec/dbus-daemon-launch-helper']
+        assert (p/'ready').exists()==ready,(mode,failure)
+        assert (p/'calls').exists()==calls,(mode,failure)
+        if calls and failure=='':assert (p/'calls').read_text().splitlines()==['chown root:messagebus /usr/libexec/dbus-daemon-launch-helper','chmod 4750 /usr/libexec/dbus-daemon-launch-helper']
+    assert (p/'stats').read_text().splitlines()[0]=='-c %u:%g %a /usr/libexec/dbus-daemon-launch-helper'
 print('test_wifi_nm: strict D-Bus helper setup and failure gating PASS')
 
 # Run the real link-time refresh hook with bounded-command and chronyc stubs.

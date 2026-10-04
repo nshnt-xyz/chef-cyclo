@@ -20,6 +20,11 @@
 # GZIP=1 restores the old gzip -9n encoding (out/initramfs.cpio.gz).
 # Either way the kernel needs CONFIG_SYSVIPC=y: chrony.conf has an SHM
 # refclock, and chronyd exits when it cannot attach the segment.
+#
+# The staged tree out/initramfs-root is also the source of the read-only
+# system_a root (scripts/mksystem.sh, scripts/mkinstall.sh), so everything
+# /init used to create at runtime on / (busybox applet links, mountpoints,
+# the resolv.conf link) is made here.
 set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
@@ -91,9 +96,18 @@ rm -f "$OUTCPIO"
 rm -rf "$ROOT"
 mkdir -p "$ROOT"
 cp -a out/rootfs/. "$ROOT"/
+# Mountpoints and directories /init and the helpers would otherwise create
+# at runtime: the same tree becomes the read-only system_a root
+# (scripts/mksystem.sh). mkdir -p of an existing directory is harmless there.
 mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
-         "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus
+         "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus "$ROOT"/var/lib/bluetooth
+install -d -m 755 "$ROOT"/data "$ROOT"/firmware "$ROOT"/factory
 cp -a initramfs/. "$ROOT"/
+# Busybox applet links at build time (read-only root at runtime).
+scripts/link-applets.sh "$ROOT"
+# NetworkManager (rc-manager=unmanaged) keeps its resolver file in /run.
+rm -f "$ROOT/etc/resolv.conf"
+ln -s /run/NetworkManager/resolv.conf "$ROOT/etc/resolv.conf"
 # cp -a keeps the checkout's modes, which follow the user's umask. NM's
 # dispatcher refuses group/other-writable scripts, so a umask-002 checkout
 # silently disabled the overlap guard and chrony refresh: strip those bits.

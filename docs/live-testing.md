@@ -55,11 +55,22 @@ Push a rebuilt static binary instead of rebooting when iterating on a tool;
 - **`pull` reads regular files.** `/proc` and `/sys` entries come through tar
   as zero bytes; read them with `run 'cat ...'`.
 - **busybox, not GNU.** `base64` has no `-w` (the scripts wrap and rejoin);
-  `/bin` holds only busybox, busybox-extras and sh, with applet links made by
-  `/init` at boot.
+  the applet links are made at build time (`scripts/link-applets.sh`).
+  busybox `timeout` leaves a daemonized watchdog (stdio on `/dev/null`) for up
+  to a second after the command ends.
+- **The root is read-only** with the installed stage-1 image (`system_a`,
+  see [installed layout](building.md#installed-layout-phase-3)). Push test
+  binaries to `/run` or `/tmp`; `/var` and `/root` are tmpfs, `/data` is
+  persistent. Package installs (`apk add`) need the RAM image.
+- **Rescue shell.** If stage 1 refuses `system_a` (wrong slot, missing or
+  foreign partition, wrong label or stamp, mount failure) it stays in its
+  ramdisk with the same USB network: `telnet 172.16.42.1`, the reason in
+  `/run/rescue-reason` and `dmesg | grep cyclo-stage1`. Only busybox and
+  `btprobe` are there; `scripts/phone-boot.sh` gets from it to fastboot as
+  from any of our images.
 - **Evidence under `/run` and `/tmp` is in RAM.** Pull it before rebooting. A phase 2 image persists the reviewed BlueZ and NetworkManager directories under `/data`; see [storage](features/storage.md).
 - **`poweroff` with USB attached comes back.** The cable re-powers the phone in
-  about 24 s (`androidboot.mode=charger`), and our full image boots. Unplug
+  about 24 s (`androidboot.mode=charger`), and the installed image boots (a charger-mode boot of the stage-1 layout is not yet observed). Unplug
   first if it should stay off.
 - **The panel is not visible from here.** Display, touch and button checks need
   someone watching the phone. Announce a window ("tap now for 25 s"), then
@@ -78,6 +89,8 @@ the parts worth keeping into `logs/` with a [build log](build-log.md) entry.
 Record the image hash (`phone-boot.sh` prints it).
 
 Back to the installed image: `scripts/phone.py run reboot`. Into fastboot
-without a working image: hold Power with VolDown for about 9 s. Android is
+without a working image: hold Power with VolDown for about 9 s. A fallback
+for `boot_a` that never reads `system_a` is the full RAM image
+(`out/boot-ram.img`, or the earlier baseline `out/boot.img`). Android is
 retired; its restore route is under
 [images to restore](next-steps/storage-and-boot.md#images-to-restore).

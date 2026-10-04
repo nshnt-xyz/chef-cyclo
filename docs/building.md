@@ -84,7 +84,7 @@ After boot, connect through [USB networking](features/usb-networking.md). The ba
 
 - **AOSP GCC 4.9 prebuilt:** `gcc`/`g++` are python2 wrapper scripts → symlink to the UUID-named real drivers (`setup-toolchain.sh`).
 
-- **Rootfs from Alpine without qemu:** the host's x86_64 `apk.static` populates an aarch64 root with `--arch aarch64 --usermode --no-scripts`. Skipped post-install scripts mean no busybox applet links (`/init` runs `busybox --install -s` and `busybox-extras --install -s`), no `messagebus` user (in `initramfs/etc/passwd`) and no D-Bus machine-id (`dbus-uuidgen --ensure` in `/init`). `telnetd`/`udhcpd` live in `busybox-extras`.
+- **Rootfs from Alpine without qemu:** the host's x86_64 `apk.static` populates an aarch64 root with `--arch aarch64 --usermode --no-scripts`. Skipped post-install scripts mean no busybox applet links (`scripts/link-applets.sh` makes them at build time from the packages' own `etc/busybox-paths.d` lists, since the installed root is read-only), no `messagebus` user (in `initramfs/etc/passwd`), no setuid D-Bus launch helper mode (`scripts/mksystem.sh` sets `root:messagebus 4750` under fakeroot; `/init` sets it on the writable RAM root) and no D-Bus machine-id (`dbus-uuidgen --ensure` in `/init`, on the tmpfs `/var`). `telnetd`/`udhcpd` live in `busybox-extras`.
 
 - **DTB targets** are relative to `arch/arm64/boot/dts`: `kmake qcom/sdm636-chef-evt.dtb`.
 
@@ -115,5 +115,67 @@ scripts/phone-boot.sh out/boot-data.img
 a real ext4 image feature/marker/fsck check. Phone kernel feature proof and
 pre-format superblock evidence precede any userdata format. See
 [storage](features/storage.md) for provisioning, boot fallback and shutdown.
-The root remains in the RAM disk; this build does not create or write a
+In phase 2 the root remained in the RAM disk and this build did not create or write a
 `system_a` image.
+
+## Installed layout (phase 3)
+
+Since phase 3 of the [install layout](next-steps/install-layout-handoff.md) the
+OS lives on `system_a` as a read-only ext4 root, and `boot_a` holds the kernel
+with a small stage-1 ramdisk. One command builds everything with matching
+stamps:
+
+```sh
+scripts/mkinstall.sh           # kmake first; SKIP_KERNEL=1 uses the existing kernel build
+```
+
+| Output | What |
+|---|---|
+| `out/system_a.img` (+ `.stamp`, `.manifest`) | raw ext4, exactly 2684354560 bytes (the partition), label `chefroot`, no journal |
+| `out/boot-stage1.img` | kernel + `out/stage1.cpio.gz` (about 1 MB gzip), for `boot_a` with that `system_a` |
+| `out/boot-ram.img` | kernel + the whole OS in the LZMA ramdisk as before; never reads `system_a` |
+
+All three come from one staged tree, `out/initramfs-root` (`mkinitramfs.sh`),
+so the RAM image and `system_a` carry the same files. `out/boot.img` is not
+written; promoting an image to the baseline stays a separate decision.
+
+- **`scripts/mksystem.sh`** copies the tree to `out/system-root` under one
+  fakeroot session (everything `root:root` as in the cpio, the D-Bus launch
+  helper `root:messagebus 4750`, mtimes set to the HEAD commit time), writes
+  `/etc/chef/build-stamp` and packs it with the host's `/usr/sbin/mke2fs -d`
+  (called by full path: the Android SDK `mke2fs` may come first in `PATH`)
+  and the pinned features in `scripts/system-mke2fs.conf`. It then reads the
+  image back: label, feature list, block count, `e2fsck -fn`, the stamp and
+  the helper's owner and mode. For a given staged tree the image is
+  byte-for-byte reproducible (`E2FSPROGS_FAKE_TIME`, UUID and hash seed from
+  the manifest); a full rebuild is not, because the Wi-Fi module embeds its
+  build time.
+- **The stamp** (`scripts/chef-stamp.py`) names the kernel release and the
+  SHA-256 of `Image.gz-dtb`, `Module.symvers`, `wlan.ko` (whose vermagic must
+  match the release) and the tree manifest. Stage 1 compares it byte for byte
+  with its own copy; `mkinstall.sh` refuses to write `boot-stage1.img` unless
+  the stamp read back from the image, the stage-1 copy and the kernel being
+  packed agree.
+- **`scripts/mkstage1.sh`** packs `stage1/init`, busybox and busybox-extras
+  with the musl loader and their applet links, `btprobe`, the shared USB
+  gadget helper (`initramfs/usr/lib/chef/usb-gadget.sh`) and the expected
+  stamp. `STAGE1_EXPECTED_STAMP=FILE OUT=out/stage1-x.cpio.gz` builds a
+  ramdisk with another expected stamp (the rescue test image).
+
+Flash with `fastboot flash system_a out/system_a.img` (fastboot resparses the
+raw image itself; `max-download-size` is 512 MiB) and
+`fastboot flash boot_a out/boot-stage1.img`, always with `current-slot` `a`
+checked first. Flashing `system_a` also resets slot `_a` to unsuccessful with
+7 retries; `abslot` marks it again 30 s into the next boot. A new `system_a`
+needs a stage-1 image with its stamp, so flash both from the same build.
+
+Boot timing, 2026-10-05 (kernel unchanged): `Freeing unused kernel memory` at
+about 3.5 s and `exec init` at about 5.4 s, against 9.2 s and 9.7 s with the
+23 MB LZMA ramdisk; the USB network answers about 10 s after `fastboot boot`.
+`boot-stage1.img` is 13484032 bytes and leaves a Chef loader margin of
+46374912 bytes, so the 24 MB ramdisk limit no longer constrains the OS.
+
+Host tests: `tools/tests/test_stage1.py` (every stage-1 refusal and the
+switch_root path against fake sysfs and real small ext4 images, in
+`make -C tools test`) and `scripts/tests/test_chef_stamp.py`
+(`python3 -m unittest discover scripts/tests`).

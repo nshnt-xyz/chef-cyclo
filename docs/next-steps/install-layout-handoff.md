@@ -15,7 +15,13 @@ device regressions passed. The final shutdown
 fix makes the entire data filesystem read-only before detaching aliases,
 including when `/data` is absent. Research notes, draft design and the phase 3
 timing baseline: [phase 2 notes](../../logs/install-layout-phase2-notes-2026-10-04.md).
-Phase 3 not started.
+Phase 3 started 2026-10-05 with Herdr agents `rootfs_impl` and
+`rootfs_review`, coordinated by `rootfs_research`; see
+[phase 3 research and plan](#phase-3-research-and-plan-rootfs_research-2026-10-05).
+Its live steps 2 to 6 passed the same night (see
+[phase 3 result](#phase-3-result-rootfs_impl-2026-10-05)): `system_a` holds
+the read-only root `9c47c6b8` and `boot_a` the stage-1 image `5c509eb2`;
+promotion of `out/boot.img` and the commit are the coordinator's call.
 
 ## Decision (user, 2026-10-04)
 
@@ -120,6 +126,170 @@ Start from the [phase 2 notes](../../logs/install-layout-phase2-notes-2026-10-04
   limit no longer constrains the OS.
 - Update the build scripts so one command builds the kernel image, the
   stage-1 boot image and the `system_a` image together with matching stamps.
+
+#### Phase 3 research and plan (rootfs_research, 2026-10-05)
+
+Started 2026-10-05 with Herdr agents `rootfs_impl` (implementation, live
+runs) and `rootfs_review` (review), coordinated by `rootfs_research`.
+**The user is asleep and unavailable**: no unplug, no buttons, no hard
+reset, no cold-boot check that needs them. Everything below must be
+recoverable over USB alone. The phone sits indoors next to a window.
+
+Facts checked on 2026-10-05:
+
+- Phone: running the installed `boot_a` image `df856fc3` (= baseline
+  `out/boot.img`), USB plugged, `/data` mounted. The bootloader cmdline
+  ends with `root=/dev/mmcblk0p67 ... skip_initramfs rootwait ro init=/init`.
+- Kernel (`out/kernel/.config`): `RD_GZIP=y`, `RD_LZMA=y`, `RD_BZIP2=y`,
+  no `RD_LZ4`/`RD_XZ`; **no `OVERLAY_FS`, no `SQUASHFS`**; `EXT4_FS=y`,
+  `DM_VERITY=y`, `MODULES=y` (no signing), `PANIC_TIMEOUT=5` (a panic
+  reboots after 5 s), `QCOM_WATCHDOG_V2=y`, no hung-task or lockup
+  detector. Keep the kernel unchanged in this phase: `wlan.ko` is built
+  against it and the stamp ties them together.
+- Only module today: `/lib/modules/wlan.ko`. Root tree today: 848 files,
+  about 107 MiB (`out/initramfs-root`); `system_a` is 2684354560 bytes.
+- Host: `/usr/sbin/mke2fs` is e2fsprogs 1.47.2, but `PATH` finds the
+  Android SDK `mke2fs` first, so call it by full path with a pinned
+  `MKE2FS_CONFIG` (as `chef-storage` does for `userdata`). `fakeroot` is
+  installed (root ownership for `mke2fs -d`); no `img2simg`. fastboot
+  37.0.1 resparses a raw image larger than `max-download-size` itself;
+  read `max-download-size` and `partition-size:system_a` before flashing.
+- tftp RFS (`/usr/share/rfs/msm/mpss`) is a read-only seed copied into RAM
+  by `tftpserv` (`tools/tftp/ramfs.h`), so modem writes never reach root.
+
+**Runtime writes to `/` today.** Full-tree md5 diff of the live RAM root
+against `out/initramfs-root` after 10 min of uptime (Wi-Fi up, `/data`
+mounted): new files `/etc/resolv.conf` (NetworkManager), `/root/.ash_history`,
+`/var/lib/NetworkManager/{NetworkManager-intern.conf,*.lease,seen-bssids,timestamps}`,
+`/var/lib/dbus/machine-id`; no existing file changed content. `/init` also
+writes to `/`: `busybox --install -s` (applet links in `/bin`, `/sbin`,
+`/usr/bin`, `/usr/sbin`), `sed -i /etc/udhcpd.conf`, `mkdir /var/lib/dbus`,
+`dbus-uuidgen --ensure`, and `chown`/`chmod 4750` of
+`/usr/libexec/dbus-daemon-launch-helper` (the cpio is all root-owned).
+Each one needs a build-time equivalent or a tmpfs/`/run` target. Repeat
+the diff on the new image with the root mounted read-only and grep every
+service log and kmsg for `Read-only file system`/`EROFS`.
+
+Recommended design (deviations need a reason in the review):
+
+1. **`system_a` image**: ext4 **without a journal** (`-O ^has_journal`:
+   never mounted writable, so nothing to replay), label `chefroot`, a
+   pinned feature set the 4.4 kernel supports, built from the staged root
+   tree with `fakeroot /usr/sbin/mke2fs -d`, deterministic where
+   practical (fixed UUID/hash seed, `SOURCE_DATE_EPOCH`). The
+   build-time fixes above go into the tree before packing (applet links,
+   launch-helper `root:messagebus 4750`, `/etc/resolv.conf` and
+   `/var/lib/dbus/machine-id` as links into `/run`, NetworkManager told
+   not to manage `/etc/resolv.conf` directly). A stamp file
+   `/etc/chef/build-stamp` carries the kernel release, the SHA-256 of
+   `out/kernel/Module.symvers` and the kernel image, and a manifest hash
+   of the tree.
+2. **Stage-1 initramfs** (gzip, small: busybox plus what it needs, e.g.
+   musl loader + `busybox`/`busybox-extras`, or a static build): mount
+   proc/sys/devtmpfs; require `androidboot.slot_suffix=_a`; find exactly
+   one block device with `PARTNAME=system_a` through
+   `/sys/class/block/*/uevent` and the exact live byte size; check the
+   ext4 magic and label from the raw superblock; `blockdev --setro`
+   **before** mounting; mount `ro`; compare the image stamp with the
+   stamp baked into stage-1 byte for byte; move `/dev`, `/proc`, `/sys`
+   (or let stage 2 remount them); `switch_root` to the real `/init`.
+   Every step bounded (no unbounded `rootwait`-style loops). Normal path
+   leaves the USB gadget to stage 2 as today. Any failure: log to kmsg,
+   bring up the NCM gadget on 172.16.42.1 with udhcpd and telnetd, write
+   the reason to `/run/rescue-reason`, and stay there. The rescue shell
+   must include a way to reboot straight into fastboot (raw `reboot(2)`
+   `RESTART2 "bootloader"`, as `btprobe restart bootloader` does) so
+   `scripts/phone-boot.sh` can still recover it. If stage-1 `/init`
+   itself dies, the kernel panics and reboots in 5 s into `boot_a`.
+3. **Stage 2** (today's `/init` on `system_a`): no writes to `/`. tmpfs
+   for `/run`, `/tmp` and the volatile `/var` state (NetworkManager,
+   dbus, chrony, logs, cache, `/root` history or `HOME` elsewhere); the
+   existing `/data` binds unchanged. Behaviour must match today's RAM OS
+   except that root is read-only.
+4. **Build**: one command builds kernel image + stage-1 boot image +
+   `system_a` image with matching stamps, refusing a mismatch. Keep
+   building the full RAM image too: `out/boot-data.img` is the universal
+   fallback for `boot_a` because it never touches `system_a`. Test
+   images under other names; `out/boot.img` promotion is the
+   coordinator's call.
+5. **Timing**: record `Trying to unpack rootfs`, `Freeing initrd memory`,
+   `Freeing unused kernel memory`, `switch_root` and `exec init` times
+   against the LZMA baseline (0.387 s, 5.987 s, 9.07 s), and the new boot
+   image size and loader margin.
+6. `dm-verity` (`DM_VERITY=y` exists) is a possible later follow-up, not
+   this phase.
+
+Live order (each live step only after `rootfs_review` clears the exact
+image hashes for it):
+
+1. Host tests: every stage-1 refusal and rescue decision against fake
+   sysfs and loop images (wrong slot, missing or duplicate `system_a`,
+   wrong size, wrong magic or label, stamp mismatch, mount failure,
+   missing `/init`), the build refusing mismatched stamps, plus the
+   existing suites; `make -C tools test` green.
+2. From fastboot, after `current-slot` is `a`: `fastboot flash system_a`
+   only. `boot_a` (`df856fc3`) does not read `system_a`, so it stays a
+   working fallback. Record `getvar` before and after.
+3. Boot the installed `boot_a`; from the RAM OS, `blockdev --setro`,
+   mount `system_a` read-only, verify label, stamp, manifest and a
+   chroot smoke test; `diskstats` write sectors on `mmcblk0p67` stay 0.
+4. **Rescue test first**: `fastboot boot` a stage-1 test image with a
+   deliberately wrong expected stamp; it must land in the rescue shell on
+   172.16.42.1 and its fastboot reboot must work.
+5. `fastboot boot` the real stage-1 image; full regression from the list
+   below with root read-only, the EROFS grep, the runtime-write diff,
+   `/data` binds, Wi-Fi autoconnect, an ordinary `reboot` (which lands in
+   the old `boot_a`, as expected), and at least two such boots. GPS: try a
+   `gps-manager` lease for up to 15 min next to the window; record SVs and
+   any fix, and a missing fix indoors is not a blocker.
+6. Only after step 5 passes and the review clears it: `fastboot flash
+   boot_a` with that exact image (fresh `current-slot`/hash check first).
+   After the flash `boot_a` is back to 7 retries until `abslot` marks it;
+   a build that keeps panicking ends in fastboot after 7 boots
+   (`boot_b` is unbootable), which USB can recover, but a hang without a
+   panic would need the user, so step 5 must have proven the image.
+   Then two ordinary reboots, `abslot` successful, regression again,
+   `mmcblk0p67` hash still equals the flashed image and write sectors 0.
+7. Report to `rootfs_research` with the evidence directory
+   (`~/chef-cyclo-evidence/rootfs-phase3-20261005/`, private), a credential-free
+   summary in `logs/`, docs updated, the diff staged but **not
+   committed**.
+
+#### Phase 3 result (rootfs_impl, 2026-10-05)
+
+Built with `SKIP_KERNEL=1 scripts/mkinstall.sh` (kernel unchanged, `da2e6c61`,
+the one inside `df856fc3`); see [installed layout](../building.md#installed-layout-phase-3).
+Installed: `system_a` = `out/system_a.img` `9c47c6b8…` (stamp `f52cfe21…`),
+`boot_a` = `out/boot-stage1.img` `5c509eb2…`. Not installed: `out/boot-ram.img`
+`7255afa3…` (full RAM image from the same tree, short regression passed).
+`out/boot.img` and `out/boot-data.img` are still `df856fc3`.
+
+- Step 1: host tests (`tools/tests/test_stage1.py`, `scripts/tests/test_chef_stamp.py`, existing suites) green.
+- Steps 2/3: guarded `fastboot flash system_a` (fastboot resparsed it); the
+  flash also reset slot `_a` to unsuccessful/retry 7, `abslot` re-marked it.
+  Full read-back hash exact, device listing equal to the manifest, write
+  sectors 0 on `system_a`, `persist` and EFS. Done twice (`fe03231a`, then
+  `9c47c6b8` after review fixes).
+- RAM image check (A): no runtime writer outside tmpfs/`/data`.
+- Step 4: bad-stamp image landed in the rescue shell with the reason, no
+  `system_a` mount, writes 0; `phone-boot.sh` reached fastboot from it. No
+  firmware requests happen in the stage-1 window.
+- Step 5: the first stage-1 boot landed in rescue ("cannot unmount /dev
+  before switch_root"): busybox `timeout` leaves a daemonized watchdog with
+  stdio on `/dev/null` for up to a second. Fixed (plain `umount` with a
+  bounded retry, about 1 s in practice); then two boots passed the full
+  regression with the root read-only: runtime-write diff 0, no EROFS, Wi-Fi
+  autoconnect and HTTPS, BT, chrony, sensors, ADSP/card up, GPS fix with
+  12 SVs, crash counts 0, protected write sectors 0.
+- Step 6: guarded `fastboot flash boot_a`; first boot marked the slot, two
+  ordinary reboots and the regression passed again; `boot_a` and `system_a`
+  read back exactly; final `slot-successful:a` yes, retry 6.
+- Timing: `exec init` at about 5.4 s (9.7 s before), boot image 13 MB with a
+  46 MB loader margin.
+- Deferred to the user: the audible speaker tone and a cold boot without USB.
+
+Evidence: `~/chef-cyclo-evidence/rootfs-phase3-20261005/` (private),
+summary in [logs](../../logs/install-layout-phase3-2026-10-05.txt).
 
 ## Each phase
 

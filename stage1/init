@@ -1,0 +1,169 @@
+#!/bin/busybox sh
+# chef-cyclo stage-1 /init: the small ramdisk in the boot image
+# (scripts/mkstage1.sh). It finds the read-only root filesystem on system_a,
+# checks it is ours and was built for this kernel, mounts it read-only and
+# switch_roots to its /init (initramfs/init). If anything is wrong it stays
+# here with a rescue shell on USB networking (telnet 172.16.42.1, as the
+# normal image), so the host can still reach the phone without fastboot;
+# `btprobe restart bootloader` from that shell reaches fastboot.
+#
+# Every step is bounded (a task stuck in D state, e.g. in mount, cannot be
+# killed by timeout) and every refusal ends in rescue(), which never
+# returns, so PID 1 never exits on a refusal; only a failing switch_root
+# exec at the very end does, which panics and reboots. Nothing here writes to
+# system_a: the block device is set read-only before the mount, and no fsck
+# runs (the filesystem has no journal and is never mounted writable).
+
+export PATH=/sbin:/usr/sbin:/bin:/usr/bin
+
+# Host tests run this script as an ordinary process with fake sysfs and
+# device trees; as PID 1 the overrides are ignored.
+SYS=/sys/class/block DEV=/dev CMDLINE=/proc/cmdline MOUNTS=/proc/mounts
+NEWROOT=/newroot EXPECTED=/etc/chef/expected-stamp RUN=/run
+KMSG=/dev/kmsg VIB=/sys/class/timed_output/vibrator/enable
+GADGET=/usr/lib/chef/usb-gadget.sh
+if [ $$ != 1 ]; then
+    SYS=${STAGE1_SYS:-$SYS} DEV=${STAGE1_DEV:-$DEV} CMDLINE=${STAGE1_CMDLINE:-$CMDLINE}
+    MOUNTS=${STAGE1_MOUNTS:-$MOUNTS} NEWROOT=${STAGE1_NEWROOT:-$NEWROOT}
+    EXPECTED=${STAGE1_EXPECTED:-$EXPECTED} RUN=${STAGE1_RUN:-$RUN}
+    KMSG=${STAGE1_KMSG:-$KMSG} VIB=${STAGE1_VIB:-$VIB} GADGET=${STAGE1_GADGET:-$GADGET}
+fi
+
+LABEL_HEX=63686566726f6f740000000000000000    # "chefroot", NUL padded to 16
+BYTES=2684354560                              # system_a, 5242880 sectors
+WAIT_TENTHS=100                               # system_a must appear within 10 s
+
+log()  { [ -c "$KMSG" ] && echo "cyclo-stage1: $*" >> "$KMSG" 2>/dev/null; }
+buzz() { echo "$1" > "$VIB" 2>/dev/null; }
+
+# Rescue shell: log why, bring up the USB network and keep telnetd and
+# udhcpd running forever. PID 1 must never return from here.
+rescue() {
+    mountpoint -q /proc || mount -t proc proc /proc
+    mountpoint -q /sys || mount -t sysfs sysfs /sys
+    mountpoint -q /dev || mount -t devtmpfs devtmpfs /dev
+    exec </dev/null >/dev/null 2>&1
+    log "RESCUE: $*"
+    mkdir -p "$RUN" /tmp
+    printf '%s\n' "$*" > "$RUN/rescue-reason"
+    mkdir -p /dev/pts
+    mountpoint -q /dev/pts || mount -t devpts devpts /dev/pts
+    mountpoint -q /sys/kernel/config || mount -t configfs configfs /sys/kernel/config
+    if [ -r "$GADGET" ] && . "$GADGET"; then
+        usb_gadget_up || log "rescue: USB network not up"
+    else
+        log "rescue: no USB gadget helper"
+    fi
+    buzz 400; sleep 0.6; buzz 400; sleep 0.6; buzz 400
+    while :; do
+        pidof telnetd >/dev/null || telnetd -b 172.16.42.1 -l /bin/sh
+        pidof udhcpd >/dev/null || udhcpd "$RUN/udhcpd.conf"
+        sleep 5
+    done
+}
+
+# hexat OFFSET LENGTH: bytes of the superblock dump in $sb as lowercase hex.
+hexat() { printf '%s' "$sb" | cut -c$(($1 * 2 + 1))-$((($1 + $2) * 2)); }
+
+mount -t proc proc /proc || rescue "cannot mount /proc"
+mount -t sysfs sysfs /sys || rescue "cannot mount /sys"
+mount -t devtmpfs devtmpfs /dev || rescue "cannot mount /dev"
+# The cpio has no /dev/console, so the kernel started us with fds 0-2 closed;
+# give them a home so pipes and sockets never land on them.
+exec </dev/null >/dev/null 2>&1
+log "starting ($(uname -r))"
+buzz 150
+
+slot=; slot_count=0
+for arg in $(cat "$CMDLINE"); do
+    case "$arg" in androidboot.slot_suffix=*) slot=${arg#*=}; slot_count=$((slot_count + 1)) ;; esac
+done
+[ "$slot_count" = 1 ] && [ "$slot" = _a ] || rescue "active slot is not _a"
+
+# Partitions of mmcblk0 are registered together once the card is scanned.
+i=0
+while :; do
+    target=; count=0
+    for entry in "$SYS"/*; do
+        [ -f "$entry/uevent" ] || continue
+        if grep -qx 'PARTNAME=system_a' "$entry/uevent"; then
+            target=$entry; count=$((count + 1))
+        fi
+    done
+    [ "$count" -gt 0 ] && break
+    [ "$i" -lt "$WAIT_TENTHS" ] || rescue "system_a did not appear within 10 s"
+    sleep 0.1; i=$((i + 1))
+done
+[ "$count" = 1 ] || rescue "system_a PARTNAME is ambiguous"
+[ "$(grep -c '^PARTNAME=' "$target/uevent")" = 1 ] || rescue "system_a has conflicting PARTNAME"
+name=${target##*/}
+grep -qx "DEVNAME=$name" "$target/uevent" && grep -qx 'DEVTYPE=partition' "$target/uevent" ||
+    rescue "system_a device metadata mismatch"
+part=$(cat "$target/partition") && grep -qx "PARTN=$part" "$target/uevent" ||
+    rescue "system_a partition number mismatch"
+[ "$(cat "$target/size")" = $((BYTES / 512)) ] || rescue "system_a sysfs size is not $BYTES bytes"
+node=$DEV/$name
+[ -b "$node" ] && [ ! -L "$node" ] || rescue "no block node $node"
+major_minor=$(cat "$target/dev") || rescue "cannot read system_a dev number"
+hex=$(stat -c '%t:%T' "$node") || rescue "cannot stat $node"
+[ "$(printf '%d' "0x${hex%:*}"):$(printf '%d' "0x${hex#*:}")" = "$major_minor" ] ||
+    rescue "$node is not system_a ($major_minor)"
+live=$(timeout 5 blockdev --getsize64 "$node") || rescue "system_a size probe failed"
+[ "$live" = "$BYTES" ] || rescue "system_a live size $live is not $BYTES"
+log "found system_a $node ($major_minor, $BYTES bytes)"
+
+# Read-only at the block layer before anything reads the filesystem: ext4
+# truncates orphans even on a ro,noload mount unless the device is ro.
+timeout 5 blockdev --setro "$node" || rescue "blockdev --setro failed"
+[ "$(timeout 5 blockdev --getro "$node")" = 1 ] || rescue "system_a is not read-only"
+log "system_a set read-only"
+
+sb=$(timeout 5 dd if="$node" bs=1024 skip=1 count=1 2>/dev/null | od -An -v -tx1 | tr -d ' \n')
+[ "${#sb}" = 2048 ] || rescue "cannot read the system_a superblock"
+[ "$(hexat 56 2)" = 53ef ] || rescue "system_a is not ext4"
+[ "$(hexat 120 16)" = "$LABEL_HEX" ] || rescue "system_a label is not chefroot"
+# Our image has no journal. s_feature_compat (0x5c) HAS_JOURNAL (0x4) would
+# let a dirty journal be ignored silently under noload; s_feature_incompat
+# (0x60) RECOVER (0x4) means one wants replaying. Refuse both.
+[ $((0x$(hexat 92 1) & 4)) = 0 ] || rescue "system_a has a journal"
+[ $((0x$(hexat 96 1) & 4)) = 0 ] || rescue "system_a needs journal recovery"
+log "system_a superblock: ext4, chefroot, no journal"
+
+mkdir -p "$NEWROOT"
+timeout 10 mount -t ext4 -o ro,noload "$node" "$NEWROOT" || rescue "mounting system_a failed"
+unmount_rescue() {
+    timeout 5 umount "$NEWROOT" || log "could not unmount $NEWROOT"
+    rescue "$@"
+}
+grep -q "^[^ ]* $NEWROOT ext4 ro[ ,]" "$MOUNTS" || unmount_rescue "system_a is not mounted read-only at $NEWROOT"
+log "system_a mounted read-only at $NEWROOT"
+[ -f "$NEWROOT/init" ] && [ -x "$NEWROOT/init" ] && [ -f "$NEWROOT/bin/busybox" ] && [ -x "$NEWROOT/bin/busybox" ] ||
+    unmount_rescue "system_a has no executable /init"
+[ -f "$NEWROOT/etc/chef/build-stamp" ] || unmount_rescue "system_a has no build stamp"
+cmp -s "$NEWROOT/etc/chef/build-stamp" "$EXPECTED" || unmount_rescue "system_a build stamp does not match this boot image"
+command -v switch_root >/dev/null || unmount_rescue "no switch_root"
+
+# Stage 2 mounts /proc, /sys and /dev itself, as it did as the only /init.
+log "system_a build stamp matches; switch_root"
+# Stage 2 starts as this script did: fds closed, nothing holding /dev.
+# busybox timeout daemonizes its watchdog with stdio on /dev/null (this
+# devtmpfs) and it lingers up to a second after each bounded command above,
+# so /dev can be busy briefly: retry for at most 3 s, and run umount itself
+# without timeout (whose own watchdog would pin /dev; unmounting these
+# filesystems does no I/O).
+unmount_pseudo() {
+    n=0
+    until umount "$1"; do
+        n=$((n + 1))
+        [ "$n" -le 15 ] || return 1
+        sleep 0.2
+    done
+}
+exec 0<&- 1>&- 2>&-
+for m in /dev /sys /proc; do
+    unmount_pseudo "$m" || unmount_rescue "cannot unmount $m before switch_root"
+done
+# If switch_root itself fails after this point, PID 1 exits and the kernel
+# panics (PANIC_TIMEOUT=5 reboots into boot_a); everything it could refuse
+# was checked above.
+exec switch_root "$NEWROOT" /init

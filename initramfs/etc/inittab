@@ -1,7 +1,7 @@
 # busybox init. /init has already done the mounts and USB gadget setup.
 # The shell gets root's home and session bus (below) the way a desktop login would.
 ::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'
-::respawn:/usr/sbin/udhcpd -f /etc/udhcpd.conf
+::respawn:/usr/sbin/udhcpd -f /run/udhcpd.conf
 ::respawn:/bin/sh -c 'if [ ! -e /run/dbus-helper-ready ]; then sleep 10; exit 1; fi; exec /usr/bin/dbus-daemon --system --nofork --nopidfile'
 # A PAN link (bnep*) must not reach the root telnet on the USB subnet (Linux
 # answers for 172.16.42.1 on any interface), the same rule wifi-usb-guard sets

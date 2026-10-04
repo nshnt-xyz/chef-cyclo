@@ -8,10 +8,12 @@
 # signalled on the vibrator: one buzz when init starts, two when the USB
 # network is up.
 
-# Alpine's busybox packages create their applet links in a post-install
-# trigger that mkrootfs.sh cannot run; do it here.
-/bin/busybox --install -s
-/bin/busybox-extras --install -s 2>/dev/null
+# The root is the read-only system_a filesystem (entered from the stage-1
+# /init in the boot image) or, in the full RAM image, the initramfs itself.
+# Either way this script writes nothing to /: the busybox applet links, the
+# mountpoints and the D-Bus helper mode are made at build time
+# (scripts/mkinitramfs.sh, scripts/mksystem.sh), and volatile state lives on
+# tmpfs (/run, /tmp, /var, /root).
 export PATH=/sbin:/usr/sbin:/bin:/usr/bin
 
 log()  { echo "cyclo-init: $*" > /dev/kmsg 2>/dev/null; }
@@ -25,13 +27,34 @@ mount -t devpts   devpts   /dev/pts
 mount -t tmpfs    tmpfs    /tmp
 mount -t tmpfs    tmpfs    /run
 mount -t configfs configfs /sys/kernel/config
+
+# Volatile /var: a tmpfs seeded with the image's /var (NetworkManager, dbus,
+# chrony, bluetooth, log, cache), so services keep writing there as they did
+# in the all-RAM root; chef-storage binds /data over parts of it. root's
+# home (shell history, PipeWire state) is a tmpfs too.
+if mkdir -p /run/.var && mount -t tmpfs -o mode=755 tmpfs /run/.var &&
+   cp -a /var/. /run/.var/ && mount --move /run/.var /var; then
+    rmdir /run/.var
+else
+    log "volatile /var setup failed"
+fi
+mount -t tmpfs -o mode=700 tmpfs /root || log "volatile /root setup failed"
+if grep -q '^/dev/[^ ]* / ext4 ro[ ,]' /proc/mounts; then
+    log "root: read-only system_a"
+else
+    log "root: RAM"
+fi
+
 mkdir -p /run/dbus /var/lib/dbus
 dbus-uuidgen --ensure 2>/dev/null
 
-# apk --usermode/no-scripts and root-owned cpio omit the privileged activation
-# helper metadata. Only the system-bus account may execute this root helper.
-if chown root:messagebus /usr/libexec/dbus-daemon-launch-helper &&
-   chmod 4750 /usr/libexec/dbus-daemon-launch-helper; then
+# apk --usermode/no-scripts omit the privileged activation helper metadata.
+# Only the system-bus account may execute this root helper. system_a has it
+# from the build (uid 0, gid 101 messagebus, 4750); the RAM cpio is all
+# root-owned and writable, so set it there.
+HELPER=/usr/libexec/dbus-daemon-launch-helper
+if [ "$(stat -c '%u:%g %a' "$HELPER")" = '0:101 4750' ] ||
+   { chown root:messagebus "$HELPER" && chmod 4750 "$HELPER"; }; then
     touch /run/dbus-helper-ready
 else
     log "D-Bus launch-helper setup failed; system bus will remain unavailable"
@@ -51,60 +74,15 @@ else
 fi
 
 # --- USB gadget: one NCM ethernet function, via configfs ------------------
-SERIAL=chef
-for a in $(cat /proc/cmdline); do
-    case "$a" in
-        androidboot.serialno=*) SERIAL="${a#*=}" ;;
-    esac
-done
-
-G=/sys/kernel/config/usb_gadget/cyclo
-if mkdir -p "$G"; then
-    echo 0x1d6b > "$G/idVendor"      # Linux Foundation
-    echo 0x0104 > "$G/idProduct"     # Multifunction Composite Gadget
-    echo 0x0200 > "$G/bcdUSB"
-    echo 0x0100 > "$G/bcdDevice"
-    mkdir -p "$G/strings/0x409"
-    echo "$SERIAL"                > "$G/strings/0x409/serialnumber"
-    echo "chef-cyclo"             > "$G/strings/0x409/manufacturer"
-    echo "Moto One Power (cyclo)" > "$G/strings/0x409/product"
-    mkdir -p "$G/configs/c.1/strings/0x409"
-    echo "ncm" > "$G/configs/c.1/strings/0x409/configuration"
-    echo 500   > "$G/configs/c.1/MaxPower"
-    mkdir -p "$G/functions/ncm.usb0"
-    echo 02:43:59:43:4c:01 > "$G/functions/ncm.usb0/dev_addr"   # locally administered
-    echo 02:43:59:43:4c:02 > "$G/functions/ncm.usb0/host_addr"
-    ln -s "$G/functions/ncm.usb0" "$G/configs/c.1/"
-
-    # The UDC (a800000.dwc3) can take a moment to register.
-    i=0
-    while [ -z "$(ls /sys/class/udc 2>/dev/null)" ] && [ $i -lt 100 ]; do
-        sleep 0.1; i=$((i+1))
-    done
-    UDC=$(ls /sys/class/udc 2>/dev/null | head -n1)
-    if [ -n "$UDC" ] && echo "$UDC" > "$G/UDC"; then
-        log "gadget bound to $UDC"
-    else
-        log "no UDC found, USB gadget not started"
+# Shared with the stage-1 rescue shell. A failed `.` would end this shell
+# (PID 1), so a missing helper only costs the USB network.
+if [ -r /usr/lib/chef/usb-gadget.sh ] && . /usr/lib/chef/usb-gadget.sh; then
+    if usb_gadget_up; then
+        buzz 150; sleep 0.3; buzz 150
     fi
-    IFACE=$(cat "$G/functions/ncm.usb0/ifname" 2>/dev/null)
 else
-    log "configfs usb_gadget unavailable"
+    log "USB gadget helper missing; no USB network"
 fi
-
-# --- network: static address on the gadget interface, DHCP for the host ---
-IFACE=${IFACE:-usb0}
-if ip link set "$IFACE" up 2>/dev/null; then
-    ip addr add 172.16.42.1/24 dev "$IFACE"
-    sed -i "s/^interface .*/interface $IFACE/" /etc/udhcpd.conf
-    touch /tmp/udhcpd.leases
-    log "$IFACE up, 172.16.42.1/24"
-    buzz 150; sleep 0.3; buzz 150
-else
-    log "no $IFACE interface"
-fi
-
-printf '%s\n' "$IFACE" > /run/usb-interface
 
 # Initialize native device metadata before NetworkManager starts. Preserve
 # kernel names; packaged eudev has no predictive net-renaming rule. Coldplug

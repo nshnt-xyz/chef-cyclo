@@ -4,7 +4,7 @@
 
 ## Current behavior
 
-`initramfs/init` creates a USB NCM Ethernet gadget, assigns `usb0` 172.16.42.1/24, and configures loopback. `udhcpd` offers the host addresses .2–.9 with no router option. Linux hosts use `cdc_ncm`. The phone buzzes once when `/init` starts and twice when the network is ready.
+`initramfs/init` creates a USB NCM Ethernet gadget through `initramfs/usr/lib/chef/usb-gadget.sh`, assigns `usb0` 172.16.42.1/24, and configures loopback. `udhcpd` offers the host addresses .2–.9 with no router option, from `/run/udhcpd.conf` (the `/etc/udhcpd.conf` template with the actual interface; the root is read-only). The stage-1 rescue shell uses the same helper, so a refused `system_a` still answers on 172.16.42.1 ([live testing](../live-testing.md#gotchas)). Linux hosts use `cdc_ncm`. The phone buzzes once when `/init` starts and twice when the network is ready.
 
 ## Use
 
@@ -19,7 +19,7 @@ The shell is root with no password. In the phone shell, `reboot` returns to the 
 
 ## Modify and verify
 
-Relevant files are `initramfs/init`, `initramfs/etc/udhcpd.conf`, and `initramfs/etc/inittab`. Change gadget/address setup in `/init` and daemon arguments in the inittab, then rebuild the image. Keep the loopback configuration: gpsd and its UDP broker depend on it.
+Relevant files are `initramfs/init`, `initramfs/usr/lib/chef/usb-gadget.sh` (shared with `stage1/init`), `initramfs/etc/udhcpd.conf`, and `initramfs/etc/inittab`. Change gadget/address setup in the helper and daemon arguments in the inittab, then rebuild the images (`scripts/mkinstall.sh`). Keep the loopback configuration: gpsd and its UDP broker depend on it.
 
 Live checks: confirm host enumeration and DHCP, ping and telnet, then unplug/replug and confirm recovery. The 2026-09-18 tests (on the since-dropped ride image) verified NCM re-enumeration, DHCP, and HTTP after reconnecting. The host-side MAC was observed to vary; do not rely on a fixed interface name.
 
