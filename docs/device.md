@@ -12,6 +12,8 @@
 
 `stock/partitions/` contains the 2026-09-13 raw backup of every partition except userdata from stock QPTS30.61-18-16-19 (Android 10), with `SHA256SUMS` verified against the device. Device-unique `persist`, `modemst1/2`, `fsg_*`, `utags`, `cid`, and `hw` must be retained.
 
+Since 2026-09-18 `boot_a` holds a Magisk-rooted stock image; it and the unrooted `boot_a` backup are listed with hashes in the [standalone boot plan](next-steps/storage-and-boot.md#images-to-restore).
+
 The verified `stock/twrp-3.7.0_9-0-chef.img` can be temporarily booted with `fastboot boot` for a root adb shell. Nothing needs to be flashed for the current development workflow. A normal reboot returns to the flashed system (stock Android in the recorded tests). Holding power for about 8.7 seconds causes a hardware reset; holding VolDown through that reset enters the bootloader.
 
 - **TWRP downloads** from dl.twrp.me get silently truncated; verify sha256 and resume with `curl -C -`.
