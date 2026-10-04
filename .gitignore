@@ -71,6 +71,7 @@ tools/sensord/tests/sensord-fake-san
 __pycache__/
 
 tools/wifi-psk
+tools/abslot
 
 # chefui build tree (tools/chefui/Makefile)
 tools/chefui/build/

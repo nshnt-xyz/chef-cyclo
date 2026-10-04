@@ -325,6 +325,14 @@ make -C tools/chefui -j"$(nproc)" device >/dev/null
 install -m 755 tools/chefui/build/device/chefui-demo "$ROOT/usr/bin/chefui-demo"
 echo "built $ROOT/usr/bin/chefui-demo"
 
+# A/B slot marker (tools/abslot.c, docs/next-steps/storage-and-boot.md):
+# `fastboot flash boot_a` leaves boot_a unsuccessful with 7 retries and abl
+# spends one per boot; inittab runs `abslot mark-successful` 30 s into each
+# boot, the job Android's boot_control HAL did. Plain libc.
+[ -f tools/abslot.c ] || { echo "missing required source: tools/abslot.c" >&2; exit 1; }
+"$MUSLCC" -Wall -Wextra -Werror -O2 -static -o "$ROOT/usr/bin/abslot" tools/abslot.c
+echo "built $ROOT/usr/bin/abslot"
+
 # Battery daemon (tools/powerd.c, docs/features/battery-and-charging.md):
 # low-battery warn/critical and clean shutdown (BatteryService clone),
 # power_supply CSV log + state file under /run/power, and the 44/42 C

@@ -37,7 +37,7 @@ INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
 BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker gps-manager buttond powerd wavtone tas2560-send-cal \
-       afe-topology-cal tert-tx-hold wifi-psk
+       afe-topology-cal tert-tx-hold wifi-psk abslot
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-evdev tests/test-fbtouch tests/test-fblog \
             tests/test-nmea-broker tests/test-gps-manager tests/test-buttond tests/test-powerd tests/test-wavtone \
@@ -205,6 +205,12 @@ tests/test-wlan-fw: tests/test_wlan_fw.c wlan-fw.c qmux.c qmux.h msmipc.h
 wifi-psk: wifi-psk.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
+# A/B slot marker (abslot.c): sets boot_a's GPT "successful" attribute bit
+# so abl stops spending retries on it. Plain libc. tests/test_abslot.py runs
+# the host binary against synthetic GPT disk images and a fake sysfs.
+abslot: abslot.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
 test-wifi: tests/test-wlan-fw wifi-psk
 	./tests/test-wlan-fw
 	python3 tests/test_wifi.py
@@ -212,7 +218,7 @@ test-wifi: tests/test-wlan-fw wifi-psk
 	python3 tests/test_wifi_build.py
 	python3 tests/test_wifi_nm.py
 
-test: $(TEST_BIN) test-shell wifi-psk test-display-inventory
+test: $(TEST_BIN) test-shell wifi-psk abslot test-display-inventory
 	./tests/test-qmux
 	./tests/test-msmipc
 	./tests/test-evdev
@@ -231,6 +237,7 @@ test: $(TEST_BIN) test-shell wifi-psk test-display-inventory
 	python3 tests/test_wifi_psk.py
 	python3 tests/test_wifi_build.py
 	python3 tests/test_wifi_nm.py
+	python3 tests/test_abslot.py
 
 # gps-up (initramfs/) selection-logic regression; not a build product of
 # this directory, but this is the natural place to run it alongside the
@@ -247,4 +254,4 @@ test-shell: powerd gps-manager nmea-broker
 
 clean:
 	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker gps-manager buttond powerd wavtone \
-		tas2560-send-cal afe-topology-cal tert-tx-hold wifi-psk $(TEST_BIN)
+		tas2560-send-cal afe-topology-cal tert-tx-hold wifi-psk abslot $(TEST_BIN)

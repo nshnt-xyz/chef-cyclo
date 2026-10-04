@@ -39,6 +39,11 @@
 # empty and unpowered or at 68 C, the power_supply log + state in /run/power
 # (`powerd status`), and the 44/42 C charge throttle on system_temp_level.
 ::respawn:/usr/bin/powerd
+# A/B slot: mark boot_a successful once this boot has lasted 30 s, as
+# Android's boot_control HAL did, so abl stops counting retries down (it
+# would mark the slot unbootable after 7 boots). A build that dies earlier
+# keeps counting and ends in fastboot. Logs to kmsg and /run/abslot.log.
+::once:/bin/sh -c 'sleep 30; exec /usr/bin/abslot mark-successful >/dev/null'
 ::ctrlaltdel:/sbin/reboot
 ::shutdown:/bin/umount -a -r
 ::restart:/sbin/init

@@ -1,0 +1,333 @@
+# Install layout phase 1: our image in boot_a (2026-10-04 UTC)
+# Raw evidence: ~/chef-cyclo-evidence/install-layout-20261004/ (local). No secrets, no positions.
+
+## Pre-flash (read-only, from the RAM-booted 343fc3f7)
+PARTNAME=boot_a
+131072
+747264
+PARTNAME=system_a
+5242880
+3670016
+PARTNAME=userdata
+107986911
+14155776
+512
+c6ab9f3a72cb9ccafeafb3deeec0265e8bd3d120d43477c3628435dbbb4ebc3f  /dev/mmcblk0p44
+807f7239aba2717e4143787a749a2326e032196ce1345916b72eed17e05a9f88  /dev/mmcblk0p67
+alt=122142719 skip=122142687
+33+0 records in
+33+0 records out
+16896 bytes (16.5KB) copied, 0.042259 seconds, 390.4KB/s
+34+0 records in
+34+0 records out
+17408 bytes (17.0KB) copied, 0.000244 seconds, 68.0MB/s
+e97f52c086e719d9b780168405f835fc92743cdeed9b8f8ef247f44c1be62bb3  /run/gpt-tail.bin
+5dea9347d65c0737e939cbc42a076177341baef5bc5d94e05a21176af99963b1  /run/gpt-primary.bin
+primary and backup GPT valid and identical (backup header LBA 122142719)
+ 43 boot_a           attr=0x0077000000000048 priority=3 active=1 retry=6 successful=1 unbootable=0
+ 44 boot_b           attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+ 64 vendor_a         attr=0x007f000000000048 priority=3 active=1 retry=7 successful=1 unbootable=0
+ 65 vendor_b         attr=0x007b000000000048 priority=3 active=0 retry=7 successful=1 unbootable=0
+ 66 system_a         attr=0x007f000000000048 priority=3 active=1 retry=7 successful=1 unbootable=0
+ 67 system_b         attr=0x007b000000000048 priority=3 active=0 retry=7 successful=1 unbootable=0
+
+## fastboot before the first flash
+current-slot: a
+slot-count: 2
+slot-successful:a: yes
+slot-successful:b: yes
+slot-retry-count:a: 6
+slot-retry-count:b: 6
+slot-unbootable:a: no
+slot-unbootable:b: yes
+(bootloader) unlocked: not found
+getvar:unlocked                                    FAILED (remote: '')
+max-download-size: 536870912
+partition-size:boot_a: 0x0000000004000000
+partition-type:boot_a: raw
+
+## Flash out/boot.img (343fc3f7) and getvar
+image 35581952 bytes < partition 67108864 bytes
+343fc3f76dd6cafed582c00c431be0501192362e78dee895b9a4ba8d8ca7f640  out/boot.img
+2026-10-04T18:23:33Z
+Sending 'boot_a' (34748 KB)                        OKAY [  0.858s]
+Writing 'boot_a'                                   OKAY [  0.309s]
+Finished. Total time: 1.192s
+current-slot: a
+slot-successful:a: no
+slot-successful:b: yes
+slot-retry-count:a: 7
+slot-retry-count:b: 6
+slot-unbootable:a: no
+slot-unbootable:b: yes
+
+## boot1 (first boot from boot_a)
+59cb31f3-f339-4217-ba4e-336d0b8e4d57
+16.67 121.89
+root=/dev/mmcblk0p67
+androidboot.verifiedbootstate=orange
+androidboot.bootreason=reboot
+androidboot.mode=normal
+androidboot.slot_suffix=_a
+skip_initramfs
+343fc3f76dd6cafed582c00c431be0501192362e78dee895b9a4ba8d8ca7f640  -
+diskstats checked
+primary and backup GPT valid and identical (backup header LBA 122142719)
+ 43 boot_a           attr=0x0037000000000048 priority=3 active=1 retry=6 successful=0 unbootable=0
+ 44 boot_b           attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+ 64 vendor_a         attr=0x007f000000000048 priority=3 active=1 retry=7 successful=1 unbootable=0
+ 65 vendor_b         attr=0x007b000000000048 priority=3 active=0 retry=7 successful=1 unbootable=0
+ 66 system_a         attr=0x007f000000000048 priority=3 active=1 retry=7 successful=1 unbootable=0
+ 67 system_b         attr=0x007b000000000048 priority=3 active=0 retry=7 successful=1 unbootable=0
+
+## Manual abslot mark on boot1 (binary 2e398b2e...)
+5dea9347d65c0737e939cbc42a076177341baef5bc5d94e05a21176af99963b1  after-primary.bin
+e97f52c086e719d9b780168405f835fc92743cdeed9b8f8ef247f44c1be62bb3  after-tail.bin
+6b3e850bf7bc5b389cb79ea2070157d8d8a63a22160c2c937281414713f45dd1  before-primary.bin
+f32abf33c64100a13ed8b8c4f01925f6f741ccde5dc59ced2a51df70998f739b  before-tail.bin
+abslot: boot_a p44 attr=0x0037000000000048 priority=3 active=1 retry=6 successful=0 unbootable=0
+abslot: boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+abslot: boot_a p44 attr=0x0037000000000048 priority=3 active=1 retry=6 successful=0 unbootable=0
+abslot: boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+abslot: boot_a attr 0x0037000000000048 -> 0x0077000000000048
+abslot: boot_a p44 attr=0x0077000000000048 priority=3 active=1 retry=6 successful=1 unbootable=0
+abslot: boot_a marked successful (LBAs 122142697, 122142719, 12, 1 written and verified)
+exit=0
+abslot: boot_a p44 attr=0x0077000000000048 priority=3 active=1 retry=6 successful=1 unbootable=0
+abslot: boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+diskstats write-sector delta:
+  DELTA mmcblk0 4
+  (69 mmcblk0 lines compared, others 0)
+byte diff primary (cmp -l, 1-based offsets, octal):
+    529 272  22
+    530  70   6
+    531 222  52
+    532 364 366
+    601 166  37
+    602 107 116
+    603 160  30
+    604  74 163
+   6583  67 167
+byte diff backup tail:
+   5559  67 167
+  16401 176 326
+  16402 343 335
+  16403 120 350
+  16404  35  37
+  16473 166  37
+  16474 107 116
+  16475 160  30
+  16476  74 163
+after == pre-flash GPT dumps (byte-identical)
+
+## N1: fastboot boot of out/boot-abslot.img with boot_a successful
+current-slot: a
+slot-successful:a: yes
+slot-retry-count:a: 6
+slot-unbootable:a: no
+slot-successful:b: yes
+slot-retry-count:b: 6
+slot-unbootable:b: yes
+abslot: boot_a p44 attr=0x0077000000000048 priority=3 active=1 retry=6 successful=1 unbootable=0
+boot_a p44 attr=0x0077000000000048 priority=3 active=1 retry=6 successful=1 unbootable=0
+boot_a already marked successful, nothing written
+boot_a p44 attr=0x0077000000000048 priority=3 active=1 retry=6 successful=1 unbootable=0
+current-slot: a
+slot-successful:a: yes
+slot-retry-count:a: 6
+slot-unbootable:a: no
+slot-successful:b: yes
+slot-retry-count:b: 6
+slot-unbootable:b: yes
+
+## Flash out/boot-abslot.img (833ea187)
+833ea187738cf7e2f0505288591bf22cf72bea98091a549e8d700e1f88c9e554  out/boot-abslot.img
+2026-10-04T18:37:01Z
+Sending 'boot_a' (34760 KB)                        OKAY [  0.859s]
+Writing 'boot_a'                                   OKAY [  0.299s]
+Finished. Total time: 1.182s
+current-slot: a
+slot-successful:a: no
+slot-retry-count:a: 7
+slot-unbootable:a: no
+slot-successful:b: yes
+slot-retry-count:b: 6
+slot-unbootable:b: yes
+
+## fastboot boot of out/boot.img (no abslot) with boot_a unsuccessful: retry 7 -> 6
+41f3f458-61ec-4afe-a29c-8a18d1236fa7
+833ea187738cf7e2f0505288591bf22cf72bea98091a549e8d700e1f88c9e554  -
+primary and backup GPT valid and identical (backup header LBA 122142719)
+p44  boot_a           attr=0x0037000000000048 priority=3 active=1 retry=6 successful=0 unbootable=0
+p45  boot_b           attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+current-slot: a
+slot-successful:a: no
+slot-retry-count:a: 6
+slot-unbootable:a: no
+slot-successful:b: yes
+slot-retry-count:b: 6
+slot-unbootable:b: yes
+
+## a1: fastboot reboot into boot_a (abslot marks at 30 s)
+early:
+13.69 100.06
+abslot: boot_a p44 attr=0x002f000000000048 priority=3 active=1 retry=5 successful=0 unbootable=0
+abslot: boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+5dd81993-ad49-493a-bedc-f08cf39eb177
+44.01 315.45
+root=/dev/mmcblk0p67
+androidboot.verifiedbootstate=orange
+androidboot.bootreason=reboot
+androidboot.mode=normal
+androidboot.slot_suffix=_a
+skip_initramfs
+833ea187738cf7e2f0505288591bf22cf72bea98091a549e8d700e1f88c9e554  -
+WRITES mmcblk0 4
+diskstats checked
+abslot: boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+abslot: boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+--- /run/abslot.log
+boot_a p44 attr=0x002f000000000048 priority=3 active=1 retry=5 successful=0 unbootable=0
+boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+boot_a p44 attr=0x002f000000000048 priority=3 active=1 retry=5 successful=0 unbootable=0
+boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+boot_a attr 0x002f000000000048 -> 0x006f000000000048
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a marked successful (LBAs 122142697, 122142719, 12, 1 written and verified)
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+
+## a2-reboot (reboot from our shell)
+5732e149-dfac-43b2-8ef5-b605e3706128
+54.28 405.33
+diskstats checked
+abslot: boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a already marked successful, nothing written
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+
+## a3-reboot (reboot from our shell)
+1b0c00e7-804d-4b4b-9d75-e52d4b92b601
+54.27 415.35
+diskstats checked
+abslot: boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a already marked successful, nothing written
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+
+## a4-reboot (reboot from our shell)
+3106ee5e-4d84-4466-9bad-aeae0997bbb3
+54.26 414.29
+diskstats checked
+abslot: boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a already marked successful, nothing written
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+
+## fastboot after a4
+current-slot: a
+slot-successful:a: yes
+slot-retry-count:a: 5
+slot-unbootable:a: no
+slot-successful:b: yes
+slot-retry-count:b: 6
+slot-unbootable:b: yes
+
+## a5 (fastboot reboot)
+diskstats checked
+abslot: boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_a already marked successful, nothing written
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+
+## Regression on a5
+Controller 30:4B:07:6F:0D:75 (public)
+        Powered: yes
+audio-up: adsp up, card 0 'sdm660sndcard' 1.01s after boot_adsp, MultiMedia1 playback pcm device 0
+audio-up: nothing to supervise, exiting (adsp stays up for the rest of this boot)
+playing '/run/speaker-test-tone-1570.wav': 2 ch, 48000 hz, 16 bit
+speaker-test-tone: tinyplay finished
+speaker-test-tone: tinymix set 'TERT_MI2S_RX Audio Mixer MultiMedia1' '0'
+tone_exit=0
+sensord: ready: /run/sensord.sock, BUFFERING API, timestamps dsps; heading mount portrait
+sensors-up: adsp already ONLINE; its sensor PD read (or will read) the registry late
+sensord: smgr ready: 4 sensor(s), 5 of 5 channels present
+venus state=OFFLINING crash_count=0
+a512_zap state=OFFLINING crash_count=0
+adsp state=ONLINE crash_count=0
+modem state=ONLINE crash_count=0
+MS Name/IP address         Stratum Poll Reach LastRx Last sample               
+===============================================================================
+#? GPS                           0   4     0     -     +0ns[   +0ns] +/-    0ns
+wlan0:disconnected
+bond0:unmanaged
+dummy0:unmanaged
+regression-done
+Wi-Fi (TP-Link 5 GHz, PSK via RAM passwd-file, removed):
+wlan0:connected
+    inet <lan>
+https 200 ssl_verify=0
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 12.302/79.105/113.030 ms
+MS Name/IP address         Stratum Poll Reach LastRx Last sample               
+===============================================================================
+#? GPS                           0   4     0     -     +0ns[   +0ns] +/-    0ns
+^- 95.216.192.15                 2   6    17    24    -51ms[  -47ms] +/-  135ms
+^* 143.110.241.116               3   6    27    22    +16us[  +16ms] +/-   23ms
+^- 162.159.200.123               3   6    17    24    -51ms[  -47ms] +/-  119ms
+^- 162.159.200.1                 3   6    17    24    -46ms[  -42ms] +/-  123ms
+Reference ID    : 8F6EF174 (143.110.241.116)
+System time     : 0.000000000 seconds fast of NTP time
+Leap status     : Normal
+venus crash_count=0
+a512_zap crash_count=0
+adsp crash_count=0
+modem crash_count=0
+diskstats checked
+
+## Cold boot without USB (user: unplug, Power 3 s off, Power on, log seen, screen off/on)
+34952207-7eb6-4525-9a30-d8467f4bd306
+264.35 2079.88
+89daea46-d431-4061-b55f-4b692bfdcc98
+92.24 679.53
+androidboot.bootreason=power_key_press
+androidboot.mode=normal
+androidboot.slot_suffix=_a
+[    9.319619,5] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+[   44.945606,4] buttond: screen off: created /run/fblog.off, signalled fblog (1 process); init respawns it
+[   44.945698,4] fblog: exiting: blanking before close
+[   46.968867,1] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+[   50.035756,0] buttond: screen on: removed /run/fblog.off; fblog wakes on flag removal or next init respawn
+[   50.035789,1] fblog: /run/fblog.off removed: leaving idle
+[   50.035850,1] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[   50.212449,1] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+uptime,utc,reason,status,source,usb_type,capacity,voltage_mv,current_ma,temp_c,health,charge_type,ocv_mv,charge_full_uah,charge_counter_uah,cycle_count,soc_ready,usb_current_max_ma,usb_input_ma,usb_vo
+9.3,1970-01-18T05:57:58Z,start,Discharging,battery,Unknown,53,3818,494,34.0,Good,N/A,3870,5004000,2596059,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+68.7,1970-01-18T05:58:58Z,uevent,Discharging,battery,Unknown,53,3835,318,35.0,Good,N/A,3871,5004000,2590313,0,1,0,0,0,0,3000,Nothing attached,0,0,0,0,none
+[0;0mlog.csv[m  [0;0mstate[m
+boot_a p44 attr=0x006f000000000048 priority=3 active=1 retry=5 successful=1 unbootable=0
+boot_b p45 attr=0x00f0000000000048 priority=0 active=0 retry=6 successful=1 unbootable=1
+boot_a already marked successful, nothing written
+touch:
+summary: frames=165 touch_reports=298 contacts=19
+summary: touched screen area x=[50..1068] y=[75..2242], first contact +6.872 s
+fb: blanked before close
+GPS lease:
+3D fix after ~80 s
+ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=451 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+23
+"mode":3,"time":"2026-10-04T18:52:13.000Z"
+"eph":19.000
+#? GPS                           0   4     1     2  -20714d[-20714d] +/-  501ms
+venus crash_count=0
+a512_zap crash_count=0
+adsp crash_count=0
+modem crash_count=0
+diskstats checked
+
+## poweroff with USB attached
+89daea46-d431-4061-b55f-4b692bfdcc98
+ee62f8cf-954d-4583-9b12-0ffa33ef5ecd
+18.50 137.65
+androidboot.bootreason=charger
+androidboot.mode=charger

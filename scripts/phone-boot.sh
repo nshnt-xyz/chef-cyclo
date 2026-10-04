@@ -6,8 +6,9 @@
 #   EXPECT=<sha256> scripts/phone-boot.sh  refuse unless IMAGE has that hash
 #
 # Gets the phone into fastboot from wherever it is: already in fastboot,
-# stock Android over adb (`adb reboot bootloader`), or one of our images on
-# 172.16.42.1 (`btprobe restart bootloader` over telnet). If the first
+# stock Android over adb (`adb reboot bootloader`; Android is retired since
+# 2026-10-04), or one of our images on 172.16.42.1, the installed boot_a or
+# a test image (`btprobe restart bootloader` over telnet). If the first
 # `fastboot boot` fails (seen as garbled getvar replies / "unknown command"
 # right after adb reboot), it runs `fastboot reboot bootloader` and retries
 # once. See docs/live-testing.md.

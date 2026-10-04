@@ -2,45 +2,59 @@
 
 [Next-steps index](README.md) · [Current features](../features/README.md)
 
-These are plans, not implemented behavior. Package versions and candidate approaches reflect the 2026-09-19 notes and must be checked when implementing.
+Standalone boot is done (2026-10-04); the rest are plans, not implemented behavior. Package versions and candidate approaches reflect the 2026-09-19 notes and must be checked when implementing.
 
 ## Persistent storage
 
-Everything is in RAM today and gates most of what follows: ride files and map tiles ([bike-computer application](ui-and-ride-app.md#bike-computer-application)), Bluetooth pairing keys, classic and LE (`/var/lib/bluetooth`, [BLE sensors](connectivity-and-sensors.md#ble-sensors)), Wi-Fi credentials ([Wi-Fi](connectivity-and-sensors.md#wi-fi)), the wall−RTC offset ([time synchronization](gps-and-time.md#time-synchronization)), sensor registry calibration ([sensor persistence](sensors.md#calibration-across-boots)), power logs/cycle state ([power](power-and-reliability.md#battery-and-charging)), the GNSS shadow ([warm starts](gps-and-time.md#warm-starts-and-assistance)). `userdata` is Android's FBE-encrypted data — reformatting it means Android is gone from this phone, so either accept that ([Android retirement](storage-and-boot.md#retire-android)) or, while Android is still the escape hatch, carve out space elsewhere: an unused/spare partition, or shrink and split `userdata`. Whatever it is: mounted `noatime`, ext4 or f2fs, tested for power-loss (the battery can die mid-ride), and the no-writes-to-EFS/`persist` rule stays absolute. Move the Alpine root there afterwards (it is already the seed).
+Decided 2026-10-04 (user): Android is retired. Writable state goes on `userdata` as ext4 mounted at `/data` (phase 2 of the [install layout handoff](install-layout-handoff.md)); the Alpine root moves to `system_a`, read-only (phase 3). Everything is in RAM today and this gates most of what follows: ride files and map tiles ([bike-computer application](ui-and-ride-app.md#bike-computer-application)), Bluetooth pairing keys, classic and LE (`/var/lib/bluetooth`, [BLE sensors](connectivity-and-sensors.md#ble-sensors)), Wi-Fi credentials ([Wi-Fi](connectivity-and-sensors.md#wi-fi)), the wall-RTC offset ([time synchronization](gps-and-time.md#time-synchronization)), sensor registry calibration ([sensor persistence](sensors.md#calibration-across-boots)), power logs/cycle state ([power](power-and-reliability.md#battery-and-charging)), the GNSS shadow ([warm starts](gps-and-time.md#warm-starts-and-assistance)). `/data` is mounted `noatime` and must survive power loss mid-write (the battery can die mid-ride). The no-writes-to-EFS/`persist` rule stays absolute.
 
 ## Standalone boot
 
-Plan and validate installation to `boot_a` so a PC is no longer required at startup. Do not assume `_b` is a tested Android fallback simply because the device is A/B. Flashing is future work, outside the current temporary-boot workflow; the procedure below was written on 2026-10-04 and has **not** been run.
+Done on 2026-10-04 as phase 1 of the [install layout handoff](install-layout-handoff.md): `boot_a` holds our image (`out/boot-abslot.img`, the `343fc3f7` baseline plus [`abslot`](#ab-slot-flags)), the phone cold-boots without a PC to a working system, and a normal reboot no longer starts Android. Evidence is in the [build log](../build-log.md#2026-10-04-our-image-in-boot_a). Phases 2 (`/data` on `userdata`) and 3 (root on `system_a`) are next.
 
 ### Why flashing `boot_a` is recoverable
 
-- **Fastboot does not live in `boot_a`.** It is the `abl` bootloader. With `boot_a` unbootable, holding VolDown through the Power-held hardware reset (about 8.7 s) still enters fastboot ([device reference](../device.md#stock-backups-and-recovery)), and a single `fastboot flash boot_a` restores Android.
-- **Only `boot_a` is written.** Our image runs from RAM and never mounts `userdata`, so Android's data is untouched while our image is installed. `abl`, `xbl`, `vbmeta`, `boot_b`, `persist`, `modemst*`, `fsg*` and the rest are never written by this procedure; those are the partitions whose damage would not be fixable from fastboot.
-- **A flashed boot loads like `fastboot boot`.** The same `abl` loader applies the same [loader-space budget](../research/chef-loader-kernel-budget.md) (about 24 MB margin after the 2026-10-04 libinput removal) and appends `skip_initramfs`, which our kernel already ignores. The `boot_a` partition is 64 MiB; the current image is about 34 MiB.
-- **One system at a time.** Android also boots from `boot_a`. While our image is installed, Android does not start; switching is a flash from the PC in either direction.
+- **Fastboot does not live in `boot_a`.** It is the `abl` bootloader. With `boot_a` unbootable, holding VolDown through the Power-held hardware reset (about 8.7 s) still enters fastboot ([device reference](../device.md#stock-backups-and-recovery)), and a single `fastboot flash boot_a` restores any known-good image.
+- **Only `boot_a` and its GPT slot attributes are written.** `abl`, `xbl`, `vbmeta`, `boot_b`, `persist`, `modemst*`, `fsg*` and the rest are never written; those are the partitions whose damage would not be fixable from fastboot. The attribute bits are written by `abl` itself on every flash and by `abslot` once per flash (below); both partition tables were backed up first.
+- **A flashed boot loads like `fastboot boot`.** The same `abl` loader applies the same [loader-space budget](../research/chef-loader-kernel-budget.md) (about 24 MB margin) and appends `skip_initramfs`, which our kernel ignores. The `boot_a` partition is 64 MiB; the image is about 34 MiB.
+
+### A/B slot flags
+
+`abl` keeps the slot state in the GPT entry attributes of `boot_a` and `boot_b` (bits 48-49 priority, 50 active, 51-53 retry count, 54 successful, 55 unbootable; read them with `abslot status` on the phone, `fastboot getvar slot-successful:a` / `slot-retry-count:a` in fastboot, or `scripts/gpt-slots.py` on a dump). Measured 2026-10-04:
+
+- Before: `boot_a` successful with retry 6 (Android's boot_control HAL had marked it), `boot_b` unbootable.
+- `fastboot flash boot_a` sets `boot_a` to not successful with retry 7. Every later boot of an unsuccessful `_a`, including `fastboot boot` of any image, takes one retry (7 to 6 to 5 observed). With `_b` unbootable, an exhausted `_a` would leave no bootable slot.
+- A successful slot is not counted down: retry stayed at 5 over five boots (three `reboot`, one `fastboot reboot`, one cold boot).
+
+`abslot mark-successful` (`tools/abslot.c`) does the HAL's job: inittab runs it 30 s into every boot. It sets only bit 54 of the `boot_a` entry, in both GPT copies, after validating both copies, the booted slot, the kernel's view of `boot_a` and the slot state, and does nothing when the bit is already set. Live, the first mark wrote exactly 4 sectors (`mmcblk0` delta 4, every partition 0) and the result was byte-identical to the GPT before the first flash. Consequences:
+
+- Every `fastboot flash boot_a` costs the new image's first boot one retry before it marks itself; an image that dies within 30 s of boot keeps counting down and should end in fastboot after seven attempts rather than boot-looping.
+- `fastboot boot` of a test image runs the same inittab, so it also marks `boot_a` successful, whatever `boot_a` holds. Harmless while `_b` is unbootable and fastboot stays reachable; phase 3 may gate the mark on the kernel having come from `boot_a`.
+- The retry count left after a mark (5 now) stays as it is; `abl` ignores it while the slot is successful.
+- If both copies ever disagree: `abslot status` reports an interrupted mark as `half-marked` and `mark-successful` completes it; anything else is refused. The pre-flash GPT dumps are `stock/partitions/gpt-primary-20261004.bin` (LBAs 0-33) and `gpt-backup-tail-20261004.bin` (the last 33 LBAs), hashes in `GPT-SHA256SUMS` (gitignored, on the build PC only: keep them in the off-machine backup); writing them back is a last resort (for example from a TWRP `fastboot boot`), since a re-flash of `boot_a` already resets the slot.
 
 ### Images to restore
 
 | Image | SHA-256 | State |
 | --- | --- | --- |
-| `~/chef-cyclo-evidence/persistent-root-20260917-235600/exec/magisk_patched-v30.7-boot_a.img` | `c6ab9f3a72cb9ccafeafb3deeec0265e8bd3d120d43477c3628435dbbb4ebc3f` | What `boot_a` holds today: stock Android 10 with Magisk v30.7 root (since 2026-09-18). |
+| `stock/partitions/magisk_patched-v30.7-boot_a.img` (gitignored, build PC only; copy of `~/chef-cyclo-evidence/persistent-root-20260917-235600/exec/magisk_patched-v30.7-boot_a.img`) | `c6ab9f3a72cb9ccafeafb3deeec0265e8bd3d120d43477c3628435dbbb4ebc3f` | What `boot_a` held until 2026-10-04: stock Android 10 with Magisk v30.7 root. |
 | `stock/partitions/boot_a.img` | `c77eb87d128e8251e04da904555a9bc67228eedf0e91957f5fffbe5a5abf51f2` | Unrooted stock (2026-09-13 backup, also in `stock/partitions/SHA256SUMS`). |
 
-Both files were present with matching hashes on 2026-10-04. The Magisk image is outside the repository: copy it next to the stock backups (and into any off-machine backup) before the first flash.
+`stock/partitions/` is gitignored: these images and the GPT dumps exist only on the build PC and belong in the off-machine backup. Re-flashing either is no longer needed now that Android is retired, but the route stays: enter fastboot (VolDown through the Power-held reset), `fastboot getvar current-slot` must say `a`, `fastboot flash boot_a <image>`, `fastboot reboot`. Android only comes back with its matching `system_a` and a `userdata` it accepts (see [recovery](install-layout-handoff.md#recovery-story-to-document)); until phase 2 and 3 run, both are still Android's.
 
-`userdata` is not backed up and does not need to be for this step. A raw copy is a poor safety net anyway: it is FBE-encrypted with keys bound to the phone's TEE and is large. Anything worth keeping on the Android side should be backed up from Android itself. `userdata` only matters for [persistent storage](#persistent-storage), where reformatting it ends Android on this phone.
+### Procedure (as run)
 
-### Procedure (not yet run)
+1. Install only an image that has passed a temporary boot (`scripts/phone-boot.sh out/boot-<name>.img`, [live testing](../live-testing.md)).
+2. In fastboot, `fastboot getvar current-slot` must say `a`; stop otherwise.
+3. `fastboot flash boot_a out/boot-<name>.img` (always the explicit `_a` suffix, never an unsuffixed `fastboot flash boot`), then `fastboot reboot`.
+4. After 30 s, `abslot status` must show `successful=1`.
+5. Unplug USB, power off (Power held 3 s, released), power on with Power, and check panel log, touch, buttons and a GPS fix.
 
-1. Install only an image that has passed a temporary boot (`scripts/phone-boot.sh out/boot-<name>.img`, [live testing](../live-testing.md)). Check the restore images with `sha256sum` against the table above.
-2. Put the phone in fastboot and confirm the slot: `fastboot getvar current-slot` must say `a`. If it does not, stop.
-3. Flash with the explicit slot suffix, never an unsuffixed `fastboot flash boot`: `fastboot flash boot_a out/boot-<name>.img`.
-4. `fastboot reboot`, then check the USB shell as in a temporary boot.
-5. Unplug USB, power off (Power held 3 s, released), power on with Power, and confirm the system comes up without the PC: panel log, touch, buttons, then a GPS fix.
-6. Back to Android: enter fastboot (VolDown through the Power-held reset), `fastboot flash boot_a <Magisk image>`, `fastboot reboot`. Use the stock image instead only if unrooted Android is wanted.
+### Remaining
 
-Acceptance: cold boot without USB to a working system and GPS fix, plus a verified route back to stock (step 6 actually performed and Android booting with its data). This precedes [crash recovery](power-and-reliability.md#crash-recovery).
+- **Charger mode.** `poweroff` with USB attached re-powers the phone (PMIC USB trigger) in about 24 s with `androidboot.mode=charger` and `bootreason=charger`, and our full OS boots. An off-mode charging screen, or powering off again until the key is pressed, is a follow-up ([buttons and power-off](../features/buttons-and-power-off.md)).
+- **Test images mark `boot_a`.** A `fastboot boot` test image runs the same inittab, so after 30 s it marks `boot_a` successful whatever `boot_a` holds; a freshly flashed but broken `boot_a` could then look good. Gate the mark on the running kernel having come from `boot_a` (for example its version banner against the one in the `boot_a` image), at the latest with the stage-1 initramfs of phase 3.
 
 ## Retire Android
 
-Once persistent storage and standalone boot are proven and the Android escape hatch is no longer needed, decide whether to reclaim its slot and userdata. Reformatting Android userdata destroys its encrypted data; this is a separate future decision, not part of documentation or routine image builds.
+Decided by the user on 2026-10-04: Android is retired. `userdata` becomes `/data` and `system_a` our read-only root in phases 2 and 3 of the [install layout handoff](install-layout-handoff.md); `system_b` keeps Android's old slot-`_b` image.

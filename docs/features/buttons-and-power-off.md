@@ -32,7 +32,7 @@ Gestures are `<button>.short`, `.double`, `.long` for `power`, `volup`, and `vol
 
 - **PM660 power-key hardware (read from the PON registers 2026-09-19, both under stock and our kernel, `0x840`–`0x84b` via `/sys/kernel/debug/regmap/spmi0-00/registers`):** power alone = S1 6720 ms + S2 2000 ms → reset type `0x8` (a hard-reset variant), *enabled*; RESIN (voldown) alone and the KPDPWR+RESIN combo have their S2 reset *disabled*. So "hold power ~8.7 s" is the only hardware reset, no `kpdpwr-bark` IRQ is wired to the kernel (no warning), and the Power+VolDown escape is that same reset with VolDown held into the bootloader. `PON_TRIGGER_EN` = `0xf4`: USB and the power key power the phone on, so after any shutdown a held key or an attached cable brings it straight back (Android off-mode charging on USB). Any software power-off must act on the key *release*, well before 8.7 s — `buttond` does at 3 s.
 
-Unplug USB if the phone should stay off: the cable powers it back into Android off-mode charging after shutdown. Keep Power+VolDown available as the hardware escape into the bootloader. The proposed software power-menu chord is `power+volup`.
+Unplug USB if the phone should stay off: the cable powers it back on after shutdown. Since our image is in `boot_a` (2026-10-04) that boot is ours with `androidboot.mode=charger`, about 24 s after `poweroff`, and the full OS starts ([charger mode follow-up](../next-steps/storage-and-boot.md#remaining)). Keep Power+VolDown available as the hardware escape into the bootloader. The proposed software power-menu chord is `power+volup`.
 
 ## Modify and verify
 
