@@ -1,0 +1,237 @@
+GNSS-only RF live run, 2026-10-04. Filtered from ~/chef-cyclo-evidence/gnss-rf-20261004T123649Z/ (raw pulls, NMEA and gpsd logs with positions stay local).
+Image: out/boot.img sha256 12fc50c366053bbdf257a35d7e0ae557e291af5e4ae2e9ce5e3cbdc2ffa692ef (baseline, HEAD 0ed01bc), three fastboot boots, nothing flashed.
+Pull hashes:
+ebdc3d8fc61d30d9a4d67f09b24150483619cc6ca9b7b139683d07edeea46c19  pull-survey.tgz
+4469eb8262f3047f12fd76c25e02d3af5b498798a0c6a3d7cee99f817d842d15  pull-fix.tgz
+16c12c281a8a6b58ffe6188da0b91c08ba26c7eb652d9fd1f857c99cdf569758  pull-session1-final.tgz
+9890e1c55f214f3e408d9ea2143986a9312f373ceb6735e986eeb57cf11efd8f  pull-boot2-control.tgz
+aec618277f27a5fffe7f1614dfc08e1082b6859179e6f385895bfd2ede04b3ad  pull-ab.tgz
+a73db6f7e11eafe63ad4149e54de2ed0dbccfca15d95083f7333c14933f64f65  boot-modemrf.img
+2589e4c5208949f3d5f485e01b4475d7f10319ed44391955cb148a6dc18911b7  modem-rf-helper.diff
+
+== Boot 1, survey (fresh boot, nothing else touched the modem; uptime s)
+=== 18.14 boot opmode: qmicli --dms-get-operating-mode
+	Mode: 'shutting-down'
+=== 18.16 boot power-state: qmicli --dms-get-power-state
+=== 18.17 boot card: qmicli --uim-get-card-status
+	Card state: 'absent'
+	Card state: 'absent'
+=== 18.20 boot serving: qmicli --nas-get-serving-system
+	Registration state: 'not-registered-searching'
+		Status: 'none'
+		HDR Status: 'none'
+=== 18.22 boot sysinfo: qmicli --nas-get-system-info
+		Status: 'none'
+		True Status: 'none'
+		Status: 'none'
+		True Status: 'none'
+		Status: 'none'
+		True Status: 'none'
+=== 18.23 boot signal: qmicli --nas-get-signal-info
+error: couldn't get signal info: QMI protocol error (74): 'InformationUnavailable'
+=== 18.25 boot ssp: qmicli --nas-get-system-selection-preference
+=== 18.27 boot rfband: qmicli --nas-get-rf-band-info
+error: operation failed: Couldn't get the mandatory List TLV: TLV 0x01 not found
+=== 18.29 poll0 serving: qmicli --nas-get-serving-system
+	Registration state: 'not-registered-searching'
+		Status: 'none'
+		HDR Status: 'none'
+=== 18.31 poll0 signal: qmicli --nas-get-signal-info
+error: couldn't get signal info: QMI protocol error (74): 'InformationUnavailable'
+	Registration state: 'not-registered-searching'
+		Status: 'none'
+		HDR Status: 'none'
+error: couldn't get signal info: QMI protocol error (74): 'InformationUnavailable'
+	Registration state: 'not-registered-searching'
+		Status: 'none'
+		HDR Status: 'none'
+error: couldn't get signal info: QMI protocol error (74): 'InformationUnavailable'
+	Registration state: 'not-registered-searching'
+		Status: 'none'
+		HDR Status: 'none'
+error: couldn't get signal info: QMI protocol error (74): 'InformationUnavailable'
+	Registration state: 'not-registered-searching'
+		Status: 'none'
+		HDR Status: 'none'
+error: couldn't get signal info: QMI protocol error (74): 'InformationUnavailable'
+=== 68.49 poll5 serving: qmicli --nas-get-serving-system
+	Registration state: 'not-registered-searching'
+		Status: 'none'
+		HDR Status: 'none'
+=== 68.51 poll5 signal: qmicli --nas-get-signal-info
+error: couldn't get signal info: QMI protocol error (74): 'InformationUnavailable'
+=== 78.55 loc nmea: qmicli --client-cid=1 --client-no-release-cid --loc-set-nmea-types=gga|rmc|gsv|gsa|vtg
+=== 78.57 loc start: qmicli --client-cid=1 --client-no-release-cid --loc-start --loc-session-id=1
+=== 98.59 loc sv: qmicli --client-cid=1 --client-no-release-cid --loc-get-gnss-sv-info
+=== 98.76 afterloc opmode: qmicli --dms-get-operating-mode
+	Mode: 'shutting-down'
+=== 98.78 afterloc power-state: qmicli --dms-get-power-state
+=== 98.80 afterloc card: qmicli --uim-get-card-status
+	Card state: 'error: no-atr-received (3)'
+	Card state: 'error: no-atr-received (3)'
+=== 98.82 afterloc serving: qmicli --nas-get-serving-system
+	Registration state: 'not-registered-searching'
+		Status: 'none'
+		HDR Status: 'none'
+=== 98.84 afterloc sysinfo: qmicli --nas-get-system-info
+		Status: 'none'
+		True Status: 'none'
+		Status: 'none'
+		True Status: 'none'
+		Status: 'none'
+		True Status: 'none'
+=== 98.85 afterloc signal: qmicli --nas-get-signal-info
+error: couldn't get signal info: QMI protocol error (74): 'InformationUnavailable'
+=== 98.87 afterloc ssp: qmicli --nas-get-system-selection-preference
+=== 98.89 afterloc rfband: qmicli --nas-get-rf-band-info
+error: operation failed: Couldn't get the mandatory List TLV: TLV 0x01 not found
+=== 98.91 loc stop: qmicli --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1
+=== 98.93 loc release: qmicli --client-cid=1 --loc-noop
+
+== Boot 1, low-power fix runs (fix-opmode.txt, fix-result.txt per run)
+Follower stall (nmea.log first/last sentence uptime vs the sv-info call on the follower's CID; the follower stayed running until the stop):
+run1: NMEA 114.76..143.72 (196 sentences), sv-info on CID 1 at 143.98, stop at 159.75
+run2: NMEA 216.77..245.72 (240 sentences), sv-info on CID 1 at 246.44, stop at 261.76
+run3 (no sv-info until after the follower was killed): NMEA 314.81..607.72 (2352 sentences), sv-info at 610.38
+-- run1
+before: shutting-down
+after-set: low-power
+end: low-power
+loc_start_uptime=113.98 first_rmc_A_uptime=129.76 waited=30
+-- run2
+before: low-power
+after-set: low-power
+end: low-power
+loc_start_uptime=216.44 first_rmc_A_uptime=219.72 waited=30
+-- run3
+before: low-power
+after-set: low-power
+end: low-power
+loc_start_uptime=314.32 first_rmc_A_uptime=316.76 first_gsa3_uptime=none waited=281
+     60 "mode":3
+=== 110.74 set low-power: qmicli --dms-set-operating-mode=low-power
+[/run/qmux_socket] Operating mode set successfully
+=== 113.77 low-power opmode: qmicli --dms-get-operating-mode
+	Mode: 'low-power'
+=== 113.83 low-power serving: qmicli --nas-get-serving-system
+	Registration state: 'not-registered'
+=== 213.19 set low-power: qmicli --dms-set-operating-mode=low-power
+[/run/qmux_socket] Operating mode set successfully
+=== 216.23 low-power opmode: qmicli --dms-get-operating-mode
+	Mode: 'low-power'
+=== 216.29 low-power serving: qmicli --nas-get-serving-system
+	Registration state: 'not-registered'
+=== 311.07 set low-power: qmicli --dms-set-operating-mode=low-power
+[/run/qmux_socket] Operating mode set successfully
+=== 314.11 low-power opmode: qmicli --dms-get-operating-mode
+	Mode: 'low-power'
+=== 314.17 low-power serving: qmicli --nas-get-serving-system
+	Registration state: 'not-registered'
+nmea-broker: eof: lines=2355 overlong=0 sentences=2352 forwarded=2352 dropped=0 send_failed=0 rmc_valid=292 clock=disabled
+      1 "class":"DEVICE"
+      1 "class":"DEVICES"
+     36 "class":"SKY"
+     60 "class":"TPV"
+      1 "class":"VERSION"
+      1 "class":"WATCH"
+     60 "mode":3
+      3 GSA,A,1
+    292 GSA,A,2
+
+== Boot 1, Wi-Fi in low-power (host run log run-181102485104.txt; mode bracketed by fix.sh opmode readbacks before/after, not in the same command)
+Connection successfully activated (D-Bus active path: /org/freedesktop/NetworkManager/ActiveConnection/2)
+up_rc=0
+5 packets transmitted, 5 packets received, 0% packet loss
+round-trip min/avg/max = 12.216/43.740/112.845 ms
+        SSID: (redacted)
+        freq: 5745.0
+        signal: -44 dBm
+RC_TAG=0
+
+== Boot 1, mode cycles with Wi-Fi associated (host run log run-181818867049.txt)
+online: readback=online reg=not-registered-searching ping=3 packets received
+low-power: readback=low-power reg=not-registered ping=3 packets received
+online: readback=online reg=not-registered-searching ping=3 packets received
+modem state=ONLINE crash_count=0
+
+== Boot 1, EFS/persist diskstats writes (field 8) before and after
+efs-before: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 
+efs-fix-after: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 
+
+== Boot 2, boot-default control at the same window (fix.sh keep)
+before: shutting-down
+after-set: shutting-down
+end: shutting-down
+loc_start_uptime=1592.47 first_rmc_A_uptime=1609.42 first_gsa3_uptime=none waited=281
+     60 "mode":3
+nmea-broker: eof: lines=2239 overlong=0 sentences=2236 forwarded=2236 dropped=0 send_failed=0 rmc_valid=278 clock=disabled
+     17 GSA,A,1
+    278 GSA,A,2
+
+== Boot 3, idle-current A/B (blocks.txt)
+boot-default shutting-down
+wifi: enabled:disabled:missing:enabled
+settle start 40.02
+block 0 default start 100.03 readback=shutting-down cc=2845032
+block 0 default end 280.10 readback=shutting-down cc=2840133 usb=off
+block 1 default start 280.14 readback=shutting-down cc=2840133
+block 1 default end 460.18 readback=shutting-down cc=2835211 usb=off
+block 2 low-power start 460.25 readback=shutting-down cc=2835211
+block 2 low-power end 640.29 readback=low-power cc=2830179 usb=off
+block 3 online start 640.53 readback=online cc=2830179
+block 3 online end 820.57 readback=online cc=2824161 usb=off
+block 4 low-power start 820.61 readback=online cc=2824161
+block 4 low-power end 1000.65 readback=low-power cc=2819127 usb=off
+block 5 online start 1000.88 readback=online cc=2819127
+block 5 online end 1180.92 readback=online cc=2813985 usb=off
+block 6 low-power start 1180.97 readback=online cc=2813985
+block 6 low-power end 1361.01 readback=low-power cc=2808929 usb=off
+block 7 online start 1361.25 readback=online cc=2808929
+block 7 online end 1541.29 readback=online cc=2803690 usb=off
+end 1542.03 readback=online
+modem state=ONLINE crash_count=0
+modem state=ONLINE crash_count=0
+efs-before: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 
+efs-after: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 
+
+skip first 20 s of each block; current in mA, + = discharging
+(block 0 carries one sample from t=40 s, labelled before the settle relabel, so its 20 s skip consumed no block-0 samples: n=179; there is no mode change at its start)
+block mode        n    mean     sd  median    min    max   V_mean  temp
+   -1 settle       39    94.5    1.4    93.7     93     99   3.894   340
+    0 default     179    96.5   15.7    94.2     93    243   3.893   350
+    1 default     159    97.2   16.6    95.2     93    243   3.892   360
+    2 low-power   159    98.1   16.6    95.7     93    245   3.890   360
+    3 online      159   101.9   24.3    96.7     94    321   3.886   360
+    4 low-power   159    97.6   12.1    96.2     94    248   3.888   360
+    5 online      159    99.9   12.3    97.7     95    246   3.887   370
+    6 low-power   159    99.3   16.6    96.7     94    246   3.886   370
+    7 online      159   102.3   20.5    97.7     96    250   3.885   370
+
+mode        blocks  mean-of-means  spread(min..max)
+default         2         96.9   96.5..97.2
+low-power       3         98.3   97.6..99.3
+online          3        101.4   99.9..102.3
+
+online - low-power = 3.0 mA
+paired (adjacent online - low-power): 3.8, 3.3, 1.8 mA
+default - online = -4.5 mA
+default - low-power = -1.5 mA
+
+block means, model a + drift*block + online + default (vs low-power):
+  intercept      97.47 mA  (se 1.15)
+  drift/block     0.22 mA  (se 0.25)
+  online-LP       2.80 mA  (se 0.86)
+  default-LP     -0.71 mA  (se 1.27)
+block medians, model a + drift*block + online + default (vs low-power):
+  intercept      95.13 mA  (se 0.37)
+  drift/block     0.27 mA  (se 0.08)
+  online-LP       0.87 mA  (se 0.28)
+  default-LP     -0.53 mA  (se 0.41)
+0 default samples>150mA: 3 p10 93.261 p90 97.656
+1 default samples>150mA: 2 p10 93.749 p90 97.656
+2 low-power samples>150mA: 4 p10 94.238 p90 98.632
+3 online samples>150mA: 19 p10 95.214 p90 159.96060000000045
+4 low-power samples>150mA: 2 p10 95.214 p90 99.121
+5 online samples>150mA: 2 p10 96.191 p90 105.956
+6 low-power samples>150mA: 3 p10 95.703 p90 100.19460000000001
+7 online samples>150mA: 5 p10 96.191 p90 106.83560000000003

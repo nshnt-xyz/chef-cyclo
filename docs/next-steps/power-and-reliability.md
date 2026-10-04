@@ -19,7 +19,7 @@ Acceptance details and original completed test steps are retained in the [resear
 
 ## Suspend and idle power
 
-`lpm_levels.sleep_disabled=1` is still on the cmdline; measure idle current with the panel off, then with the modem up vs. off (GPS keeps it powered), BT asleep vs. off, Wi-Fi off vs. associated, and decide what a ride's power budget allows. Use the verified current sign convention in the [battery guide](../features/battery-and-charging.md), and retain the clean-shutdown path.
+`lpm_levels.sleep_disabled=1` is still on the cmdline; measure idle current with the panel off, then with the modem up vs. off (GPS keeps it powered), BT asleep vs. off, Wi-Fi off vs. associated, and decide what a ride's power budget allows. Cellular RF is settled: the modem's boot default draws the same as DMS `low-power` and explicit `online` costs about +2.8 mA on block means (+0.9 mA on medians), so nothing is applied at boot ([GPS guide](../features/gps.md#cellular-rf)). Use the verified current sign convention in the [battery guide](../features/battery-and-charging.md), and retain the clean-shutdown path.
 
 ## ADSP lifecycle and power
 

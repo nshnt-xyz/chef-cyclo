@@ -25,10 +25,6 @@ and signed apk installation, with no manual chrony refresh. GPS/time architectur
 modernization is deferred; no separate time unit or new GPS fallback is added. GPS pipelines should use broker -n while chrony owns the clock.
 Future GPS integration sources: gpsd's SHM refclock (`refclock SHM 0 refid GPS`, no PPS), the USB host's chronyd when plugged in, NTP pool once Wi-Fi exists. **New live prerequisite:** this kernel returns `ENOSYS` for every gpsd `shmget`, so enable `CONFIG_SYSVIPC` and re-test the gpsd SHM export first (or choose a non-SHM gpsd/chrony handoff). `makestep 1 -1` so the 1970 boot clock is stepped, not slewed. The PM660 RTC (`rtc0`) is present but write-disabled in DT and only counts from battery-connect: no `rtcsync`; later persist a wall−RTC offset on writable storage ([persistent storage](storage-and-boot.md#persistent-storage)). Chrony supersedes the broker clock step once this path works.
 
-## GNSS-only RF
-
-Determine whether the modem scans or camps on cellular while providing GPS; SIM state and RF behavior have not been checked. Query `qmicli --dms-get-operating-mode`, then investigate a mode that disables cellular RF while keeping GNSS available. The earlier candidates were DMS low-power or a NAS/airplane configuration; neither is verified to preserve GNSS on this device. Re-verify a LOC fix in the chosen mode and measure the [idle-current difference](power-and-reliability.md#suspend-and-idle-power).
-
 ## Warm starts and assistance
 
 New RAM-shadow GNSS state disappears across boots. The recorded terrace cold start was ≤78 seconds; repeat measurements before treating that as a typical startup time. Investigate two improvements without touching real EFS: persist the *shadow* (or only the GNSS state files it contains — find them in the `rmtfs` read/write trace) to our own writable storage ([persistent storage](storage-and-boot.md#persistent-storage)) and re-seed the shadow from it at boot; and once [Wi-Fi](connectivity-and-sensors.md#wi-fi) exists, fetch gpsOneXTRA (`xtra3grc.bin`) and inject it plus time through LOC and measure TTFF before/after. Faster warm or assisted starts remain an expected benefit to verify.
