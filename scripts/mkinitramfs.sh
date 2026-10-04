@@ -3,8 +3,9 @@
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
 # the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
 # display/touch probe fbtouch, the on-device log screen fblog, the UI
-# platform demo chefui-demo, the gpsd feed nmea-broker, the button daemon
-# buttond, the battery daemon powerd and the ADSP bring-up +
+# platform demo chefui-demo, the gpsd feed nmea-broker, the GNSS demand
+# manager gps-manager, the button daemon buttond, the battery daemon powerd
+# and the ADSP bring-up +
 # speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
 # TAS2560 calibration-control writer), the speaker-protection experiment
 # (afe-debug, spk-protect-probe, afe-topology-cal, tert-tx-hold) and the
@@ -284,6 +285,14 @@ echo "built $ROOT/usr/bin/fblog"
 [ -x "$ROOT/usr/sbin/gpsd" ] || { echo "no gpsd in out/rootfs; rerun scripts/mkrootfs.sh (package list changed)" >&2; exit 1; }
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/nmea-broker" tools/nmea-broker.c
 echo "built $ROOT/usr/bin/nmea-broker"
+
+# GNSS demand manager (tools/gps-manager.c, docs/features/gps.md): leases on
+# /run/gps-manager.sock start the LOC session, gpsd and the qmicli follower |
+# nmea-broker pipeline on top of gps-up's shared modem, and stop them after
+# the last release. Never touches gps-up. Started from inittab (respawn).
+[ -f tools/gps-manager.c ] || { echo "missing required source: tools/gps-manager.c" >&2; exit 1; }
+"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/gps-manager" tools/gps-manager.c
+echo "built $ROOT/usr/bin/gps-manager"
 
 # Side-button gesture daemon (tools/buttond.c): grabs the qpnp_pon and
 # gpio-keys evdev nodes, publishes short/double/long/chord gestures on

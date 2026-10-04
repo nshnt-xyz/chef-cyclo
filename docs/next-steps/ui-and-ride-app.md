@@ -24,7 +24,7 @@ Provide a **sunlight and gloves** mode: maximum backlight on request, a high-con
 
 ## Bike-computer application
 
-Inputs: gpsd ([GPS manager](gps-and-time.md#gps-manager)) for position/speed/track/altitude, BLE sensors through BlueZ ([BLE sensors](connectivity-and-sensors.md#ble-sensors): HR strap, speed/cadence, power), battery (`power_supply/battery`), side buttons ([button integration](ui-and-ride-app.md#button-integration)), touch ([UI stack](ui-and-ride-app.md#ui-stack)). Outputs: the panel through the chosen [UI stack](#ui-stack), vibrator/speaker ([audio](connectivity-and-sensors.md#audio)) for alerts.
+Inputs: gpsd ([GPS manager](../features/gps.md#use-gnss-gps-manager), [client integration](gps-and-time.md#client-integration)) for position/speed/track/altitude, BLE sensors through BlueZ ([BLE sensors](connectivity-and-sensors.md#ble-sensors): HR strap, speed/cadence, power), battery (`power_supply/battery`), side buttons ([button integration](ui-and-ride-app.md#button-integration)), touch ([UI stack](ui-and-ride-app.md#ui-stack)). Outputs: the panel through the chosen [UI stack](#ui-stack), vibrator/speaker ([audio](connectivity-and-sensors.md#audio)) for alerts.
 
 Core: ride recording (GPX/FIT to [persistent storage](storage-and-boot.md#persistent-storage)), live data pages (speed, distance, time, HR, cadence, climb), lap/auto-pause, route following later. Housekeeping: screen on/off, GPS leases and idle power, clean shutdown, upload over Wi-Fi ([Wi-Fi](connectivity-and-sensors.md#wi-fi)).
 

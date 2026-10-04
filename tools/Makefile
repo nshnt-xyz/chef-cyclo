@@ -2,8 +2,8 @@
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
 # qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
 # log screen fblog (fblog/, binary fblog/fblog), the gpsd feed nmea-broker,
-# the side-button gesture daemon buttond, the battery daemon powerd, the
-# WAV tone generator wavtone
+# the GNSS demand manager gps-manager, the side-button gesture daemon
+# buttond, the battery daemon powerd, the WAV tone generator wavtone
 # and atomic TAS2560 calibration-control writer tas2560-send-cal
 # (for the speaker test, initramfs/usr/bin/speaker-test-tone), the two
 # resident speaker-protection experiment helpers afe-topology-cal and
@@ -36,11 +36,11 @@ LDFLAGS ?=
 INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond powerd wavtone tas2560-send-cal \
+BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker gps-manager buttond powerd wavtone tas2560-send-cal \
        afe-topology-cal tert-tx-hold wifi-psk
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-evdev tests/test-fbtouch tests/test-fblog \
-            tests/test-nmea-broker tests/test-buttond tests/test-powerd tests/test-wavtone \
+            tests/test-nmea-broker tests/test-gps-manager tests/test-buttond tests/test-powerd tests/test-wavtone \
             tests/test-tas2560-send-cal tests/test-afe-topology-cal tests/test-tert-tx-hold tests/test-wlan-fw
 
 .PHONY: all test test-shell test-wifi clean
@@ -116,6 +116,18 @@ nmea-broker: nmea-broker.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 tests/test-nmea-broker: tests/test_nmea-broker.c nmea-broker.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+# GNSS demand manager (gps-manager.c): leases on /run/gps-manager.sock drive
+# the LOC CID/session, gpsd and the follower | nmea-broker pipeline on top of
+# gps-up's shared modem. Plain libc. The test includes the .c with
+# GPSMGR_NO_MAIN and drives the core through fake operations;
+# tests/test_gps-manager.sh runs the binary with stub qmicli/gpsd, the real
+# nmea-broker, kill -9 and a respawn.
+gps-manager: gps-manager.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
+tests/test-gps-manager: tests/test_gps-manager.c gps-manager.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 # Side-button gesture daemon (buttond.c): grabs the qpnp_pon/gpio-keys evdev
@@ -207,6 +219,7 @@ test: $(TEST_BIN) test-shell wifi-psk test-display-inventory
 	./tests/test-fbtouch
 	./tests/test-fblog
 	./tests/test-nmea-broker
+	./tests/test-gps-manager
 	./tests/test-buttond
 	./tests/test-powerd
 	./tests/test-wavtone
@@ -222,9 +235,10 @@ test: $(TEST_BIN) test-shell wifi-psk test-display-inventory
 # gps-up (initramfs/) selection-logic regression; not a build product of
 # this directory, but this is the natural place to run it alongside the
 # rest of the GPS test suite. See tests/test_gps-up.sh.
-test-shell: powerd
+test-shell: powerd gps-manager nmea-broker
 	sh tests/test_powerd.sh
 	sh tests/test_gps-up.sh
+	sh tests/test_gps-manager.sh
 	sh tests/test_audio-up.sh
 	sh tests/test_speaker-test-tone.sh
 	sh tests/test_afe-debug.sh
@@ -232,5 +246,5 @@ test-shell: powerd
 	sh tests/test_acdb-afe-topology.sh
 
 clean:
-	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond powerd wavtone \
+	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker gps-manager buttond powerd wavtone \
 		tas2560-send-cal afe-topology-cal tert-tx-hold wifi-psk $(TEST_BIN)

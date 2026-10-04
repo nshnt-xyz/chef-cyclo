@@ -1,0 +1,406 @@
+GPS manager live runs, 2026-10-04. Filtered from ~/chef-cyclo-evidence/gpsmgr-live-20261004T150343Z/ (raw pulls stay local). Nothing here carries a position: gpsd output was reduced on the phone to TPV mode counts.
+Run 1: out/boot-gpsmgr.img d7e499ca86caae484e6b4fcc3f4f54ad801357df5bbf6bd40bc36273d0e7892e (first code review round).
+Run 2: out/boot-gpsmgr.img 58aa9de12d67b955cce54838019e4d4254590840ead34fef614cf3b95314c9a2 (ramdisk cc5b2eeae640fb175c026ee3dc451c3482ac6583add34dea3d2f786b8014adc1, review fixes), kernel unchanged, nothing flashed.
+Pulls:
+c12660edae01e9cd842c5626b8c55df1e6f3ea8619bf5db029add00161fd9aaf  pull-run1.tgz
+e5e769faba0e0284b0fab335924db5493f9e4eae0867bdb7afa641904f9cd150  pull-run2.tgz
+Script: phone/live.sh (run 2 version adds owner per snapshot, a healthy wait between the broker and gpsd kills, per-kill step counts).
+
+== Run 1 report (uptime s)
+37.28 P0 owner=626 955 modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received
+37.72 [P0] ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+38.18 P0 gnss processes: []
+38.19 P1 lease map
+54.82 P1 RUNNING after 16.62 s; cid=1 follower=2225 broker=2224 gpsd=2223
+62.82 P1 gpsd TPV modes:      39 "mode":3 
+62.83 [P1] ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=158 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+62.83 P2 second lease ride, then release it
+65.84 [P2a] ok status state=RUNNING leases=map:1,ride:1 clients=3 watchers=2 cid=1 phase=up nmea=179 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+67.84 [P2b] ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=193 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+67.86 P3 kill broker pid 2224 (cid 1, set 2225/2224/2223)
+68.86 [P3 broker+1s] ok status state=FAILED leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=idle nmea=193 bringups=1 failures=1 streak=1 leaked=0 grace=off detail=broker exited (143); retry in 2 s
+71.89 P3 recovered: old set alive?  new cid=1 bringups=2 failures=1 streak=1
+79.90 P3 gpsd TPV modes:      40 "mode":3 
+79.91 P3 kill gpsd pid 2703 (cid 1, set 2705/2704/2703)
+80.92 [P3 gpsd+1s] ok status state=FAILED leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=idle nmea=264 bringups=2 failures=2 streak=2 leaked=0 grace=off detail=gpsd exited (0); retry in 4 s
+85.96 P3 recovered: old set alive?  new cid=1 bringups=3 failures=2 streak=2
+93.97 P3 gpsd TPV modes:      40 "mode":3 
+93.98 P3 previous bring-up steps.log.1 has: $ qmicli -d /run/qmux_socket --client-no-release-cid --loc-noop $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+93.98 P4 client death: kill holder 2203 (cid 1)
+95.99 [P4-grace] ok status state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=349 bringups=3 failures=2 streak=2 leaked=0 grace=on detail=CID 1, fix
+125.15 P4 OFF; old set alive? [] gnss processes: []
+125.16 P4 teardown steps: $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+126.34 P4 owner=626 955 (was 626 955) modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received
+126.34 P5 lease, then kill -9 the manager
+127.87 P5 manager 636 cid 1 set 4073/4072/4071
+129.39 P5 respawned as 4122 after ~1 s; holder alive? no
+129.86 P5 old set alive? [] gnss processes: []
+129.87 P5 stale CID handling: $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-set-nmea-types=gga|rmc|gsv|gsa|vtg $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-start --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+[  128.873651,0] gps-manager: previous follower pid 4073: gone or no longer ours, not signalled
+[  128.873684,0] gps-manager: previous broker pid 4072: gone or no longer ours, not signalled
+[  128.873752,0] gps-manager: stopping the previous instance's gpsd (pid 4071)
+[  128.974013,0] gps-manager: previous instance held LOC CID 1 (owner pid 626): releasing it when that owner is ready
+[  128.974196,0] gps-manager: ready on /run/gps-manager.sock, idle until leased
+[  129.416764,0] gps-manager: previous CID 1 stopped and released
+139.92 P5 new bring-up cid=1 TPV:      39 "mode":3  nmea=80
+139.93 P6 release, then kill -9 in grace (cid 1)
+142.93 [P6-grace] ok status state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=104 bringups=1 failures=0 streak=0 leaked=0 grace=on detail=CID 1, fix
+146.91 P6 OFF; old set alive? [] gnss processes: [] stale steps: 4
+146.91 [P6] ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+148.43 END owner=626 955 (was 626 955) modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received efs-unchanged=yes
+
+== Run 1 kmsg (gps-manager and gmlive lines)
+[    9.563283,1] gps-manager: ready on /run/gps-manager.sock, idle until leased
+[   37.280120,0] gmlive: P0 owner=626 955 modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received
+[   37.723614,7] gmlive: [P0] ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+[   38.187973,1] gmlive: P0 gnss processes: []
+[   38.190311,1] gmlive: P1 lease map
+[   38.191487,0] gps-manager: STARTING waiting for the modem owner
+[   38.191632,0] gps-manager: modem owner pid 626 ready
+[   38.191651,0] gps-manager: STARTING allocating a LOC client
+[   38.207233,4] gps-manager: LOC CID 1
+[   38.207251,4] gps-manager: STARTING CID 1: setting NMEA types
+[   38.226019,5] gps-manager: STARTING CID 1: starting LOC
+[   38.243409,1] gps-manager: ACQUIRING CID 1, no fix
+[   54.643659,1] gps-manager: RUNNING CID 1, fix
+[   54.819257,1] gmlive: P1 RUNNING after 16.62 s; cid=1 follower=2225 broker=2224 gpsd=2223
+[   62.826113,1] gmlive: P1 gpsd TPV modes:      39 "mode":3 
+[   62.830707,1] gmlive: [P1] ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=158 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+[   62.832774,1] gmlive: P2 second lease ride, then release it
+[   65.839275,1] gmlive: [P2a] ok status state=RUNNING leases=map:1,ride:1 clients=3 watchers=2 cid=1 phase=up nmea=179 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+[   67.846124,1] gmlive: [P2b] ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=193 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+[   67.859304,1] gmlive: P3 kill broker pid 2224 (cid 1, set 2225/2224/2223)
+[   67.859598,0] gps-manager: broker (pid 2224) exited 143
+[   67.859717,0] gps-manager: failure: broker exited (143) (fast)
+[   67.859738,0] gps-manager: STOPPING broker exited (143)
+[   67.861079,0] gps-manager: follower (pid 2225) exited 0
+[   67.892790,0] gps-manager: gpsd (pid 2223) exited 0
+[   67.892866,0] gps-manager: FAILED broker exited (143); retry in 2 s
+[   68.865142,1] gmlive: [P3 broker+1s] ok status state=FAILED leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=idle nmea=193 bringups=1 failures=1 streak=1 leaked=0 grace=off detail=broker exited (143); retry in 2 s
+[   70.378285,1] gps-manager: STARTING waiting for the modem owner
+[   70.378492,1] gps-manager: STARTING allocating a LOC client
+[   70.394117,6] gps-manager: LOC CID 1
+[   70.394161,6] gps-manager: STARTING CID 1: setting NMEA types
+[   70.411544,1] gps-manager: STARTING CID 1: starting LOC
+[   70.427233,5] gps-manager: ACQUIRING CID 1, no fix
+[   71.506223,1] gps-manager: RUNNING CID 1, fix
+[   71.897161,2] gmlive: P3 recovered: old set alive?  new cid=1 bringups=2 failures=1 streak=1
+[   79.902775,2] gmlive: P3 gpsd TPV modes:      40 "mode":3 
+[   79.912766,2] gmlive: P3 kill gpsd pid 2703 (cid 1, set 2705/2704/2703)
+[   79.913275,2] gps-manager: gpsd (pid 2703) exited 0
+[   79.913402,2] gps-manager: failure: gpsd exited (0) (fast)
+[   79.913423,2] gps-manager: STOPPING gpsd exited (0)
+[   79.915244,2] gps-manager: follower (pid 2705) exited 0
+[   79.915395,2] gps-manager: broker (pid 2704) exited 0
+[   79.946369,0] gps-manager: FAILED gpsd exited (0); retry in 4 s
+[   80.919357,2] gmlive: [P3 gpsd+1s] ok status state=FAILED leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=idle nmea=264 bringups=2 failures=2 streak=2 leaked=0 grace=off detail=gpsd exited (0); retry in 4 s
+[   84.444947,1] gps-manager: STARTING waiting for the modem owner
+[   84.445153,1] gps-manager: STARTING allocating a LOC client
+[   84.461534,0] gps-manager: LOC CID 1
+[   84.461558,0] gps-manager: STARTING CID 1: setting NMEA types
+[   84.476873,6] gps-manager: STARTING CID 1: starting LOC
+[   84.493207,6] gps-manager: ACQUIRING CID 1, no fix
+[   85.563968,0] gps-manager: RUNNING CID 1, fix
+[   85.963740,3] gmlive: P3 recovered: old set alive?  new cid=1 bringups=3 failures=2 streak=2
+[   93.971349,3] gmlive: P3 gpsd TPV modes:      40 "mode":3 
+[   93.978497,3] gmlive: P3 previous bring-up steps.log.1 has: $ qmicli -d /run/qmux_socket --client-no-release-cid --loc-noop $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+[   93.986915,6] gmlive: P4 client death: kill holder 2203 (cid 1)
+[   93.987155,0] gps-manager: last lease released: stopping in 30 s unless leased again
+[   95.992676,0] gmlive: [P4-grace] ok status state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=349 bringups=3 failures=2 streak=2 leaked=0 grace=on detail=CID 1, fix
+[  124.193739,2] gps-manager: grace period over: stopping
+[  124.193780,2] gps-manager: STOPPING released
+[  124.195187,2] gps-manager: follower (pid 2906) exited 0
+[  124.195347,2] gps-manager: broker (pid 2905) exited 0
+[  124.224448,0] gps-manager: gpsd (pid 2904) exited 0
+[  124.224526,0] gps-manager: OFF idle
+[  125.160574,1] gmlive: P4 OFF; old set alive? [] gnss processes: []
+[  125.165139,1] gmlive: P4 teardown steps: $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+[  126.344648,1] gmlive: P4 owner=626 955 (was 626 955) modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received
+[  126.348062,1] gmlive: P5 lease, then kill -9 the manager
+[  126.349483,0] gps-manager: STARTING waiting for the modem owner
+[  126.349621,0] gps-manager: STARTING allocating a LOC client
+[  126.362051,5] gps-manager: LOC CID 1
+[  126.362068,5] gps-manager: STARTING CID 1: setting NMEA types
+[  126.377824,6] gps-manager: STARTING CID 1: starting LOC
+[  126.395162,1] gps-manager: ACQUIRING CID 1, no fix
+[  127.469303,1] gps-manager: RUNNING CID 1, fix
+[  127.872393,1] gmlive: P5 manager 636 cid 1 set 4073/4072/4071
+[  128.873651,0] gps-manager: previous follower pid 4073: gone or no longer ours, not signalled
+[  128.873684,0] gps-manager: previous broker pid 4072: gone or no longer ours, not signalled
+[  128.873752,0] gps-manager: stopping the previous instance's gpsd (pid 4071)
+[  128.974013,0] gps-manager: previous instance held LOC CID 1 (owner pid 626): releasing it when that owner is ready
+[  128.974196,0] gps-manager: ready on /run/gps-manager.sock, idle until leased
+[  129.384584,0] gps-manager: modem owner pid 626 ready
+[  129.384615,0] gps-manager: OFF releasing the previous instance's CID 1
+[  129.399126,5] gmlive: P5 respawned as 4122 after ~1 s; holder alive? no
+[  129.416764,0] gps-manager: previous CID 1 stopped and released
+[  129.416897,0] gps-manager: OFF idle
+[  129.868179,0] gmlive: P5 old set alive? [] gnss processes: []
+[  129.873038,0] gmlive: P5 stale CID handling: $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-set-nmea-types=gga|rmc|gsv|gsa|vtg $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-start --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+[  129.898674,0] gps-manager: STARTING waiting for the modem owner
+[  129.898726,0] gps-manager: STARTING allocating a LOC client
+[  129.915438,1] gps-manager: LOC CID 1
+[  129.915464,1] gps-manager: STARTING CID 1: setting NMEA types
+[  129.930697,4] gps-manager: STARTING CID 1: starting LOC
+[  129.945305,0] gps-manager: ACQUIRING CID 1, no fix
+[  131.639337,1] gps-manager: RUNNING CID 1, fix
+[  139.922994,0] gmlive: P5 new bring-up cid=1 TPV:      39 "mode":3  nmea=80
+[  139.933333,0] gmlive: P6 release, then kill -9 in grace (cid 1)
+[  139.933574,1] gps-manager: last lease released: stopping in 30 s unless leased again
+[  142.939350,0] gmlive: [P6-grace] ok status state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=104 bringups=1 failures=0 streak=0 leaked=0 grace=on detail=CID 1, fix
+[  143.940555,2] gps-manager: previous follower pid 4707: gone or no longer ours, not signalled
+[  143.940587,2] gps-manager: previous broker pid 4706: gone or no longer ours, not signalled
+[  143.940657,2] gps-manager: stopping the previous instance's gpsd (pid 4705)
+[  144.040936,2] gps-manager: previous instance held LOC CID 1 (owner pid 626): releasing it when that owner is ready
+[  144.041182,2] gps-manager: ready on /run/gps-manager.sock, idle until leased
+[  144.451916,2] gps-manager: modem owner pid 626 ready
+[  144.451947,2] gps-manager: OFF releasing the previous instance's CID 1
+[  144.484408,0] gps-manager: previous CID 1 stopped and released
+[  144.484566,0] gps-manager: OFF idle
+[  146.916253,1] gmlive: P6 OFF; old set alive? [] gnss processes: [] stale steps: 4
+[  146.921549,1] gmlive: [P6] ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+[  148.441668,3] gmlive: END owner=626 955 (was 626 955) modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received efs-unchanged=yes
+
+== Run 1 EFS/persist diskstats writes before/after
+efs-before: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 
+efs-after: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 
+
+== Run 2 report (uptime s)
+34.79 P0 owner=621 956 modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received
+35.25 [P0] owner=621 956 ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+35.71 P0 gnss processes: []
+35.72 P1 lease map
+69.46 P1 RUNNING after 33.73 s; cid=1 follower=2223 broker=2222 gpsd=2221
+77.47 P1 gpsd TPV modes:      39 "mode":3 
+77.48 [P1] owner=621 956 ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=297 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+77.48 P2 second lease ride, then release it
+80.49 [P2a] owner=621 956 ok status state=RUNNING leases=map:1,ride:1 clients=3 watchers=2 cid=1 phase=up nmea=321 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+82.50 [P2b] owner=621 956 ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=337 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+83.02 [P3 before broker] owner=621 956 ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=337 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+83.03 P3 kill broker pid 2222 (cid 1, set 2223/2222/2221)
+84.03 [P3 broker+1s] owner=621 956 ok status state=FAILED leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=idle nmea=337 bringups=1 failures=1 streak=1 leaked=0 grace=off detail=broker exited (143); retry in 2 s
+87.57 P3 recovered: old set alive?  new cid=1 bringups=2 failures=1 streak=1
+95.58 P3 gpsd TPV modes:      39 "mode":3 
+95.58 P3 steps: previous run (steps.log.1) loc-stop=1 release=2; this run allocs=1 loc-start=1
+206.35 [P3 before gpsd] owner=621 956 ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=1304 bringups=2 failures=1 streak=0 leaked=0 grace=off detail=CID 1, fix
+206.36 P3 kill gpsd pid 2979 (cid 1, set 2981/2980/2979)
+207.37 [P3 gpsd+1s] owner=621 956 ok status state=FAILED leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=idle nmea=1304 bringups=2 failures=2 streak=0 leaked=0 grace=off detail=gpsd exited (0); retry in 2 s
+210.40 P3 recovered: old set alive?  new cid=1 bringups=3 failures=2 streak=0
+218.41 P3 gpsd TPV modes:      40 "mode":3 
+218.42 P3 steps: previous run (steps.log.1) loc-stop=1 release=2; this run allocs=1 loc-start=1
+218.42 P3 previous bring-up steps.log.1 has: $ qmicli -d /run/qmux_socket --client-no-release-cid --loc-noop $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+218.43 P4 client death: kill holder 2201 (cid 1)
+220.44 [P4-grace] owner=621 956 ok status state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=1400 bringups=3 failures=2 streak=0 leaked=0 grace=on detail=CID 1, fix
+249.59 P4 OFF; old set alive? [] gnss processes: []
+249.60 P4 teardown steps: $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+250.67 P4 owner=621 956 (was 621 956) modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received
+250.68 P5 lease, then kill -9 the manager
+252.20 P5 manager 629 cid 1 set 5802/5801/5800
+253.72 P5 respawned as 5851 after ~1 s; holder alive? no
+254.19 P5 old set alive? [] gnss processes: []
+254.20 P5 stale CID handling: $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-set-nmea-types=gga|rmc|gsv|gsa|vtg $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-start --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+[  253.196549,0] gps-manager: previous follower pid 5802: gone or no longer ours, not signalled
+[  253.196580,0] gps-manager: previous broker pid 5801: gone or no longer ours, not signalled
+[  253.196651,0] gps-manager: stopping the previous instance's gpsd (pid 5800)
+[  253.296940,0] gps-manager: previous instance held LOC CID 1 (owner pid 621): releasing it when that owner is ready
+[  253.297135,0] gps-manager: ready on /run/gps-manager.sock, idle until leased
+[  253.741386,0] gps-manager: previous CID 1 stopped and released
+263.74 P5 new bring-up cid=1 TPV:      39 "mode":3  nmea=72
+263.75 P6 release, then kill -9 in grace (cid 1)
+266.76 [P6-grace] owner=621 956 ok status state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=96 bringups=1 failures=0 streak=0 leaked=0 grace=on detail=CID 1, fix
+270.75 P6 OFF; old set alive? [] gnss processes: [] stale steps: 4
+270.76 [P6] owner=621 956 ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+271.21 [END] owner=621 956 ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+272.39 END owner=621 956 (was 621 956) modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received efs-unchanged=yes
+
+== Run 2 kmsg (gps-manager and gmlive lines)
+[    9.570548,4] gps-manager: ready on /run/gps-manager.sock, idle until leased
+[   34.799975,0] gmlive: P0 owner=621 956 modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received
+[   35.251098,0] gmlive: [P0] owner=621 956 ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+[   35.719472,0] gmlive: P0 gnss processes: []
+[   35.721762,0] gmlive: P1 lease map
+[   35.722955,0] gps-manager: STARTING waiting for the modem owner
+[   35.723077,0] gps-manager: modem owner pid 621 ready
+[   35.723095,0] gps-manager: STARTING allocating a LOC client
+[   35.734141,0] gps-manager: LOC CID 1
+[   35.734168,0] gps-manager: STARTING CID 1: setting NMEA types
+[   35.750859,5] gps-manager: STARTING CID 1: starting LOC
+[   35.767557,6] gps-manager: ACQUIRING CID 1, no fix
+[   69.170182,1] gps-manager: RUNNING CID 1, fix
+[   69.464398,0] gmlive: P1 RUNNING after 33.73 s; cid=1 follower=2223 broker=2222 gpsd=2221
+[   77.472027,0] gmlive: P1 gpsd TPV modes:      39 "mode":3 
+[   77.478837,0] gmlive: [P1] owner=621 956 ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=297 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+[   77.481013,0] gmlive: P2 second lease ride, then release it
+[   80.488966,0] gmlive: [P2a] owner=621 956 ok status state=RUNNING leases=map:1,ride:1 clients=3 watchers=2 cid=1 phase=up nmea=321 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+[   82.497045,0] gmlive: [P2b] owner=621 956 ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=337 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+[   83.016610,0] gmlive: [P3 before broker] owner=621 956 ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=337 bringups=1 failures=0 streak=0 leaked=0 grace=off detail=CID 1, fix
+[   83.026583,0] gmlive: P3 kill broker pid 2222 (cid 1, set 2223/2222/2221)
+[   83.026857,1] gps-manager: broker (pid 2222) exited 143
+[   83.026977,1] gps-manager: failure: broker exited (143) (fast)
+[   83.026997,1] gps-manager: STOPPING broker exited (143)
+[   83.028289,1] gps-manager: follower (pid 2223) exited 0
+[   83.060329,0] gps-manager: gpsd (pid 2221) exited 0
+[   83.060404,0] gps-manager: FAILED broker exited (143); retry in 2 s
+[   84.034365,0] gmlive: [P3 broker+1s] owner=621 956 ok status state=FAILED leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=idle nmea=337 bringups=1 failures=1 streak=1 leaked=0 grace=off detail=broker exited (143); retry in 2 s
+[   85.546589,0] gps-manager: STARTING waiting for the modem owner
+[   85.546793,0] gps-manager: STARTING allocating a LOC client
+[   85.562246,6] gps-manager: LOC CID 1
+[   85.562263,6] gps-manager: STARTING CID 1: setting NMEA types
+[   85.579426,0] gps-manager: STARTING CID 1: starting LOC
+[   85.594709,5] gps-manager: ACQUIRING CID 1, no fix
+[   87.166373,0] gps-manager: RUNNING CID 1, fix
+[   87.569985,1] gmlive: P3 recovered: old set alive?  new cid=1 bringups=2 failures=1 streak=1
+[   95.577557,1] gmlive: P3 gpsd TPV modes:      39 "mode":3 
+[   95.585656,1] gmlive: P3 steps: previous run (steps.log.1) loc-stop=1 release=2; this run allocs=1 loc-start=1
+[  206.169377,0] gps-manager: healthy for 120 s: failure streak 1 reset
+[  206.346099,7] gmlive: [P3 before gpsd] owner=621 956 ok status state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=1304 bringups=2 failures=1 streak=0 leaked=0 grace=off detail=CID 1, fix
+[  206.355128,7] gmlive: P3 kill gpsd pid 2979 (cid 1, set 2981/2980/2979)
+[  206.355677,0] gps-manager: gpsd (pid 2979) exited 0
+[  206.355798,0] gps-manager: failure: gpsd exited (0) (after a healthy run)
+[  206.355818,0] gps-manager: STOPPING gpsd exited (0)
+[  206.357179,0] gps-manager: follower (pid 2981) exited 0
+[  206.357311,0] gps-manager: broker (pid 2980) exited 0
+[  206.389009,1] gps-manager: FAILED gpsd exited (0); retry in 2 s
+[  207.363567,1] gmlive: [P3 gpsd+1s] owner=621 956 ok status state=FAILED leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=idle nmea=1304 bringups=2 failures=2 streak=0 leaked=0 grace=off detail=gpsd exited (0); retry in 2 s
+[  208.876797,0] gps-manager: STARTING waiting for the modem owner
+[  208.877132,0] gps-manager: STARTING allocating a LOC client
+[  208.893404,0] gps-manager: LOC CID 1
+[  208.893428,0] gps-manager: STARTING CID 1: setting NMEA types
+[  208.909166,6] gps-manager: STARTING CID 1: starting LOC
+[  208.925727,6] gps-manager: ACQUIRING CID 1, no fix
+[  210.004033,1] gps-manager: RUNNING CID 1, fix
+[  210.396935,1] gmlive: P3 recovered: old set alive?  new cid=1 bringups=3 failures=2 streak=0
+[  218.403753,1] gmlive: P3 gpsd TPV modes:      40 "mode":3 
+[  218.411239,1] gmlive: P3 steps: previous run (steps.log.1) loc-stop=1 release=2; this run allocs=1 loc-start=1
+[  218.417924,1] gmlive: P3 previous bring-up steps.log.1 has: $ qmicli -d /run/qmux_socket --client-no-release-cid --loc-noop $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+[  218.426102,1] gmlive: P4 client death: kill holder 2201 (cid 1)
+[  218.426430,2] gps-manager: last lease released: stopping in 30 s unless leased again
+[  220.433340,1] gmlive: [P4-grace] owner=621 956 ok status state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=1400 bringups=3 failures=2 streak=0 leaked=0 grace=on detail=CID 1, fix
+[  248.624992,1] gps-manager: grace period over: stopping
+[  248.625019,1] gps-manager: STOPPING released
+[  248.626596,2] gps-manager: broker (pid 4634) exited 0
+[  248.626732,2] gps-manager: follower (pid 4635) exited 0
+[  248.659357,0] gps-manager: gpsd (pid 4633) exited 0
+[  248.659433,0] gps-manager: OFF idle
+[  249.585668,7] gmlive: P4 OFF; old set alive? [] gnss processes: []
+[  249.591236,0] gmlive: P4 teardown steps: $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+[  250.666574,0] gmlive: P4 owner=621 956 (was 621 956) modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received
+[  250.670416,5] gmlive: P5 lease, then kill -9 the manager
+[  250.671353,0] gps-manager: STARTING waiting for the modem owner
+[  250.671475,0] gps-manager: STARTING allocating a LOC client
+[  250.685920,5] gps-manager: LOC CID 1
+[  250.685938,5] gps-manager: STARTING CID 1: setting NMEA types
+[  250.702583,5] gps-manager: STARTING CID 1: starting LOC
+[  250.720061,1] gps-manager: ACQUIRING CID 1, no fix
+[  251.802103,1] gps-manager: RUNNING CID 1, fix
+[  252.195372,0] gmlive: P5 manager 629 cid 1 set 5802/5801/5800
+[  253.196549,0] gps-manager: previous follower pid 5802: gone or no longer ours, not signalled
+[  253.196580,0] gps-manager: previous broker pid 5801: gone or no longer ours, not signalled
+[  253.196651,0] gps-manager: stopping the previous instance's gpsd (pid 5800)
+[  253.296940,0] gps-manager: previous instance held LOC CID 1 (owner pid 621): releasing it when that owner is ready
+[  253.297135,0] gps-manager: ready on /run/gps-manager.sock, idle until leased
+[  253.707821,0] gps-manager: modem owner pid 621 ready
+[  253.707852,0] gps-manager: OFF releasing the previous instance's CID 1
+[  253.713520,2] gmlive: P5 respawned as 5851 after ~1 s; holder alive? no
+[  253.741386,0] gps-manager: previous CID 1 stopped and released
+[  253.741603,0] gps-manager: OFF idle
+[  254.183754,2] gmlive: P5 old set alive? [] gnss processes: []
+[  254.189089,2] gmlive: P5 stale CID handling: $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-set-nmea-types=gga|rmc|gsv|gsa|vtg $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-start --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --client-no-release-cid --loc-stop --loc-session-id=1 $ qmicli -d /run/qmux_socket --client-cid=1 --loc-noop 
+[  254.208271,0] gps-manager: STARTING waiting for the modem owner
+[  254.208324,0] gps-manager: STARTING allocating a LOC client
+[  254.222812,4] gps-manager: LOC CID 1
+[  254.222830,4] gps-manager: STARTING CID 1: setting NMEA types
+[  254.239127,4] gps-manager: STARTING CID 1: starting LOC
+[  254.255114,5] gps-manager: ACQUIRING CID 1, no fix
+[  255.329770,1] gps-manager: RUNNING CID 1, fix
+[  263.731860,2] gmlive: P5 new bring-up cid=1 TPV:      39 "mode":3  nmea=72
+[  263.741677,2] gmlive: P6 release, then kill -9 in grace (cid 1)
+[  263.741903,1] gps-manager: last lease released: stopping in 30 s unless leased again
+[  266.749542,2] gmlive: [P6-grace] owner=621 956 ok status state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=96 bringups=1 failures=0 streak=0 leaked=0 grace=on detail=CID 1, fix
+[  267.750779,1] gps-manager: previous follower pid 6437: gone or no longer ours, not signalled
+[  267.750811,1] gps-manager: previous broker pid 6436: gone or no longer ours, not signalled
+[  267.750877,1] gps-manager: stopping the previous instance's gpsd (pid 6435)
+[  267.851143,1] gps-manager: previous instance held LOC CID 1 (owner pid 621): releasing it when that owner is ready
+[  267.851324,1] gps-manager: ready on /run/gps-manager.sock, idle until leased
+[  268.263095,1] gps-manager: modem owner pid 621 ready
+[  268.263124,1] gps-manager: OFF releasing the previous instance's CID 1
+[  268.295105,0] gps-manager: previous CID 1 stopped and released
+[  268.295231,0] gps-manager: OFF idle
+[  270.741526,5] gmlive: P6 OFF; old set alive? [] gnss processes: [] stale steps: 4
+[  270.747383,5] gmlive: [P6] owner=621 956 ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+[  271.197036,1] gmlive: [END] owner=621 956 ok status state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 bringups=0 failures=0 streak=0 leaked=0 grace=off detail=idle
+[  272.379135,1] gmlive: END owner=621 956 (was 621 956) modem state=ONLINE crash_count=0 wlan0=connected ping=2 packets received efs-unchanged=yes
+
+== Run 2 EFS/persist diskstats writes before/after
+efs-before: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 
+efs-after: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 
+
+== Idle current A/B: GNSS leased vs OFF (run on the 58aa9de1 boot, USB out, panel off, Wi-Fi radio off, BT as booted)
+Pull: 7e196bcd1bcbcfa2587fab485114429b32c6e3eff50a8f9920ae6fc234a6b0f2  pull-ab.tgz
+-- blocks.txt
+883.38 wifi: enabled:disabled:missing:enabled
+883.38 READY. Unplug USB now; panel goes dark; about 26 min.
+893.42 unplugged; panel off in 5 s
+958.46 block 0 off start state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 cc=2767474
+1003.46 block 0 off +45s state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0
+1138.47 block 0 off end state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=0 cc=2762568 usb=off
+1138.48 block 1 lease start state=STARTING leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=alloc nmea=0 cc=2762568
+1183.48 block 1 lease +45s state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=360
+1318.49 block 1 lease end state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=1440 cc=2755986 usb=off
+1318.50 block 2 off start state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=1440 cc=2755986
+1363.50 block 2 off +45s state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=1684
+1498.51 block 2 off end state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=1684 cc=2747019 usb=off
+1498.52 block 3 lease start state=STARTING leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=alloc nmea=1684 cc=2747019
+1543.52 block 3 lease +45s state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=2044
+1678.53 block 3 lease end state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=3124 cc=2740422 usb=off
+1678.54 block 4 off start state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=3124 cc=2740422
+1723.54 block 4 off +45s state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=3343
+1858.56 block 4 off end state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=3343 cc=2735234 usb=off
+1858.56 block 5 lease start state=STARTING leases=map:1,ride:0 clients=2 watchers=0 cid=-1 phase=alloc nmea=3343 cc=2735234
+1903.57 block 5 lease +45s state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=3702
+2038.58 block 5 lease end state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=4782 cc=2728809 usb=off
+2038.58 block 6 off start state=RUNNING leases=map:0,ride:0 clients=1 watchers=0 cid=1 phase=up nmea=4782 cc=2728809
+2083.59 block 6 off +45s state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=5026
+2218.60 block 6 off end state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=5026 cc=2723622 usb=off
+2218.61 block 7 lease start state=STARTING leases=map:1,ride:0 clients=2 watchers=1 cid=-1 phase=alloc nmea=5026 cc=2723622
+2263.61 block 7 lease +45s state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=5342
+2398.62 block 7 lease end state=RUNNING leases=map:1,ride:0 clients=2 watchers=1 cid=1 phase=up nmea=6287 cc=2717167 usb=off
+2399.60 DONE. Replug USB now.
+2449.60 replugged; state=OFF leases=map:0,ride:0 clients=1 watchers=0 cid=-1 phase=idle nmea=6509
+-- per-block stats (ab_stats.py, 45 s skipped)
+skip first 45 s of each block; current in mA, + = discharging
+block mode        n    mean     sd  median    min    max   V_mean  temp
+   -1 settle       15    95.0    1.1    95.2     94     99   3.880   360
+    0 off         134    97.1   18.0    94.2     93    243   3.879   350
+    1 lease       134   126.8    5.2   125.0    122    152   3.874   340
+    2 off         134   195.2  114.5    95.9     92    348   3.866   340
+    3 lease       133   127.2    6.2   125.0    121    154   3.871   340
+    4 off         134    94.9   12.9    93.3     91    243   3.873   340
+    5 lease       134   124.9    3.5   123.5    121    134   3.870   340
+    6 off         134    94.3   13.0    92.8     91    242   3.872   330
+    7 lease       134   124.9    3.1   124.5    121    138   3.868   330
+
+mode        blocks  mean-of-means  spread(min..max)
+off             4        120.4   94.3..195.2
+lease           4        125.9   124.9..127.2
+-- fit
+block 2 excluded (power-key press: screen on at 1394 s, second press and screen off at 1452 s); first 45 s of each block skipped
+block 0 off   n=134 mean=97.1 median=94.2 p10=93.3 p90=97.7
+block 1 lease n=134 mean=126.8 median=125.0 p10=122.6 p90=132.3
+block 2 off   n=134 mean=195.2 median=95.9 p10=92.8 p90=323.6
+block 3 lease n=133 mean=127.2 median=125.0 p10=122.6 p90=134.0
+block 4 off   n=134 mean=94.9 median=93.3 p10=91.8 p90=95.7
+block 5 lease n=134 mean=124.9 median=123.5 p10=122.1 p90=130.9
+block 6 off   n=134 mean=94.3 median=92.8 p10=91.3 p90=96.7
+block 7 lease n=134 mean=124.9 median=124.5 p10=122.1 p90=129.4
+OLS on block means: lease-off +30.8 mA (se 0.4), drift -0.45 mA/block, off level 96.9
+OLS on block medians: lease-off +31.2 mA (se 0.4), drift -0.19 mA/block, off level 94.1
+mean of block means: off 95.4 (94.3..97.1, 3 blocks), lease 125.9 (124.9..127.2, 4 blocks)
+-- power key events during the run (block 2, 1318-1498 s)
+[ 1394.190661,0] Report pwrkey press event at: 2026-10-04 15:37:39 UTC
+[ 1394.336609,0] Report pwrkey release event at: 2026-10-04 15:37:39 UTC
+[ 1394.336804,0] buttond: screen on: removed /run/fblog.off; fblog wakes on flag removal or next init respawn
+[ 1452.907665,0] Report pwrkey press event at: 2026-10-04 15:38:37 UTC
+[ 1452.983728,0] Report pwrkey release event at: 2026-10-04 15:38:37 UTC
+[ 1452.995999,0] buttond: screen off: created /run/fblog.off, signalled fblog (1 process); init respawns it
+-- EFS/persist diskstats writes at the end: modemst1=0 modemst2=0 fsc=0 fsg_a=0 fsg_b=0 persist=0 

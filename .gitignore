@@ -28,6 +28,8 @@ tools/fblog/fblog
 tools/tests/test-fblog
 tools/nmea-broker
 tools/tests/test-nmea-broker
+tools/gps-manager
+tools/tests/test-gps-manager
 tools/buttond
 tools/tests/test-buttond
 tools/powerd

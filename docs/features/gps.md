@@ -6,7 +6,7 @@
 
 Modem boot, LOC discovery/start/stop, NMEA streaming, and outdoor fixes were live-verified by 2026-09-18. The terrace run measured ≤78 seconds cold time-to-first-fix and 5 m uncertainty at the first position fix. gpsd received a matching 3D fix on 2026-09-19.
 
-The clean standard-NetworkManager baseline verifies one shared resident modem owner at boot. Baseline LOC acquisition and gpsd remain opt-in. Unattended logging was live-verified on a temporary ride image (2026-09-18, since dropped; see the [build log](../build-log.md)). Earlier device verification used manual modem startup.
+The clean standard-NetworkManager baseline verifies one shared resident modem owner at boot. Since 2026-10-04 [gps-manager](#use-gnss-gps-manager) runs LOC, gpsd and the NMEA pipeline on demand (live-verified: first lease to `RUNNING` at a window in 17 and 34 s on two fresh boots, failure recovery, `kill -9` and respawn); with GNSS leased the phone idles about 31 mA higher than with it `OFF`. Unattended logging was live-verified on a temporary ride image (2026-09-18, since dropped; see the [build log](../build-log.md)). Earlier device verification used manual modem startup.
 
 ## Components and lifecycle
 
@@ -19,12 +19,36 @@ The clean standard-NetworkManager baseline verifies one shared resident modem ow
 - `tools/tftp/`: bounded TFTP/RFS service with read-only firmware and a RAM-backed writable namespace seeded from the stock persist backup at build time.
 - `tools/qmux.{c,h}`, `tools/qmuxd-lite.c`: the bridge used by stock Alpine `qmicli`.
 - `tools/nmea-broker.c`: follower stdout to checksum-verified NMEA UDP datagrams for gpsd.
+- `tools/gps-manager.c`: leases on `/run/gps-manager.sock` run the LOC session, gpsd and the follower/broker pipeline on demand ([below](#use-gnss-gps-manager)).
 
 The modem needs both service-registry and TFTP/RFS support to survive startup. `gps-up` does not automatically restart a crashed modem. Do not run competing owners or reopen the modem repeatedly after failure; retain evidence and reboot.
 
+## Use GNSS: gps-manager
+
+`tools/gps-manager.c` (inittab `::respawn:`) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `gps-up` and never changes the modem's operating mode. Idle, it only listens on `/run/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
+
+```sh
+gps-manager hold map          # lease and stream state lines until killed (kinds: map, ride)
+gps-manager status            # one line: state, leases per kind, CID, counters, detail
+gps-manager watch             # stream "state <S> <detail>" lines
+gps-manager retry             # leave a parked FAILED (only acts in FAILED)
+```
+
+The protocol is one line per request: `lease map|ride`, `release map|ride`, `status`, `watch`, `retry`, answered with `ok ...` or `err ...`; watchers get `state <S> <detail>` on every change. Lease counts are per connection. States: `OFF`, `STARTING`, `ACQUIRING`, `RUNNING`, `STOPPING`, `FAILED`. `RUNNING` only means a status-A RMC arrived in the last 10 s; fix data stays in gpsd (`127.0.0.1:2947`), and nothing the manager logs or reports carries a position.
+
+Bring-up: wait for the modem owner (`modem_owner_pid` in C, polled every 2 s; `FAILED` after 240 s, which recovers when an owner appears), allocate a LOC CID (`--loc-noop --client-no-release-cid`), set NMEA types `gga|rmc|gsv|gsa|vtg`, start LOC session 1, start `gpsd -N -n -b udp://127.0.0.1:20175`, then `qmicli --loc-follow-nmea | nmea-broker -n -t` with the broker's tee read back by the manager. Teardown reverses it: INT the follower, loc-stop, release the CID, stop gpsd. Each qmicli step is bounded at 25 s. loc-stop is sent whenever loc-start was attempted, since the modem may start the session even when the step fails. A failed loc-stop still releases; a failed release is counted as `leaked` in `status` and not retried; with the QMUX socket gone the qmicli steps are skipped. One window cannot be closed: an allocation step killed after the bridge allocated a CID but before qmicli printed it leaves that CID in `qmuxd-lite` without a session (a bridge slot, no GNSS cost), so a timed-out allocation also counts as (possibly) `leaked`. ACQUIRING/RUNNING changes reach watchers every time, but kmsg gets only the first fix of each bring-up.
+
+Supervision: an owned process exiting, 60 s without an NMEA line, or the modem owner going away or being replaced tears the whole set down at once. While a lease remains it retries. A run is healthy after 120 s of NMEA since the pipeline started, which resets the failure streak; a failure before that is fast and adds one: retries wait 2, 4, 8, 16 s for streak 1 to 4 (2 s after a failure of a healthy run), and a streak of 5 parks it in `FAILED` until all leases are released or `retry` is sent. Without a lease it never retries. A lost owner is not counted; `FAILED` waits for one.
+
+The manager is the only user of its CID. The bridge hands a CID's indications to whoever spoke on it last, so any other qmicli request on that CID stops the manager's NMEA stream. Manual LOC commands must allocate their own CID (`--loc-noop --client-no-release-cid`) and should not run a second gpsd while the manager has one.
+
+Idle cost, measured 2026-10-04 (one unattended run, panel off, USB out, Wi-Fi radio off, BT as booted, 180 s blocks with the first 45 s skipped, four leased and three usable `OFF` blocks; a fourth `OFF` block was spoiled by a power-key press that turned the panel on between 1394 s and 1452 s): leased and `RUNNING` with a fix at a window (LOC engine plus gpsd, qmicli, broker and manager CPU) 125.9 mA (124.9 to 127.2 per block) against 95.4 mA `OFF` (94.3 to 97.1), +30.8 mA on block means (standard error 0.4) and +31.2 mA on medians. Indoor or cold acquisition, or Wi-Fi in use, may differ. So release leases when GNSS is not needed; the 30 s grace keeps short page changes cheap.
+
+Restart safety: one instance holds an flock on `/run/gps-manager/lock`; a second exits. `/run/gps-manager/state` records the CID with the owner that served it and every child's pid and start time as soon as they exist. If the manager is killed, init respawns it; the new instance stops the recorded follower, broker and gpsd whose start time and name still match, then stops and releases the old CID once that same owner is ready (a replaced owner means the CID died with its bridge). Clients of the dead instance lost their leases with the connection and must lease again. The follower, the broker and the qmicli steps also get `PR_SET_PDEATHSIG` and die with the manager; gpsd loses it when it drops privileges, so the respawned instance is what stops it. Logs: kmsg `gps-manager:` lines (transitions only) and `/run/gps-manager/{steps,gpsd,follow,broker}.log`, each rotated to `.1` at a bring-up. RAM only.
+
 ## Start and inspect manually
 
-Use a fresh baseline boot and the phone's telnet shell. New builds already start gps-up once. If readiness does not appear, inspect `/run/gps-up.log` rather than launching another copy. Proceed only once the service-version query succeeds. Substitute the allocated CID below; it is not guaranteed to be 1.
+For debugging only, with the manager `OFF` (no leases). Use a fresh baseline boot and the phone's telnet shell. New builds already start gps-up once. If readiness does not appear, inspect `/run/gps-up.log` rather than launching another copy. Proceed only once the service-version query succeeds. Substitute the allocated CID below; it is not guaranteed to be 1.
 
 ```sh
 . /usr/lib/chef/modem-owner.sh
@@ -100,7 +124,7 @@ Write modem sysfs control values without a trailing newline where required: the 
 
 ## Modify and verify
 
-Run `make -C tools test` (which includes the GPS startup shell suite), plus the relevant component suites: `make -C tools/rmtfs test`, `make -C tools/servreg-locator test`, and `make -C tools/tftp test`. The tests cover transport/bridge framing, storage offsets, slot validation and lifecycle safeguards, service replies, bounded TFTP behavior, and broker filtering/framing/time handling. Rebuild rootfs if packages change, then initramfs and boot image.
+Run `make -C tools test` (which includes the GPS startup shell suite), plus the relevant component suites: `make -C tools/rmtfs test`, `make -C tools/servreg-locator test`, and `make -C tools/tftp test`. The tests cover transport/bridge framing, storage offsets, slot validation and lifecycle safeguards, service replies, bounded TFTP behavior, broker filtering/framing/time handling, and the GPS manager: `tests/test_gps-manager.c` drives its state machine through fake operations (order, leases and grace, failures, backoff and parking, owner loss, stale CIDs, timeouts) and `tests/test_gps-manager.sh` runs the binary with stub qmicli/gpsd and the real broker through a full cycle, `kill -9` and a respawn. Rebuild rootfs if packages change, then initramfs and boot image.
 
 Live checks: modem survives startup, services are discovered, QMUX answers, LOC starts, outdoor NMEA/gpsd fixes agree, and teardown leaves no owned helpers. Capture image hashes and logs; preserve the no-writes-to-EFS/persist policy and verify it with appropriate evidence. Precise GPS archives may exist only locally; the public history retains redacted summaries.
 
