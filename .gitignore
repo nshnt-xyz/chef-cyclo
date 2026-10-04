@@ -65,8 +65,7 @@ tools/sensord/compass-replay
 tools/sensord/tests/test-compass
 tools/sensord/tests/test-compass-san
 tools/sensord/tests/sensord-fake-san
-tools/sensord/tests/__pycache__/
-tools/__pycache__/
+__pycache__/
 
 tools/wifi-psk
 
