@@ -9,8 +9,9 @@ and `gnss_review` (review) on 2026-10-04. Phase 1 done 2026-10-04
 Phase 2 resumed on 2026-10-05 with Herdr agents `storage_impl` and
 `storage_review`, coordinated by `storage_research`. Reviewed provisioning
 of `userdata` is complete and reviewed `out/boot-data.img` (`df856fc3`) is
-installed in `boot_a`; real consumer persistence, one PMIC reset, three
-sysrq write-loss cycles and device regressions passed. The final shutdown
+installed in `boot_a` and promoted to the baseline `out/boot.img`; real
+consumer persistence, one PMIC reset, three sysrq write-loss cycles and
+device regressions passed. The final shutdown
 fix makes the entire data filesystem read-only before detaching aliases,
 including when `/data` is absent. Research notes, draft design and the phase 3
 timing baseline: [phase 2 notes](../../logs/install-layout-phase2-notes-2026-10-04.md).

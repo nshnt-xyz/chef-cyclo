@@ -1173,7 +1173,7 @@ See the [storage guide](features/storage.md) and [live summary](../logs/install-
 | Single-force format test image | `456a5c20333818bcbdbfd0b57fa94a19065506007c3fe96e79d2a9234d961b5b` |
 | Initial installed data image, retained `out/boot-data-pre-ro.img` | `86a5d207186707049ff08a068743bfd5f6c55f41a42b5f1d75a4e3cb59bf9891` |
 | Final global-read-only `out/boot-data.img` | `df856fc376e0b0c9581cd8bfc31da9bb992789754d668177e368914be64cb070` |
-| Unchanged `out/boot.img`, retained `out/boot-abslot.img` fallback | `833ea187738cf7e2f0505288591bf22cf72bea98091a549e8d700e1f88c9e554` |
+| Previous baseline, retained as `out/boot-abslot.img` fallback | `833ea187738cf7e2f0505288591bf22cf72bea98091a549e8d700e1f88c9e554` |
 
 The current image is 36,032,512 bytes; encoded ramdisk 23,556,400 bytes;
 loader margin 23,826,432 bytes. Alpine e2fsprogs/e2fsprogs-extra 1.47.4 were
@@ -1209,7 +1209,7 @@ unmount captured in kmsg, followed by unchanged Wi-Fi autoconnect. The final rev
 slot/hash check. Its installed image-prefix/helper hashes match, early check
 and all three mounts pass, Wi-Fi autoconnects after another ordinary reboot,
 and abslot remains successful/retry6 after30s. Final crash/protected-partition
-write counters are zero; actual consumer hashes remain unchanged. No phase 3 work or baseline promotion.
+write counters are zero; actual consumer hashes remain unchanged. No phase 3 work.
 
 Raw evidence: `~/chef-cyclo-evidence/storage-phase2-20261005/` (private, outside
-Git). Only credential-free summaries are tracked.
+Git). Only credential-free summaries are tracked. The coordinator promoted `out/boot-data.img` to the baseline `out/boot.img` (`df856fc3`); the previous baseline `833ea187` is kept as `out/boot-abslot.img`.

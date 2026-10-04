@@ -10,7 +10,7 @@ Decided 2026-10-04 (user): Android is retired. Writable state goes on `userdata`
 
 ## Standalone boot
 
-Done on 2026-10-04 as phase 1 of the [install layout handoff](install-layout-handoff.md): phase 1 installed our image (`out/boot-abslot.img`, the `343fc3f7` baseline plus [`abslot`](#ab-slot-flags)); phase 2 now has the reviewed `out/boot-data.img` (`df856fc3`) in `boot_a`. The phone cold-boots without a PC to a working system, and a normal reboot no longer starts Android. Evidence is in the [build log](../build-log.md#2026-10-04-our-image-in-boot_a). Phase 2 (`/data` on `userdata`) is provisioned and acceptance tested; phase 3 (root on `system_a`) remains untouched.
+Done on 2026-10-04 as phase 1 of the [install layout handoff](install-layout-handoff.md): phase 1 installed our image (`out/boot-abslot.img`, the `343fc3f7` baseline plus [`abslot`](#ab-slot-flags)); phase 2 now has the reviewed `out/boot-data.img` (`df856fc3`) in `boot_a`, promoted to the baseline `out/boot.img`. The phone cold-boots without a PC to a working system, and a normal reboot no longer starts Android. Evidence is in the [build log](../build-log.md#2026-10-04-our-image-in-boot_a). Phase 2 (`/data` on `userdata`) is provisioned and acceptance tested; phase 3 (root on `system_a`) remains untouched.
 
 ### Why flashing `boot_a` is recoverable
 
