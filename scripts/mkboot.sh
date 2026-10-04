@@ -35,11 +35,12 @@ esac
 python3 scripts/check-chef-loader-budget.py "$KERNEL" "$RAMDISK"
 
 # alldefconfig silently drops options whose dependencies are unmet; refuse a
-# default-kernel image missing the classic Bluetooth / AF_ALG options.
+# default-kernel image missing the classic Bluetooth / AF_ALG options or the
+# System V IPC that chronyd's GPS SHM refclock needs.
 if [ "$KERNEL" = out/kernel/arch/arm64/boot/Image.gz-dtb ]; then
     for opt in BT_RFCOMM BT_RFCOMM_TTY BT_BNEP BT_BNEP_MC_FILTER BT_BNEP_PROTO_FILTER \
                BT_HIDP BT_HCIVHCI CRYPTO_USER_API_HASH CRYPTO_USER_API_SKCIPHER \
-               CRYPTO_USER_API_AEAD; do
+               CRYPTO_USER_API_AEAD SYSVIPC; do
         grep -qx "CONFIG_$opt=y" out/kernel/.config || { echo "CONFIG_$opt missing from out/kernel/.config" >&2; exit 1; }
     done
 fi

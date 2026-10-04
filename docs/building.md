@@ -39,7 +39,7 @@ ramdisk leaves: the gzip baseline left 68 KiB of margin, so any rootfs growth br
 boot, while LZMA leaves about 13 MB (live-booted 2026-10-03), and about 24 MB since libinput's removal on 2026-10-04. The kernel
 must have `CONFIG_RD_LZMA=y`; `mkinitramfs.sh` checks `out/kernel/.config` (or
 `KCONFIG`) and `mkboot.sh` checks the packed kernel's build-tree `.config` before
-anything is written. `GZIP=1` restores the gzip encoding and the old name
+anything is written. Both also require `CONFIG_SYSVIPC=y` (`mkboot.sh` for the default kernel) for the [GPS time](features/gps.md#gps-time) SHM refclock, without which chronyd would not start. `GZIP=1` restores the gzip encoding and the old name
 `out/initramfs.cpio.gz` for `mkinitramfs.sh` and `mkboot.sh` alike.
 
 Before writing the boot image, `mkboot.sh` runs the Chef loader-budget preflight.
@@ -54,7 +54,7 @@ To check without packaging, run
 
 ## Rebuilding and testing changes
 
-- Kernel/config change: regenerate config if needed, run `kmake`, and repack the boot image.
+- Kernel/config change: regenerate config if needed, run `kmake`, then rebuild the initramfs and the boot image. `mkinitramfs.sh` rebuilds `wlan.ko` (the only module) against the new `Module.symvers`; with `CONFIG_MODVERSIONS=y` a config change can alter many symbol CRCs (enabling `SYSVIPC` changed 208 of the module's 425), and a stale module would not load.
 - Helper or baseline overlay change: rebuild the initramfs and boot image.
 - Rootfs package change: rebuild rootfs, initramfs, and boot image.
 

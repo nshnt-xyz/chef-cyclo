@@ -1,0 +1,180 @@
+GPS time to chrony, live runs 2026-10-04. Filtered from ~/chef-cyclo-evidence/gpstime-live-20261004T161020Z/ (raw pulls stay local; follow/broker logs there carry positions). Nothing here carries a position: NMEA reduced to sentence types and arrival times, gpsd to TOFF reports.
+Boot 1: out/boot-gpstime1.img 563df6af901ebd60143b2b9827443c507b37be9297bf8c00693f255ee91096db (refclock offset 0 delay 0.2; delay/offset then varied in the RAM copy of chrony.conf with chronyd restarts).
+Boot 2: out/boot-gpstime2.img 500dc96de8a705b5564f12803ec7a62d042248928982e1cd306d818d93ac15d3 (final settings, earlier comments): offline acceptance, Wi-Fi takeover, regression.
+Boot 3: out/boot-gpstime3.img 343fc3f76dd6cafed582c00c431be0501192362e78dee895b9a4ba8d8ca7f640 (committed chrony.conf, comment-only change): sanity lease.
+Kernel Image.gz-dtb da2e6c6110b2d408f23f8a662f294d18fb95e26914718283bfd97f2a8e33bfa7 (#21, CONFIG_SYSVIPC=y). Nothing flashed.
+Pulls: bfd57018d43ff9ea0caf17484280ab7beab8c6102aaa734e6f19779a9fdb75f8  boot1-gt.tgz a7cd8343baf320577ae228895d2365a5d942bfea8537adccfb094f2bca25b60d  boot2-gt.tgz 
+
+== Boot 1: first lease on the 1970 clock (gpsd TOFF reports, clock_sec still 1970)
+{"class":"TOFF","device":"udp://127.0.0.1:20175","real_sec":1791130357, "real_nsec":0,"clock_sec":1480915,"clock_nsec":273101811,"precision":-1,"shm":"NTP0"}
+{"class":"TOFF","device":"udp://127.0.0.1:20175","real_sec":1791130358, "real_nsec":0,"clock_sec":1480916,"clock_nsec":273617067,"precision":-1,"shm":"NTP0"}
+
+== Boot 1: NMEA burst order at gpsd's UDP port (tcpdump arrival time, sentence type only)
+1791131207.005762 GPGSV
+1791131207.005892 GPGSV
+1791131207.005938 GPGSV
+1791131207.006024 GPGSV
+1791131207.006215 GPGGA
+1791131207.006312 GPVTG
+1791131207.006369 GPRMC
+1791131207.006412 GPGSA
+1791131208.005603 GPGSV
+1791131208.005705 GPGSV
+1791131208.005856 GPGSV
+1791131208.005929 GPGSV
+1791131208.005991 GPGGA
+1791131208.006036 GPVTG
+1791131208.006081 GPRMC
+1791131208.006188 GPGSA
+
+== Boot 1: selection with Wi-Fi up (chronyc sources lines)
+delay 0.2 (from the session transcript, not a pulled file):
+  #* GPS  ... +33ms[  +35ms] +/-  100ms   ^+ 162.159.200.123 ... +/- 120ms (GPS selected over NTP)
+delay 0.5 offset 0 (after the restart):
+  #- GPS                           0   4    77    11  +7270us[+7270us] +/-  250ms
+  ^* 13.126.27.131                 2   6    37    28   -881ns[  +31ms] +/-   21ms
+delay 0.5 offset 0.013 (chrony then reselected a +/-130 ms server; GPS combined):
+src: #+ GPS                           0   4   377    23  +5218us[+5218us] +/-  251ms
+src: ^* 162.159.200.1                 3   6   377    37    -49ms[  -52ms] +/-  130ms
+delay 1.0 offset 0.013:
+src: #- GPS                           0   4   377    23    +27ms[  +27ms] +/-  501ms
+src: ^* 162.159.200.1                 3   6   377    22    +25ms[  +30ms] +/-   70ms
+
+== Boot 1: offset (sourcestats, NTP selected 13.126.27.131, delay 0.5, offset 0)
+blocks 63, NTP-converged blocks (|selected last sample|<5 ms) 19, uptime 651-1646 s, selected {'13.126.27.131'}
+gps: mean 11.09 ms sd 5.53 ms min -0.50 max 20.00
+ss_off: mean 11.00 ms sd 5.91 ms min -2.14 max 20.00
+GPS sourcestats Std Dev: mean 248 us max 440 us
+731.43 GPS offset +11ms sd 93us
+827.83 GPS offset +8544us sd 197us
+924.22 GPS offset +7832us sd 115us
+1020.28 GPS offset +12ms sd 156us
+1116.68 GPS offset +18ms sd 143us
+1213.07 GPS offset +12ms sd 417us
+1309.47 GPS offset +12ms sd 279us
+1405.52 GPS offset +12ms sd 289us
+1501.91 GPS offset +12ms sd 466us
+1598.30 GPS offset +14ms sd 440us
+host check (chronyd -Q over USB against an SNTP responder on the host; host chrony stratum 3, root delay 144 ms, so the host is itself only within ~+/-80 ms of UTC):
+  up=224.11 gps-only-offset0: phone behind host by +16.0 ms
+  up=238.08 gps-only-offset0: phone behind host by +16.1 ms
+  up=250.50 gps-only-offset0: phone behind host by +16.2 ms (rtt 1.82 ms)
+  up=651.06 ntp-delay0.5: phone behind host by +10.7 ms (rtt 1.82 ms)
+  up=779.47 ntp-delay0.5: phone behind host by +8.4 ms (rtt 1.97 ms)
+  up=907.89 ntp-delay0.5: phone behind host by +6.9 ms (rtt 1.85 ms)
+  up=1036.30 ntp-delay0.5: phone behind host by +5.7 ms (rtt 1.85 ms)
+  up=1164.72 ntp-delay0.5: phone behind host by -0.3 ms (rtt 1.87 ms)
+  up=1293.13 ntp-delay0.5: phone behind host by +2.4 ms (rtt 1.86 ms)
+  up=1421.54 ntp-delay0.5: phone behind host by +2.4 ms (rtt 1.89 ms)
+  up=1549.95 ntp-delay0.5: phone behind host by +2.3 ms (rtt 1.87 ms)
+  up=2338.12 ntp-delay1.0-offset0.013: phone behind host by -31.0 ms (rtt 1.89 ms)
+  (up 224-250: GPS only, offset 0; from up 651: NTP selected; up 2338: delay 1.0 offset 0.013, NTP selected)
+
+== Boot 2: offline acceptance timeline (uptime s)
+#### 26.44 start
+#### 27.94 lease1
+#### 94.60 GPS selected (waited 66s)
+#### 404.85 release1
+#### 436.90 manager OFF after 32s
+#### 742.62 lease2
+#### 799.20 GPS reselected with fresh samples (waited 56s)
+#### 959.72 done
+#### 1078.45 wifi-up
+26.45 manager OFF
+29.95 manager ACQUIRING
+46.10 manager RUNNING
+62.26 GPS reach 1 #?
+78.42 GPS reach 3 #?
+94.58 GPS reach 7 #*
+110.62 GPS reach 17 #*
+126.63 GPS reach 37 #*
+142.65 GPS reach 77 #*
+158.67 GPS reach 177 #*
+174.68 GPS reach 377 #*
+452.93 manager OFF
+468.95 GPS reach 376 #*
+484.97 GPS reach 374 #*
+steps (wall minus CLOCK_MONOTONIC jumps > 0.5 s over the whole boot):
+  STEP at mono 94.456268 by 1.78965e+09
+  first/last sample: 26.446761 1483294.813215 1483268.366454 / 1652.676553 1791134363.048546 1791132710.371993
+host comparisons (the lease1 ones got no reply: the host's USB address changed from .9 to .5 at the reboot; fixed at up=480):
+  up=479.83 holdover-manual: phone behind host by +1.3 ms (rtt 1.90 ms)
+  up=533.04 holdover: phone behind host by +1.6 ms (rtt 1.88 ms)
+  up=629.48 holdover: phone behind host by +2.1 ms (rtt 1.92 ms)
+  up=725.92 holdover: phone behind host by +2.5 ms (rtt 1.83 ms)
+  up=742.28 holdover-end: phone behind host by +2.6 ms (rtt 1.88 ms)
+  up=959.39 lease2: phone behind host by +2.3 ms (rtt 1.90 ms)
+  up=1465.55 ntp-takeover: phone behind host by -40.4 ms (rtt 1.90 ms)
+SHM after release (ipcs -m):
+  0x4e545030 0          root       600        96         1                       
+  0x4e545031 32769      root       600        96         0                       
+  0x4e545032 65538      root       666        96         0                       
+  0x4e545033 98307      root       666        96         0                       
+  0x4e545034 131076     root       666        96         0                       
+  0x4e545035 163845     root       666        96         0                       
+  0x4e545036 196614     root       666        96         0                       
+  0x4e545037 229383     root       666        96         0                       
+  0x4e545038 262152     root       666        96         0                       
+  0x4e545039 294921     root       666        96         0                       
+  0x4e54503a 327690     root       666        96         0                       
+  0x4e54503b 360459     root       666        96         0                       
+  0x47505344 393228     root       666        38504      0                       
+holdover samples:
+500.99 src: #* GPS                           0   4   370    68   -732us[-2694us] +/-  501ms
+565.39 src: #* GPS                           0   4   200   132   -732us[-2694us] +/-  501ms
+629.46 src: #? GPS                           0   4     0   196   -732us[-2694us] +/-  501ms
+693.87 src: #? GPS                           0   4     0   260   -732us[-2694us] +/-  501ms
+744.64 src: #? GPS                           0   4     0   311   -732us[-2694us] +/-  501ms
+752.72 src: #* GPS                           0   4     1     4    +69us[-2542us] +/-  501ms
+
+== Boot 2: Wi-Fi takeover (lease held)
+== 1078.45 2026-10-04T17:09:48Z NTP0 owner=root perms=600 nattch=2 GPSD_SHM owner=root perms=666 nattch=1 
+src: #* GPS                           0   4   377    15  -2618ns[-4934ns] +/-  501ms
+== 1094.47 2026-10-04T17:10:04Z NTP0 owner=root perms=600 nattch=2 GPSD_SHM owner=root perms=666 nattch=1 
+src: #- GPS                           0   4   377    16  +6965us[-1380us] +/-  501ms
+src: ^* 172.236.180.15                5   6    17     3    -41ms[  -50ms] +/-   69ms
+== 1110.48 2026-10-04T17:10:20Z NTP0 owner=root perms=600 nattch=2 GPSD_SHM owner=root perms=666 nattch=1 
+...
+== 1462.83 2026-10-04T17:16:13Z NTP0 owner=root perms=600 nattch=2 GPSD_SHM owner=root perms=666 nattch=1 
+src: #- GPS                           0   4   377    15    +26ms[  +26ms] +/-  501ms
+src: ^* 172.236.180.15                5   6   377    48    -21ms[  -23ms] +/-   69ms
+
+== Boot 2: regression
+1092.00
+https 200 ssl_verify=0
+bluetoothd up
+        Powered: yes
+venus state=OFFLINING crash_count=0
+a512_zap state=OFFLINING crash_count=0
+adsp state=OFFLINING crash_count=0
+modem state=ONLINE crash_count=0
+modemst1  259       2 mmcblk0p34 4 0 4096 44 0 0 0 0 0 30 44
+modemst2  259       3 mmcblk0p35 4 0 4096 34 0 0 0 0 0 27 34
+fsc  179      27 mmcblk0p27 1 0 8 0 0 0 0 0 0 0 0
+fsg_a  259       4 mmcblk0p36 20 0 20480 160 0 0 0 0 0 94 160
+fsg_b  259       5 mmcblk0p37 0 0 0 0 0 0 0 0 0 0 0
+persist  259       6 mmcblk0p38 0 0 0 0 0 0 0 0 0 0 0
+tone rc=0
+sensors ready after 2s
+{"ok":"list","smgr":"ready","sensors":[{"sensor":"accel","unit":"m/s^2","smgr_id":0,"data_type":0,"present":true,"name":
+venus state=OFFLINING crash_count=0
+a512_zap state=OFFLINING crash_count=0
+adsp state=ONLINE crash_count=0
+modem state=ONLINE crash_count=0
+modemst1  259       2 mmcblk0p34 4 0 4096 44 0 0 0 0 0 30 44
+modemst2  259       3 mmcblk0p35 4 0 4096 34 0 0 0 0 0 27 34
+fsc  179      27 mmcblk0p27 1 0 8 0 0 0 0 0 0 0 0
+fsg_a  259       4 mmcblk0p36 20 0 20480 160 0 0 0 0 0 94 160
+fsg_b  259       5 mmcblk0p37 0 0 0 0 0 0 0 0 0 0 0
+persist  259       6 mmcblk0p38 7 8 162 4 0 0 0 0 0 4 4
+
+== Boot 3: sanity
+0x4e545030 0          root       600        96         1                       
+wlan                 8380416  0 
+GPS selected 58s after lease
+src: #* GPS                           0   4     7     6   -469us[-20714d] +/-  501ms
+STEP at mono 77.577252 by 1.78965e+09
+venus 0
+a512_zap 0
+adsp 0
+modem 0

@@ -6,7 +6,7 @@
 
 Modem boot, LOC discovery/start/stop, NMEA streaming, and outdoor fixes were live-verified by 2026-09-18. The terrace run measured ≤78 seconds cold time-to-first-fix and 5 m uncertainty at the first position fix. gpsd received a matching 3D fix on 2026-09-19.
 
-The clean standard-NetworkManager baseline verifies one shared resident modem owner at boot. Since 2026-10-04 [gps-manager](#use-gnss-gps-manager) runs LOC, gpsd and the NMEA pipeline on demand (live-verified: first lease to `RUNNING` at a window in 17 and 34 s on two fresh boots, failure recovery, `kill -9` and respawn); with GNSS leased the phone idles about 31 mA higher than with it `OFF`. Unattended logging was live-verified on a temporary ride image (2026-09-18, since dropped; see the [build log](../build-log.md)). Earlier device verification used manual modem startup.
+The clean standard-NetworkManager baseline verifies one shared resident modem owner at boot. Since 2026-10-04 [gps-manager](#use-gnss-gps-manager) runs LOC, gpsd and the NMEA pipeline on demand (live-verified: first lease to `RUNNING` at a window in 17 and 34 s on two fresh boots, failure recovery, `kill -9` and respawn); with GNSS leased the phone idles about 31 mA higher than with it `OFF`. Also since 2026-10-04 chrony takes [GPS time](#gps-time) from gpsd, so a lease sets the clock without network. Unattended logging was live-verified on a temporary ride image (2026-09-18, since dropped; see the [build log](../build-log.md)). Earlier device verification used manual modem startup.
 
 ## Components and lifecycle
 
@@ -102,9 +102,27 @@ The broker sends one `$…*hh\r\n` UDP datagram per checksum-verified sentence t
 
 `-t` tees input unchanged; `-l FILE` writes `<uptime> <sentence>`. The terrace feed delivered GGA/RMC/GSA/VTG and three GSV sentences per 1 Hz cycle, with `$GP` talkers; GLONASS also appeared in QMI position reports. Empty pre-fix sentences still had valid checksums.
 
-New builds run client-only chrony with no UDP server/command listener. Use broker
-`-n` (as above) so chrony owns wall-clock adjustment; GPS SHM remains unavailable.
-For an explicit offline fallback without chrony synchronization, the broker sets system time once per process only if the clock is before 2000-01-01; pre-2020 RMC dates are rejected. `-n` disables this. It never writes the RTC. Initial gpsd bogus-time warnings are expected before that step. This kernel's `shmget` returns `ENOSYS`; JSON clients work, but chrony SHM integration needs kernel support or a different handoff.
+### GPS time
+
+chrony (client-only, no UDP server or command listener) owns the wall clock, and GPS is one of its sources: while a lease keeps gpsd running, gpsd puts the NMEA time into NTP SHM unit 0 and chronyd reads it as `refclock SHM 0 refid GPS` (`initramfs/etc/chrony/chrony.conf`). So the broker keeps `-n`. This needs `CONFIG_SYSVIPC=y` (added 2026-10-04; before that `shmget` returned `ENOSYS`). `mkinitramfs.sh` and `mkboot.sh` refuse a kernel without it, because chronyd exits when it cannot attach a configured SHM segment.
+
+- **Segments.** Units 0 and 1 are root-only (0600). chronyd attaches unit 0 at startup, before it drops to the `chrony` user. gpsd 3.27.3 attaches units 0 to 11 (`NTPSHMSEGS`, two per device slot) in `ntpshm_context_init()` while still root, then drops to `nobody` and keeps the mappings. Its UDP device uses the first, unit 0. Whichever of the two starts first creates unit 0. When gpsd stops, chrony clears the sample's valid flag after each read, so the source just goes unreachable. gpsd also creates NTP1 (0600), NTP2 to NTP11 (0666) and its export segment `0x47505344` (0666, 38504 bytes). Nobody removes any of these, so they persist after gpsd exits (`nattch` 0) and are reused by the next gpsd; they are harmless. The export segment holds the current fix and is world-readable, the same exposure as gpsd's 127.0.0.1:2947 listener. That is fine on this single-user device, but count it wherever positions are handled. Check with `ipcs -m`: `0x4e545030` root 600, `nattch` 1 idle, 2 while gpsd runs.
+- **When samples flow.** After more than 3 fixes, gpsd ships one sample a second. It latches `CLOCK_REALTIME` on the first timed sentence of each burst: the modem delivers 4 GSV, GGA, VTG, RMC and GSA within about 1 ms, so that is the GGA after the GSVs. The 1970 boot clock does not stop the samples. On the NTP-disciplined clock the bursts arrived about 6 ms after the second. Against NTP the latched time was 13 ms late, with 0.15 to 0.7 ms standard deviation, hence `offset 0.013` and `precision 1e-3`. That NTP ran over Wi-Fi to pool servers that disagreed with each other by up to 55 ms. A cross-check against the USB host gave 13.8 ms, but the host is itself only within about ±80 ms of UTC. So the offset is calibrated to tens of ms of absolute accuracy, not better. With no PPS, treat GPS as a coarse source for the boot step and offline holdover, not a precision reference.
+- **Selection.** `delay 1.0` gives GPS a root distance of about 0.5 s. The pool servers seen over Wi-Fi measured ±20 to 140 ms, so NTP was selected and GPS was neither combined nor marked a falseticker (`#-` in `chronyc sources`, `D` in `selectdata`). A server between about ±170 ms (combinelimit 3) and ±0.5 s would get GPS combined, which is harmless for a calibrated GPS; only a server worse than GPS's own 0.5 s would lose to it. With `delay 0.5` a ±130 ms server got GPS combined (`#+`); with `0.2` GPS was selected over NTP.
+- **Steps.** `makestep 1.0 -1`: chrony steps any correction over 1 s whenever it occurs, not only during its first updates. There is no RTC, so the clock boots at 1970. GPS can arrive long after chronyd starts, or after a source that was off by seconds. Smaller corrections, such as NTP replacing GPS (tens of ms), are slewed.
+
+Offline acceptance on 2026-10-04 (image `boot-gpstime2`, fresh boot at a window, no Wi-Fi profile, clock at 1970; see the [build log](../build-log.md)):
+
+- **Lease and step.** Lease at 27.9 s uptime, `RUNNING` at 46.1 s. The first refclock poll with samples came at 62.3 s, still on the 1970 clock. chrony selected GPS and stepped once, by +1.79e9 s, at 94.5 s: 66.5 s after the lease, on the third poll at the default `poll 4`.
+- **Release and holdover.** After the 30 s grace the manager was `OFF`, 32 s after release. GPS went unreachable (`#?`, reach 0), tracking held with leap status Normal, and nothing failed.
+- **Re-lease.** A new lease got its first sample within 12 s and GPS was selected again.
+- **Wi-Fi.** Bringing Wi-Fi up afterwards selected NTP within about 30 s without a step.
+
+Clock against the USB host (SNTP over USB, 1.7 to 1.9 ms round trips; the host is chrony-synchronised but only within about ±80 ms of UTC itself): GPS-disciplined and in holdover the phone stayed 1.3 to 2.6 ms behind the host. Under NTP over this Wi-Fi it moved to 40 ms ahead.
+
+Inspect it as root through the Unix socket: `chronyc -h /run/chrony/chronyd.sock sources -v` (also `sourcestats`, `selectdata`, `tracking`). chronyd runs with `-d`, and busybox init starts it with stdin, stdout and stderr on `/dev/null` (checked in `/proc/<pid>/fd`), so its log is lost. A step shows only in `tracking` or as a jump in wall-clock minus `CLOCK_MONOTONIC`.
+
+The broker's own fallback still exists for images without chrony: without `-n` it sets the system time once per process, only if the clock is before 2000-01-01, and rejects pre-2020 RMC dates. It never writes the RTC.
 
 ## Transport and storage constraints
 

@@ -8,7 +8,7 @@ This directory contains unfinished work. Completed bring-up and operating recipe
 
 | Plan | Remaining work and dependencies |
 |---|---|
-| [GPS and time](gps-and-time.md) | GPS manager done; clients (UI, ride recorder) next; chrony needs SHM support or another handoff. Assistance persistence needs storage, downloads need connectivity. |
+| [GPS and time](gps-and-time.md) | GPS manager and GPS time (chrony SHM refclock) done; clients (UI, ride recorder) next. Assistance persistence needs storage, downloads need connectivity. |
 | [Storage and boot](storage-and-boot.md) | Storage enables recordings, maps, credentials, and retained state. Standalone boot needs a verified recovery plan. Android retirement comes later. |
 | [UI and ride app](ui-and-ride-app.md) | UI stack decided: LVGL on fbdev. The [UI platform](../features/ui-platform.md) is implemented and live verified; next integrate GPS/sensors, pages and recording, and offline maps/routes. Durable recordings require storage. |
 | [Connectivity and sensors](connectivity-and-sensors.md) | Real BLE sensors, remaining Bluetooth tooling (persistence, real classic and mesh devices, PAN DHCP/NAP), Wi-Fi lifecycle/UI/power integration, audio alerts, and Strava. Manual Wi-Fi and safe listener bindings are verified; Strava still needs recording, storage, and upload integration. Links to the separate on-board sensor roadmap. |

@@ -12,12 +12,10 @@ Acceptance: the recorder's lease surviving UI restarts, the UI showing manager s
 
 ## Time synchronization
 
-Alpine v3.24 `main` has `chrony` 4.8-r7 (397 KB installed, `libcap` + `libseccomp`) and `openntpd`; busybox `ntpd` has no refclock, so chrony. New standard-NetworkManager builds start a client-only NTP-pool chronyd at boot
-with volatile state, port0/cmdport0 and makestep1.0 3. Clean baseline0d17
-verified automatic1970-to-current synchronization, certificate-checked HTTPS
-and signed apk installation, with no manual chrony refresh. GPS/time architecture
-modernization is deferred; no separate time unit or new GPS fallback is added. GPS pipelines should use broker -n while chrony owns the clock.
-Future GPS integration sources: gpsd's SHM refclock (`refclock SHM 0 refid GPS`, no PPS), the USB host's chronyd when plugged in, NTP pool once Wi-Fi exists. **New live prerequisite:** this kernel returns `ENOSYS` for every gpsd `shmget`, so enable `CONFIG_SYSVIPC` and re-test the gpsd SHM export first (or choose a non-SHM gpsd/chrony handoff). `makestep 1 -1` so the 1970 boot clock is stepped, not slewed. The PM660 RTC (`rtc0`) is present but write-disabled in DT and only counts from battery-connect: no `rtcsync`; later persist a wall−RTC offset on writable storage ([persistent storage](storage-and-boot.md#persistent-storage)). Chrony supersedes the broker clock step once this path works.
+Done: chrony steps the boot clock from the NTP pool over Wi-Fi or, offline, from GPS while a lease holds gpsd ([GPS time](../features/gps.md#gps-time), 2026-10-04). Remaining:
+
+- **RTC offset persistence.** The PM660 RTC (`rtc0`) is write-disabled in DT and only counts from battery connect, so there is no `rtcsync`. Persisting a wall-minus-RTC offset on writable storage ([persistent storage](storage-and-boot.md#persistent-storage)) would give a roughly right clock at boot before any source.
+- **USB host as a source.** When plugged in, the host's chronyd (or any NTP server on the USB link) could be a `server 172.16.42.x` source. The host needs an NTP server for that; a test SNTP responder on the link measured the phone against the host with 1.8 ms round trips.
 
 ## Warm starts and assistance
 

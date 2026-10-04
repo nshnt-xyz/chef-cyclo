@@ -18,6 +18,8 @@
 # cpio about 13 MB (live-booted 2026-10-03). The kernel must have
 # CONFIG_RD_LZMA=y (checked against KCONFIG, default out/kernel/.config).
 # GZIP=1 restores the old gzip -9n encoding (out/initramfs.cpio.gz).
+# Either way the kernel needs CONFIG_SYSVIPC=y: chrony.conf has an SHM
+# refclock, and chronyd exits when it cannot attach the segment.
 set -eu
 cd "$(dirname "$0")/.."
 [ -x out/rootfs/bin/busybox ] || { echo "run scripts/mkrootfs.sh first" >&2; exit 1; }
@@ -73,8 +75,12 @@ case "$USE_GZIP" in
 *)  echo "GZIP must be empty or 1" >&2; exit 1 ;;
 esac
 ROOT=out/initramfs-root
+KCONFIG=${KCONFIG:-out/kernel/.config}
+grep -qx 'CONFIG_SYSVIPC=y' "$KCONFIG" 2>/dev/null || {
+    echo "$KCONFIG lacks CONFIG_SYSVIPC=y: chronyd cannot attach the GPS SHM refclock and would not start" >&2
+    exit 1
+}
 if [ -z "$USE_GZIP" ]; then
-    KCONFIG=${KCONFIG:-out/kernel/.config}
     grep -qx 'CONFIG_RD_LZMA=y' "$KCONFIG" 2>/dev/null || {
         echo "$KCONFIG lacks CONFIG_RD_LZMA=y: the kernel cannot unpack an LZMA ramdisk (GZIP=1 for gzip)" >&2
         exit 1
