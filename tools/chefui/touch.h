@@ -11,12 +11,14 @@
  * 0 on one axis); it ignores SYN_DROPPED; and it drains every queued
  * event per read, so a press and release in one batch become one state.
  *
- * Here: events are applied to per-slot state (tracking id, raw x, raw y)
- * and every SYN_REPORT snapshots the slots as one frame into a queue.
- * A pointer read pops exactly one frame and says whether more are queued
- * (LVGL's continue_reading). Coordinates are never cleared on release.
- * SYN_DROPPED discards events up to the next SYN_REPORT, then resyncs the
- * slots with EVIOCGMTSLOTS; if that fails every contact is released.
+ * Here: the shared MT-B slot decoder (tools/evdev.h) applies events to
+ * per-slot state (tracking id, raw x, raw y) and every frame it completes
+ * is snapshotted into a queue. A pointer read pops exactly one frame and
+ * says whether more are queued (LVGL's continue_reading). Coordinates are
+ * never cleared on release. SYN_DROPPED discards events up to the next
+ * SYN_REPORT, then resyncs the slots with EVIOCGMTSLOTS; if that fails
+ * every contact is released. Discovery is evdev.h's too: the
+ * lowest-numbered INPUT_PROP_DIRECT device with MT X/Y axes.
  *
  * Primary pointer: the first contact down drives the pointer until it
  * lifts, which reads as a release even if other contacts stay down; the
@@ -30,18 +32,14 @@
 #include <stdint.h>
 #include <linux/input.h>
 
+#include "../evdev.h"
 #include "copy.h"
 
-#define CU_TOUCH_SLOTS  10
+#define CU_TOUCH_SLOTS  EVDEV_MT_SLOTS
 #define CU_TOUCH_QUEUE  64
 
-struct cu_slot {
-	int32_t id;		/* tracking id, -1 = no contact */
-	int32_t x, y;		/* raw, kept across release */
-};
-
 struct cu_touch_frame {
-	struct cu_slot s[CU_TOUCH_SLOTS];
+	struct evdev_slot s[CU_TOUCH_SLOTS];	/* id -1 = no contact */
 };
 
 /* One contact as the application sees it, logical coordinates. */
@@ -67,12 +65,10 @@ struct cu_touch {
 	char path[300];
 	struct cu_geom geom;
 	struct input_absinfo ax, ay;	/* ABS_MT_POSITION_X/Y ranges */
-	int nslots;			/* device slots, <= CU_TOUCH_SLOTS */
 
-	/* working state, updated event by event */
-	struct cu_slot work[CU_TOUCH_SLOTS];
-	int cur_slot;
-	bool dropping;			/* after SYN_DROPPED, until SYN_REPORT */
+	/* working state, updated event by event: slots, current slot,
+	 * device slot count, SYN_DROPPED state, drops/resyncs counters */
+	struct evdev_mt mt;
 	bool overflow;			/* queue overflowed since the last pop */
 
 	/* complete frames */
@@ -85,8 +81,6 @@ struct cu_touch {
 	int32_t primary_id;
 	bool wait_all_up;
 	int32_t px, py;			/* primary, logical */
-
-	unsigned long resyncs, drops;
 };
 
 /* Zero state for geometry g, no device. */

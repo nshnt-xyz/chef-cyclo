@@ -22,6 +22,7 @@ tools/qmuxd-lite
 tools/fbtouch
 tools/tests/test-qmux
 tools/tests/test-msmipc
+tools/tests/test-evdev
 tools/tests/test-fbtouch
 tools/fblog/fblog
 tools/tests/test-fblog

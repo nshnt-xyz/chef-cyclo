@@ -138,7 +138,9 @@ and POWERDOWN through the fb notifier before closing. Rendering uses cached
 XRGB8888 RAM, copy/swizzle into the back page, then `FBIOPAN_DISPLAY`. Failed
 pans mark both pages stale for recovery on a subsequent frame.
 
-Touch is discovered by direct-input properties and MT axes. The reader preserves
+Touch is discovered by direct-input properties and MT axes: the lowest-numbered
+such `/dev/input/event*` node. Discovery and MT-B slot decoding are the shared
+`tools/evdev.h` (also used by `fbtouch` and `buttond`). The reader preserves
 slot coordinates across releases, delivers complete `SYN_REPORT` frames, and
 resyncs after `SYN_DROPPED`. The first contact remains the primary pointer until
 it lifts; a new primary begins only after all contacts are up. Multitouch events

@@ -254,8 +254,11 @@ echo "built $ROOT/usr/bin/tftp-server"
 # pattern through mmap + FBIOPAN_DISPLAY, drives lcd-backlight and decodes
 # the NT36xxx evdev stream. Manual opt-in from the telnet shell, not in
 # inittab, until live-verified (same policy as gps-up). Needs only libc's
-# <linux/fb.h>/<linux/input.h>, so no kernel include paths.
-[ -f tools/fbtouch.c ] || { echo "missing required source: tools/fbtouch.c" >&2; exit 1; }
+# <linux/fb.h>/<linux/input.h> (through the header-only tools/fbdev.h and
+# tools/evdev.h), so no kernel include paths.
+for f in tools/fbtouch.c tools/fbdev.h tools/evdev.h; do
+    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
+done
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/fbtouch" tools/fbtouch.c
 echo "built $ROOT/usr/bin/fbtouch"
 
@@ -288,8 +291,11 @@ echo "built $ROOT/usr/bin/nmea-broker"
 # on a short power press through fblog's /run/fblog.off protocol and powers
 # off cleanly (sync + busybox `poweroff`) when power is held 3 s and released
 # (README next-steps item 14). Started from inittab (respawn). Only libc's
-# <linux/input.h>, so no kernel include paths.
-[ -f tools/buttond.c ] || { echo "missing required source: tools/buttond.c" >&2; exit 1; }
+# <linux/input.h> (device discovery through the header-only tools/evdev.h),
+# so no kernel include paths.
+for f in tools/buttond.c tools/evdev.h; do
+    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
+done
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/buttond" tools/buttond.c
 echo "built $ROOT/usr/bin/buttond"
 

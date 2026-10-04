@@ -1,0 +1,155 @@
+# Shared evdev helper live boot, 2026-10-04 (fastboot boot, nothing flashed)
+## image
+out/boot-evdev.img sha256 12fc50c366053bbdf257a35d7e0ae557e291af5e4ae2e9ce5e3cbdc2ffa692ef
+stock Android: adb reboot bootloader
+Sending 'boot.img' (34712 KB)                      OKAY [  0.857s]
+Booting                                            OKAY [  5.077s]
+Finished. Total time: 5.959s
+booted at 2026-10-04T12:23:40Z; waiting for 172.16.42.1
+network up at 2026-10-04T12:23:56Z
+
+## boot state, buttond discovery, input devices, fbtouch info
+Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+18.26 136.07
+fblog=640
+buttond=646
+powerd=649
+udevd=955 954 953 951 599 597 596 593 592 591 590 589 587 585
+NetworkManager=
+ok status power=up volup=up voldown=up long_ms=1500 double_ms=300 poweroff_hold_ms=1500 poweroff=idle claims=- watchers=0
+[    9.559864,4] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[    9.562308,2] buttond: grabbed /dev/input/event0 (qpnp_pon): power voldown
+[    9.562339,2] buttond: grabbed /dev/input/event6 (gpio-keys): volup
+[    9.562416,2] buttond: ready: /run/buttond.sock, long 1500 ms, double 300 ms, power.short toggles the screen via /run/fblog.off, power held 3000 ms then released powers off
+[    9.562920,7] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
+N: Name="qpnp_pon"
+H: Handlers=event0 cpufreq 
+N: Name="NVTCapacitiveTouchScreen"
+H: Handlers=mdss_fb kgsl event1 cpufreq 
+N: Name="hbtp_vm"
+H: Handlers=mouse0 event2 cpufreq 
+N: Name="SX9310 Cap Touch top"
+H: Handlers=event3 
+N: Name="SX9310 Cap Touch bottom"
+H: Handlers=event4 
+N: Name="uinput-egis"
+H: Handlers=event5 cpufreq 
+N: Name="gpio-keys"
+H: Handlers=event6 cpufreq 
+panel: panel_name=mipi_mot_vid_tianma_nt_fhd_618
+panel: panel_supplier=tianma
+panel: panel_ver=0x00216102
+panel: msm_fb_panel_status=panel_status=alive
+panel: msm_fb_type=mipi dsi video panel
+panel: modes=U:1080x2246p-60
+panel: bits_per_pixel=32
+panel: virtual_size=1080,4492
+panel: stride=4352
+backlight: 96/255
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+633
+wlan0:wifi:disconnected
+bond0:bond:unmanaged
+dummy0:dummy:unmanaged
+
+## step 1 (first run): no tap window agreed, zero NVT-ts interrupts, so no events reached evdev
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+summary: frames=26 touch_reports=0 contacts=0
+249:          1          0          0          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+[    9.562941,7] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   34.897540,0] STEP 1/3: test pattern in 10 s, then TAP for 25 s
+[   44.914807,1] fbtouch: show: opening /dev/fb0
+[   44.914913,1] [NVT-ts] nvt_ts_resume 1660: Touch is already resume
+[   44.981034,6] fbtouch: first frame committed (1080x2246 32 bpp)
+[   44.981154,6] fbtouch: backlight 128 (readback 128)
+[   69.998430,0] fbtouch: done: frames=26 contacts=0
+[   69.998767,0] fbtouch: blanking before close
+[   69.998785,0] [NVT-ts] nvt_ts_suspend 1591: start
+[   70.050059,0] [NVT-ts] nvt_ts_suspend 1643: end
+[   70.496722,0] [NVT-ts] nvt_ts_resume 1668: start
+[   70.496725,0] [NVT-ts] nvt_bootloader_reset 409: xlixiang---enter-nvt_bootloader_reset
+[   70.536721,0] [NVT-ts] nvt_check_fw_reset_state 507: xlixiang---enter-nvt_check_fw_reset_state
+[   70.550405,0] [NVT-ts] nvt_ts_resume 1673: xlixiang---enter-nvt_ts_resume-----res=0
+[   70.550427,0] [NVT-ts] nvt_ts_resume 1690: end
+
+## step 1 retry: fbtouch show -t 25 -r, user tapping corners, stroke, three fingers (move lines omitted, count after the summary)
+rc=0
+panel: stride=4352
+backlight: 96/255
+fb: mdssfb_80000 1080x2246 (virtual 1080x4492) 32 bpp line_length=4352 smem_len=19554304
+fb: red@0/8 green@8/8 blue@16/8 transp@24/8
+fb: opened in 0.000 s
+fb: unblanked in 0.000 s
+fb: mapped 19549184 bytes
+fb: first frame committed at +0.066 s
+backlight: wrote 128, readback 128
+touch: /dev/input/event1 "NVTCapacitiveTouchScreen" MT-B x=[0..720] y=[0..1600] slots=10
+running for the requested window; touch the screen now
+touch: +1.672 slot=0 id=0 down raw=(65,8) screen=(97,11)
+touch: +1.871 slot=0 id=0 up raw=(65,8) screen=(97,11)
+touch: +2.771 slot=0 id=1 down raw=(668,24) screen=(1001,33)
+touch: +2.954 slot=0 id=1 up raw=(668,24) screen=(1001,33)
+touch: +3.804 slot=0 id=2 down raw=(660,1599) screen=(989,2243)
+touch: +4.004 slot=0 id=2 up raw=(658,1592) screen=(986,2233)
+touch: +4.838 slot=0 id=3 down raw=(56,1546) screen=(83,2169)
+touch: +5.071 slot=0 id=3 up raw=(56,1546) screen=(83,2169)
+touch: +7.172 slot=0 id=4 down raw=(333,215) screen=(499,301)
+touch: +7.988 slot=0 id=4 up raw=(297,1195) screen=(445,1676)
+touch: +8.571 slot=0 id=5 down raw=(97,342) screen=(145,479)
+touch: +8.588 slot=1 id=6 down raw=(493,261) screen=(738,366)
+touch: +8.622 slot=2 id=7 down raw=(299,223) screen=(448,312)
+touch: +9.471 slot=0 id=5 up raw=(114,1189) screen=(170,1668)
+touch: +9.471 slot=2 id=7 up raw=(295,1010) screen=(442,1417)
+touch: +9.488 slot=1 id=6 up raw=(516,1079) screen=(773,1513)
+summary: frames=71 touch_reports=101 contacts=8
+summary: touched screen area x=[83..1001] y=[11..2243], first contact +1.672 s
+fb: blanked before close
+174
+249:        155          0          0          0          0          0          0          0   msmgpio  67 Edge      NVT-ts
+
+## step 2: chefui-demo -t 40, user rapid taps, drags, multi-finger (user: felt smooth)
+rc=0
+chefui[demo]: start (pid 1672, fbdev backend, 16 ms frames, rotation 0)
+chefui[demo]: lock acquired
+chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+chefui[demo]: tap 1
+chefui[demo]: tap 2
+chefui[demo]: tap 3
+chefui[demo]: tap 4
+chefui[demo]: tap 5
+chefui[demo]: exit (code 0)
+chefui[demo]: screen released
+[  139.494060,2] STEP 2/3: chefui demo 40 s
+[  144.500675,2] chefui[demo]: start (pid 1672, fbdev backend, 16 ms frames, rotation 0)
+[  144.500896,2] chefui[demo]: lock acquired
+[  144.507222,2] chefui[demo]: touch /dev/input/event1: x 0..720 y 0..1600, 10 slots
+[  144.507264,2] chefui[demo]: fbdev 1080x2246, logical 1080x2246, screen on
+[  144.507591,2] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[  165.790330,0] chefui[demo]: tap 1
+[  166.061853,0] chefui[demo]: tap 2
+[  166.356996,1] chefui[demo]: tap 3
+[  166.640323,1] chefui[demo]: tap 4
+[  166.990277,1] chefui[demo]: tap 5
+[  184.540240,1] chefui[demo]: exit (code 0)
+[  184.860788,1] chefui[demo]: screen released
+
+## step 3: power short off, power short on (unclaimed default)
+199.25 flag=on wled=1542
+202.26 flag=off wled=0
+204.27 flag=on wled=0
+205.27 flag=on wled=1542
+ok status power=up volup=up voldown=up long_ms=1500 double_ms=300 poweroff_hold_ms=1500 poweroff=idle claims=- watchers=0
+[  106.123501,6] fblog: paused: screen borrowed (/run/fb0.lock)
+[  131.840078,7] fblog: resumed
+[  144.503516,7] fblog: paused: screen borrowed (/run/fb0.lock)
+[  144.507591,2] chefui[demo]: buttond connected (/run/buttond.sock), 3 claims
+[  185.180351,6] fblog: resumed
+[  201.792878,6] fblog: exiting: blanking before close
+[  201.793777,4] buttond: screen off: created /run/fblog.off, signalled fblog (1 process); init respawns it
+[  203.805589,0] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+[  204.264372,0] buttond: screen on: removed /run/fblog.off; fblog wakes on flag removal or next init respawn
+[  204.264457,0] fblog: /run/fblog.off removed: leaving idle
+[  204.264506,0] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[  204.441991,0] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2

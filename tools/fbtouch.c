@@ -60,8 +60,9 @@
  *                SIGTERM/SIGINT; default 30)
  *   -b LEVEL     backlight 0-255 written after the first commit (default 128)
  *   -f DEV       framebuffer (default /dev/fb0)
- *   -i DEV       input device (default: scan /dev/input/event* for the
- *                first one with ABS_MT_POSITION_X)
+ *   -i DEV       input device: exactly this node, which must have MT
+ *                X/Y axes (default: the lowest-numbered /dev/input/event*
+ *                with INPUT_PROP_DIRECT and ABS_MT_POSITION_X/Y)
  *   -c SECS      at +SECS into the run, blank (FB_BLANK_POWERDOWN) the panel
  *                for 3 s and unblank it again through the fb core, then
  *                redraw: exercises mdss_dsi_panel_off/on and the touch
@@ -69,14 +70,18 @@
  *   -r           exit 2 if no touch contact was seen ("require touch")
  *   -q           don't paint touch contacts, only log them
  *
+ * Touch is multitouch protocol B only, as the NT36525 reports it: device
+ * discovery and slot decoding (with SYN_DROPPED recovery) are the shared
+ * tools/evdev.h; there is no single-touch BTN_TOUCH/ABS_X/ABS_Y fallback.
+ *
  * Output is one line per event on stdout (line-buffered) plus "fbtouch:"
  * markers on /dev/kmsg so the run can be correlated with dmesg. The pure
- * parts (pixel packing, the multitouch slot decoder, the test pattern) are
- * separated from the syscalls and covered by tools/tests/test_fbtouch.c,
- * which includes this file with FBTOUCH_NO_MAIN defined.
+ * parts (pixel packing, the down/move/up tracker over evdev.h's frames,
+ * the test pattern) are separated from the syscalls and covered by
+ * tools/tests/test_fbtouch.c, which includes this file with
+ * FBTOUCH_NO_MAIN defined.
  */
 #define _GNU_SOURCE
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -95,6 +100,7 @@
 
 #include <linux/input.h>
 
+#include "evdev.h"
 #include "fbdev.h"
 
 #define BL_PATH "/sys/class/leds/lcd-backlight/brightness"
@@ -178,22 +184,10 @@ static void draw_pattern(struct surface *s)
 
 /* ----------------------------------------------------- multitouch decode */
 
-#define MT_MAX_SLOTS 16
+/* A slot can end one contact and start another in the same frame. */
+#define MT_MAX_EVENTS (2 * EVDEV_MT_SLOTS)
 
 enum mt_action { MT_NONE = 0, MT_DOWN, MT_MOVE, MT_UP };
-
-struct mt_slot {
-	int id;			/* tracking id, -1 = no contact */
-	int x, y;
-	bool dirty;		/* something changed since the last SYN_REPORT */
-};
-
-struct mt_state {
-	struct mt_slot slot[MT_MAX_SLOTS];
-	int cur;		/* current slot (ABS_MT_SLOT) */
-	bool mt;		/* device speaks MT protocol B */
-	bool btn_touch;		/* single-touch fallback: BTN_TOUCH state */
-};
 
 struct mt_event {
 	int slot;
@@ -201,144 +195,65 @@ struct mt_event {
 	int id, x, y;
 };
 
-static void mt_init(struct mt_state *st, bool mt)
+/*
+ * evdev.h's MT-B decoder plus the previous frame: each complete frame is
+ * diffed against it, slot by slot, into DOWN (a tracking id appeared),
+ * MOVE (same id, new position) and UP (the id went away; it carries the
+ * lifted id and the slot's last position). A SYN_REPORT that changed
+ * nothing emits nothing.
+ */
+struct mt_tracker {
+	struct evdev_mt mt;
+	struct evdev_slot prev[EVDEV_MT_SLOTS];
+	int fd;			/* for the SYN_DROPPED resync; -1 = none */
+};
+
+/* With fd >= 0, read the device's slot count and the contacts already
+ * down; those are reported as DOWN with the first frame. */
+static void mt_tracker_init(struct mt_tracker *t, int fd)
 {
 	int i;
 
-	memset(st, 0, sizeof(*st));
-	st->mt = mt;
-	for (i = 0; i < MT_MAX_SLOTS; i++)
-		st->slot[i].id = -1;
+	evdev_mt_init(&t->mt);
+	for (i = 0; i < EVDEV_MT_SLOTS; i++)
+		t->prev[i] = t->mt.slots[i];
+	t->fd = fd;
+	if (fd >= 0) {
+		(void)evdev_mt_setup(&t->mt, fd);
+		(void)evdev_mt_resync(&t->mt, fd);
+	}
 }
 
-/*
- * Feed one evdev event. Returns the number of contact events written to
- * out (at most MT_MAX_SLOTS, only ever on SYN_REPORT). For MT-B devices
- * (the NT36xxx driver) a contact begins when a slot's tracking id goes
- * from -1 to >= 0 and ends when it returns to -1. For legacy single-touch
- * devices, BTN_TOUCH + ABS_X/ABS_Y drive slot 0 instead.
- */
-static int mt_feed(struct mt_state *st, const struct input_event *ev,
-		   struct mt_event *out)
+static void mt_put(struct mt_event *out, int *n, int slot, enum mt_action a,
+		   const struct evdev_slot *s, int32_t id)
 {
-	struct mt_slot *s;
-	int n = 0, i;
-
-	if (ev->type == EV_ABS) {
-		switch (ev->code) {
-		case ABS_MT_SLOT:
-			if (ev->value >= 0 && ev->value < MT_MAX_SLOTS)
-				st->cur = ev->value;
-			return 0;
-		case ABS_MT_TRACKING_ID:
-			s = &st->slot[st->cur];
-			if (s->id != ev->value) {
-				s->dirty = true;
-				/* new contact: remember the id, positions follow */
-				if (ev->value < 0)
-					s->id = -2; /* pending UP, see SYN */
-				else
-					s->id = ev->value;
-			}
-			return 0;
-		case ABS_MT_POSITION_X:
-			s = &st->slot[st->cur];
-			if (s->x != ev->value) {
-				s->x = ev->value;
-				s->dirty = true;
-			}
-			return 0;
-		case ABS_MT_POSITION_Y:
-			s = &st->slot[st->cur];
-			if (s->y != ev->value) {
-				s->y = ev->value;
-				s->dirty = true;
-			}
-			return 0;
-		case ABS_X:
-			if (st->mt)
-				return 0;
-			if (st->slot[0].x != ev->value) {
-				st->slot[0].x = ev->value;
-				st->slot[0].dirty = true;
-			}
-			return 0;
-		case ABS_Y:
-			if (st->mt)
-				return 0;
-			if (st->slot[0].y != ev->value) {
-				st->slot[0].y = ev->value;
-				st->slot[0].dirty = true;
-			}
-			return 0;
-		default:
-			return 0;
-		}
-	}
-	if (ev->type == EV_KEY && ev->code == BTN_TOUCH && !st->mt) {
-		bool down = ev->value != 0;
-		if (down != st->btn_touch) {
-			st->btn_touch = down;
-			st->slot[0].dirty = true;
-			st->slot[0].id = down ? 0 : -2;
-		}
-		return 0;
-	}
-	if (ev->type != EV_SYN || ev->code != SYN_REPORT)
-		return 0;
-
-	for (i = 0; i < MT_MAX_SLOTS; i++) {
-		s = &st->slot[i];
-		if (!s->dirty)
-			continue;
-		s->dirty = false;
-		if (s->id == -2) {
-			s->id = -1;
-			out[n].action = MT_UP;
-		} else if (s->id < 0) {
-			continue; /* position noise on an empty slot */
-		} else {
-			/* the tracker turns a slot's first live report into DOWN */
-			out[n].action = MT_MOVE;
-		}
-		out[n].slot = i;
-		out[n].id = s->id;
-		out[n].x = s->x;
-		out[n].y = s->y;
-		n++;
-	}
-	return n;
+	out[*n].slot = slot;
+	out[*n].action = a;
+	out[*n].id = id;
+	out[*n].x = s->x;
+	out[*n].y = s->y;
+	(*n)++;
 }
 
-/*
- * mt_feed() reports live slots as MOVE and ended ones as UP; the tracker
- * layers "has this slot reported since it became live" on top so a slot's
- * first live report becomes DOWN.
- */
-struct mt_tracker {
-	struct mt_state st;
-	bool seen[MT_MAX_SLOTS];
-};
-
-static void mt_tracker_init(struct mt_tracker *t, bool mt)
-{
-	mt_init(&t->st, mt);
-	memset(t->seen, 0, sizeof(t->seen));
-}
-
+/* Feed one evdev event. Returns the number of contact events written to
+ * out (at most MT_MAX_EVENTS, only when a frame completes). */
 static int mt_tracker_feed(struct mt_tracker *t, const struct input_event *ev,
 			   struct mt_event *out)
 {
-	int n = mt_feed(&t->st, ev, out), i;
+	int n = 0, i;
 
-	for (i = 0; i < n; i++) {
-		struct mt_event *e = &out[i];
-		if (e->action == MT_UP) {
-			t->seen[e->slot] = false;
-		} else if (!t->seen[e->slot]) {
-			t->seen[e->slot] = true;
-			e->action = MT_DOWN;
-		}
+	if (!evdev_mt_feed(&t->mt, t->fd, ev))
+		return 0;
+	for (i = 0; i < EVDEV_MT_SLOTS; i++) {
+		const struct evdev_slot *s = &t->mt.slots[i], *p = &t->prev[i];
+
+		if (p->id >= 0 && s->id != p->id)
+			mt_put(out, &n, i, MT_UP, s, p->id);
+		if (s->id >= 0 && s->id != p->id)
+			mt_put(out, &n, i, MT_DOWN, s, s->id);
+		else if (s->id >= 0 && (s->x != p->x || s->y != p->y))
+			mt_put(out, &n, i, MT_MOVE, s, s->id);
+		t->prev[i] = *s;
 	}
 	return n;
 }
@@ -451,101 +366,62 @@ struct touch_dev {
 	int fd;
 	char path[300];
 	char name[80];
-	bool mt;
-	struct input_absinfo ax, ay;	/* ABS_MT_POSITION_X/Y or ABS_X/Y */
-	int slots;
+	struct input_absinfo ax, ay;	/* ABS_MT_POSITION_X/Y */
+	int slots;			/* ABS_MT_SLOT maximum + 1; 0 = none */
 };
 
-static bool has_bit(const unsigned long *bits, unsigned int bit)
+/* Take over fd if it has MT X/Y axes; 0 or -ENODEV (fd left open). */
+static int touch_setup(struct touch_dev *td, int fd, const char *path)
 {
-	return (bits[bit / (8 * sizeof(long))] >> (bit % (8 * sizeof(long)))) & 1;
-}
+	EVDEV_BITMAP(absbits, ABS_MAX);
+	struct input_absinfo slot;
 
-static int touch_open_one(struct touch_dev *td, const char *path)
-{
-	unsigned long absbits[(ABS_MAX + 8 * sizeof(long)) / (8 * sizeof(long))];
-	int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-
-	if (fd < 0)
-		return -errno;
 	memset(absbits, 0, sizeof(absbits));
-	if (ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absbits)), absbits) < 0) {
-		close(fd);
-		return -ENOTTY;
-	}
+	if (ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absbits)), absbits) < 0 ||
+	    !evdev_bit(absbits, ABS_MT_POSITION_X) || !evdev_bit(absbits, ABS_MT_POSITION_Y))
+		return -ENODEV;
 	memset(td, 0, sizeof(*td));
 	td->fd = fd;
 	snprintf(td->path, sizeof(td->path), "%s", path);
 	if (ioctl(fd, EVIOCGNAME(sizeof(td->name)), td->name) < 0)
 		snprintf(td->name, sizeof(td->name), "?");
-	if (has_bit(absbits, ABS_MT_POSITION_X) && has_bit(absbits, ABS_MT_POSITION_Y)) {
-		struct input_absinfo slot;
-		td->mt = true;
-		ioctl(fd, EVIOCGABS(ABS_MT_POSITION_X), &td->ax);
-		ioctl(fd, EVIOCGABS(ABS_MT_POSITION_Y), &td->ay);
-		if (has_bit(absbits, ABS_MT_SLOT) && ioctl(fd, EVIOCGABS(ABS_MT_SLOT), &slot) == 0)
-			td->slots = slot.maximum + 1;
-		return 0;
-	}
-	if (has_bit(absbits, ABS_X) && has_bit(absbits, ABS_Y)) {
-		ioctl(fd, EVIOCGABS(ABS_X), &td->ax);
-		ioctl(fd, EVIOCGABS(ABS_Y), &td->ay);
-		return 0;
-	}
-	close(fd);
-	return -ENODEV;
+	ioctl(fd, EVIOCGABS(ABS_MT_POSITION_X), &td->ax);
+	ioctl(fd, EVIOCGABS(ABS_MT_POSITION_Y), &td->ay);
+	if (evdev_bit(absbits, ABS_MT_SLOT) && ioctl(fd, EVIOCGABS(ABS_MT_SLOT), &slot) == 0)
+		td->slots = slot.maximum + 1;
+	return 0;
 }
 
-/* Find the first MT (or, failing that, single-touch ABS) input device. */
+/* evdev_scan() callback: keep the first touchscreen, stop there. */
+static int touch_scan_one(int fd, const char *path, void *ctx)
+{
+	if (fd < 0 || !evdev_is_touchscreen(fd) || touch_setup(ctx, fd, path))
+		return EVDEV_SCAN_REJECT;
+	return EVDEV_SCAN_KEEP_STOP;
+}
+
+/* Open explicit (any MT device), or else the lowest-numbered touchscreen. */
 static int touch_open(struct touch_dev *td, const char *explicit)
 {
-	struct dirent *de;
-	DIR *d;
-	int best = -ENODEV;
-	struct touch_dev cand, st_fallback;
-	bool have_st = false;
+	int fd, rc;
 
-	if (explicit)
-		return touch_open_one(td, explicit);
-	d = opendir("/dev/input");
-	if (!d)
-		return -errno;
-	while ((de = readdir(d))) {
-		char path[sizeof(cand.path)];
-		if (strncmp(de->d_name, "event", 5))
-			continue;
-		snprintf(path, sizeof(path), "/dev/input/%s", de->d_name);
-		if (touch_open_one(&cand, path))
-			continue;
-		if (cand.mt) {
-			*td = cand;
-			best = 0;
-			break;
-		}
-		if (!have_st) {
-			st_fallback = cand;
-			have_st = true;
-		} else {
-			close(cand.fd);
-		}
+	if (explicit) {
+		fd = open(explicit, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (fd < 0)
+			return -errno;
+		rc = touch_setup(td, fd, explicit);
+		if (rc)
+			close(fd);
+		return rc;
 	}
-	closedir(d);
-	if (best == 0) {
-		if (have_st)
-			close(st_fallback.fd);
-		return 0;
-	}
-	if (have_st) {
-		*td = st_fallback;
-		return 0;
-	}
-	return best;
+	rc = evdev_scan("/dev/input", touch_scan_one, td);
+	return rc < 0 ? rc : rc == 0 ? -ENODEV : 0;
 }
 
 static void touch_print(const struct touch_dev *td)
 {
-	printf("touch: %s \"%s\" %s x=[%d..%d] y=[%d..%d] slots=%d\n",
-	       td->path, td->name, td->mt ? "MT-B" : "single-touch",
+	printf("touch: %s \"%s\" MT-B x=[%d..%d] y=[%d..%d] slots=%d\n",
+	       td->path, td->name,
 	       td->ax.minimum, td->ax.maximum, td->ay.minimum, td->ay.maximum,
 	       td->slots);
 }
@@ -624,7 +500,7 @@ static void print_panel_sysfs(void)
  * this command as evidence that the physical controller is awake/healthy. */
 static int cmd_input_info(const char *path)
 {
-	unsigned long bits[(ABS_MAX + 8 * sizeof(long)) / (8 * sizeof(long))] = {0};
+	EVDEV_BITMAP(bits, ABS_MAX) = {0};
 	int fd, rc = 0;
 	unsigned int axis;
 
@@ -644,7 +520,7 @@ static int cmd_input_info(const char *path)
 	} else {
 		for (axis = 0; axis <= ABS_MAX; axis++) {
 			struct input_absinfo abs;
-			if (!has_bit(bits, axis))
+			if (!evdev_bit(bits, axis))
 				continue;
 			if (ioctl(fd, EVIOCGABS(axis), &abs) < 0) {
 				fprintf(stderr, "ABS 0x%02x: unavailable: %s\n", axis, strerror(errno));
@@ -736,7 +612,7 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 	struct fbdev fb;
 	struct touch_dev td;
 	struct mt_tracker trk;
-	struct mt_event evs[MT_MAX_SLOTS];
+	struct mt_event evs[MT_MAX_EVENTS];
 	bool have_touch;
 	unsigned long contacts = 0, reports = 0, frames = 0;
 	int xmin = INT32_MAX, xmax = INT32_MIN, ymin = INT32_MAX, ymax = INT32_MIN;
@@ -804,7 +680,7 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 		printf("touch: no touch input device found (%s)\n", strerror(-rc));
 	else {
 		touch_print(&td);
-		mt_tracker_init(&trk, td.mt);
+		mt_tracker_init(&trk, td.fd);
 	}
 
 	t_end = secs > 0 ? now_s() + secs : 0;
@@ -903,6 +779,8 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 	if (contacts)
 		printf("summary: touched screen area x=[%d..%d] y=[%d..%d], first contact +%.3f s\n",
 		       xmin, xmax, ymin, ymax, t_touch_first);
+	if (have_touch && trk.mt.drops)
+		printf("summary: SYN_DROPPED %lu, resynced %lu\n", trk.mt.drops, trk.mt.resyncs);
 	kmsg("done: frames=%lu contacts=%lu", frames, contacts);
 	if (have_touch)
 		close(td.fd);

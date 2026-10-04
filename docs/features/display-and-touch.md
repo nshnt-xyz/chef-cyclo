@@ -4,7 +4,7 @@
 
 ## Current behavior and source
 
-Display/touch and `fblog` handoff were live-verified on 2026-09-18. `tools/fbdev.h` owns the shared framebuffer contract; `tools/fbtouch.c` is the reference foreground client; `tools/fblog/fblog.c` is the background log viewer. The generated `font9x15.h` uses the public-domain X11 misc-fixed font and can be regenerated with `tools/fblog/mkfont.py`.
+Display/touch and `fblog` handoff were live-verified on 2026-09-18. `tools/fbdev.h` owns the shared framebuffer contract and `tools/evdev.h` the shared evdev discovery and multitouch slot decoding; `tools/fbtouch.c` is the reference foreground client; `tools/fblog/fblog.c` is the background log viewer. The generated `font9x15.h` uses the public-domain X11 misc-fixed font and can be regenerated with `tools/fblog/mkfont.py`.
 
 The image starts `fblog` from inittab. It displays userspace `/dev/kmsg` messages and kernel errors (`KERN_ERR` or worse), newest at the bottom, with kernel release, uptime, and battery percentage. It opens no input devices and does not respond to touch.
 
@@ -81,13 +81,20 @@ through these generic attributes, so no framebuffer ioctl is attempted.
 
 Boot coldplugs only network devices, for NetworkManager (`/run/udev-ready`); input
 devices are not coldplugged and carry no udev classification. Nothing on the phone
-needs it: chefui, `fbtouch` and `buttond` read evdev directly and pick devices by
-capabilities (chefui takes the touchscreen by `INPUT_PROP_DIRECT` plus MT axes,
-`fbtouch` the first device with `ABS_MT_POSITION_X`, `buttond` the devices with
-power/volume keys and no ABS axes). libinput was removed from the rootfs on
-2026-10-04. Select the event node by the inventory identity/capabilities; event
-numbers can change. For live touch checks, use `fbtouch show` (above) or
-`chefui-demo` ([UI platform](ui-platform.md)).
+needs it: chefui, `fbtouch` and `buttond` read evdev directly through
+`tools/evdev.h`, which visits `/dev/input/event*` in numeric order (event2 before
+event10) and classifies by capabilities. chefui and `fbtouch` take the
+lowest-numbered touchscreen (`INPUT_PROP_DIRECT` plus `ABS_MT_POSITION_X/Y`;
+`fbtouch -i DEV` opens exactly that node, which only needs the MT axes), and
+`buttond` every device with power/volume keys and no ABS axes. Touch is multitouch
+protocol B only: `fbtouch`'s single-touch `BTN_TOUCH`/`ABS_X`/`ABS_Y` fallback was
+dropped (the only panel is MT-B), and `fbtouch show` now recovers from
+`SYN_DROPPED` like chefui (discard to the next `SYN_REPORT`, resync with
+`EVIOCGMTSLOTS`, release every contact if that fails; its summary then reports the
+drop count). libinput was removed from the rootfs on 2026-10-04. Select the event
+node by the inventory identity/capabilities; event numbers can change. For live
+touch checks, use `fbtouch show` (above) or `chefui-demo` ([UI
+platform](ui-platform.md)).
 
 Host checks: `make -C tools test-display-inventory` exercises saved metadata
 fixtures with hazardous paths represented by FIFOs, and mocks the actual ABS
@@ -131,6 +138,6 @@ written before the first screen-on frame.
 
 ## Modify and verify
 
-Use `fbdev.h` for new clients and preserve its locking, commit, and blank-before-close rules. Run `make -C tools test`; `tools/tests/test_fbtouch.c` covers packing, patterns, multitouch, and coordinate mapping, and `test_fblog.c` covers parsing, rendering, and handoff behavior. Rebuild the initramfs and boot image.
+Use `fbdev.h` for new clients and preserve its locking, commit, and blank-before-close rules; use `evdev.h` for input discovery and MT-B decoding. Run `make -C tools test`; `tools/tests/test_evdev.c` covers numeric scan order, the classifiers and the slot decoder including `SYN_DROPPED` resync, `tools/tests/test_fbtouch.c` covers packing, patterns, down/move/up tracking, and coordinate mapping, and `test_fblog.c` covers parsing, rendering, and handoff behavior. Rebuild the initramfs and boot image.
 
 Live checks: initial boot display, foreground borrow/return, client death, blank/unblank and reopen, brightness, then touches in all corners, a stroke, and three fingers. Check for panel-dead or I2C faults. The [2026-09-18 build-log entries](../build-log.md) retain evidence and expected diagnostic distinctions. The [UI plan](../next-steps/ui-and-ride-app.md) covers the future display stack.

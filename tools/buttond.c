@@ -66,8 +66,9 @@
  *
  * Usage: buttond [-i DEV]... [-l LONG_MS] [-d DOUBLE_MS] [-p HOLD_MS]
  *                [-S SOCK] [-o OFF_FILE] [-V VIB] [-G] [-v]
- *   -i  evdev device to use (repeatable; default: every /dev/input/event*
- *       that reports KEY_POWER/KEY_VOLUMEUP/KEY_VOLUMEDOWN and no ABS axes)
+ *   -i  evdev device to use (repeatable; default: every /dev/input/event*,
+ *       in numeric order, that reports KEY_POWER/KEY_VOLUMEUP/KEY_VOLUMEDOWN
+ *       and no ABS axes: tools/evdev.h's evdev_scan + evdev_key_mask)
  *   -l  long-hold threshold in ms (default 1500)
  *   -d  double-tap window in ms (default 300)
  *   -p  extra hold after power.long before a release powers off
@@ -107,6 +108,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <linux/input.h>
+
+#include "evdev.h"
 
 #define BUTTOND_SOCK_PATH  "/run/buttond.sock"
 #define BUTTOND_OFF_PATH   "/run/fblog.off"
@@ -863,11 +866,6 @@ static int64_t now_ms(void)
 	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-static bool has_bit(const unsigned long *bits, unsigned int bit)
-{
-	return (bits[bit / (8 * sizeof(long))] >> (bit % (8 * sizeof(long)))) & 1;
-}
-
 struct keydev {
 	int fd;
 	char path[64];
@@ -875,51 +873,43 @@ struct keydev {
 	unsigned buttons;	/* bit per enum button */
 };
 
+/* Key code per enum button, for evdev_key_mask(). */
+static const unsigned short button_codes[BTN_COUNT] = { KEY_POWER, KEY_VOLUMEUP, KEY_VOLUMEDOWN };
+
 /*
- * Open one evdev node and keep it only if it has at least one of our keys
- * and no absolute axes (the touch panel also reports EV_KEY for BTN_TOUCH
- * and must stay available to fbtouch/the UI). Returns 0, -ENODEV for a
- * device we do not want, or -errno.
+ * Take over an open evdev fd only if it has at least one of our keys and
+ * no absolute axes (the touch panel also reports EV_KEY for BTN_TOUCH and
+ * must stay available to fbtouch/the UI). Returns 0, -ENODEV for a device
+ * we do not want, or -errno; on failure the caller closes fd.
  */
-static int keydev_open(struct keydev *kd, const char *path, bool grab)
+static int keydev_setup(struct keydev *kd, int fd, const char *path, bool grab)
 {
-	unsigned long evbits[(EV_MAX + 8 * sizeof(long)) / (8 * sizeof(long))];
-	unsigned long keybits[(KEY_MAX + 8 * sizeof(long)) / (8 * sizeof(long))];
-	int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-	int b;
+	unsigned buttons = evdev_key_mask(fd, button_codes, BTN_COUNT);
 
-	if (fd < 0)
+	if (!buttons)
+		return -ENODEV;
+	if (grab && ioctl(fd, EVIOCGRAB, (void *)1) < 0)
 		return -errno;
-	memset(evbits, 0, sizeof(evbits));
-	memset(keybits, 0, sizeof(keybits));
-	if (ioctl(fd, EVIOCGBIT(0, sizeof(evbits)), evbits) < 0 ||
-	    !has_bit(evbits, EV_KEY) || has_bit(evbits, EV_ABS) ||
-	    ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits) < 0) {
-		close(fd);
-		return -ENODEV;
-	}
 	memset(kd, 0, sizeof(*kd));
-	for (b = 0; b < BTN_COUNT; b++) {
-		unsigned code = b == BTN_POWER ? KEY_POWER : b == BTN_VOLUP ? KEY_VOLUMEUP : KEY_VOLUMEDOWN;
-
-		if (has_bit(keybits, code))
-			kd->buttons |= 1u << b;
-	}
-	if (!kd->buttons) {
-		close(fd);
-		return -ENODEV;
-	}
-	if (grab && ioctl(fd, EVIOCGRAB, (void *)1) < 0) {
-		int err = errno;
-
-		close(fd);
-		return -err;
-	}
 	kd->fd = fd;
+	kd->buttons = buttons;
 	snprintf(kd->path, sizeof(kd->path), "%s", path);
 	if (ioctl(fd, EVIOCGNAME(sizeof(kd->name)), kd->name) < 0)
 		snprintf(kd->name, sizeof(kd->name), "?");
 	return 0;
+}
+
+/* Open one evdev node and keep it as keydev_setup() decides. */
+static int keydev_open(struct keydev *kd, const char *path, bool grab)
+{
+	int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC), rc;
+
+	if (fd < 0)
+		return -errno;
+	rc = keydev_setup(kd, fd, path, grab);
+	if (rc)
+		close(fd);
+	return rc;
 }
 
 static void keydev_describe(const struct keydev *kd, char *buf, size_t len)
@@ -933,29 +923,34 @@ static void keydev_describe(const struct keydev *kd, char *buf, size_t len)
 			off += (size_t)snprintf(buf + off, len - off, " %s", button_names[b]);
 }
 
+struct keydev_scan_ctx {
+	struct keydev *kds;
+	int max, n;
+	bool grab;
+};
+
+/* evdev_scan() callback: keep every button device, up to max. fd < 0 is
+ * a node that did not open (-errno). */
+static int keydev_scan_one(int fd, const char *path, void *arg)
+{
+	struct keydev_scan_ctx *c = arg;
+	int rc = fd < 0 ? fd : keydev_setup(&c->kds[c->n], fd, path, c->grab);
+
+	if (rc) {
+		if (rc != -ENODEV)
+			kmsg_note("%s: %s (skipped)", path, strerror(-rc));
+		return EVDEV_SCAN_REJECT;
+	}
+	return ++c->n < c->max ? EVDEV_SCAN_KEEP : EVDEV_SCAN_KEEP_STOP;
+}
+
 static int keydev_scan(struct keydev *kds, int max, bool grab)
 {
-	DIR *d = opendir("/dev/input");
-	struct dirent *de;
-	int n = 0;
+	struct keydev_scan_ctx c = { kds, max, 0, grab };
 
-	if (!d)
-		return -errno;
-	while ((de = readdir(d)) && n < max) {
-		char path[80];
-		int rc;
-
-		if (strncmp(de->d_name, "event", 5) || strlen(de->d_name) > 16)
-			continue;
-		snprintf(path, sizeof(path), "/dev/input/%.16s", de->d_name);
-		rc = keydev_open(&kds[n], path, grab);
-		if (rc == 0)
-			n++;
-		else if (rc != -ENODEV)
-			kmsg_note("%s: %s (skipped)", path, strerror(-rc));
-	}
-	closedir(d);
-	return n;
+	if (max <= 0)
+		return 0;
+	return evdev_scan("/dev/input", keydev_scan_one, &c);
 }
 
 static int sock_listen(const char *path)

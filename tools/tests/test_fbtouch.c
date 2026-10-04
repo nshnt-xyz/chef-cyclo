@@ -1,9 +1,11 @@
 /* Host unit tests for the pure parts of tools/fbtouch.c: pixel packing
- * against the MDSS fb0 bitfield layout, the test pattern, the multitouch
- * slot decoder (MT protocol B as the NT36xxx driver emits it, plus the
- * single-touch fallback) and the ABS-to-screen mapping. No framebuffer,
- * no evdev -- fbtouch.c is included with FBTOUCH_NO_MAIN so main() and
- * the syscall-level code are compiled out.
+ * against the MDSS fb0 bitfield layout, the test pattern, the down/move/up
+ * tracker over evdev.h's MT-B frames (as the NT36xxx driver emits them,
+ * including SYN_DROPPED recovery) and the ABS-to-screen mapping. No
+ * framebuffer, no evdev -- fbtouch.c is included with FBTOUCH_NO_MAIN so
+ * main() and the syscall-level code are compiled out; the tracker has no
+ * fd, so a resync after SYN_DROPPED fails and releases every contact
+ * (a successful resync is covered by tests/test_evdev.c).
  * Build/run: see tools/Makefile ("make test").
  */
 #include <stdio.h>
@@ -192,11 +194,11 @@ static struct input_event mkev(uint16_t type, uint16_t code, int32_t value)
 static void test_mt_b_single_contact(void)
 {
 	struct mt_tracker t;
-	struct mt_event out[MT_MAX_SLOTS];
+	struct mt_event out[MT_MAX_EVENTS];
 	struct input_event e;
 	int n;
 
-	mt_tracker_init(&t, true);
+	mt_tracker_init(&t, -1);
 	/* the NT36xxx driver's report order: slot, id, x, y, major, pressure, BTN_TOUCH, SYN */
 	e = mkev(EV_ABS, ABS_MT_SLOT, 0);          CHECK(FEED(&t, e) == 0);
 	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 0);   CHECK(FEED(&t, e) == 0);
@@ -228,7 +230,8 @@ static void test_mt_b_single_contact(void)
 	e = mkev(EV_SYN, SYN_REPORT, 0);
 	n = FEED(&t, e);
 	CHECK(n == 1);
-	CHECK(out[0].action == MT_UP && out[0].slot == 0);
+	CHECK(out[0].action == MT_UP && out[0].slot == 0 && out[0].id == 0);
+	CHECK(out[0].x == 510 && out[0].y == 1200);	/* last position kept */
 
 	/* a second contact in the same slot is a fresh DOWN */
 	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 3);   FEED(&t, e);
@@ -241,11 +244,11 @@ static void test_mt_b_single_contact(void)
 static void test_mt_b_two_fingers(void)
 {
 	struct mt_tracker t;
-	struct mt_event out[MT_MAX_SLOTS];
+	struct mt_event out[MT_MAX_EVENTS];
 	struct input_event e;
 	int n;
 
-	mt_tracker_init(&t, true);
+	mt_tracker_init(&t, -1);
 	e = mkev(EV_ABS, ABS_MT_SLOT, 0);          FEED(&t, e);
 	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 0);   FEED(&t, e);
 	e = mkev(EV_ABS, ABS_MT_POSITION_X, 10);   FEED(&t, e);
@@ -278,20 +281,26 @@ static void test_mt_b_two_fingers(void)
 static void test_mt_b_ignores_noise_and_bad_slots(void)
 {
 	struct mt_tracker t;
-	struct mt_event out[MT_MAX_SLOTS];
+	struct mt_event out[MT_MAX_EVENTS];
 	struct input_event e;
 
-	mt_tracker_init(&t, true);
+	mt_tracker_init(&t, -1);
 	/* position updates on an empty slot are not contacts */
 	e = mkev(EV_ABS, ABS_MT_POSITION_X, 5);    FEED(&t, e);
 	e = mkev(EV_SYN, SYN_REPORT, 0);
 	CHECK(FEED(&t, e) == 0);
-	/* an out-of-range slot index is ignored, current slot stays 0 */
-	e = mkev(EV_ABS, ABS_MT_SLOT, MT_MAX_SLOTS + 5); FEED(&t, e);
-	CHECK(t.st.cur == 0);
+	/* events for an out-of-range slot index are ignored until a valid
+	 * ABS_MT_SLOT */
+	e = mkev(EV_ABS, ABS_MT_SLOT, EVDEV_MT_SLOTS + 5); FEED(&t, e);
+	CHECK(t.mt.cur == -1);
+	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 4);   FEED(&t, e);
+	e = mkev(EV_SYN, SYN_REPORT, 0);
+	CHECK(FEED(&t, e) == 0);
 	e = mkev(EV_ABS, ABS_MT_SLOT, -1);         FEED(&t, e);
-	CHECK(t.st.cur == 0);
-	/* on an MT device the single-touch ABS_X/BTN_TOUCH mirror is ignored */
+	CHECK(t.mt.cur == -1);
+	e = mkev(EV_ABS, ABS_MT_SLOT, 0);          FEED(&t, e);
+	CHECK(t.mt.cur == 0);
+	/* the single-touch ABS_X/BTN_TOUCH mirror is ignored */
 	e = mkev(EV_ABS, ABS_X, 77);               FEED(&t, e);
 	e = mkev(EV_KEY, BTN_TOUCH, 1);            FEED(&t, e);
 	e = mkev(EV_SYN, SYN_REPORT, 0);
@@ -301,29 +310,67 @@ static void test_mt_b_ignores_noise_and_bad_slots(void)
 	e = mkev(EV_SYN, SYN_MT_REPORT, 0);        CHECK(FEED(&t, e) == 0);
 }
 
-static void test_single_touch_fallback(void)
+static void test_mt_b_slot_reuse(void)
 {
 	struct mt_tracker t;
-	struct mt_event out[MT_MAX_SLOTS];
+	struct mt_event out[MT_MAX_EVENTS];
 	struct input_event e;
 	int n;
 
-	mt_tracker_init(&t, false);
-	e = mkev(EV_ABS, ABS_X, 300);              FEED(&t, e);
-	e = mkev(EV_ABS, ABS_Y, 400);              FEED(&t, e);
-	e = mkev(EV_KEY, BTN_TOUCH, 1);            FEED(&t, e);
+	mt_tracker_init(&t, -1);
+	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 5);   FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_POSITION_X, 100);  FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_POSITION_Y, 200);  FEED(&t, e);
+	e = mkev(EV_SYN, SYN_REPORT, 0);
+	CHECK(FEED(&t, e) == 1 && out[0].action == MT_DOWN);
+	/* one contact ends and the next starts in the same slot and frame */
+	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 6);   FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_POSITION_X, 300);  FEED(&t, e);
 	e = mkev(EV_SYN, SYN_REPORT, 0);
 	n = FEED(&t, e);
-	CHECK(n == 1 && out[0].action == MT_DOWN && out[0].slot == 0);
-	CHECK(out[0].x == 300 && out[0].y == 400);
-	e = mkev(EV_ABS, ABS_Y, 410);              FEED(&t, e);
+	CHECK(n == 2);
+	CHECK(out[0].action == MT_UP && out[0].id == 5);
+	CHECK(out[1].action == MT_DOWN && out[1].id == 6 && out[1].x == 300 && out[1].y == 200);
+}
+
+static void test_mt_b_syn_dropped(void)
+{
+	struct mt_tracker t;
+	struct mt_event out[MT_MAX_EVENTS];
+	struct input_event e;
+	int n;
+
+	mt_tracker_init(&t, -1);
+	e = mkev(EV_ABS, ABS_MT_SLOT, 0);          FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 1);   FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_POSITION_X, 40);   FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_POSITION_Y, 50);   FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_SLOT, 1);          FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 2);   FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_POSITION_X, 60);   FEED(&t, e);
+	e = mkev(EV_SYN, SYN_REPORT, 0);
+	CHECK(FEED(&t, e) == 2);
+
+	/* the kernel buffer overflowed: everything up to the next
+	 * SYN_REPORT is discarded, including that partial new contact */
+	e = mkev(EV_SYN, SYN_DROPPED, 0);          CHECK(FEED(&t, e) == 0);
+	e = mkev(EV_ABS, ABS_MT_SLOT, 2);          CHECK(FEED(&t, e) == 0);
+	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 9);   CHECK(FEED(&t, e) == 0);
+	e = mkev(EV_ABS, ABS_MT_POSITION_X, 999);  CHECK(FEED(&t, e) == 0);
+	/* no fd to resync from: both contacts are released, none invented */
 	e = mkev(EV_SYN, SYN_REPORT, 0);
 	n = FEED(&t, e);
-	CHECK(n == 1 && out[0].action == MT_MOVE && out[0].y == 410);
-	e = mkev(EV_KEY, BTN_TOUCH, 0);            FEED(&t, e);
+	CHECK(n == 2 && t.mt.drops == 1 && t.mt.resyncs == 0);
+	CHECK(out[0].action == MT_UP && out[0].slot == 0 && out[0].id == 1);
+	CHECK(out[1].action == MT_UP && out[1].slot == 1 && out[1].id == 2);
+	CHECK(out[0].x == 40 && out[0].y == 50);
+
+	/* decoding resumes normally afterwards */
+	e = mkev(EV_ABS, ABS_MT_SLOT, 0);          FEED(&t, e);
+	e = mkev(EV_ABS, ABS_MT_TRACKING_ID, 3);   FEED(&t, e);
 	e = mkev(EV_SYN, SYN_REPORT, 0);
 	n = FEED(&t, e);
-	CHECK(n == 1 && out[0].action == MT_UP);
+	CHECK(n == 1 && out[0].action == MT_DOWN && out[0].id == 3 && out[0].x == 40);
 }
 
 /* ---- coordinate mapping ---- */
@@ -354,7 +401,8 @@ int main(void)
 	test_mt_b_single_contact();
 	test_mt_b_two_fingers();
 	test_mt_b_ignores_noise_and_bad_slots();
-	test_single_touch_fallback();
+	test_mt_b_slot_reuse();
+	test_mt_b_syn_dropped();
 	test_abs_to_screen();
 	printf("test-fbtouch: %d/%d checks passed\n", g_tests - g_failures, g_tests);
 	return g_failures ? 1 : 0;

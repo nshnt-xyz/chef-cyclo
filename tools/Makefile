@@ -39,7 +39,7 @@ ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker buttond powerd wavtone tas2560-send-cal \
        afe-topology-cal tert-tx-hold wifi-psk
 VENDOR_OBJ := qmi.o logging.o
-TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-fbtouch tests/test-fblog \
+TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-evdev tests/test-fbtouch tests/test-fblog \
             tests/test-nmea-broker tests/test-buttond tests/test-powerd tests/test-wavtone \
             tests/test-tas2560-send-cal tests/test-afe-topology-cal tests/test-tert-tx-hold tests/test-wlan-fw
 
@@ -71,15 +71,21 @@ tests/test-qmux: tests/test_qmux.c qmux.o
 tests/test-msmipc: tests/test_msmipc.c msmipc.o
 	$(CC) $(ALL_CFLAGS) -o $@ $^ $(LDFLAGS) -Wl,--wrap=recvfrom
 
+# Shared evdev discovery and MT-B slot decoding (evdev.h, header-only;
+# used by fbtouch, buttond and chefui's touch.c). open/close/ioctl are
+# wrapped so the scan runs over a temporary directory of fake devices.
+tests/test-evdev: tests/test_evdev.c evdev.h
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) -Wl,--wrap=open -Wl,--wrap=close -Wl,--wrap=ioctl
+
 # Display + touch probe (see fbtouch.c's header). It only needs the libc's
 # own <linux/fb.h>/<linux/input.h>, so it is built without the vendor
 # kernel include paths the QMI code needs (those would shadow the host's
 # headers). The test includes the .c with FBTOUCH_NO_MAIN to reach the
 # pure functions.
-fbtouch: fbtouch.c fbdev.h
+fbtouch: fbtouch.c fbdev.h evdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h
+tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h evdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 .PHONY: test-display-inventory
@@ -98,7 +104,7 @@ fblog/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h
 
 # ioctl() is wrapped so the daemon's borrow/resume/idle path runs against a
 # temporary file standing in for fb0.
-tests/test-fblog: tests/test_fblog.c buttond.c fblog/fblog.c fblog/font9x15.h fbdev.h
+tests/test-fblog: tests/test_fblog.c buttond.c fblog/fblog.c fblog/font9x15.h fbdev.h evdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) -Wl,--wrap=ioctl
 
 # gpsd feed (nmea-broker.c): qmicli follower stdout -> one UDP datagram per
@@ -118,10 +124,10 @@ tests/test-nmea-broker: tests/test_nmea-broker.c nmea-broker.c
 # /run/fblog.off protocol) on an unclaimed power.short. Only libc's
 # <linux/input.h>. The test includes the .c with BUTTOND_NO_MAIN and drives
 # the server over socketpairs with an injected log/kill and a temp flag file.
-buttond: buttond.c
+buttond: buttond.c evdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-tests/test-buttond: tests/test_buttond.c buttond.c
+tests/test-buttond: tests/test_buttond.c buttond.c evdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 # Battery daemon (powerd.c): BatteryService low-battery/over-temperature
@@ -197,6 +203,7 @@ test-wifi: tests/test-wlan-fw wifi-psk
 test: $(TEST_BIN) test-shell wifi-psk test-display-inventory
 	./tests/test-qmux
 	./tests/test-msmipc
+	./tests/test-evdev
 	./tests/test-fbtouch
 	./tests/test-fblog
 	./tests/test-nmea-broker

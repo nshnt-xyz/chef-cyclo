@@ -35,7 +35,7 @@ SAN := -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recove
 
 LV_SRCS := $(shell find $(LVGL)/src -name '*.c' 2>/dev/null)
 PURE := copy.c plan.c touch.c buttons.c fbscreen.c
-HDRS := chefui.h chefui_internal.h copy.h plan.h touch.h buttons.h fbscreen.h lv_conf.h ../fbdev.h
+HDRS := chefui.h chefui_internal.h copy.h plan.h touch.h buttons.h fbscreen.h lv_conf.h ../fbdev.h ../evdev.h
 
 DEV_LIB_SRCS := chefui.c backend_fb.c backends_device.c $(PURE)
 HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
@@ -120,7 +120,7 @@ $(T)/test-plan: tests/test_plan.c plan.c plan.h copy.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_plan.c plan.c
 
-$(T)/test-touch: tests/test_touch.c touch.c copy.c touch.h copy.h tests/check.h
+$(T)/test-touch: tests/test_touch.c touch.c copy.c touch.h copy.h ../evdev.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_touch.c touch.c copy.c -Wl,--wrap=ioctl
 

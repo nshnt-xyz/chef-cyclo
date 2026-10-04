@@ -289,7 +289,7 @@ static void test_syn_dropped_resync(void)
 	px(310);			/* applies to the kernel's current slot (1) */
 	syn();
 	flush(&t);
-	CHECK(t.drops == 1 && t.resyncs == 1 && dev.mtslots_calls == 3);
+	CHECK(t.mt.drops == 1 && t.mt.resyncs == 1 && dev.mtslots_calls == 3);
 	CHECK(cu_touch_pop(&t, &st) && !st.pressed && st.ndown == 1);	/* slot 0 lift seen */
 	CHECK(st.nc == 2 && !st.c[0].down && st.c[1].down && st.c[1].id == 7);
 	map(&t, 300, 400, &x, &y);
@@ -297,7 +297,7 @@ static void test_syn_dropped_resync(void)
 	CHECK(cu_touch_pop(&t, &st) && st.c[0].slot == 1);
 	map(&t, 310, 400, &x, &y);
 	CHECK(st.c[0].x == x && st.c[0].y == y);
-	CHECK(t.work[0].id == -1 && t.work[0].x == 10);	/* coordinates kept */
+	CHECK(t.mt.slots[0].id == -1 && t.mt.slots[0].x == 10);	/* coordinates kept */
 
 	/* resync failure: every contact released */
 	dev.fail = 1;
@@ -413,7 +413,7 @@ static void test_discovery(void)
 	CHECK(cu_touch_open_scan(&t, dir) == 0);
 	snprintf(path, sizeof(path), "%s/event3", dir);
 	CHECK(strcmp(t.path, path) == 0);	/* not the touchpad-like event1 */
-	CHECK(t.ax.maximum == 720 && t.ay.maximum == 1600 && t.nslots == 10);
+	CHECK(t.ax.maximum == 720 && t.ay.maximum == 1600 && t.mt.nslots == 10);
 	CHECK(fcntl(t.fd, F_GETFL) & O_NONBLOCK);
 	cu_touch_close(&t);
 	for (i = 0; i < 4; i++) {

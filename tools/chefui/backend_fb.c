@@ -191,7 +191,7 @@ static void touch_scan(void)
 	F.next_scan_ms = cu_now_ms() + CU_TOUCH_RESCAN_MS;
 	if (r == 0)
 		chefui_log("touch %s: x %d..%d y %d..%d, %d slots", F.touch.path, F.touch.ax.minimum,
-			   F.touch.ax.maximum, F.touch.ay.minimum, F.touch.ay.maximum, F.touch.nslots);
+			   F.touch.ax.maximum, F.touch.ay.minimum, F.touch.ay.maximum, F.touch.mt.nslots);
 }
 
 /*
