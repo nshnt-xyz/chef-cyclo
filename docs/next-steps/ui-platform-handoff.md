@@ -118,7 +118,7 @@ The old ride outputs (`out/boot-ride.img`, `out/initramfs-ride.cpio.gz`, `out/in
 
 ### Queued after this phase
 
-1. ~~Remove `libinput` and `libinput-tools` from the rootfs~~ (user-approved 2026-10-03). **Done 2026-10-04** on the host, see the [build log](../build-log.md); live boot pending. See [ui-platform.md](ui-platform.md#out-of-scope-this-phase).
+1. ~~Remove `libinput` and `libinput-tools` from the rootfs~~ (user-approved 2026-10-03). **Done 2026-10-04** and live-booted, see the [build log](../build-log.md). See [ui-platform.md](ui-platform.md#out-of-scope-this-phase).
 2. `chefui-log`, if the user approves it.
 
 ### Resume steps

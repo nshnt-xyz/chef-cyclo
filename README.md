@@ -23,6 +23,7 @@ sensors remain untested.
 - [Feature guides](docs/features/README.md) — use, modify, and test the working subsystems.
 - [Next steps](docs/next-steps/README.md) — remaining work and dependencies.
 - [Research records](docs/research/README.md) — completed investigations, design decisions, and experiment findings.
+- [Live testing](docs/live-testing.md) — boot an image and drive the phone from scripts (`scripts/phone-boot.sh`, `scripts/phone.py`).
 - [Device reference](docs/device.md) — hardware, backups, and boot behavior.
 - [Build log](docs/build-log.md) — dated experiments, fixes, measurements, and verification evidence.
 
@@ -32,7 +33,7 @@ The current workflow boots images temporarily; nothing is flashed. Stock Android
 
 Everything the image records lives in RAM and disappears on shutdown, reboot, or battery loss; copy evidence off over USB before stopping the phone. Modem EFS writes stay in RAM shadows; real EFS and `persist` must not be written by this workflow.
 
-The USB shell is passwordless root at `telnet 172.16.42.1`. The listener binds only to the USB address 172.16.42.1.
+The USB shell is passwordless root at `telnet 172.16.42.1`; scripts drive it through `scripts/phone.py` ([live testing](docs/live-testing.md)). The listener binds only to the USB address 172.16.42.1.
 
 ## Repository
 

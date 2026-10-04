@@ -23,6 +23,8 @@ scripts/mkboot.sh            # -> out/boot.img (header values from stock boot_a.
 fastboot boot out/boot.img   # nothing is flashed; Power+VolDown to get back to Android
 ```
 
+For test runs, `scripts/phone-boot.sh [IMAGE]` gets the phone into fastboot from any state, boots the image and waits for its USB network, and `scripts/phone.py` runs commands, pushes and pulls files over the USB shell. See [live testing](live-testing.md).
+
 The kernel config combines stock Android's `sdm660-perf_defconfig`, `moto-sdm660.config`, `moto-sdm660-chef.config`, and the project fragment `kernel-config/chef-cyclo.config`. `chef_defconfig` writes `out/kernel/.config`. The stock `/proc/config.gz` matches the first three inputs exactly; the project fragment adds the standalone-Linux requirements.
 
 `mkrootfs.sh` builds an Alpine aarch64 root with musl, BusyBox, D-Bus, BlueZ, QMI tools, gpsd, tinyalsa, wpa_supplicant, iw and the [Wi-Fi UI/diagnostic utilities](features/wifi-ui.md). Rerun it when the package list changes; roots created before the 2026-09-19 gpsd addition, or before the same-day tinyalsa addition, need rebuilding.
@@ -34,7 +36,7 @@ The kernel config combines stock Android's `sdm660-perf_defconfig`, `moto-sdm660
 The ramdisk is LZMA-encoded (`xz --format=lzma -6` of the same deterministic
 cpio stream) because Chef's loader gives the kernel only the region space the
 ramdisk leaves: the gzip baseline left 68 KiB of margin, so any rootfs growth broke
-boot, while LZMA leaves about 13 MB and was live-booted on 2026-10-03. The kernel
+boot, while LZMA leaves about 13 MB (live-booted 2026-10-03), and about 24 MB since libinput's removal on 2026-10-04. The kernel
 must have `CONFIG_RD_LZMA=y`; `mkinitramfs.sh` checks `out/kernel/.config` (or
 `KCONFIG`) and `mkboot.sh` checks the packed kernel's build-tree `.config` before
 anything is written. `GZIP=1` restores the gzip encoding and the old name

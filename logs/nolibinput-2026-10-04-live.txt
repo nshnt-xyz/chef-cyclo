@@ -1,0 +1,132 @@
+# libinput removal live boot, 2026-10-04 (fastboot boot, nothing flashed)
+## image
+06864769dea53c48fb647664c5d3cc1d9a4a951ec0e956c6a63670230589d4d6  out/boot-nolibinput.img
+Sending 'boot.img' (34704 KB)                      OKAY [  0.857s]
+Booting                                            OKAY [  5.078s]
+Finished. Total time: 5.960s
+network up 10:48:44 UTC (booted 10:48:22)
+
+## boot, readiness, daemons, input devices
+> Linux (none) 4.4.192-cyclo+ #20 SMP PREEMPT Fri Oct 2 16:14:58 IST 2026 aarch64 Linux
+41.22 315.99
+ls: /run/input-udev-ready: No such file or directory
+-rw-r--r--    1 root     root             0 Jan 17 21:57 /run/udev-ready
+-rw-r--r--    1 root     root             0 Jan 17 21:58 /run/wifi-nm-mode
+fblog=651
+buttond=652
+powerd=655
+NetworkManager=637
+udevd=591
+bluetoothd=634
+gpsd=
+ls: /usr/bin/libinput: No such file or directory
+ls: /usr/bin/python3: No such file or directory
+ls: /usr/libexec/libinput: No such file or directory
+disconnected:none:enabled:enabled:missing:enabled:unknown
+wlan0:wifi:disconnected:
+bond0:bond:unmanaged:
+dummy0:dummy:unmanaged:
+usb0:ethernet:unmanaged:
+ip6_vti0:iptunnel:unmanaged:
+ip6tnl0:iptunnel:unmanaged:
+ip_vti0:iptunnel:unmanaged:
+sit0:iptunnel:unmanaged:
+lo:loopback:unmanaged:
+p2p-dev-wlan0:wifi-p2p:unmanaged:
+N: Name="qpnp_pon"
+H: Handlers=event0 cpufreq 
+N: Name="NVTCapacitiveTouchScreen"
+H: Handlers=mdss_fb kgsl event1 cpufreq 
+N: Name="hbtp_vm"
+H: Handlers=mouse0 event2 cpufreq 
+N: Name="SX9310 Cap Touch top"
+H: Handlers=event3 
+N: Name="SX9310 Cap Touch bottom"
+H: Handlers=event4 
+N: Name="uinput-egis"
+H: Handlers=event5 cpufreq 
+N: Name="gpio-keys"
+H: Handlers=event6 cpufreq 
+[    9.289938,1] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[    9.301867,3] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[    9.303807,0] ipa-wan ipa_wwan_init:3286 Registering for q6_cleanup_cb
+[    9.313614,3] sdm660-asoc-snd soc:sound: msm_internal_init: default codec configured
+[    9.354667,0] cyclo-init: starting (4.4.192-cyclo+)
+[    9.361927,0] cyclo-init: loopback up, 127.0.0.1/8
+[    9.372442,0] cyclo-init: gadget bound to a800000.dwc3
+[    9.379888,0] cyclo-init: usb0 up, 172.16.42.1/24
+[    9.686808,0] udevd[590]: starting version 3.2.14
+[    9.693746,1] udevd[591]: starting eudev-3.2.14
+[    9.707452,0] cyclo-init: exec init
+[   18.124694,6] [insmod][0xbf3aad814][21:58:07.489975] wlan: [950:I:tdls] ucfg_tdls_init: 40: tdls module dispatcher init
+[   18.124703,6] [insmod][0xbf3aad8cb][21:58:07.489984] wlan: [950:I:tdls] ucfg_tdls_init: 72: tdls module dispatcher init done
+[   18.124718,6] [insmod][0xbf3aad9ed][21:58:07.489999] wlan: [950:I:POLICY_MGR] policy_mgr_init: 214: Callbacks registered with obj mgr
+[   18.124812,6] [insmod][0xbf3aae0fe][21:58:07.490093] wlan: [950:I:IPA] ipa_init: 125: ipa module dispatcher init
+[   18.211254,1] target_if_pdev_spectral_init: 1992: HAL_CAP_PHYDIAG : Capablenull_get_capability: 1518: SPECTRAL : get_capability not registered
+[   18.211259,1] target_if_pdev_spectral_init: 1996: HAL_CAP_RADAR   : Capablenull_get_capability: 1518: SPECTRAL : get_capability not registered
+[   18.211264,1] target_if_pdev_spectral_init: 2001: HAL_CAP_SPECTRAL_SCAN : Capablenull_get_tsf64: 1506: SPECTRAL : get_tsf64 not registered
+[   18.211466,1] [kworker/u16:4][0xbf3c443f0][21:58:07.576746] wlan: [452:I:IPA] wlan_ipa_wdi_init: 508: UC Ready
+[   18.247380,5] [kworker/u16:2][0xbf3cec98d][21:58:07.612661] wlan: [96:E:HDD] wlan_hdd_tsf_init: 1764: set tsf GPIO failed, status: 4
+              total        used        free      shared  buff/cache   available
+Mem:           3748         185        3384           0         179        3527
+Swap:             0           0           0
+df: /: can't find mount point
+Filesystem                Size      Used Available Use% Mounted on
+RC_TAG=0
+
+## touch: fbtouch show -t 25 -r (user tapping corners, stroke, three fingers)
+touch: +10.771 slot=0 id=4 move raw=(345,932) screen=(517,1307)
+touch: +10.788 slot=0 id=4 move raw=(346,957) screen=(518,1342)
+touch: +10.805 slot=0 id=4 move raw=(346,982) screen=(518,1377)
+touch: +10.821 slot=0 id=4 move raw=(347,1007) screen=(520,1412)
+touch: +10.838 slot=0 id=4 move raw=(347,1032) screen=(520,1448)
+touch: +10.855 slot=0 id=4 move raw=(348,1056) screen=(521,1481)
+touch: +10.871 slot=0 id=4 move raw=(348,1078) screen=(521,1512)
+touch: +10.888 slot=0 id=4 move raw=(350,1100) screen=(524,1543)
+touch: +10.905 slot=0 id=4 move raw=(351,1121) screen=(526,1572)
+touch: +10.921 slot=0 id=4 move raw=(352,1140) screen=(527,1599)
+touch: +10.938 slot=0 id=4 move raw=(353,1158) screen=(529,1624)
+touch: +10.955 slot=0 id=4 move raw=(355,1175) screen=(532,1648)
+touch: +10.971 slot=0 id=4 move raw=(356,1191) screen=(533,1671)
+touch: +10.988 slot=0 id=4 move raw=(357,1204) screen=(535,1689)
+touch: +11.005 slot=0 id=4 move raw=(358,1216) screen=(536,1706)
+touch: +11.021 slot=0 id=4 move raw=(358,1229) screen=(536,1724)
+touch: +11.038 slot=0 id=4 move raw=(358,1241) screen=(536,1741)
+touch: +11.055 slot=0 id=4 move raw=(359,1252) screen=(538,1756)
+touch: +11.071 slot=0 id=4 move raw=(359,1263) screen=(538,1772)
+touch: +11.088 slot=0 id=4 move raw=(358,1272) screen=(536,1784)
+touch: +11.105 slot=0 id=4 move raw=(358,1280) screen=(536,1796)
+touch: +11.121 slot=0 id=4 move raw=(357,1288) screen=(535,1807)
+touch: +11.138 slot=0 id=4 move raw=(357,1294) screen=(535,1815)
+touch: +11.155 slot=0 id=4 move raw=(356,1299) screen=(533,1822)
+touch: +11.188 slot=0 id=4 move raw=(356,1301) screen=(533,1825)
+touch: +11.205 slot=0 id=4 move raw=(355,1305) screen=(532,1831)
+touch: +11.221 slot=0 id=4 move raw=(355,1311) screen=(532,1839)
+touch: +11.271 slot=0 id=4 move raw=(355,1312) screen=(532,1840)
+touch: +11.288 slot=0 id=4 move raw=(355,1314) screen=(532,1843)
+touch: +11.304 slot=0 id=4 move raw=(355,1315) screen=(532,1845)
+touch: +11.338 slot=0 id=-1 up raw=(355,1315) screen=(532,1845)
+touch: +12.122 slot=0 id=5 down raw=(309,712) screen=(463,999)
+touch: +12.138 slot=1 id=6 down raw=(140,826) screen=(209,1158)
+touch: +12.138 slot=2 id=7 down raw=(521,707) screen=(780,992)
+touch: +12.321 slot=0 id=-1 up raw=(309,712) screen=(463,999)
+touch: +12.321 slot=1 id=-1 up raw=(140,826) screen=(209,1158)
+touch: +12.338 slot=2 id=-1 up raw=(521,707) screen=(780,992)
+summary: frames=57 touch_reports=73 contacts=8
+summary: touched screen area x=[62..1008] y=[37..2204], first contact +2.223 s
+fb: blanked before close
+RC_TAG=0
+
+## power short off/on (user)
+244.94 flag=on wled=1542
+256.24 flag=off wled=1542
+258.75 flag=on wled=0
+wled-final=1542
+[   94.414192,4] fblog: resumed
+[  256.232885,1] fblog: exiting: blanking before close
+[  256.233716,4] buttond: screen off: created /run/fblog.off, signalled fblog (1 process); init respawns it
+[  258.255617,1] fblog: /run/fblog.off present: idling, not touching /dev/fb0
+[  258.564118,0] buttond: screen on: removed /run/fblog.off; fblog wakes on flag removal or next init respawn
+[  258.564163,1] fblog: /run/fblog.off removed: leaving idle
+[  258.564219,1] fblog: starting (backlight 96, scale 2, kernel level <= 3)
+[  258.741466,0] fblog: screen 1080x2246 32 bpp, 59x68 cells at scale 2
