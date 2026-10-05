@@ -1,0 +1,77 @@
+# Intermittent shutdown hang (2026-10-05)
+# Raw evidence: ~/chef-cyclo-evidence/shutdown-hang-20261005/ (local). No secrets, no positions, no MACs, no serial.
+
+## Symptom (boot compression run, morning)
+3 of 15 ordinary reboots came back after 32-49 s (normal ~21 s) with androidboot.bootreason=kernel_panic,
+powerup_reason 0x00020000, PON "Hard Reset and 'warm' boot"; ping stopped ~0.1-0.3 s after the last shutdown line.
+
+## Tools (host + /run, no image change)
+sdtmark (static aarch64, 6c4ff8d6...; m = UDP marker acked by the host + /dev/kmsg, k = /dev/kmsg forwarder,
+b = 50 ms heartbeat with the modem subsys state), sdt-host.py (CLOCK_MONOTONIC, ICMP echo every 50 ms, acks),
+tracer.sh (3ae4c89e; init paused with kill -TSTP 1; mirror = init's order and timing, step = per mount / per
+service group), plain-reboot.sh (0b50d870; ordinary reboot through init, k/b ignore TERM until init's SIGKILL),
+plain-poweroff.sh (e397f077), repro.sh (a6f99198, variants both/traffic/bt/storage/up). All cleared by rootfs_review.
+
+## Tracing (installed 5c509eb2 + 9c47c6b8, kernel #21)
+t01-t15 mirror tracer (t01 at 72 s, others 36.5-39.5 s uptime): 15/15 clean.
+t16-t32 plain init reboots (t16 81 s, others 36.2-36.7 s): 17/17 clean (t16/t17 with the v1 monitor).
+Seen at init's SIGTERM on every shutdown, harmless: gps-up closes /dev/subsys_modem within ~6 ms (modem stop takes the
+WLAN firmware PD down while wpa_supplicant disconnects; "target access is not allowed" on WLAN CE registers); fblog's
+fb release sends the bl_shutdown_dcs backlight command after the panel is off (DSI cmd DMA timeout every time,
+clk_branch_wait WARN "dsi byte clk stuck off" in 2 of 15). pstore keeps no pmsg over a normal reboot.
+0/32 vs 3/15 (one-sided Fisher 455/16215 = 0.028). Port type then APSD=CDP (battery ~40 C), now SDP: false lead.
+
+## Located
+t33: plain reboot at 200.7 s uptime, SDP: bootreason=kernel_panic, warm PON, ping gap 32.9 s. pstore on that boot:
+  204.18   init's SIGTERM (gps-up modem stop, wlan disconnect, fblog exit)
+  204.2779 Unable to handle kernel NULL pointer dereference at virtual address 00000040, CPU6 swapper, softirq
+           PC _raw_spin_lock_irqsave+0x1c, LR hci_ibs_wake_retrans_timeout+0x28, call_timer_fn/run_timer_softirq
+  204.2808 Kernel panic - not syncing: Fatal exception in interrupt
+  210.4876 Going down for restart now; 210.4890 Causing a watchdog bite!
+Cause: hci_qca qca_close(): del_timer() (not sync) x2, then destroy_workqueue() drains qca_wq_awake_device(), which
+re-arms wake_retrans_timer (+100 ms); then hu->priv = NULL, kfree(qca), kfree(hu); the timer fires on freed data.
+btattach is closed by init's SIGTERM at every shutdown. Second gap: the drained work schedules hu->write_work after
+hci_uart_tty_close() cancelled it.
+
+## Reproducer (no reboot of its own; /data remounted ro and abslot-marked boot required before any try)
+Old kernel #21: both 0/10, traffic 0/10 (0/2/5/10 ms), bt 0/10, storage 0/20 (bluetoothd always left hci0 DOWN
+within 2 s of TERM), up 0/10 (hci0 UP RUNNING, IBS TX asleep at the kill). 0/60: not reproducible on demand.
+Fixed kernel #22 (fastboot boot of boot-ram 42f362b0, no flash): up/storage/both/traffic 40/40 survived, BT
+re-attached every time, 0 WARNING/BUG/Spurrious/tx timeout/sleep-in-atomic/oops lines, btmgmt find works.
+This is a functional check of the new teardown, not proof of the fix.
+
+## Fix
+kernel commit 8ef120353 "Bluetooth: hci_qca: stop timers and drain work before freeing qca"
+(diff sha256 3075a1c476641ceb392702946318b10dc935b5c7ad150e5a71a459f11029913a): qca_close del_timer_sync x2,
+flush_workqueue, del_timer_sync x2, destroy_workqueue, then skb_queue_purge; hci_uart_tty_close cancel_work_sync
+(write_work) again after proto->close, outside proto_lock.
+
+## Images (SKIP_KERNEL=1 scripts/mkinstall.sh after kmake)
+0cf2981cd05affeb7c64a3503f170c70c4d44c6ac8a25f1c6f65ee0c722baac1  out/kernel/arch/arm64/boot/Image.gz-dtb (#22)
+3bd3afabf4eccecc8b1db994a69d535e52ee3785e6a55c8d2f1971a0519b2bad  out/kernel/Module.symvers (unchanged)
+e72a3039e82532654011f8c627411a92cdec03f5bc87952f48f11c5c5dcd1dd6  out/system_a.img (installed)
+13f336e5327d65433f092cd9bbd9113cfaf5b2ec38ab7f7b9de13854deaeffc0  out/system_a.stamp
+0008608208b2da907fbc0e79e45de318271caf12fff58ca4b82cd19e829bc012  out/stage1.cpio.gz
+81a5c5efe65b557b31c8e4c73a1ebd4029e5a644eb884c7fe3a8105e771bcdde  out/boot-stage1.img (installed in boot_a)
+42f362b0a4d27a836a1b8b666adc22e1f57e384ff9ed767ac7acde3bf016d361  out/boot-ram.img (not installed)
+wlan.ko rebuilt from source: 8166f623..., vermagic "4.4.192-cyclo+ SMP preempt mod_unload modversions aarch64"
+unchanged (hash differs from 29b63a0d only by the random build directory).
+Previous pair kept in out/pre-btfix/: system_a 9c47c6b8, boot-stage1 5c509eb2, boot-ram 7255afa3, kernel da2e6c61.
+
+## Install (phase 3 order, 2026-10-05 18:05-18:10Z)
+getvar before: current-slot a, a successful/retry 6, b unbootable; system_a 0xa0000000, boot_a 0x4000000.
+fastboot flash system_a: rc 0 (slot a reset to unsuccessful/retry 7). fastboot boot boot-stage1 81a5c5ef: stage-1
+"build stamp matches", root p67 ro, build-stamp 13f336e5, #22, p67 read-back e72a3039, write sectors 0 on
+p67/persist/EFS, https ok, hci0 UP, crash 0. fastboot flash boot_a: rc 0. First flashed boot: normal, bootreason
+reboot, abslot marked boot_a at 35.4 s, boot_a read-back 81a5c5ef, p67 e72a3039, write sectors 0, regression ok.
+
+## Acceptance (installed pair)
+105 shutdowns 2026-10-05 18:10-20:26Z, all clean (series2.log):
+  100 reboots: 79 at 36.2-40.5 s uptime, 1 at 121.6 s (a001), 20 at 180.1-180.6 s; all bootreason=reboot, cold PON
+  5 poweroffs at 36-40 s (USB attached): back in charger mode (androidboot.mode=charger), cold PON
+  ping gap 15.75-19.05 s; no pstore dmesg records; shutdown k-streams: no oops/BUG/hci_ibs/Spurrious lines,
+  only the known fblog clk_branch_wait WARN (dsi byte clk) in 5 of 105
+  source SDP (usb real_type USB) throughout, battery 36-38 C
+  pooled pre-fix rate ~4/65: 0 in 100 by chance ~0.2 %
+Final getvar 20:26:37Z: current-slot a, a successful yes, retry 6, not unbootable; b unbootable.
+Then fastboot reboot: #22, bootreason reboot, root p67 ro, /data rw, hci0 UP RUNNING.

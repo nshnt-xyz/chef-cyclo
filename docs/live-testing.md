@@ -72,12 +72,14 @@ Push a rebuilt static binary instead of rebooting when iterating on a tool;
 - **`poweroff` with USB attached comes back.** The cable re-powers the phone in
   about 24 s (`androidboot.mode=charger`), and the installed image boots (the stage-1 layout ran the full OS on such a charger-mode boot on 2026-10-05). Unplug
   first if it should stay off.
-- **A reboot occasionally hangs in shutdown** (3 of 15 on 2026-10-05, both
-  boot images): the USB network drops about 2 s early, and the phone comes back
-  on its own after 32 to 49 s with `androidboot.bootreason=kernel_panic` instead
-  of after about 21 s. `/data` is already detached by then. Wait about a minute
-  before calling it lost. Open item: see the
-  [shutdown hang](next-steps/boot-compression-handoff.md#shutdown-hang-separate-item).
+- **A kernel panic is in pstore for one boot only.** A panic comes back by
+  itself after 30 to 50 s (the panic restart wedges until the watchdog bites)
+  with a warm PON and `androidboot.bootreason=kernel_panic`. On that very boot,
+  `mount -t pstore -o ro pstore /run/x` and copy `dmesg-ramoops-0` and
+  `console-ramoops-0` off the phone; the next ordinary reboot is a cold PON
+  and the records are gone. The 2026-10-05 shutdown hang (a Bluetooth UART
+  use-after-free, fixed in kernel #22) was found this way, see the
+  [shutdown hang](next-steps/shutdown-hang-handoff.md#result-rootfs_impl-2026-10-05).
 - **The panel is not visible from here.** Display, touch and button checks need
   someone watching the phone. Announce a window ("tap now for 25 s"), then
   run the check (`fbtouch show -t 25 -r`, `chefui-demo`), and ask what they saw.

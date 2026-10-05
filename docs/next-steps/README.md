@@ -13,7 +13,7 @@ This directory contains unfinished work. Completed bring-up and operating recipe
 | [UI and ride app](ui-and-ride-app.md) | UI stack decided: LVGL on fbdev. The [UI platform](../features/ui-platform.md) is implemented and live verified; next integrate GPS/sensors, pages and recording, and offline maps/routes. Durable recordings require storage. |
 | [Connectivity and sensors](connectivity-and-sensors.md) | Real BLE sensors, remaining Bluetooth tooling (persistence, real classic and mesh devices, PAN DHCP/NAP), Wi-Fi lifecycle/UI/power integration, audio alerts, and Strava. Manual Wi-Fi and safe listener bindings are verified; Strava still needs recording, storage, and upload integration. Links to the separate on-board sensor roadmap. |
 | [On-board sensors](sensors.md) | Boot/power integration, calibration persistence, wake/tap, optional compass accuracy improvements and desktop facade. Raw sensors and stopped-map compass already work. |
-| [Power and reliability](power-and-reliability.md) | Finish charging/drain validation, measure idle/suspend and shared ADSP lifecycle, and add crash recovery. Crash recovery depends on standalone boot and persistent evidence. Open: an intermittent [shutdown hang](boot-compression-handoff.md#shutdown-hang-separate-item) (warm reset, `bootreason=kernel_panic`) seen since the read-only root. |
+| [Power and reliability](power-and-reliability.md) | Finish charging/drain validation, measure idle/suspend and shared ADSP lifecycle, and add crash recovery. Crash recovery depends on standalone boot and persistent evidence. The intermittent [shutdown hang](shutdown-hang-handoff.md) (warm reset, `bootreason=kernel_panic`) was a Bluetooth UART use-after-free, fixed in kernel #22 on 2026-10-05. |
 
 ## How to update a plan
 

@@ -22,6 +22,9 @@ Its live steps 2 to 6 passed the same night (see
 [phase 3 result](#phase-3-result-rootfs_impl-2026-10-05)): `system_a` holds
 the read-only root `9c47c6b8` and `boot_a` the stage-1 image `5c509eb2`;
 promotion of `out/boot.img` and the commit are the coordinator's call.
+Since the [shutdown hang](shutdown-hang-handoff.md) fix (kernel #22,
+2026-10-05) the installed pair is `system_a` `e72a3039` (stamp `13f336e5`) +
+`boot_a` `81a5c5ef`; the phase 3 pair is kept in `out/pre-btfix/`.
 
 ## Decision (user, 2026-10-04)
 

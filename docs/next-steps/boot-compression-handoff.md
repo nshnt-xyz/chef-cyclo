@@ -9,7 +9,12 @@ day ([result](#result-rootfs_impl-2026-10-05)). The uncompressed image works,
 but flashed it saves only about 0.2 s of bootloader time. `boot_a` is back on
 the gzip `5c509eb2`; installing the uncompressed image is the user's call. An
 intermittent shutdown hang turned up during the reboot series, independent of
-the image ([shutdown hang](#shutdown-hang-separate-item)).
+the image ([shutdown hang](#shutdown-hang-separate-item)); it was a Bluetooth
+UART use-after-free, fixed in the kernel the same day. Since then the installed
+pair is `system_a` `e72a3039` + `boot_a` `81a5c5ef` (kernel #22), so
+`df474390` (old kernel, stamp `f52cfe21`) no longer matches `system_a`: an
+uncompressed image now has to be rebuilt with `UNCOMPRESSED=1` from the fixed
+kernel.
 
 ## Goal
 
@@ -140,6 +145,11 @@ Summary: [logs](../../logs/boot-compression-2026-10-05.txt).
   check phase 3 left open.
 
 ### Shutdown hang (separate item)
+
+**Resolved 2026-10-05:** a use-after-free in `hci_qca` when btattach closes at
+shutdown, fixed in the kernel; see the
+[shutdown hang handoff](shutdown-hang-handoff.md#result-rootfs_impl-2026-10-05).
+The notes below are what was known before it was located.
 
 Open item, separate from the boot image. Three of the 15 ordinary reboots
 today came back after 32 to 49 s instead of about 21 s, with
