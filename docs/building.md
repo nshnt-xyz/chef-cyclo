@@ -50,7 +50,8 @@ the page-rounded encoded ramdisk size. This is a Chef-specific check; see the
 An overflow aborts before opening the output and suggests shrinking the ramdisk.
 Another ramdisk can be selected with `RAMDISK=path/to/ramdisk OUT=path/to/boot.img sh scripts/mkboot.sh`.
 To check without packaging, run
-`python3 scripts/check-chef-loader-budget.py path/to/Image.gz-dtb path/to/ramdisk`.
+`python3 scripts/check-chef-loader-budget.py path/to/Image.gz-dtb path/to/ramdisk`
+(the kernel may also be an [uncompressed](#uncompressed-boot-image) `UNCOMPRESSED_IMG` kernel).
 
 ## Rebuilding and testing changes
 
@@ -179,3 +180,70 @@ Host tests: `tools/tests/test_stage1.py` (every stage-1 refusal and the
 switch_root path against fake sysfs and real small ext4 images, in
 `make -C tools test`) and `scripts/tests/test_chef_stamp.py`
 (`python3 -m unittest discover scripts/tests`).
+
+## Uncompressed boot image
+
+Compression in the boot image was needed while the whole OS lived in the
+ramdisk. With the stage-1 layout neither the kernel nor the ramdisk has to be
+compressed, and Chef's abl loads an uncompressed kernel in its
+`UNCOMPRESSED_IMG` form ([loader investigation](research/chef-loader-kernel-budget.md#uncompressed-kernel-path)):
+`"UNCOMPRESSED_IMG"`, the raw `Image` length as a little-endian 32-bit
+number, the raw `Image`, then the DTB. A plain raw `Image` with an appended DTB
+and no such header is not known to work.
+
+```sh
+UNCOMPRESSED=1 scripts/mkinstall.sh            # also builds the uncompressed variant
+PACK_ONLY=1 UNCOMPRESSED=1 scripts/mkinstall.sh  # only repack the stage-1 boot images
+```
+
+| Output | What |
+|---|---|
+| `out/stage1.cpio` | the gunzipped `out/stage1.cpio.gz`, byte for byte |
+| `out/boot-stage1-uncompressed.kernel` | `Image.gz-dtb` in the `UNCOMPRESSED_IMG` form |
+| `out/boot-stage1-uncompressed.img` | both of the above; for `boot_a` with the same `system_a` |
+
+- **`scripts/mkkernel-uncompressed.py IN OUT`** inflates the gzip member of
+  `Image.gz-dtb` (CRC checked), requires an ARM64 `Image` and a tail of whole
+  FDTs, and writes the layout above. It reads only `Image.gz-dtb`, the file
+  the build stamp names, so the stamp still identifies the kernel.
+- **`scripts/mkboot.sh`** with `UNCOMPRESSED=1` converts `KERNEL` (still the
+  gzip `Image.gz-dtb`) into `${OUT%.img}.kernel` and packs that. A `RAMDISK`
+  named `*.cpio` is packed uncompressed and must be a newc archive (the kernel
+  needs no `RD_*` option for it).
+- **`scripts/mkstage1.sh`** with `OUT=*.cpio` writes the gunzipped
+  `STAGE1_GZ` (default `out/stage1.cpio.gz`) instead of rebuilding the tree,
+  whose build-time mtimes would make a different archive. It refuses unless the
+  result is a newc archive whose `etc/chef/expected-stamp` equals the stamp.
+- **`PACK_ONLY=1`** skips the kernel, `mkinitramfs.sh`, `boot-ram.img`,
+  `mksystem.sh` and `mkstage1.sh` and packs the stage-1 boot images from the
+  existing `Image.gz-dtb`, `out/stage1.cpio.gz` and `out/system_a.img`, with
+  the same stamp checks (the stage-1 stamp is now read from the gzip ramdisk
+  itself). `out/system_a.img`, its stamp and `out/stage1.cpio.gz` stay as they
+  are; `out/boot-stage1.img` comes out byte-identical.
+- **Loader budget.** The preflight recognises both kernel forms. abl copies the
+  whole kernel section (the boot header's `kernel_size`) to the kernel start
+  before it checks `Image.image_size`, so the uncompressed form must fit
+  `max(image_size, kernel_size)`. 2026-10-05: `kernel_size` 36812914,
+  `image_size` 40161280, ramdisk 1846784, margin 45539328 bytes.
+
+Size: 38666240 bytes against 13484032 for `out/boot-stage1.img` (`boot_a` is
+64 MiB). Measured 2026-10-05 (details in the
+[boot compression handoff](next-steps/boot-compression-handoff.md#result-rootfs_impl-2026-10-05)):
+
+- `fastboot boot`: abl starts the kernel about 1.24 s sooner after the download,
+  but the USB upload takes 0.6 s longer.
+- Flashed in `boot_a`: the bootloader's KPI `end - start` drops from 5.98 s to
+  5.79 s, only about 0.2 s. Reading the larger image costs 0.15 s more
+  (`load kernel` 7413 counts instead of 2595), and abl's inflate on a flashed
+  boot costs only about 0.34 s.
+- Kernel side: the ramdisk unpack takes 12 ms instead of 26 ms; nothing else
+  changes.
+
+`boot_a` keeps the gzip `out/boot-stage1.img`. Whether to install the
+uncompressed image for 0.2 s is the user's decision.
+
+Host tests: `scripts/tests/test_uncompressed_boot.py` (packer layout and
+refusals, the uncompressed budget including the `kernel_size` copy, `mkboot.sh
+UNCOMPRESSED=1`, the `mkstage1.sh` `.cpio` gate, and `mkinstall.sh PACK_ONLY=1
+UNCOMPRESSED=1` in a fake repository: stamp refusals, nothing written to
+`system_a`, reproducible output).

@@ -9,11 +9,11 @@ This directory contains unfinished work. Completed bring-up and operating recipe
 | Plan | Remaining work and dependencies |
 |---|---|
 | [GPS and time](gps-and-time.md) | GPS manager and GPS time (chrony SHM refclock) done; clients (UI, ride recorder) next. Assistance persistence needs storage, downloads need connectivity. |
-| [Storage and boot](storage-and-boot.md) | Standalone boot done (our image in `boot_a`, Android retired 2026-10-04). Next: `/data` on `userdata`, then the root on `system_a` ([install layout handoff](install-layout-handoff.md)). Storage enables recordings, maps, credentials, and retained state. |
+| [Storage and boot](storage-and-boot.md) | Standalone boot done (our image in `boot_a`, Android retired 2026-10-04). Next: `/data` on `userdata`, then the root on `system_a` ([install layout handoff](install-layout-handoff.md)). An uncompressed boot image is built and measured (0.2 s faster flashed; installing it is the user's call, [boot compression handoff](boot-compression-handoff.md)). Storage enables recordings, maps, credentials, and retained state. |
 | [UI and ride app](ui-and-ride-app.md) | UI stack decided: LVGL on fbdev. The [UI platform](../features/ui-platform.md) is implemented and live verified; next integrate GPS/sensors, pages and recording, and offline maps/routes. Durable recordings require storage. |
 | [Connectivity and sensors](connectivity-and-sensors.md) | Real BLE sensors, remaining Bluetooth tooling (persistence, real classic and mesh devices, PAN DHCP/NAP), Wi-Fi lifecycle/UI/power integration, audio alerts, and Strava. Manual Wi-Fi and safe listener bindings are verified; Strava still needs recording, storage, and upload integration. Links to the separate on-board sensor roadmap. |
 | [On-board sensors](sensors.md) | Boot/power integration, calibration persistence, wake/tap, optional compass accuracy improvements and desktop facade. Raw sensors and stopped-map compass already work. |
-| [Power and reliability](power-and-reliability.md) | Finish charging/drain validation, measure idle/suspend and shared ADSP lifecycle, and add crash recovery. Crash recovery depends on standalone boot and persistent evidence. |
+| [Power and reliability](power-and-reliability.md) | Finish charging/drain validation, measure idle/suspend and shared ADSP lifecycle, and add crash recovery. Crash recovery depends on standalone boot and persistent evidence. Open: an intermittent [shutdown hang](boot-compression-handoff.md#shutdown-hang-separate-item) (warm reset, `bootreason=kernel_panic`) seen since the read-only root. |
 
 ## How to update a plan
 

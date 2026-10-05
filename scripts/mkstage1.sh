@@ -11,15 +11,38 @@
 # the rescue test image (a stamp that cannot match). OUT selects the output.
 # gzip -9n: the kernel has CONFIG_RD_GZIP=y; the LZMA budget concern of the
 # full RAM image does not apply to a ramdisk this small.
+#
+# OUT=*.cpio writes the uncompressed ramdisk for the uncompressed boot image
+# (the kernel needs no RD_* option for that): the gunzipped STAGE1_GZ
+# (default out/stage1.cpio.gz, built first), so both ramdisks carry the same
+# bytes; the tree is not rebuilt, whose mtimes would differ. Nothing is
+# written unless it is a newc archive whose etc/chef/expected-stamp equals
+# the stamp.
 set -eu
 cd "$(dirname "$0")/.."
 SRC=out/initramfs-root
 STAMP=${STAGE1_EXPECTED_STAMP:-out/system_a.stamp}
 OUT=${OUT:-out/stage1.cpio.gz}
-case "$OUT" in *.cpio.gz) TREE=${OUT%.cpio.gz}-root ;; *) echo "OUT must end in .cpio.gz" >&2; exit 1 ;; esac
+[ -s "$STAMP" ] || { echo "missing $STAMP; run scripts/mksystem.sh first" >&2; exit 1; }
+case "$OUT" in
+*.cpio.gz) TREE=${OUT%.cpio.gz}-root ;;
+*.cpio)
+    STAGE1_GZ=${STAGE1_GZ:-out/stage1.cpio.gz}
+    [ -s "$STAGE1_GZ" ] || { echo "missing $STAGE1_GZ: build the gzip stage-1 ramdisk first" >&2; exit 1; }
+    rm -f "$OUT" "$OUT.tmp"
+    if ! gzip -dc "$STAGE1_GZ" > "$OUT.tmp" || [ "$(head -c 6 "$OUT.tmp")" != 070701 ]; then
+        rm -f "$OUT.tmp"; echo "refusing: $STAGE1_GZ is not a gzip newc cpio" >&2; exit 1
+    fi
+    cpio -i --quiet --to-stdout etc/chef/expected-stamp ./etc/chef/expected-stamp < "$OUT.tmp" | cmp -s - "$STAMP" ||
+        { rm -f "$OUT.tmp"; echo "refusing: the expected stamp in $STAGE1_GZ differs from $STAMP" >&2; exit 1; }
+    mv "$OUT.tmp" "$OUT"
+    ls -l "$OUT"
+    exit 0
+    ;;
+*) echo "OUT must end in .cpio.gz or .cpio" >&2; exit 1 ;;
+esac
 KCONFIG=${KCONFIG:-out/kernel/.config}
 [ -x "$SRC/bin/busybox" ] && [ -x "$SRC/usr/bin/btprobe" ] || { echo "run scripts/mkinitramfs.sh first" >&2; exit 1; }
-[ -s "$STAMP" ] || { echo "missing $STAMP; run scripts/mksystem.sh first" >&2; exit 1; }
 grep -qx 'CONFIG_RD_GZIP=y' "$KCONFIG" || { echo "$KCONFIG lacks CONFIG_RD_GZIP=y" >&2; exit 1; }
 
 rm -rf "$TREE"

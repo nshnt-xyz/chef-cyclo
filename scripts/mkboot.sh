@@ -4,6 +4,12 @@
 # kernel @ base+0x8000, ramdisk @ +0x1000000, second @ +0xf00000, tags @ +0x100.
 # The bootloader appends its own androidboot.* args, root=, and skip_initramfs
 # (which our kernel ignores) at boot time.
+#
+# UNCOMPRESSED=1 packs the kernel without gzip: KERNEL is still the gzip
+# Image.gz-dtb (the file the build stamp names); scripts/mkkernel-uncompressed.py
+# turns it into abl's UNCOMPRESSED_IMG form in ${OUT%.img}.kernel, which is
+# what goes into the image. A RAMDISK named *.cpio is packed uncompressed and
+# must be a newc archive.
 set -eu
 cd "$(dirname "$0")/.."
 KERNEL=${KERNEL:-out/kernel/arch/arm64/boot/Image.gz-dtb}
@@ -31,13 +37,28 @@ case "$RAMDISK" in
     ;;
 esac
 
+case "$RAMDISK" in
+*.cpio)
+    [ "$(head -c 6 "$RAMDISK")" = 070701 ] || { echo "$RAMDISK is not an uncompressed newc cpio" >&2; exit 1; }
+    ;;
+esac
+
+# Config checks below look at the build tree of the gzip kernel.
+SRC_KERNEL=$KERNEL
+if [ "${UNCOMPRESSED:-}" = 1 ]; then
+    case "$OUT" in *.img) ;; *) echo "OUT must end in .img with UNCOMPRESSED=1" >&2; exit 1 ;; esac
+    KERNEL=${OUT%.img}.kernel
+    python3 scripts/mkkernel-uncompressed.py "$SRC_KERNEL" "$KERNEL"
+fi
+unset UNCOMPRESSED
+
 # Reject Chef's observed loader-space overflow before mkbootimg opens OUT.
 python3 scripts/check-chef-loader-budget.py "$KERNEL" "$RAMDISK"
 
 # alldefconfig silently drops options whose dependencies are unmet; refuse a
 # default-kernel image missing the classic Bluetooth / AF_ALG options or the
 # System V IPC that chronyd's GPS SHM refclock needs.
-if [ "$KERNEL" = out/kernel/arch/arm64/boot/Image.gz-dtb ]; then
+if [ "$SRC_KERNEL" = out/kernel/arch/arm64/boot/Image.gz-dtb ]; then
     for opt in BT_RFCOMM BT_RFCOMM_TTY BT_BNEP BT_BNEP_MC_FILTER BT_BNEP_PROTO_FILTER \
                BT_HIDP BT_HCIVHCI CRYPTO_USER_API_HASH CRYPTO_USER_API_SKCIPHER \
                CRYPTO_USER_API_AEAD SYSVIPC; do

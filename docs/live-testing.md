@@ -70,8 +70,14 @@ Push a rebuilt static binary instead of rebooting when iterating on a tool;
   from any of our images.
 - **Evidence under `/run` and `/tmp` is in RAM.** Pull it before rebooting. A phase 2 image persists the reviewed BlueZ and NetworkManager directories under `/data`; see [storage](features/storage.md).
 - **`poweroff` with USB attached comes back.** The cable re-powers the phone in
-  about 24 s (`androidboot.mode=charger`), and the installed image boots (a charger-mode boot of the stage-1 layout is not yet observed). Unplug
+  about 24 s (`androidboot.mode=charger`), and the installed image boots (the stage-1 layout ran the full OS on such a charger-mode boot on 2026-10-05). Unplug
   first if it should stay off.
+- **A reboot occasionally hangs in shutdown** (3 of 15 on 2026-10-05, both
+  boot images): the USB network drops about 2 s early, and the phone comes back
+  on its own after 32 to 49 s with `androidboot.bootreason=kernel_panic` instead
+  of after about 21 s. `/data` is already detached by then. Wait about a minute
+  before calling it lost. Open item: see the
+  [shutdown hang](next-steps/boot-compression-handoff.md#shutdown-hang-separate-item).
 - **The panel is not visible from here.** Display, touch and button checks need
   someone watching the phone. Announce a window ("tap now for 25 s"), then
   run the check (`fbtouch show -t 25 -r`, `chefui-demo`), and ask what they saw.

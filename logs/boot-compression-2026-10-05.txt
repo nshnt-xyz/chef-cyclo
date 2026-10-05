@@ -1,0 +1,131 @@
+# Boot image without compression (2026-10-05)
+# Raw evidence: ~/chef-cyclo-evidence/boot-compression-20261005/ (local). No secrets, no positions, no MACs, no serial.
+
+## Images
+da2e6c6110b2d408f23f8a662f294d18fb95e26914718283bfd97f2a8e33bfa7  out/kernel/arch/arm64/boot/Image.gz-dtb (unchanged)
+59dfdec4a5c0e97e3d28f7c3002c672a96695c72a614ac42d99b12577d727390  out/kernel/arch/arm64/boot/Image (= inflated Image.gz-dtb)
+9c47c6b813ae00b2126203e7ffdfb7c2edb5dff47bf91287f9ce71001b177c32  out/system_a.img (unchanged, installed)
+f52cfe217ae7feeb323b2230bdd4bee30dce819c73dc2f18a06f155371450c0f  out/system_a.stamp (unchanged)
+17772389bd7cd98d5bb7a2438d38865fe096f32ee64416ee11b806410bb00a43  out/stage1.cpio.gz (unchanged)
+5c509eb2f16784c4fa3348901f197602a0109b47e92c92d8ca5214dc67676b53  out/boot-stage1.img (rebuilt byte-identical; installed in boot_a at the end)
+b212f0b497978a94a82b28188b5efa0a6d995411f0382890a2e6fa9c662eacc4  out/stage1.cpio (= gunzip of stage1.cpio.gz)
+80ae05d1badbf40fbf1d2b37468eb668888de997d2786734d42b2991c8291c28  out/boot-stage1-uncompressed.kernel
+df4743903c10b37584f88ebca09bc6b0be6ee6c5262cc9c4832e91571961e9ed  out/boot-stage1-uncompressed.img (38666240 bytes; flashed, then rolled back)
+Build: PACK_ONLY=1 UNCOMPRESSED=1 scripts/mkinstall.sh
+Header: kernel_size 36812914 = 20 + 36468744 (Image) + 344150 (DTB), ramdisk_size 1846784, page 4096.
+Preflight: image_size 40161280, kernel_size 36812914, capacity 85700608, margin 45539328 (gzip image: 46374912).
+Host tests: python3 -m unittest discover scripts/tests (41 OK, incl. test_uncompressed_boot.py 16), make -C tools test rc 0.
+
+KPI counts are 32768 Hz. Only flashed boots give valid load-kernel counts; on fastboot boots start..end includes waiting in fastboot.
+
+Step 1: boot_a read-back (dd, first 13484032 bytes) = 5c509eb2, write sectors p44 0. Current boot before step 1 was
+androidboot.mode=charger (bootreason=charger) with dtb_idx=-1347440721: the phase-3 charger-mode check, excluded from KPI.
+
+KPI, flashed gzip 5c509eb2, ordinary reboots (androidboot.mode=normal, bootreason=reboot):
+          start   end     end-start          load  MPM-end  unpack  initrd   unused  exec init
+reboot1   66923   262859  195936 (5.9795 s)  2595  16513    0.389   0.416    3.633   5.480
+reboot2   66641   262687  196046 (5.9828 s)  2608  16368    0.387   0.413    3.614   5.489
+reboot3   66849   262898  196049 (5.9829 s)  2595  16386    0.386   0.412    3.621   5.483
+mean end-start 196010 (5.9817 s), min 195936, max 196049, spread 113 counts (3.4 ms).
+load kernel (2595..2608 = 79 ms) is smaller than end-start; whether it lies inside start..end cannot be read from the
+counts alone (it is a duration, not a timestamp).
+
+Step 2: fastboot boot, alternating (gzip fb1, raw fb1, gzip fb2, raw fb2). All four: dtb_idx=-1347440721,
+Machine: chef, / = /dev/mmcblk0p67 ro, stamp f52cfe21, getro 1, wlan0 connected, https 200, hci0 UP RUNNING,
+crash counts 0 (venus a512_zap adsp modem), write sectors 0 on p67 p44 p38 p34 p35 p36 p27.
+Kernel side:      unpack  initrd           unused  exec init
+gzip fb1          0.386   0.413 (984K)     3.613   5.479
+gzip fb2          0.390   0.416            3.612   5.468
+raw  fb1          0.387   0.399 (1800K)    3.599   5.469
+raw  fb2          0.387   0.399            3.602   5.472
+=> ramdisk unpack 12 ms instead of 26 ms; kernel-side times otherwise equal within noise.
+
+PROXY (host CLOCK_MONOTONIC; not KPI): t0 = fastboot boot started, ret = it returned; kernel start = host USB
+enumeration of the gadget minus the phone's "gadget bound" printk time (constant enumeration latency included).
+              send    Booting  ret-t0  disconnect  kernel start  kernel start  net up
+                      OKAY             after ret   after ret     after t0      after t0
+gzip fb1      0.325   5.085    5.423   1.670       2.139         7.562         16.45
+gzip fb2      0.325   5.082    5.421   1.548       2.264         7.685         16.45
+raw  fb1      0.936   5.082    6.049   0.290       1.028         7.077         15.97
+raw  fb2      0.936   5.083    6.049   0.414       0.894         6.943         15.97
+abl after the download: gzip mean 2.20 s, raw 0.96 s => about 1.24 s less (the in-abl gzip inflate of 12.5 MB to
+36.5 MB). fastboot-boot total: kernel start about 0.61 s earlier, net up 0.48 s earlier (the extra 25 MB USB transfer,
++0.61 s, eats half).
+Cross-check from the (invalid-for-KPI) fastboot-boot counts: end-start gzip 380304/380023, raw 359940/359275,
+difference about 20,550 counts = 0.63 s, which plus the +0.61 s transfer inside it gives the same ~1.24 s.
+
+Prediction for flashed boots: end-start lower by about 1.24 s - 0.15 s extra eMMC read (25.2 MB more at ~170 MB/s,
+load kernel count about 2594 -> ~7400) = about 1.1 s, i.e. ~4.9 s instead of 5.98 s.
+
+Guards: local sha df474390; boot_a read 5c509eb2 (p44 writes 0) from the running image; getvar before: current-slot a,
+slot-successful:a yes, retry 6, unbootable:a no, unbootable:b yes, partition-size:boot_a 0x4000000. Flash: Sending 0.937 s,
+Writing 0.316 s, rc 0. After: slot-successful:a no, retry 7.
+First flashed boot (fastboot reboot; slot-marking boot, not in the mean): dtb_idx=-1347440721, Machine chef, stamp f52cfe21,
+/ ro p67, https 200, BT up, crash 0, writes 0 on p67 p44 p38 p34 p35 p36 p27; abslot "boot_a marked successful" at 35.5 s;
+p44 first 38666240 bytes read back = df4743903c10b37584f88ebca09bc6b0be6ee6c5262cc9c4832e91571961e9ed.
+
+KPI, flashed uncompressed df474390:
+              start   end     end-start          load  MPM-end  unused  exec init  bootreason
+boot1 (mark)  70436   261364  190928 (5.8267 s)  7413  16448    3.617   5.470      reboot (from fastboot reboot)
+reboot1       77895   267271  189376 (5.7793 s)  7413  16526    3.615   5.479      kernel_panic  <-- see below
+reboot2       66738   256348  189610 (5.7864 s)  7414  16416    3.596   5.472      reboot
+reboot3       66677   256365  189688 (5.7888 s)  7413  16429    3.616   5.492      reboot
+mean end-start 189558 (5.7848 s), min 189376, max 189688, spread 312 (without reboot1: 189649, spread 78).
+Gzip 5c509eb2 (step 1): mean 196010 (5.9817 s), min 195936, max 196049, spread 113.
+Difference: about 6450 counts = 0.197 s lower, more than the combined spread (425): "better" by the rule, but only about
+0.2 s, not the predicted 1.1 s. Load kernel 7413 vs 2595 = +4818 counts = +0.147 s eMMC read (prediction ~7440 held), so
+the gzip inflate inside start..end on a flashed boot was only about 0.34 s (vs 1.24 s measured after a fastboot boot
+download). MPM-end unchanged (0.50 s); kernel-side times unchanged. All four boots: dtb_idx -1347440721, https 200,
+crash counts 0, writes 0 on the protected list.
+
+UNEXPLAINED at the time (characterised below: a shutdown hang on both images): reboot1 came up with androidboot.bootreason=kernel_panic (powerup_reason 0x00020000). It was the reboot out of
+the first flashed boot (slot marking, regression, 38 MB dd read of p44). Host times from the reboot request:
+USB net gone after 5.0 s (7.0-7.1 s on all other reboots today), back after 48.6 s (22.5-23 s otherwise). Bootloader
+timeline after it was normal. First impression, superseded by the hang section below: a hang in the kill phase or just before reboot(2), reset cause not established.
+No record: pstore (ramoops, mounted ro on reboot3) holds only an empty annotate-ramoops-0; the shutdown kmsg was not
+streamed. reboot2 and reboot3 shut down and came back normally. No kernel_panic bootreason anywhere in earlier evidence
+(phase 3 or step 1).
+
+Shutdown hang characterisation (rootfs_impl, 2026-10-05). Result: NOT the packaging; gzip 5c509eb2 hangs the same way.
+
+boot_a: rolled back to 5c509eb2 at 04:39:23Z with the guards (local sha 5c509eb2; p44 first 38666240 = df474390 before;
+getvar current-slot a, successful yes, retry 6, partition-size 0x4000000; after: unsuccessful, retry 7). First boot: dtb_idx
+present, stamp f52cfe21, https 200, crash 0, writes 0, abslot marked the slot, p44 first 13484032 = 5c509eb2.
+
+Streamed reboots on gzip 5c509eb2 (request uptime printed on the phone, reboot(8) runs 1 s later; ping every 0.2 s,
+times from the host request timestamp, which is about 0.3-0.5 s after the phone's uptime print):
+         req uptime  data ro (kmsg)  last kmsg  ping gone  back    bootreason
+gz-r01   180.44      +3.41           +3.42      +5.1       +21.3   reboot      (bc-regress + dd p44 before)
+gz-r02    37.26      +3.36           +3.37      +5.1       +21.5   reboot
+gz-r03    36.67      +3.36           +3.38      +5.1       +21.5   reboot
+gz-r04   180.35      +3.41           +3.42      +5.1       +21.1   reboot
+gz-r05    36.27      +3.38           +3.39      +5.1       +21.3   reboot
+gz-r06    36.71      +3.37           +3.38      +3.0       +36.1   kernel_panic (powerup 0x00020000)  STOP
+gz-r06 post-panic PON: SID0 "Hard Reset and 'warm' boot", power-off PS_HOLD; SID2 "PON1 and 'warm' boot", power-off GP1
+(normal reboots: 'cold'). Bootloader start count 78119 (normal ~66.7k), as after both df474390 events.
+State at the request was the same on gz-r06 and the normal short ones: modem ONLINE crash 0, adsp/venus/a512_zap
+OFFLINING crash 0, gps-manager idle (cid -1), gps-up waiting on TFTP mcfg.tmp timeouts, abslot already marked,
+/data mounted rw, same process list.
+The last streamed lines are identical on every reboot (chef-storage: data filesystem globally read-only / data fully
+unmounted / remaining data aliases are read-only, EXT4 p25 re-mounted). In the hang the kernel stopped answering ping
+within a few hundred ms after that line; normally it answers until +5.1 s. So the hang is in busybox init's kill phase
+(SIGTERM to all, sync, sleep 1, SIGKILL) or just before reboot(2): daemons dying (rmtfs, qmuxd-lite, tftp-server,
+servreg-locator, gps-manager/gps-up, btattach, wpa_supplicant, NetworkManager, ...), long before anything that reads boot_a.
+
+All shutdowns today (uptime at request; older ones estimated as request - network up + about 8 s):
+image     run              uptime   result
+gzip      step1-reboot1    ~1500    reboot (from the charger-mode boot)
+gzip      step1-reboot2    ~34      reboot (before abslot ran)
+gzip      step1-reboot3    ~29      reboot (before abslot ran)
+raw       step3-reboot1    ~58      KERNEL_PANIC (first flashed boot: regression + 38 MB dd)
+raw       step3-reboot2    ~57      reboot
+raw       step3-reboot3    ~50      reboot
+raw       step3s-reboot1   ~156     reboot (dd before)
+raw       step3s-reboot2   ~50      reboot
+raw       step3s-reboot3   ~35      KERNEL_PANIC
+gzip      gz-r01..r05      36-180   reboot x5
+gzip      gz-r06           36.7     KERNEL_PANIC
+=> 2 of 6 on df474390, 1 of 9 on 5c509eb2 today; with these counts the rates cannot be told apart. Earlier evidence has
+about 143 reboots with bootreason=reboot and none with kernel_panic, mostly at longer uptimes and before the read-only
+system_a root (phase 3, 2026-10-05). pstore: ramoops probes but keeps no console across a warm reset, so it cannot capture
+this; locating it needs a netconsole or ::shutdown/kill-phase markers build (outside this task).
