@@ -56,6 +56,22 @@ CALLS="$T/calls"
 
 SENSORS_UP_SELFTEST=1 . "./$SCRIPT"
 
+# chef-state stub: records its calls and, for mag-restore, checks that the
+# pristine copy already exists and overlays the first byte with "M".
+STATE_CALLS="$T/state-calls"
+: > "$STATE_CALLS"
+CHEF_STATE="$T/chef-state-stub"
+cat > "$CHEF_STATE" <<'STUB'
+#!/bin/sh
+echo "$* run=$CHEF_STATE_SENSORS_RUN map=$CHEF_STATE_MAP" >> "$STATE_CALLS"
+if [ "$1" = mag-restore ]; then
+	[ -f "$CHEF_STATE_SENSORS_RUN/sns.reg.persist" ] || { echo "no pristine before overlay" >> "$STATE_CALLS"; exit 1; }
+	printf M | dd of="$2" bs=1 conv=notrunc 2>/dev/null
+fi
+STUB
+chmod +x "$CHEF_STATE"
+export STATE_CALLS
+
 MOUNT_FAIL=0
 UMOUNT_FAIL=0
 SETRO_FAIL=0
@@ -92,7 +108,9 @@ eq "mount args" "mount -t ext4 -o ro,noload /dev/mmcblk0p38 $RUN_DIR/persist-ro"
 eq "umount args" "umount $RUN_DIR/persist-ro" "$(sed -n 4p "$CALLS")"
 eq "calls" 4 "$(grep -c . "$CALLS")"
 grep -q "set read-only at the block layer (blockdev --getro = 1)" "$T/out" || bad "getro proof line missing"
-eq "copy content" 0123456789abcdef "$(cat "$RUN_DIR/sns.reg")"
+eq "copy content with the saved group overlaid" M123456789abcdef "$(cat "$RUN_DIR/sns.reg")"
+eq "pristine copy has no overlay" 0123456789abcdef "$(cat "$RUN_DIR/sns.reg.persist")"
+eq "mag-restore on the temp copy" "mag-restore $RUN_DIR/sns.reg.tmp run=$RUN_DIR map=$REG_MAP" "$(cat "$STATE_CALLS")"
 eq "copy mode" "-r--------" "$(ls -l "$RUN_DIR/sns.reg" | cut -c1-10)"
 eq "mounted flag" 0 "$PERSIST_MOUNTED"
 [ -e "$RUN_DIR/persist-ro" ] && bad "mount point left behind"
@@ -106,7 +124,34 @@ printf 'fedcba9876543210' > "$T/already/sensors/sns.reg"
 printf '/dev/mmcblk0p38 %s ext4 ro,relatime 0 0\n' "$T/already" > "$PROC_MOUNTS"
 copy_registry > "$T/out" 2>&1 || bad "copy from existing mount failed"
 eq "no mount/blockdev when already mounted" 0 "$(grep -c . "$CALLS")"
-eq "copied from existing mount" fedcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+eq "copied from existing mount" Medcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+# SENSORS_FRESH=1: fresh copy, no overlay
+: > "$STATE_CALLS"
+rm -f "$RUN_DIR/sns.reg"
+SENSORS_FRESH=1 copy_registry > "$T/out" 2>&1 || bad "fresh copy with SENSORS_FRESH=1"
+eq "SENSORS_FRESH=1: no overlay" fedcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+eq "SENSORS_FRESH=1: chef-state not called" 0 "$(grep -c . "$STATE_CALLS")"
+grep -q "SENSORS_FRESH=1: no saved magnetometer bias applied" "$T/out" || bad "SENSORS_FRESH overlay message"
+# a mag-restore that fails after writing part of its overlay: the served
+# copy is persist's bytes, not the half-written one
+cat > "$T/chef-state-partial" <<'STUB'
+#!/bin/sh
+[ "$1" = mag-restore ] && printf PARTIAL | dd of="$2" bs=1 conv=notrunc 2>/dev/null
+exit 1
+STUB
+chmod +x "$T/chef-state-partial"
+CHEF_STATE="$T/chef-state-partial"
+rm -f "$RUN_DIR/sns.reg"
+copy_registry > "$T/out" 2>&1 || bad "copy failed with a partial overlay"
+eq "partial overlay: served copy is persist's" "$(cat "$RUN_DIR/sns.reg.persist")" "$(cat "$RUN_DIR/sns.reg")"
+eq "partial overlay: plain copy" fedcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+# a failing mag-restore costs only the overlay
+CHEF_STATE=false
+rm -f "$RUN_DIR/sns.reg"
+copy_registry > "$T/out" 2>&1 || bad "copy failed with a failing chef-state"
+eq "failing chef-state: plain copy" fedcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+grep -q "saved magnetometer bias not applied" "$T/out" || bad "failed overlay message"
+CHEF_STATE="$T/chef-state-stub"
 : > "$PROC_MOUNTS"
 
 # --- wrong size: refused, nothing left, persist still unmounted --------
@@ -164,6 +209,7 @@ rm -f "$RUN_DIR"/sns.reg*
 copy_registry > "$T/out" 2>&1 || bad "fresh copy for reuse: $(cat "$T/out")"
 eq "boot id recorded" aaa "$(cat "$RUN_DIR/sns.reg.boot_id")"
 eq "pristine copy" 0123456789abcdef "$(cat "$RUN_DIR/sns.reg.persist")"
+: > "$STATE_CALLS"
 eq "pristine mode" "-r--------" "$(ls -l "$RUN_DIR/sns.reg.persist" | cut -c1-10)"
 # the DSP learned something (sensord's atomic write-back replaces the file)
 printf 'X123456789abcdeY' > "$RUN_DIR/sns.reg.new" && mv -f "$RUN_DIR/sns.reg.new" "$RUN_DIR/sns.reg"
@@ -173,6 +219,7 @@ eq "reuse: no blockdev/mount/umount" 0 "$(grep -c . "$CALLS")"
 grep -q "registry reused from this boot: .*DSP writes kept: 2 bytes differ from persist's; persist not touched" "$T/out" \
 	|| bad "reuse message: $(cat "$T/out")"
 eq "reuse keeps the DSP writes" X123456789abcdeY "$(cat "$RUN_DIR/sns.reg")"
+eq "reuse: no overlay" 0 "$(grep -c . "$STATE_CALLS")"
 # ... even with the persist partition gone: reuse never looks for it
 mv "$SYSFS_BLOCK/mmcblk0p38" "$T/hidden-p38"
 reuse_registry > "$T/out" 2>&1 || bad "reuse needed persist"
@@ -189,7 +236,7 @@ grep -q "not from this boot" "$T/out" || bad "boot mismatch message: $(cat "$T/o
 : > "$CALLS"
 copy_registry > "$T/out" 2>&1 || bad "fresh copy after boot mismatch"
 eq "fresh copy goes through setro" "blockdev --setro /dev/mmcblk0p38" "$(sed -n 1p "$CALLS")"
-eq "fresh content" 0123456789abcdef "$(cat "$RUN_DIR/sns.reg")"
+eq "fresh content" M123456789abcdef "$(cat "$RUN_DIR/sns.reg")"
 eq "new boot id" bbb "$(cat "$RUN_DIR/sns.reg.boot_id")"
 # unreadable boot id: never reused
 BOOT_ID_FILE="$T/no-such-boot-id"
@@ -224,6 +271,26 @@ echo OFFLINE > "$SUBSYS_DIR/subsys1/state"
 adsp_online && bad "adsp_online with OFFLINE"
 echo ONLINE > "$SUBSYS_DIR/subsys1/state"
 adsp_online || bad "adsp_online with ONLINE"
+
+# A same-boot supervisor restart resets its local timer, but chef-state's
+# shared timer may defer the first write. Keep the final snapshot pending.
+chef_state() { echo "$*" >> "$STATE_CALLS"; return "$SAVE_RC"; }
+uptime_s() { echo "$FAKE_UPTIME"; }
+REG_SAVE_AT=0 REG_SAVE_PENDING=1 SAVE_RC=3 FAKE_UPTIME=31
+reg_save_pending
+eq "rate-skipped snapshot stays pending" 1 "$REG_SAVE_PENDING"
+SAVE_RC=0 FAKE_UPTIME=90
+reg_save_pending
+eq "pending waits for minute retry" 1 "$REG_SAVE_PENDING"
+FAKE_UPTIME=91
+reg_save_pending
+eq "final coalesced snapshot accepted at retry" 0 "$REG_SAVE_PENDING"
+REG_SAVE_PENDING=1 SAVE_RC=1 FAKE_UPTIME=151
+reg_save_pending
+eq "failed snapshot stays pending" 1 "$REG_SAVE_PENDING"
+SAVE_RC=0 FAKE_UPTIME=211
+reg_save_pending
+eq "failed snapshot retried without another DSP write" 0 "$REG_SAVE_PENDING"
 
 if [ "$FAILS" -ne 0 ]; then
 	echo "test_sensors-up.sh: $FAILS failure(s)"

@@ -39,6 +39,7 @@ static void dbgprintf(const char *fmt, ...)
 
 	va_start(ap, fmt);
 	vprintf(fmt, ap);
+	fflush(stdout);
 	va_end(ap);
 }
 

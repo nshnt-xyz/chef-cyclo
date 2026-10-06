@@ -26,6 +26,14 @@
 # re-read (the ADSP itself keeps its state across a sensord restart); a new boot, a
 # size mismatch or SENSORS_FRESH=1 makes a fresh copy as above.
 #
+# Across boots only the magnetometer's group 2980 (the hard-iron bias the
+# ADSP learns) is kept, by chef-state on /data, never the whole registry:
+# each time sensord writes the /run copy back, and when sensord exits,
+# `chef-state mag-save` saves that group if its bias is nonzero; a fresh
+# copy from persist gets the saved group overlaid (`chef-state
+# mag-restore`) before sensord serves it, if it was learned against the
+# same persist registry and map. SENSORS_FRESH=1 skips the overlay.
+#
 # Order: sensord's REG2 server is published *before* the ADSP boots, the
 # way stock's sensors.qti (class core) is up before the sensor PD reads
 # its configuration. If the ADSP is already up (audio-up ran first), the
@@ -63,6 +71,7 @@ SENSORD_ARGS=${SENSORD_ARGS:--v}
 SMGR_WAIT=${SMGR_WAIT:-120}	# 0.5 s steps: 60 s
 BOOT_ID_FILE=${BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}
 SENSORS_FRESH=${SENSORS_FRESH:-0}
+CHEF_STATE=${CHEF_STATE:-chef-state}
 REG_COPY="$RUN_DIR/sns.reg"
 REG_BOOT="$RUN_DIR/sns.reg.boot_id"	# the boot the copy was made in
 REG_PRISTINE="$RUN_DIR/sns.reg.persist"	# the copy as read from persist
@@ -152,9 +161,18 @@ copy_registry() {
 		rm -f "$REG_COPY.tmp"
 		return 1
 	fi
-	chmod 0400 "$REG_COPY.tmp"
 	rm -f "$REG_PRISTINE" "$REG_BOOT"
 	cp "$REG_COPY.tmp" "$REG_PRISTINE" && chmod 0400 "$REG_PRISTINE"
+	if [ "$SENSORS_FRESH" = 1 ]; then
+		log "SENSORS_FRESH=1: no saved magnetometer bias applied"
+	else
+		if ! chef_state mag-restore "$REG_COPY.tmp"; then
+			# never serve a half-written overlay: back to persist's bytes
+			log "saved magnetometer bias not applied"
+			cp "$REG_PRISTINE" "$REG_COPY.tmp" || { log "cannot restore the persist copy"; rm -f "$REG_COPY.tmp"; return 1; }
+		fi
+	fi
+	chmod 0400 "$REG_COPY.tmp"
 	mv -f "$REG_COPY.tmp" "$REG_COPY"
 	cat "$BOOT_ID_FILE" > "$REG_BOOT" 2>/dev/null
 	log "registry copied to $REG_COPY ($got bytes; persist untouched)"
@@ -207,6 +225,24 @@ wait_for() {
 	done
 }
 
+# chef-state on this script's registry paths (overridable for the tests).
+chef_state() {
+	CHEF_STATE_SENSORS_RUN="$RUN_DIR" CHEF_STATE_MAP="$REG_MAP" "$CHEF_STATE" "$@"
+}
+
+# Keep a pending snapshot until chef-state actually accepts it; rate-limit
+# skips and failures survive a supervisor restart or a final DSP write.
+reg_save_pending() {
+	if [ "${REG_SAVE_PENDING:-0}" = 1 ]; then
+		now=$(uptime_s); now=${now%%.*}
+		if [ $((now - REG_SAVE_AT)) -ge 60 ] || [ "$REG_SAVE_AT" = 0 ]; then
+			chef_state mag-save; save_rc=$?
+			REG_SAVE_AT=$now
+			[ "$save_rc" != 0 ] || REG_SAVE_PENDING=0
+		fi
+	fi
+}
+
 uptime_s() {
 	cut -d ' ' -f 1 /proc/uptime 2>/dev/null || echo 0
 }
@@ -236,6 +272,7 @@ cleanup() {
 	trap - EXIT HUP INT TERM
 	[ -n "$SENSORD_PID" ] && kill "$SENSORD_PID" 2>/dev/null
 	[ -n "$SENSORD_PID" ] && wait "$SENSORD_PID" 2>/dev/null
+	[ "${NO_REG2:-1}" -ne 0 ] || CHEF_STATE_MAG_FINAL=1 chef_state mag-save
 	# Only reachable between mount and umount if cp itself was killed.
 	[ "$PERSIST_MOUNTED" -eq 1 ] && umount "$PERSIST_MNT" 2>/dev/null
 	rm -f "$REG_COPY.tmp"
@@ -294,7 +331,18 @@ else
 fi
 
 log "supervising sensord pid $SENSORD_PID${AUDIO_PID:+ (audio-up pid $AUDIO_PID left running)}"
+# sensord renames a new file over the copy on each write-back.
+REG_INODE=$(stat -c %i "$REG_COPY" 2>/dev/null)
+REG_SAVE_AT=0
 while :; do
+	if [ "$NO_REG2" -eq 0 ]; then
+		ino=$(stat -c %i "$REG_COPY" 2>/dev/null)
+		if [ -n "$ino" ] && [ "$ino" != "$REG_INODE" ]; then
+			REG_INODE=$ino
+			REG_SAVE_PENDING=1
+		fi
+	fi
+	reg_save_pending
 	if ! child_running "$SENSORD_PID"; then
 		wait "$SENSORD_PID" 2>/dev/null
 		rc=$?

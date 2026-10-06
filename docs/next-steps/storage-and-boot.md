@@ -19,8 +19,11 @@ Writable state lives on `userdata`, mounted at `/data` (ext4 `chefdata`); the
 [storage guide](../features/storage.md) is the operating reference, with the
 versioned layout and the reserved directories for rides, map tiles, sensor
 calibration, power logs, the wall-RTC offset, chrony drift and the GNSS
-shadow. BlueZ pairing keys and NetworkManager profiles persist today; the
-other consumers are follow-ups. The root on `system_a` is read-only and `/var`
+shadow. BlueZ pairing keys, NetworkManager profiles, crash records and a boot
+history, the wall-RTC offset, chrony drift, the power log and the
+magnetometer bias persist today
+([persistent state](../features/storage.md#persistent-state)); rides, map
+tiles and the GNSS shadow are follow-ups. The root on `system_a` is read-only and `/var`
 is a tmpfs, so anything meant to survive a reboot must go under `/data`. The
 no-writes-to-EFS/`persist` rule stays absolute.
 
@@ -69,7 +72,7 @@ no-writes-to-EFS/`persist` rule stays absolute.
 
 - **Charger mode.** `poweroff` with USB attached re-powers the phone (PMIC USB trigger) in about 24 s with `androidboot.mode=charger` and `bootreason=charger`, and our full OS boots. An off-mode charging screen, or powering off again until the key is pressed, is a follow-up ([buttons and power-off](../features/buttons-and-power-off.md)).
 - **Test images mark `boot_a`.** A `fastboot boot` test image runs the same inittab, so after 30 s it marks `boot_a` successful whatever `boot_a` holds; a freshly flashed but broken `boot_a` could then look good. Gate the mark on the running kernel and ramdisk having come from `boot_a`; stage 1 now exists and could record that for stage 2, but does not yet.
-- **Cold-boot check of the installed layout.** Phase 3 was accepted over USB while the user was away (fastboot boots, `fastboot reboot` and ordinary reboots); a cold boot without USB, with panel, touch, buttons and the audible speaker tone, is still to be watched by the user.
-- **Consumers still volatile.** Rides, map tiles, sensor calibration, power logs, the wall-RTC offset, chrony drift and the GNSS shadow move to `/data` one by one ([storage guide](../features/storage.md)).
+- **Cold-boot check of the installed layout.** The user accepted unplugged Power-on with panel, touch/buttons and speaker on 2026-10-06 ([build log](../build-log.md#2026-10-06-user-checks-on-the-installed-layout)). The state-persistence pair also passed unplugged button shutdown and Power-on/fblog; its exact-image provenance is in the [acceptance ledger](../../logs/state-persistence-2026-10-06.txt).
+- **Consumers still volatile.** Rides, map tiles and the GNSS shadow move to `/data` one by one ([storage guide](../features/storage.md)). Crash records, a boot history, the wall-RTC offset, chrony drift, the power log and the magnetometer bias moved on 2026-10-06 ([persistent state](../features/storage.md#persistent-state)).
 - **`dm-verity`** for `system_a` (`CONFIG_DM_VERITY=y` exists) is a possible later step.
 - **Packages at runtime.** The root is read-only, so `apk add` works only on the RAM image (`out/boot-ram.img`); software changes go through a rebuilt `system_a`.

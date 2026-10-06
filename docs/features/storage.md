@@ -67,16 +67,39 @@ to restart after shutdown failure. `btprobe restart bootloader`
 then performs the raw reboot. Use the default shutdown hook for orderly init
 poweroff/reboot; sending SIGTSTP from that hook would stall init.
 
+## Persistent state
+
+[Acceptance audit](../../logs/state-persistence-2026-10-06.txt) distinguishes the prior installed image from subsequent fixes and pending live checks.
+
+Since 2026-10-06 (`chef-state`, `tools/rtc-edge.c`; [handoff](../next-steps/state-persistence-handoff.md)) these also survive a reboot:
+
+| State | Directory | Written by | Read back by |
+|---|---|---|---|
+| Crash records (pstore) and boot history | `/data/v1/crash` | `chef-state boot` in `/init` | you (`cat`, `ls`) |
+| Wall-clock offset to the RTC | `/data/v1/time/rtc-offset` | `chef-state timekeeper` (inittab) and `chef-state shutdown` | `chef-state boot` in `/init` |
+| chrony drift | `/data/v1/chrony` bound on `/var/lib/chrony` | chronyd (about hourly, and on exit) | chronyd at start |
+| Power log | `/data/v1/power/log.csv(.1)` | `powerd -l` ([battery](battery-and-charging.md)) | you |
+| Magnetometer hard-iron bias (REG2 group 2980) | `/data/v1/sensors/mag-group-2980` | `sensors-up` via `chef-state mag-save` | `sensors-up` via `chef-state mag-restore` ([sensors](sensors.md#magnetometer-calibration)) |
+
+`chef-storage boot` creates `crash`, `time`, `power` and `sensors` (root, 0700) and `chrony` (`chrony:chrony`, 0700) after the BlueZ and NetworkManager binds, and binds `chrony` on `/var/lib/chrony`. A failure there is logged and leaves the other binds in place. A failed chrony bind leaves its tmpfs directory; a missing or foreign `/data` gives all consumers their RAM paths. On an owned but unwritable `/data`, state saves are skipped or fail with a log line; powerd falls back if creating its log directory fails, and reports lost rows if appending fails.
+
+Common rules, all in `initramfs/usr/bin/chef-state`:
+
+- **Ours only.** Nothing is read from or written to `/data` unless `chef-state ours` holds: `/data` is a mount point and `/data/chef-layout` reads `chef-cyclo-data-v1`. Otherwise every consumer runs from `/run` as before, with one log line, and `/run/chef-time` says `source=none reason=ram-only`.
+- **Atomic, checked files.** `rtc-offset` and `mag-group-2980` are short text files whose last line is `sha256` of the lines before. They are written as a temp file in the same directory, fsynced, renamed and the directory fsynced, under a per-kind lock on `/run`. On read, the version, line layout, checksum and ranges are checked; a file that fails is ignored with a `chef-state: ... ignoring ...` kmsg line, never trusted and never fatal.
+- **Bounded.** `/init` runs `timeout -k 2 25 chef-state boot`. busybox init runs `timeout -k 1 5 chef-state shutdown` as the first `::shutdown` line (and in `::restart`), before `chef-storage shutdown`. It TERMs powerd and `sensors-up` at entry so their exit work overlaps the RTC save (chronyc with a 1 s limit); chronyd stays alive for that query and is then stopped while `/data` is still writable. Init does not respawn during the `::shutdown` lines. A shared approximate 1.8 s process-stop budget leaves time for the final bias snapshot and sync near the normal 2 s target; proc reads and subprocess overhead mean this is not a hard wall-clock bound. The check snapshots process start times before TERM, counts dead/zombie processes as exited, detects reused PIDs, and treats unreadable or malformed live process state conservatively. Shutdown logs return codes and whether those processes exited; exit alone does not prove a drift write succeeded, and a timeout cannot confirm it. Drift readback/startup-frequency evidence is recorded separately. The final installed implementation measured 0.23 to 1.11 s over 20 readiness-gated reboots; this is normal-path evidence, not a worst-case guarantee. A blocked hook is bounded by the outer 5 s TERM timeout plus 1 s KILL grace (the timeout targets the hook PID and does not guarantee every descendant exits), so the failure path can exceed the approximate 2 s normal target. It works from `/`, so `chef-storage shutdown`'s `fuser` never finds it.
+- **Small write load.** The offset file is rewritten only when the offset moved by 0.1 s or more, or 6 hours of RTC time passed; the bias only when its bytes change and at most once per minute during supervision (an exit/shutdown save may bypass this interval); `boots.log` gets one line per boot.
+
+**Clock.** The PM660 RTC is write-disabled and counts whole seconds from battery connect (`since_epoch`), so the kernel boots the clock at 1970. `rtc-edge sample` waits for the RTC's next second tick (2 ms polls, at most 1.1 s) and returns the wall time at that instant, so the saved `offset_ns` (wall minus `since_epoch`) is good to a few ms. The timekeeper saves it only while chrony is synchronised to a real source (leap status `Normal`, reference not `00000000`, `7F7F0101` or `LOCL`; the GPS refclock counts): every minute until the first save of the boot, then every 15 minutes, and once at shutdown. At boot, right after `chef-storage boot`, `rtc-edge set` sets the clock at the next RTC tick to `since_epoch + offset`. A `since_epoch` below the saved one (the battery was disconnected), more than 5 years of RTC time since the save, a result outside 2026 to 2100, or no RTC tick falls back to the saved wall time as a floor, applied only if the clock is behind it. `/run/chef-time` records `source=rtc-offset|floor|none`, a `reason` and `saved_age_s` (RTC seconds since the save). A reset is only detected while the new RTC counter is below the saved counter; if enough time passes after battery disconnect for it to catch up, this file cannot distinguish the reset from continuous operation. The time stays unverified until chrony syncs; `makestep 1.0 -1` steps any later error. The ext4 check at boot runs before the clock is restored, so it still sees a 1970 clock, as before.
+
+**Crash records.** At boot pstore is mounted read-only on `/sys/fs/pstore`; every non-empty record whose SHA-256 is not already saved is copied into `/data/v1/crash/<seq>-<bootreason>/` with an `info` file (this boot's id, the previous boot's id, `androidboot.bootreason`, `since_epoch`, wall time if the clock was restored, and each file's size and SHA-256), then pstore is unmounted. Nothing is removed from pstore. One kmsg line names the directory. The newest 32 record directories are kept, and older ones are removed while the directory holds more than 16 MiB. `boots.log` gets `seq=N boot_id=... bootreason=... since_epoch=... wall=...|na pstore=N` per boot, appended and fsynced (a torn last line is skipped when the next sequence number is read), rotating to `boots.log.1` at 256 KiB. What survives in pstore: a kernel panic's `dmesg-ramoops-0` and `console-ramoops-0`, for one boot (the warm PON after the panic). An unplugged buttond poweroff followed by Power on on 2026-10-06 also kept only the empty annotate record: no previous console survived. An ordinary `reboot`, the bootloader path and a `fastboot boot` keep nothing but an empty `annotate-ramoops-0` (checked 2026-10-06), so the previous boot's console log is not available after a clean reboot.
+
 Reserved follow-up locations, still volatile until their consumers migrate:
 
 | State | Planned directory |
 |---|---|
 | Rides | `/data/v1/rides` |
 | Map tiles | `/data/v1/maps` |
-| Sensor calibration | `/data/v1/sensors` |
-| Power logs | `/data/v1/power` |
-| Wall-RTC offset | `/data/v1/time` |
-| Chrony drift | `/data/v1/chrony` |
 | GNSS RAM shadow | `/data/v1/gnss` |
 
 Since phase 3 the root filesystem is the read-only `system_a`
@@ -87,3 +110,11 @@ uses the same `/data` handling. Recovery uses fastboot in the unchanged
 bootloader, reached by holding VolDown through a Power-held reset. Flash a
 known-good `boot_a` image with an explicit `_a` target; never use
 `fastboot set_active`. See the [recovery guide](../device.md#stock-backups-and-recovery).
+
+On the final 2026-10-06 pair, a settled 300.40 s idle interval wrote 237,568
+bytes to all userdata (65.16 MiB/day extrapolated, including journal and
+other consumers); the power log grew 2,804 bytes in 16 rows (0.77 MiB/day
+payload extrapolated). These are short-interval estimates, not long-term
+guarantees. GPS leases and sensors were off; powerd, chrony, the timekeeper,
+NetworkManager and BlueZ were active. Protected partition write counters
+stayed zero. [Exact images and raw evidence mapping](../../logs/state-persistence-2026-10-06.txt).

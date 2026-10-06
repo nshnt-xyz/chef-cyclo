@@ -17,8 +17,13 @@
 # (`gps-manager hold map`), then runs the LOC session, gpsd and the NMEA
 # pipeline on top of the gps-up modem; never starts or stops gps-up.
 ::respawn:/usr/bin/gps-manager
-# Client-only NTP, no network command/server listener; state is volatile.
-::respawn:/bin/sh -c 'mkdir -p /run/chrony && chown chrony:chrony /run/chrony && chmod 700 /run/chrony && exec /usr/sbin/chronyd -d -u chrony -f /etc/chrony/chrony.conf'
+# Client-only NTP, no network command/server listener. The drift file is in
+# /var/lib/chrony: /data/v1/chrony bound there by chef-storage when /data is
+# ours, else the tmpfs directory (chronyd as `chrony` must own it either way).
+::respawn:/bin/sh -c 'mkdir -p /run/chrony /var/lib/chrony && chown chrony:chrony /run/chrony /var/lib/chrony && chmod 700 /run/chrony /var/lib/chrony && exec /usr/sbin/chronyd -d -u chrony -f /etc/chrony/chrony.conf'
+# Wall clock against the RTC on /data (chef-state): saved while chrony is
+# synchronised, restored by /init on the next boot.
+::respawn:/usr/bin/chef-state timekeeper
 ::respawn:/usr/bin/bt-up
 # On-device boot/probe output: paints /dev/kmsg on the panel, read-only, no
 # touch. Holds /dev/fb0 for the life of the boot (the panel is off otherwise).
@@ -36,15 +41,21 @@
 # The PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look.
 ::respawn:/usr/bin/buttond
 # Battery: low-battery warn (15 %) / critical (5 %) and a clean poweroff when
-# empty and unpowered or at 68 C, the power_supply log + state in /run/power
-# (`powerd status`), and the 44/42 C charge throttle on system_temp_level.
-::respawn:/usr/bin/powerd
+# empty and unpowered or at 68 C, state in /run/power (`powerd status`), the
+# power_supply log in /data/v1/power (4 MiB + one rotation) when /data is
+# ours, else in /run/power (1 MiB), and the 44/42 C charge throttle on
+# system_temp_level.
+::respawn:/bin/sh -c 'if /usr/bin/chef-state ours; then exec /usr/bin/powerd -l /data/v1/power -L 4194304; else exec /usr/bin/powerd; fi'
 # A/B slot: mark boot_a successful once this boot has lasted 30 s, as
 # Android's boot_control HAL did, so abl stops counting retries down (it
 # would mark the slot unbootable after 7 boots). A build that dies earlier
 # keeps counting and ends in fastboot. Logs to kmsg and /run/abslot.log.
 ::once:/bin/sh -c 'sleep 30; exec /usr/bin/abslot mark-successful >/dev/null'
 ::ctrlaltdel:/sbin/reboot
+# chef-state first (last RTC offset, chronyd stopped so its drift file is
+# written, last magnetometer bias), bounded so it cannot hold up the rest;
+# then chef-storage makes /data read-only and detaches it.
+::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown
 ::shutdown:/usr/bin/chef-storage shutdown
 ::shutdown:/bin/umount -a -r
-::restart:/bin/sh -c '/usr/bin/chef-storage shutdown; exec /sbin/init'
+::restart:/bin/sh -c '/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown; /usr/bin/chef-storage shutdown; exec /sbin/init'

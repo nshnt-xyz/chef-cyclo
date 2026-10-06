@@ -12,7 +12,8 @@ Charging is done by the kernel, the same way stock Android does it: `qpnp-smb2` 
 - **Clean shutdown** when unpowered, `battery/present == 1`, `bms/soc_reporting_ready == 1` and either the capacity is 0 % or `voltage_now` is below 3300 mV with the capacity at or below 5 %. Also when the battery is **above 68.0 °C**, whether or not a charger is attached: this is the only shutdown allowed while powered. Every condition must hold on 3 samples at least 5 s apart. An unreadable or `-22` value counts as unknown and restarts the count. The shutdown is `sync` then busybox `poweroff`, the same orderly path as `buttond`.
 - **"Unpowered"** means `battery/status` reads exactly `Discharging` **and** `usb/online`, `pc_port/online` and `dc/online` each read 0 or their supply does not exist. An SDP (PC USB 2) port reads `usb/online = 0` and reports the input on `pc_port/online`, and an attached charger that is not charging reads `Not charging`, so neither counts as unplugged. Anything unreadable counts as powered. The sign of `current_now` is never used (positive = discharging, negative = charging on this fuel gauge).
 - **Charge thermal throttle** (a clone of thermal-engine's `SS-BATT-BATT` rule). While a supply is online it checks every 5 s: battery ≥ 44.0 °C raises `battery/system_temp_level` by one step (up to level 7), ≤ 42.0 °C lowers it. The level indexes the DT `qcom,thermal-mitigation` FCC table (3000, 2500, 2000, 1500, 1200, 900, 700, 300 mA). It is written back to 0 at start, on unplug and on a clean exit.
-- **Logging** (a clone of `batt_health`, to RAM): `/run/power/log.csv` gets one row per uevent and poll, bounded at 1 MiB with one rotation to `log.csv.1`. `/run/power/state` holds the current values as `key=value` lines, rewritten atomically.
+- **Logging** (a clone of `batt_health`): one CSV row per uevent and poll. When `/data` is the mounted [persistent layout](storage.md#persistent-state) (`chef-state ours`), inittab starts `powerd -l /data/v1/power -L 4194304`: the log survives reboots, bounded at 4 MiB with one rotation to `log.csv.1` (retention time depends on the uevent rate). Otherwise (RAM-only boot) it is `/run/power/log.csv`, 1 MiB plus one rotation, as before. Rows are appended and the file closed each time, with no `fsync` (ext4 uses `commit=5`, but dirty data writeback can take longer; recent rows may be lost on abrupt power loss); a failed append (read-only remount, full disk) is logged once and retried on the next row. `/run/power/state` (current values as `key=value` lines, rewritten atomically) and `shutdown-pending` always stay on `/run`.
+- **Log format:** a header line, then `uptime,utc,reason,status,source,usb_type,capacity,voltage_mv,current_ma,temp_c,health,charge_type,ocv_mv,charge_full_uah,charge_counter_uah,cycle_count,soc_ready,usb_current_max_ma,usb_input_ma,usb_voltage_mv,input_settled_ma,profile_fcc_ma,typec_mode,pc_port_online,dc_online,system_temp_level,throttle_level,alert,boot_id`. `reason` is `start`, `uevent`, `poll`, `tick` or `signal`. `boot_id` (the kernel's `/proc/sys/kernel/random/boot_id`) is filled on the `start` row only, so boots can be told apart in a log that spans several; it is empty on every other row. `utc` is 1970 until the clock is set (by `chef-state` from the saved RTC offset, or by chrony). A file whose header differs (an older format) is rotated to `log.csv.1` before the first new row.
 
 Nothing else is written: no input/charge current overrides, no `input_suspend`, ship mode or demo mode, and nothing in persist or EFS. The kernel's own charging stays in charge. The charging LED stays off, as on stock.
 
@@ -22,7 +23,7 @@ In the phone shell:
 
 ```sh
 powerd status                 # the state file
-cat /run/power/log.csv        # history since boot (RAM only)
+cat /data/v1/power/log.csv    # history across boots (/run/power/log.csv on a RAM-only boot)
 dmesg | grep powerd:          # transitions: plug/unplug, status, warnings, throttle, shutdown
 ```
 
@@ -54,8 +55,8 @@ See the [build-log entry](../build-log.md) and `logs/powerd-live-test-2026-09-26
 
 ## Limits
 
-- Everything the image records lives in `/run` (RAM), so a low-battery shutdown loses it. The warnings exist so evidence can be pulled first.
-- Off-mode charging under our own image needs a standalone boot. Today a power-off with USB attached comes back in Android's own charger mode. Stock's charger writes `/mnt/vendor/persist/chargeonly/cooldown` itself; our image never writes persist.
-- Cycle count and battery age are not persisted (no writable storage yet). The fuel gauge keeps the cycle count while the battery stays connected.
+- Current state and shutdown markers live in `/run` (RAM). The power log survives a clean shutdown on the owned writable `/data` layout; RAM-only boots still lose it.
+- With the installed standalone layout, poweroff with USB attached returns to our image in charger mode; unplugging before poweroff is needed to stay off. Our image never writes persist.
+- Cycle count and battery age are not persisted by a consumer yet. The fuel gauge keeps the cycle count while the battery stays connected.
 
 Remaining validation and persistence work is owned by [power and reliability](../next-steps/power-and-reliability.md#battery-and-charging).

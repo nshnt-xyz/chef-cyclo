@@ -12,15 +12,16 @@ Acceptance: the recorder's lease surviving UI restarts, the UI showing manager s
 
 ## Time synchronization
 
-Done: chrony steps the boot clock from the NTP pool over Wi-Fi or, offline, from GPS while a lease holds gpsd ([GPS time](../features/gps.md#gps-time), 2026-10-04). Remaining:
+Done: chrony steps the boot clock from the NTP pool over Wi-Fi or, offline, from GPS while a lease holds gpsd ([GPS time](../features/gps.md#gps-time), 2026-10-04). Since 2026-10-06 the clock boots from a wall-minus-RTC offset saved on `/data`, and chrony's drift file persists too ([storage: persistent state](../features/storage.md#persistent-state)). Remaining:
 
-- **RTC offset persistence.** The PM660 RTC (`rtc0`) is write-disabled in DT and only counts from battery connect, so there is no `rtcsync`. Persisting a wall-minus-RTC offset on writable storage ([persistent storage](storage-and-boot.md#persistent-storage)) would give a roughly right clock at boot before any source.
 - **USB host as a source.** When plugged in, the host's chronyd (or any NTP server on the USB link) could be a `server 172.16.42.x` source. The host needs an NTP server for that; a test SNTP responder on the link measured the phone against the host with 1.8 ms round trips.
 
 ## Warm starts and assistance
 
-New RAM-shadow GNSS state disappears across boots. The recorded terrace cold start was ≤78 seconds; repeat measurements before treating that as a typical startup time. Investigate two improvements without touching real EFS: persist the *shadow* (or only the GNSS state files it contains — find them in the `rmtfs` read/write trace) to our own writable storage ([persistent storage](storage-and-boot.md#persistent-storage)) and re-seed the shadow from it at boot; and once [Wi-Fi](connectivity-and-sensors.md#wi-fi) exists, fetch gpsOneXTRA (`xtra3grc.bin`) and inject it plus time through LOC and measure TTFF before/after. Faster warm or assisted starts remain an expected benefit to verify.
+New RAM-shadow GNSS state disappears across boots. The recorded terrace cold start was ≤78 seconds; repeat measurements before treating that as a typical startup time. Investigate two improvements without touching real EFS: persist the *shadow* (or only the GNSS state files it contains — identify them through additional filesystem-level investigation; sector-only RMTFS traffic does not identify filenames) to our own writable storage ([persistent storage](storage-and-boot.md#persistent-storage)) and re-seed the shadow from it at boot; and once [Wi-Fi](connectivity-and-sensors.md#wi-fi) exists, fetch the modem-advertised gpsOneXTRA source (`xtra3grcej.bin` in the 2026-10-06 query) and inject it plus time through LOC and measure TTFF before/after. Faster warm or assisted starts remain an expected benefit to verify.
 
 ## Carrier work outside GPS
 
 Nested `/readonly/firmware/image/modem_pr/...` MCFG reads remain unsupported by `tools/tftp/translate.c`. Review a narrowly scoped allowlist change before carrier/RIL work; GPS is already verified without it.
+
+GNSS assistance research (2026-10-06): [source and validity observations](../../logs/gnss-assistance-research-2026-10-06.txt) show existing valid orbit data and modem-advertised `xtra3grcej.bin`. The flushed lease trace showed block-shadow writes without a fix or new TFTP requests; a completed-fix session and a fresh-boot idle control are still needed before attributing those writes to GNSS or deciding whether any RAM shadow should persist. Assistance upload and automatic time injection remain follow-ups.

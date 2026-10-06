@@ -1,0 +1,147 @@
+State persistence, 2026-10-06 — implementation and acceptance ledger
+
+chef-state persists bounded crash records/boot history, RTC wall-clock
+offset and magnetometer group 2980 on chefdata, with chrony drift and
+separate powerd logs. All other sensor registry state remains RAM-only.
+Kernel #22 is unchanged. No persist/EFS writes or GNSS assistance injection.
+Fallback system e72a3039 + stage1 boot81a5c5ef remains intact in out/.
+Raw evidence: ~/chef-cyclo-evidence/state-persistence-20261006/ (private).
+
+Final reviewed implementation, SKIP_KERNEL=1 scripts/mkinstall.sh:
+RAM c40a3c65ad324c0d3cb2d06e534f72b7996dfa8e4ca1ce63021ea526d1f50976
+system_a 799577b6334b8886584c87648f6844b87d79642722291d1b26a887e5d240165d
+boot_a e5b57effb72d186a24a80cdfd6f896bda9cf412cf06f0300ecdcd3350313663f
+stamp 3d2ed94f339716ddcb527fcaf24cf01fad586c9a726ecd8c7204bff54ef9f015
+stage1 ramdisk 11238cd49927b7cb5a22518b10373cbc62ab3d7d240b1269c9587319572768f7
+kernel 0cf2981cd05affeb7c64a3503f170c70c4d44c6ac8a25f1c6f65ee0c722baac1
+Hash-suffixed copies are retained in out/, along with prior tested pairs.
+
+Review corrections: strict RTC parsing/checked arithmetic and canonical
+shell integers; hard 16 MiB crash cap and verified saved-copy dedup; narrow
+mag group validation, atomic overlay and one/minute changed-write saves,
+with deferred/failed saves retried even without another DSP write and final
+exit snapshot; explicit early powerd TERM overlapping the RTC save;
+PID/start-time-aware completion (Z/X exited, unreadable/malformed state
+conservative); truthful time/mag/sync/stop outcomes. Normal shutdown targets
+about 2 s with a shared approximate 1.8 s stop budget, not a hard wall bound.
+Blocking failure paths retain the tested outer 5 s TERM + 1 s KILL hook cap;
+this timeout targets the hook PID, not all descendants. Process exit does
+not prove a drift write succeeded; drift readback is separate evidence.
+Power rows are not fsynced individually; commit=5 is not a dirty-data
+writeback deadline. Recent rows can be lost on abrupt power loss.
+RTC time remains unverified until sync; a battery-reset counter can catch
+up with the saved counter, so not every battery reset can be detected.
+RMTFS fflush(stdout) is diagnostic only, with no payload logging.
+
+Final-image acceptance:
+- Definitive make -C tools test passed, including storage60, RTC7, state82,
+  stage1 16 and all earlier suites; scripts unittest discovery41 passed.
+  Logs/build output: host-final/tools-test-stopfix.txt and build-stopfix.txt.
+- Same-tree RAM boot/acceptance: stopfix-ram-boot/acceptance.txt; matching
+  source/package/remote binaries, RTC restore, owned binds, Wi-Fi/HTTPS200,
+  chrony Normal, BT powered. Drift startup3.212ppm slow matches saved
+  -3.212095. RAM shutdown all rc0 in1.12s, powerd exit before hook return,
+  userdata global RO/full unmount, clean return25.062s, RTC/data-ok/drift
+  readback/protected write counters0: stopfix-ram-reboot-*.
+- Reviewer granted exact-pair installation clearance against staged diff
+  755b2a88518270d23c20baad566fe36e5cf8cfd2aa75ca658a012dd48592997f.
+  Immediate slot a and artifact rehash checks preceded each explicit _a
+  flash; stage1 fastboot boot passed before boot_a installation:
+  stopfix-system_a/boot_a-{slot,preflash-hash,flash}.txt and stage1-*.
+- Installed regression: stopfix-installed-regression/sensors.txt; matching
+  binaries, Wi-Fi/HTTPS200/chrony Normal/BT powered/owned binds/accel.
+  Autoconnect UUID f51da99e-755b-48e5-b080-60a73d8c1080 restored to yes;
+  GPS manager OFF, no outstanding lease. No user movement requested.
+- Automatic powerd threshold-test poweroff: stopfix-powerd-poweroff-*;
+  SHUTDOWN after3samples, all hook rc0 in0.75s, userdata RO/fullunmount,
+  charger-mode return26.254s and RTC restore. This exercises the revised
+  shutdown ordering; it does not replace the earlier physical observation.
+
+- Twenty readiness-gated final-pair ordinary cycles: stopfix-rb01..20,
+  seq40..59, bootreason=reboot, all time/mag/sync/stop rc0, RTC/data restored,
+  userdata global RO/fullunmount and protected write counters0 each time.
+  Every pre-reboot probe waited at least30s with owned binds, connected
+  Wi-Fi and chrony Normal; uptime range30.09..31.93s. Hook0.23..1.11s,
+  clean return22.454..26.078s. Summary stopfix-reboot-series.txt and
+  stopfix-reboot-summary.json; per-cycle readiness/kmsg/after/timing files.
+
+- Separate pre-readiness stress: stopfix-early-startup-*, hook26.01..26.11s
+  uptime, time_save_rc1 while unsynced, mag/sync/stop0; powerd exit26.064s
+  preceded hook return26.120s and fullunmount28.494s. Clean return24.051s,
+  RTC/data/drift readback and protected0. This accepts only that26s case,
+  not a reproduction or resolution proof of the prior12.5s stress warning.
+
+- Final-pair idle write sample: stopfix-rate-{readiness,start,end}.txt and
+  stopfix-rate-summary.json. Same boot0ef11c92, monotonic uptime122.55
+  ->422.95s (300.40s), userdata sectors481->945:237568bytes. Extrapolated
+  68328479bytes/day (65.16MiB/day), entire userdata including journal and
+  other consumers; a five-minute extrapolation, not a long-term guarantee.
+  Power log450675->453479bytes,2655->2671rows:2804bytes/16rows, extrapolated
+  806477payload bytes/day (0.77MiB/day). Active persisted consumers were
+  powerd log, timekeeper, chrony drift, NetworkManager and BlueZ binds.
+  GPS managerOFF/0leases/0bringups/0NMEA; sensors-up/sensord absent; RMTFS
+  and TFTP shadows in RAM. No reboot, setup, explicit sync or temporary
+  durable capture occurred within the interval. persist/EFS/system_a/boot_a
+  write counters were0 at both endpoints. Slot a successful1 before sample.
+  Final artifact rehash unchanged: stopfix-final-artifact-hashes.txt.
+
+Prior-image evidence retained with its provenance:
+- First advanced implementation: RAM f5c05905c98fd08396bcbf41956a0e146601f7cb9787ce78e7161e842ea50120,
+  system547bac893672289922dd495af8448173ffd7f076f5fc9ea522573fbde8e674f4,
+  boot001b7007dfb485922d8aee668c19cf65ae1cb3ba7264239862cce670f9ac83b9.
+  Twenty clean ordinary reboots: reboots-newpair-try1/2 (seq7/8) plus
+  reboots-newpair1..18 (seq9..26), hook0.08..1.01s. Historical, not proof
+  of the final stop code. RAM-only fallback/binds passed on that version;
+  refusal/fallback host tests also pass against the final code.
+- Its 11.61h diskstats window (audit-endpoint-oldpair.txt): uptime646.27
+  ->42438.21, userdata sectors1265->55817 =27930624bytes, extrapolated
+  57743333bytes/day (55.07MiB/day entire userdata, including journal/other
+  consumers). Protected counters0. t0 lacks power log size, so the
+  endpoint383224bytes is not a measured payload write rate.
+- First review-corrected pair: RAM71fde0a38fbd1b99d68c559a09662f33e977d119e88a8edc8bcff6eadbad6245,
+  systema846370cd1a7cc963d6a256e7b6db1affc51239e1a6527cc4fa26c96a7ca5367,
+  boot5be0f6ec27aaac9defcb8511c629983042ab2098a5be441ca89535adc86ff453.
+  final-* evidence below belongs to this pair, before the stop-accounting
+  and early TERM revision; RTC/crash/mag implementation is otherwise same.
+- Offline ordinary installed probe: final-installed-offline-clock.txt,
+  sample at11.88s uptime shortly after restore kmsg6.260s, conservative
+  host comparison bound0.678671s (host NTP yes; interval includes command
+  transport). RTC source, chrony000/unsynced, GPSOFF/0bringups and NM not
+  running establish restore before those sync sources. This is not a
+  direct host comparison of the first restore kmsg timestamp. Stage1
+  offline bound0.694688s at11.64s is corroborating evidence. A later
+  timed-out stage1 check is not accepted. Exact original autoconnect yes
+  was restored; final-restored-settings.txt records it and normal network.
+- Automatic powerd poweroff retry passed (final-powerd-poweroff-retry-*),
+  hook1.08s, return26.656s. The first shell-launch attempt failed and is
+  unaccepted; it is retained separately.
+- Unplugged buttond hold/release, Power-on without USB, then replug:
+  physical-unplugged-inspection.txt plus physical-unplugged-capture.tgz and physical-user-observations.txt.
+  Kernel: release3445ms, all hook rc0 in0.77s, subsequent normal boot
+  power_key_press/seq32/RTC restore. User separately reported both buzzes,
+  phone off, successful unplugged Power-on with fblog visible. Pstore
+  afterward held only empty annotate, no previous console. Protected
+  counters0. Temporary durable capture was pulled and removed; see
+  physical-capture-removed.txt. No physical repetition on the final pair.
+- Early startup-shutdown stress final-rb02: hook at12.51..13.12s,
+  time_save_rc1 (not yet synced), stop_rc1 truthful unconfirmed result;
+  powerd exit14.047s preceded userdata RO15.491s, clean reboot/drift
+  readback. Do not call this all-rc0 or solely a zombie false positive.
+  Paused-init diagnostic shutdown-stop-diagnostic.txt separately proved
+  same-PID/start-time chronyd/powerd zombies trigger kill-0 false positives;
+  init was deliberately prevented from reaping, an artificial condition.
+
+User-deferred D, not live accepted:
+Only zero bias was observed in prior RAM evidence. No nonzero learned-save,
+reboot/restore or seeded-first-sample claim. Host tests cover validation,
+restore refusals, atomic overlay and deferred/final-save semantics.
+The user deferred remaining interactive tests on2026-10-06; preparation
+was cleaned up, no guided capture launched (mag-preparation-cleanup.txt).
+Private focused six-face script is preserved for a later coordinated run.
+
+E remains research follow-up. GNSS research log section6 maps the flushed
+RMTFS run to the first corrected RAM image/binary: two2MiB block-shadow
+writes, no new TFTP, no fix and already-valid orbit data. GNSS attribution
+versus delayed startup/housekeeping is unresolved; completed-fix and idle
+control remain follow-ups, not accepted persistence or injection.
+Obsolete durability payload removal is recorded in durability-payload-removed.txt.

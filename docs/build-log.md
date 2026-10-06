@@ -1264,3 +1264,58 @@ The checks phase 3 left for the user, run on the installed pair `system_a` `e72a
 - **Touch** (after replugging USB, same boot): `fbtouch show -t 25`, 10 contacts, two at once, x 97..1046, y 71..2243; `fblog` paused for the borrowed screen and resumed. `crash_count` 0 on venus, a512_zap, adsp and modem.
 
 Charger-mode boot of the stage-1 layout was already seen on 2026-10-05 ([boot compression](next-steps/boot-compression-handoff.md)). Nothing from phase 3 is left open.
+
+## 2026-10-06: small state persistence
+
+Herdr agents `rootfs_impl` and `rootfs_review`, coordinated by
+`rootfs_research` ([handoff](next-steps/state-persistence-handoff.md)). Crash
+records and boot history, RTC wall-clock offset, chrony drift, power logs
+and narrowly scoped magnetometer group 2980 now use chefdata. All other
+sensor registry state remains in RAM; persist/EFS write counters stay zero.
+The obsolete durability payload was removed. Independent review added
+strict malformed/overflow refusals, verified crash dedup and a hard cap,
+mag save coalescing/retry and truthful shutdown results. An artificial
+paused-init diagnostic exposed zombie PID accounting; completion now checks
+process state and start time, and early powerd TERM overlaps the RTC save.
+Normal shutdown targets about 2 s; the tested abnormal hook timeout remains
+5 s TERM plus 1 s KILL, without promising that all descendants stop.
+
+Built with `SKIP_KERNEL=1 scripts/mkinstall.sh`, kernel #22 unchanged:
+
+- Kernel `0cf2981cd05affeb7c64a3503f170c70c4d44c6ac8a25f1c6f65ee0c722baac1`.
+- RAM `c40a3c65ad324c0d3cb2d06e534f72b7996dfa8e4ca1ce63021ea526d1f50976`.
+- `system_a` `799577b6334b8886584c87648f6844b87d79642722291d1b26a887e5d240165d`.
+- `boot_a` `e5b57effb72d186a24a80cdfd6f896bda9cf412cf06f0300ecdcd3350313663f`.
+- Stamp `3d2ed94f339716ddcb527fcaf24cf01fad586c9a726ecd8c7204bff54ef9f015`.
+- Stage1 ramdisk `11238cd49927b7cb5a22518b10373cbc62ab3d7d240b1269c9587319572768f7`.
+
+Reviewer cleared these exact hashes after the full host suite (82 state
+cases), same-tree RAM boot/regression and all-success shutdown in 1.12 s.
+Installed in phase-3 order with fresh slot-a/hash checks; fallback
+`e72a3039` + `81a5c5ef` and the baseline RAM image remain intact.
+Installed Wi-Fi/HTTPS, Bluetooth, chrony, owned binds and accel passed;
+automatic powerd threshold-test poweroff returned in 26.254 s with a
+0.75 s all-success hook and full userdata unmount. Twenty readiness-gated
+ordinary installed reboots then passed, all state-hook codes zero in
+0.23–1.11 s with full unmount, RTC/data restore and protected writes zero.
+A settled 300.40 s write sample measured 237,568 bytes to all userdata,
+extrapolated 65.16 MiB/day; the power payload grew 2,804 bytes (0.77 MiB/day
+extrapolated). These short-interval estimates are not long-term guarantees;
+protected partition counters stayed zero. A separate 26 s pre-readiness
+shutdown confirmed process exit and correctly skipped an unsynchronized
+time save; it does not reproduce the old 12.5 s stress warning.
+
+The previous reviewed pair (`a846370c` + `5be0f6ec`) established offline
+RTC restore with a conservative host comparison bound of 0.679 s at
+11.88 s uptime, with host NTP synchronized, chrony unsynced, GPS OFF and
+NetworkManager not running. This samples shortly after the restore line,
+not that first line directly. It also passed the unplugged user button
+shutdown and Power-on/fblog check; no previous console survived in pstore.
+Those results retain their earlier image provenance. RMTFS stdout flush
+supports separate [GNSS research](../logs/gnss-assistance-research-2026-10-06.txt);
+no assistance injection or modem-state persistence was added.
+
+Magnetometer learning/save and seeded-first-sample acceptance remains
+explicitly user-deferred; no guided capture ran. [Acceptance ledger](../logs/state-persistence-2026-10-06.txt)
+contains the version mapping and remaining limits. Raw evidence is in
+`~/chef-cyclo-evidence/state-persistence-20261006/` (private).

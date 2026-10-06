@@ -37,7 +37,7 @@ INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
 BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker gps-manager buttond powerd wavtone tas2560-send-cal \
-       afe-topology-cal tert-tx-hold wifi-psk abslot
+       afe-topology-cal tert-tx-hold wifi-psk abslot rtc-edge
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-evdev tests/test-fbtouch tests/test-fblog \
             tests/test-nmea-broker tests/test-gps-manager tests/test-buttond tests/test-powerd tests/test-wavtone \
@@ -211,6 +211,13 @@ wifi-psk: wifi-psk.c
 abslot: abslot.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
+# Sub-second wall clock against the PMIC RTC (rtc-edge.c), for chef-state.
+# Plain libc. tests/test_rtc_edge.py runs the host binary against a fake
+# since_epoch file (dry run, nothing sets the host clock); tests/
+# test_chef_state.py covers initramfs/usr/bin/chef-state with stubs.
+rtc-edge: rtc-edge.c
+	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+
 test-wifi: tests/test-wlan-fw wifi-psk
 	./tests/test-wlan-fw
 	python3 tests/test_wifi.py
@@ -218,7 +225,7 @@ test-wifi: tests/test-wlan-fw wifi-psk
 	python3 tests/test_wifi_build.py
 	python3 tests/test_wifi_nm.py
 
-test: $(TEST_BIN) test-shell wifi-psk abslot test-display-inventory
+test: $(TEST_BIN) test-shell wifi-psk abslot rtc-edge test-display-inventory
 	./tests/test-qmux
 	./tests/test-msmipc
 	./tests/test-evdev
@@ -239,6 +246,8 @@ test: $(TEST_BIN) test-shell wifi-psk abslot test-display-inventory
 	python3 tests/test_wifi_nm.py
 	python3 tests/test_abslot.py
 	python3 tests/test_storage.py
+	python3 tests/test_rtc_edge.py
+	python3 tests/test_chef_state.py
 	python3 tests/test_stage1.py
 
 # gps-up (initramfs/) selection-logic regression; not a build product of
@@ -256,4 +265,4 @@ test-shell: powerd gps-manager nmea-broker
 
 clean:
 	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker gps-manager buttond powerd wavtone \
-		tas2560-send-cal afe-topology-cal tert-tx-hold wifi-psk abslot $(TEST_BIN)
+		tas2560-send-cal afe-topology-cal tert-tx-hold wifi-psk abslot rtc-edge $(TEST_BIN)

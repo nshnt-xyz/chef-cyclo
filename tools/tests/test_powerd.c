@@ -452,7 +452,7 @@ static void test_shutdown_empty(void)
 	CHECK(strstr(g_state_at_shutdown, "alert=shutdown\n") != NULL);
 	CHECK(strstr(g_state_at_shutdown, "shutdown_reason=battery empty: 0 %") != NULL);
 	st = slurp("log.csv");
-	CHECK(st && strstr(st, ",tick,Discharging,battery,") && strstr(st, ",shutdown\n"));
+	CHECK(st && strstr(st, ",tick,Discharging,battery,") && strstr(st, ",shutdown,\n"));
 	/* fires once */
 	powerd_sample(&p, "tick", t += 5000, 18.0);
 	powerd_sample(&p, "tick", t += 5000, 23.0);
@@ -664,7 +664,7 @@ static void test_sdp_and_unknowns(void)
 	for (t = 0; t <= 10000; t += 5000)
 		powerd_sample(&p, "tick", t, 1.0);
 	CHECK(g_shutdowns == 1);
-	CHECK(has("log.csv", ",na,na,0,0,shutdown\n"));	/* pc_port, dc absent -> na */
+	CHECK(has("log.csv", ",na,na,0,0,shutdown,\n"));	/* pc_port, dc absent -> na */
 }
 
 static void test_overtemp(void)
@@ -817,7 +817,7 @@ static void test_outputs(void)
 	csv = slurp("log.csv");
 	CHECK(csv && strncmp(csv, csv_header, sizeof(csv_header) - 1) == 0);
 	CHECK(lines(csv) == 2);
-	CHECK(strstr(csv, "\n12.5,") && strstr(csv, ",start,Charging,usb,USB_CDP,79,4106,103,32.0,Good,Fast,4102,5004000,3862092,0,1,1500,144,4355,150,3000,Source attached (default current),0,0,0,0,none\n"));
+	CHECK(strstr(csv, "\n12.5,") && strstr(csv, ",start,Charging,usb,USB_CDP,79,4106,103,32.0,Good,Fast,4102,5004000,3862092,0,1,1500,144,4355,150,3000,Source attached (default current),0,0,0,0,none,\n"));
 
 	/* throttle ticks with nothing new: no row; a change or 60 s: a row */
 	powerd_sample(&p, "tick", 5000, 13.0);
@@ -847,6 +847,66 @@ static void test_outputs(void)
 	CHECK(csv && strncmp(csv, csv_header, sizeof(csv_header) - 1) == 0);
 	csv = slurp("log.csv");
 	CHECK(strstr(csv, "\n39.0,") != NULL);	/* newest row in the live file */
+}
+
+/* -l: log.csv(.1) in its own directory, state stays in the run dir; the
+ * boot id only on the start row; another header rotates; a failing append
+ * is logged once and recovers. */
+static void test_logdir(void)
+{
+	struct powerd p;
+	char logdir[512], path[600], buf[4096];
+	struct stat sb;
+	FILE *f;
+	size_t n;
+	int before;
+
+	snprintf(logdir, sizeof(logdir), "%s-log", g_run);
+	mkdir(logdir, 0755);
+	fresh(&p);
+	p.logdir = logdir;
+	snprintf(p.boot_id, sizeof(p.boot_id), "58cf29ac-5b1a-4c4e-9d19-5742e1808633");
+	powerd_sample(&p, "start", 0, 5.3);
+	powerd_sample(&p, "poll", 60000, 65.3);
+	CHECK(slurp("state") != NULL);
+	CHECK(slurp("log.csv") == NULL);	/* not in the run dir */
+	snprintf(path, sizeof(path), "%s/log.csv", logdir);
+	f = fopen(path, "r");
+	CHECK(f != NULL);
+	n = f ? fread(buf, 1, sizeof(buf) - 1, f) : 0;
+	if (f)
+		fclose(f);
+	buf[n] = '\0';
+	CHECK(strncmp(buf, csv_header, sizeof(csv_header) - 1) == 0);
+	CHECK(strstr(buf, ",none,58cf29ac-5b1a-4c4e-9d19-5742e1808633\n65.3,") != NULL);
+	CHECK(strstr(buf, ",poll,") && buf[n - 1] == '\n' && buf[n - 2] == ',');
+
+	/* an older header: the file is rotated, the new one starts clean */
+	f = fopen(path, "w");
+	fputs("uptime,utc,reason\n1.0,x,start\n", f);
+	fclose(f);
+	powerd_sample(&p, "poll", 120000, 125.3);
+	snprintf(buf, sizeof(buf), "%s/log.csv.1", logdir);
+	CHECK(stat(buf, &sb) == 0 && sb.st_size == 30);
+	CHECK(stat(path, &sb) == 0 && sb.st_size > (off_t)sizeof(csv_header));
+
+	/* append failure: one log line, not one per row, then recovery */
+	unlink(path);
+	snprintf(buf, sizeof(buf), "%s/log.csv.1", logdir);
+	unlink(buf);
+	rmdir(logdir);
+	before = g_nlog;
+	powerd_sample(&p, "poll", 180000, 185.3);
+	powerd_sample(&p, "poll", 240000, 245.3);
+	powerd_sample(&p, "poll", 300000, 305.3);
+	CHECK(g_nlog == before + 1 && logged_since(before, "rows are lost"));
+	CHECK(slurp("state") != NULL);	/* state still written */
+	mkdir(logdir, 0755);
+	powerd_sample(&p, "poll", 360000, 365.3);
+	CHECK(logged_since(before, "writable again") && !p.log_failed);
+	CHECK(stat(path, &sb) == 0);
+	unlink(path);
+	rmdir(logdir);
 }
 
 static void test_cadence(void)
@@ -895,6 +955,7 @@ int main(void)
 	test_overtemp();
 	test_throttle();
 	test_outputs();
+	test_logdir();
 	test_cadence();
 
 	snprintf(cmd, sizeof(cmd), "rm -rf '%s'", tmpl);

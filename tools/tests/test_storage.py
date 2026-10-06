@@ -27,7 +27,8 @@ class Storage(unittest.TestCase):
 name=${0##*/}
 echo "$name $*" >> "$TRACE"
 case "$name" in
-mkdir) case "$*" in */v1/*) [ "${FAIL_CMD:-}" != "$name" ] || exit 1;; esac;;
+mkdir) case "$*" in */v1/crash*) [ "${FAIL_OPTIONAL:-0}" = 0 ] || exit 1;; esac
+    case "$*" in */v1/*) [ "${FAIL_CMD:-}" != "$name" ] || exit 1;; esac;;
 chmod|chown) [ "${FAIL_CMD:-}" != "$name" ] || exit 1;;
 stat) echo "${IDENTITY:-103:24}";;
 blockdev) echo "${SIZE:-55289298432}"; exit "${SIZE_RC:-0}";;
@@ -39,6 +40,7 @@ mount) case "$*" in
 *remount,ro*) exit "${RO_RC:-0}";;
 *) [ "${MOUNT_RC:-0}" = 0 ] || exit "$MOUNT_RC"; echo "25 0 259:36 / $CHEF_STORAGE_DATA rw - ext4 node rw" >> "$CHEF_STORAGE_MOUNTS";; esac;;
 umount) case "$*" in
+*/chrony) [ "${FAIL_DETACH_CHRONY:-0}" = 0 ] || exit 1;;
 */system-connections) [ "${FAIL_DETACH_NM:-0}" = 0 ] || exit 1;;
 */bluetooth) [ "${FAIL_DETACH_BT:-0}" = 0 ] || exit 1;;
 *) [ "${FAIL_DETACH_DATA:-0}" = 0 ] || exit 1;; esac
@@ -131,6 +133,30 @@ esac
     def test_second_bind_failure(self):
         r,t=self.call('boot',FAIL_BIND='2');self.assertEqual(r.returncode,0)
         self.assertEqual(t.count('mount --bind'),2);self.assertIn('umount ',t)
+    def test_optional_consumers(self):
+        r,t=self.call('boot');self.assertEqual(r.returncode,0,r.stderr)
+        self.assertEqual(t.count('mount --bind'),3)
+        self.assertIn(f'mount --bind {self.data}/v1/chrony /var/lib/chrony',t)
+        self.assertIn(f'chown chrony:chrony {self.data}/v1/chrony',t)
+        for d in ['crash','time','power','sensors','chrony']: self.assertIn(f'chmod 700 {self.data}/v1/{d}',t)
+        self.assertIn('state directories and chrony drift ready',r.stderr)
+    def test_optional_consumer_failures_keep_binds(self):
+        for env in [{'FAIL_OPTIONAL':'1'},{'FAIL_BIND':'3'}]:
+            r,t=self.call('boot',**env);self.assertEqual(r.returncode,0,r.stderr)
+            self.assertNotIn('remount,ro',t);self.assertNotIn('umount ',t)
+            self.assertIn('optional state consumers incomplete; continuing',r.stderr)
+            self.assertIn('layout v1 mounted with BlueZ and NetworkManager',r.stderr)
+        r,t=self.call('boot',FAIL_BIND='3');self.assertIn('chrony drift bind failed',r.stderr)
+    def test_shutdown_detaches_chrony_first(self):
+        (self.p/'mounts').write_text(f'25 0 259:36 / {self.data} rw - ext4 node rw\n26 0 259:36 / /var/lib/bluetooth rw - ext4 node rw\n27 0 259:36 / /run/NetworkManager/system-connections rw - ext4 node rw\n28 0 259:36 /v1/chrony /var/lib/chrony rw - ext4 node rw\n')
+        r,t=self.call('shutdown');self.assertEqual(r.returncode,0,r.stderr)
+        self.assertLess(t.index('remount,ro'),t.index('umount /var/lib/chrony'))
+        self.assertLess(t.index('umount /var/lib/chrony'),t.index('umount /run/NetworkManager'))
+        self.assertIn('data fully unmounted',r.stderr)
+        r,t=self.call('shutdown',FAIL_DETACH_CHRONY='1');self.assertIn('aliases remain mounted',r.stderr)
+    def test_no_chrony_bind_no_chrony_detach(self):
+        r,t=self.call('shutdown',MOUNTPOINT_RC='0');self.assertEqual(r.returncode,0,r.stderr)
+        self.assertNotIn('umount /var/lib/chrony',t);self.assertNotIn('detach failed',r.stderr)
     def test_shutdown_default_order(self):
         r,t=self.call('shutdown',MOUNTPOINT_RC='0');self.assertEqual(r.returncode,0,r.stderr)
         self.assertNotIn('kill -TSTP 1',t);self.assertNotIn('kill -CONT 1',t)

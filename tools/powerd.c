@@ -11,9 +11,11 @@
  *                               empty and nothing powers the phone, and
  *                               shutdown at 68.0 C battery temperature.
  *   batt_health (vendor_pwric)  a CSV log of power_supply uevents. Stock
- *                               writes it to /data; ours goes to RAM,
- *                               /run/power/log.csv, bounded with one
- *                               rotation. The persist part (age/cycles in
+ *                               writes it to /data; ours goes to
+ *                               /run/power/log.csv, or with -l to a log
+ *                               directory on /data (inittab passes
+ *                               /data/v1/power when /data is ours),
+ *                               bounded with one rotation. The persist part (age/cycles in
  *                               /mnt/vendor/persist) is not cloned: persist
  *                               is never written from this project.
  *   thermal-engine SS-BATT-BATT set point 44 C / clear 42 C on the battery
@@ -29,12 +31,19 @@
  * online (the throttle cadence) or while a shutdown condition is being
  * confirmed. SIGUSR1 forces a sample.
  *
- * Outputs, all under the run directory (default /run/power, tmpfs):
+ * Outputs, under the run directory (default /run/power, tmpfs):
  *   state              key=value lines, rewritten atomically (tmp + rename)
  *                      on every sample; `powerd status` prints it
- *   log.csv(.1)        one row per uevent/poll sample (5 s throttle ticks
- *                      only when something changed or 60 s passed), with a
- *                      header; rotated to log.csv.1 at the size limit
+ *   log.csv(.1)        (in the -l log directory if given) one row per
+ *                      uevent/poll sample (5 s throttle ticks only when
+ *                      something changed or 60 s passed), with a header;
+ *                      rotated to log.csv.1 at the size limit, or when the
+ *                      existing file starts with another header. The last
+ *                      column, boot_id, is filled on the start row only.
+ *                      The file is opened, appended and closed per row
+ *                      (never held open) and not fsynced: commit=5 does not bound dirty data
+ *                      writeback; abrupt power loss can lose recent rows. A failed append is logged
+ *                      once and retried on the next row.
  *   shutdown-pending   written with the reason just before a shutdown
  * and "powerd: ..." kmsg lines for transitions only (plug/unplug, status,
  * warn/critical, throttle level, shutdown), which fblog shows on the panel.
@@ -70,7 +79,7 @@
  *   - Nothing else is written: no ICL/FCC/input_suspend/ship-mode/demo-mode
  *     knobs, no persist or EFS. The kernel's own charging stays in charge.
  *
- * Usage: powerd [-r SYSFS] [-d RUNDIR] [-x CMD] [-V VIB] [-K KMSG] [-v]
+ * Usage: powerd [-r SYSFS] [-d RUNDIR] [-l LOGDIR] [-x CMD] [-V VIB] [-K KMSG] [-v]
  *               [test overrides, see usage()]
  *        powerd [-d RUNDIR] status
  *
@@ -413,6 +422,9 @@ struct powerd {
 	struct config cfg;
 	const char *sysfs;
 	const char *dir;
+	const char *logdir;		/* log.csv(.1); NULL = dir */
+	char boot_id[40];		/* for the start row */
+	bool log_failed;		/* an append failed; logged once */
 	const char *vib;		/* NULL/"" = no buzz */
 	char overrides[256];		/* "" in production */
 	long log_max;
@@ -801,7 +813,7 @@ static size_t state_format(const struct powerd *p, const struct sample *s, doubl
 static const char csv_header[] =
 	"uptime,utc,reason,status,source,usb_type,capacity,voltage_mv,current_ma,temp_c,"
 	"health,charge_type,ocv_mv,charge_full_uah,charge_counter_uah,cycle_count,soc_ready,usb_current_max_ma,"
-	"usb_input_ma,usb_voltage_mv,input_settled_ma,profile_fcc_ma,typec_mode,pc_port_online,dc_online,system_temp_level,throttle_level,alert\n";
+	"usb_input_ma,usb_voltage_mv,input_settled_ma,profile_fcc_ma,typec_mode,pc_port_online,dc_online,system_temp_level,throttle_level,alert,boot_id\n";
 
 static size_t csv_format(const struct powerd *p, const struct sample *s, double uptime,
 			 const char *utc, const char *reason, char *buf, size_t len)
@@ -826,28 +838,43 @@ static size_t csv_format(const struct powerd *p, const struct sample *s, double 
 	fmt_milli(uv, sizeof(uv), s->usb_voltage_uv);
 	fmt_milli(settled, sizeof(settled), s->input_settled_ua);
 	fmt_milli(fcc, sizeof(fcc), s->profile_fcc_ua);
-	return (size_t)snprintf(buf, len, "%.1f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s\n",
+	return (size_t)snprintf(buf, len, "%.1f,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%s,%s\n",
 		uptime, utc, reason, s->status, source_name(s), s->usb_type, cap, mv, ma, tc,
 		s->health, s->charge_type, ocv, full, cc, cyc, rdy, umax, uin, uv, settled, fcc, s->typec_mode, pc, dc, stl,
-		p->level, alert_name(p));
+		p->level, alert_name(p), strcmp(reason, "start") ? "" : p->boot_id);
+}
+
+/* Does the file at path start with csv_header? */
+static bool csv_header_matches(const char *path)
+{
+	char buf[sizeof(csv_header)];
+	ssize_t n;
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+
+	if (fd < 0)
+		return false;
+	n = read(fd, buf, sizeof(csv_header) - 1);
+	close(fd);
+	return n == (ssize_t)sizeof(csv_header) - 1 && !memcmp(buf, csv_header, (size_t)n);
 }
 
 /*
- * Append one row to DIR/log.csv, starting a file with the header, and
+ * Append one row to LOGDIR/log.csv, starting a file with the header, and
  * rotating to log.csv.1 (replacing it) first if the row would take the
- * file past log_max.
+ * file past log_max or the file has another header (an older format).
  */
 static int csv_append(const struct powerd *p, const char *row)
 {
+	const char *dir = p->logdir ? p->logdir : p->dir;
 	char path[512], old[512];
 	struct stat st;
 	size_t rl = strlen(row);
 	int fd;
 
-	snprintf(path, sizeof(path), "%s/log.csv", p->dir);
+	snprintf(path, sizeof(path), "%s/log.csv", dir);
 	if (stat(path, &st) == 0 && st.st_size > 0 &&
-	    (long)st.st_size + (long)rl > p->log_max) {
-		snprintf(old, sizeof(old), "%s/log.csv.1", p->dir);
+	    ((long)st.st_size + (long)rl > p->log_max || !csv_header_matches(path))) {
+		snprintf(old, sizeof(old), "%s/log.csv.1", dir);
 		if (rename(path, old) < 0)
 			return -errno;
 	}
@@ -905,6 +932,7 @@ static int powerd_sample(struct powerd *p, const char *reason, int64_t now, doub
 	const char *alert_before = alert_name(p);
 	int level_before = p->level;
 	char buf[2048], utc[32];
+	int rc;
 
 	memset(&s, 0, sizeof(s));
 	sample_read(p->sysfs, &s);
@@ -916,7 +944,13 @@ static int powerd_sample(struct powerd *p, const char *reason, int64_t now, doub
 	    strcmp(alert_before, alert_name(p)) != 0 || now - p->last_row >= POWERD_ROW_IDLE_MS) {
 		utc_now(utc, sizeof(utc));
 		csv_format(p, &s, uptime, utc, reason, buf, sizeof(buf));
-		csv_append(p, buf);
+		rc = csv_append(p, buf);
+		if (rc < 0 && !p->log_failed)
+			p->log("log.csv in %s: %s; rows are lost until it works again",
+			       p->logdir ? p->logdir : p->dir, strerror(-rc));
+		else if (rc == 0 && p->log_failed)
+			p->log("log.csv in %s writable again", p->logdir ? p->logdir : p->dir);
+		p->log_failed = rc < 0;
 		p->last_row = now;
 		p->have_row = true;
 	}
@@ -1094,10 +1128,11 @@ static int mkdir_p(const char *dir)
 static void usage(void)
 {
 	fprintf(stderr,
-		"usage: powerd [-r SYSFS] [-d RUNDIR] [-x CMD] [-V VIB] [-K KMSG] [-L LOG_MAX] [-v] [TEST OPTIONS]\n"
+		"usage: powerd [-r SYSFS] [-d RUNDIR] [-l LOGDIR] [-x CMD] [-V VIB] [-K KMSG] [-L LOG_MAX] [-v] [TEST OPTIONS]\n"
 		"       powerd [-d RUNDIR] status\n"
 		"  -r  power_supply sysfs root (default " POWERD_SYSFS ", or $POWERD_SYSFS)\n"
-		"  -d  run directory for state, log.csv, shutdown-pending (default " POWERD_RUNDIR ")\n"
+		"  -d  run directory for state, shutdown-pending and log.csv (default " POWERD_RUNDIR ")\n"
+		"  -l  log directory for log.csv(.1) instead of the run directory\n"
 		"  -x  shutdown command (sh -c CMD) instead of sync + poweroff; no fallback\n"
 		"  -V  vibrator for the critical buzz ('' = none; default " POWERD_VIB_PATH ")\n"
 		"  -K  kmsg path (default " POWERD_KMSG_PATH ")\n"
@@ -1196,10 +1231,11 @@ int main(int argc, char **argv)
 	env = getenv("POWERD_SYSFS");
 	if (env && *env)
 		p.sysfs = env;
-	while ((opt = getopt_long(argc, argv, "r:d:x:V:K:L:v", longopts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "r:d:l:x:V:K:L:v", longopts, NULL)) != -1) {
 		switch (opt) {
 		case 'r': p.sysfs = optarg; break;
 		case 'd': p.dir = optarg; break;
+		case 'l': p.logdir = optarg; break;
 		case 'x': g_shutdown_cmd = optarg; add_override(&p, "shutdown-cmd", NULL); break;
 		case 'V': p.vib = optarg; break;
 		case 'K': g_kmsg_path = optarg; break;
@@ -1258,11 +1294,26 @@ int main(int argc, char **argv)
 		sleep(5);
 		return 1;
 	}
+	if (p.logdir) {
+		rc = mkdir_p(p.logdir);
+		if (rc < 0) {
+			kmsg_note("mkdir %s: %s; logging to %s", p.logdir, strerror(-rc), p.dir);
+			p.logdir = NULL;
+		}
+	}
 	{
 		char path[512];
+		ssize_t n;
+		int fd;
 
 		snprintf(path, sizeof(path), "%s/shutdown-pending", p.dir);
 		unlink(path);
+		fd = open("/proc/sys/kernel/random/boot_id", O_RDONLY | O_CLOEXEC);
+		n = fd < 0 ? -1 : read(fd, p.boot_id, sizeof(p.boot_id) - 1);
+		if (fd >= 0)
+			close(fd);
+		p.boot_id[n > 0 ? n : 0] = '\0';
+		p.boot_id[strcspn(p.boot_id, "\n,")] = '\0';
 	}
 
 	memset(&sa, 0, sizeof(sa));
@@ -1279,8 +1330,8 @@ int main(int argc, char **argv)
 		kmsg_note("TEST OVERRIDE: %s", p.overrides);
 	if (c->act_when_online)
 		kmsg_note("TEST OVERRIDE: --shutdown-when-online: low-battery policy acts with a supply attached");
-	kmsg_note("ready: %s -> %s, warn %d %%, critical %d %%, off at %d %% / %d mV / %d.%d C, throttle %s",
-		  p.sysfs, p.dir, c->warn_pct, c->crit_pct, c->empty_pct, c->empty_mv,
+	kmsg_note("ready: %s -> %s, log %s, warn %d %%, critical %d %%, off at %d %% / %d mV / %d.%d C, throttle %s",
+		  p.sysfs, p.dir, p.logdir ? p.logdir : p.dir, c->warn_pct, c->crit_pct, c->empty_pct, c->empty_mv,
 		  c->overtemp_dc / 10, abs(c->overtemp_dc) % 10,
 		  c->throttle ? "on" : "off");
 

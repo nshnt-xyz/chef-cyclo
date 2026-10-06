@@ -72,6 +72,7 @@ __pycache__/
 
 tools/wifi-psk
 tools/abslot
+tools/rtc-edge
 
 # chefui build tree (tools/chefui/Makefile)
 tools/chefui/build/

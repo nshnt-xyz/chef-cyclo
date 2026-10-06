@@ -1,0 +1,135 @@
+GNSS assistance research, 2026-10-06 (rootfs_research)
+
+Scope: investigate the existing RAM shadows and assistance interfaces;
+no new persistence, assistance injection, assistance deletion or EFS writes.
+Raw transcripts/pulls: ~/chef-cyclo-evidence/gnss-assistance-20261006/
+(private). No positions are included in this summary.
+
+Observed installed boot:
+  kernel: 4.4.192-cyclo+
+  boot id: 45d2e122-839e-44b4-bda8-26959512893c
+  tree manifest: 3233edf00dc9f5fa8b2de6becc01921fcf8f8578310b27623a30e7ad092f2fb5
+  rmtfs: e8016e742191359dead7a52392d3279633a5b9d93026c97d2919e4e6edbfac86
+  tftp-server: 0e03da84361fd88179d733220994d4e4db3b2366244c529303b3ae6b129c9e58
+  qmicli: 1.39.0
+
+1. Shadow semantics (local source review)
+
+tools/rmtfs/storage.c opens the real partition read-only to populate a heap
+buffer under -r. Subsequent storage_pwrite calls update that buffer, and
+storage_sync is a no-op. The verbose protocol trace exposes caller, sector
+address and sector count; it does not expose filenames inside modem EFS.
+The installed gps-up invokes rmtfs -P -r -S a -v.
+
+tools/tftp/{ramfs,translate,tftpserv}.c implement /readwrite as an in-process
+heap table. There is no /readwrite directory on the phone to snapshot.
+The initial seeds come from /usr/share/rfs/msm/mpss; named protocol WRQs
+change the table. TFTP logs go to stderr immediately. RMTFS dbgprintf uses
+vprintf without an explicit flush, so a regular-file stdout may delay or
+split the trace. Its existing log has complete writes to modem_fs1 and
+modem_fs2 (each sector 0, count 4096), but those cannot be attributed to a
+specific GNSS session from this buffered trace.
+
+2. Bounded live lease on the existing installed boot
+
+At uptime 42167.40 s (17:23:13 UTC), manager was OFF with no leases, 3735
+historical NMEA lines and one previous bring-up. A setsid timeout limited
+gps-manager hold map to 120 s; manager has its normal 30 s release grace.
+At uptime 42191.34 s it was RUNNING with a fix, within 23.94 s of starting
+the command. This is a warm, already-used modem boot, not a cold-start TTFF.
+At uptime 42298.00 s the lease had released; the manager was still RUNNING
+with grace=on, as expected.
+At uptime 42357.91 s (17:26:24 UTC), manager was OFF with no leases, no
+CID, no grace, no failures and no leaked clients. Support daemons remained
+resident. The write-sector counters were still zero on persist/EFS and
+system_a; userdata writes increased normally during the interval.
+
+Pre/post gps-up.log pulls are byte-identical (31294 bytes), with no new
+TFTP requests in this window. This supports absence of TFTP-visible GNSS
+file activity during this one session; buffered RMTFS activity remains
+inconclusive. No assertion that the modem keeps no GNSS state follows.
+
+3. Assistance queries, separate temporary LOC clients
+
+The manager's streaming CID was not reused for queries. Both queries
+completed and released their own client; manager remained RUNNING.
+--loc-get-predicted-orbits-data-source returned:
+  https://xtrapath3.izatcloud.net/xtra3grcej.bin
+  https://xtrapath1.izatcloud.net/xtra3grcej.bin
+  https://xtrapath2.izatcloud.net/xtra3grcej.bin
+No Allowed Sizes field was printed, so there is no observed modem limit.
+--loc-get-predicted-orbits-data-validity returned start
+2026-10-04T11:00:00Z, duration 168 hours (through October 11 at 11:00 UTC).
+This is the modem's reported validity, not independent validation of the
+orbit data. The origin of that data has not been established.
+
+The current roadmap's xtra3grc.bin is therefore only a candidate filename;
+this device currently advertises xtra3grcej.bin. Any future downloader
+should query the device and validate its response rather than assume it.
+
+4. Upstream interface research
+
+Primary upstream sources checked on 2026-10-06:
+  https://github.com/linux-mobile-broadband/libqmi/blob/main/src/qmicli/qmicli-loc.c
+  https://github.com/linux-mobile-broadband/libqmi/blob/main/data/qmi-service-loc.json
+
+qmicli exposes UTC time injection and source/validity queries. Its LOC
+option list has no predicted-orbits payload upload option. libqmi defines
+Inject Predicted Orbits Data (0x0035): total size, total parts, part number,
+part data (schema cap 1024 bytes) and format, with a completion indication.
+A future upload implementation needs these APIs and per-part completion
+handling; the payload cannot simply be placed in the TFTP seed directory.
+qmicli's UTC injection uses the host wall clock with 1000 ms uncertainty.
+Our boot-restored clock remains unverified until chrony sync, so automatic
+injection needs an explicit time-quality policy.
+
+Qualcomm's open Android LOC adapter also starts XTRA parts at 1 and checks
+each completion's status and matching part number before advancing.
+Reference (older adapter, not proof of this modem's current limits):
+  https://github.com/sonyxperiadev/vendor-qcom-opensource-location/blob/q-mr0/loc_api/loc_api_v02/LocApiV02.cpp#L1260
+
+5. Next experiment (handed to implementation for diagnostic support)
+
+Add fflush(stdout) to RMTFS dbgprintf, with no payload logging or storage
+policy change. On a fresh test image, capture separate modem-startup,
+idle, GNSS lease/fix, release and post-release windows, recording logfile
+offsets and uptime. Watch both immediate RMTFS sector traffic and named
+TFTP requests. If RMTFS changes, identify which caller/partition and
+sectors; a sector trace alone still does not identify GNSS files or prove
+that restoring the full EFS shadow is appropriate.
+
+Persistence of either shadow and assistance upload remain separate future
+decisions. Existing valid orbit data must be accounted for in any TTFF
+comparison; this run does not establish a performance benefit.
+
+6. Same-tree RAM image with flushed RMTFS, subsequent live window
+
+Implementation handed over RAM image 71fde0a3 (short SHA-256) after boot.
+Its rmtfs binary SHA-256 was
+0a417d2feb730b7a9f2e42e58bac12c49ef13f1c8fe2aa6598dfa705cb01ac78.
+At uptime 47.09 s, manager was OFF, NMEA=0, bringups=0; gps-up.log was
+31023 bytes. The complete startup RMTFS trace contained opens and reads,
+but no writes at that endpoint.
+
+At uptime 47.76 s a 90-second lease began. At 106.35 s manager was
+ACQUIRING, NMEA=282, with no fix. The log was 31119 bytes; its only appended
+traffic was caller 0 (modem_fs1), sector 0, 4096 sectors: a 2 MiB RAM write.
+At 122.08 s a separate LOC validity query still reported October 4 11:00 UTC
+plus 168 hours. At 166.00 s the lease had released, grace was active, and
+the engine still had no fix; log size remained 31119 bytes.
+
+At uptime 198.33 s manager was OFF, NMEA=597, no CID, leases, grace,
+failures or leaked clients. Log size was 31215 bytes; the only further
+traffic was caller 1 (modem_fs2), sector 0, 4096 sectors: another 2 MiB RAM
+write. There were no appended TFTP requests. Raw pre/active/released pulls
+are ram-pre-lease.tgz, ram-active-lease.tgz and ram-released-lease.tgz.
+Exclusive device access was returned to implementation at that point.
+
+This fresh-boot run exercised acquisition and release without a fix, so it
+does not answer whether a completed fix creates additional saved state.
+The trace confirms real RAM-shadow writes, but does not establish whether
+they were caused by GNSS, delayed modem startup or routine EFS housekeeping.
+The existing service trace has no event timestamps; endpoint uptime and
+log offsets bound the windows only. A controlled repeat needs an idle-only
+fresh boot for comparison and a completed-fix run under comparable signal
+conditions. RMTFS sectors still do not identify filenames within EFS.

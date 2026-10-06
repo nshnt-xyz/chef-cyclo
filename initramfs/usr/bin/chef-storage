@@ -92,6 +92,21 @@ consumers() {
     timeout -k 5 10 mount --bind "$DATA/v1/bluetooth" /var/lib/bluetooth || return 1
     timeout -k 5 10 mount --bind "$DATA/v1/networkmanager/system-connections" /run/NetworkManager/system-connections
 }
+# Optional state directories (chef-state, powerd) and chronyd's drift
+# directory. A failure here is logged and leaves BlueZ and NetworkManager
+# bound: these consumers fall back to /run on their own.
+optional_consumers() {
+    ok=1
+    for dir in crash time power sensors; do
+        mkdir -p "$DATA/v1/$dir" && chown 0:0 "$DATA/v1/$dir" && chmod 700 "$DATA/v1/$dir" || { log "optional state dir $dir failed"; ok=; }
+    done
+    if mkdir -p "$DATA/v1/chrony" /var/lib/chrony && chown chrony:chrony "$DATA/v1/chrony" && chmod 700 "$DATA/v1/chrony"; then
+        timeout -k 5 10 mount --bind "$DATA/v1/chrony" /var/lib/chrony || { log 'chrony drift bind failed; drift stays in RAM'; ok=; }
+    else
+        log 'chrony drift directory failed; drift stays in RAM'; ok=
+    fi
+    [ -n "$ok" ]
+}
 # Check the entire filesystem, including aliases outside the consumer paths.
 aliases_remaining() {
     [ -r "$MOUNTS" ] || return 2
@@ -100,7 +115,9 @@ aliases_remaining() {
     return 0
 }
 detach_data() {
-    for path in /run/NetworkManager/system-connections /var/lib/bluetooth "$DATA"; do
+    for path in /var/lib/chrony /run/NetworkManager/system-connections /var/lib/bluetooth "$DATA"; do
+        # The chrony bind is optional: only detach it where it exists.
+        [ "$path" != /var/lib/chrony ] || awk -v p="$path" -v dev="$major_minor" '$5==p && $3==dev {f=1} END {exit !f}' "$MOUNTS" || continue
         timeout -k 2 8 umount "$path" 2>/dev/null || log "detach failed: $path"
     done
     if aliases_remaining; then log 'data aliases remain mounted';
@@ -180,7 +197,10 @@ shutdown) shutdown "${2:-}";;
 boot)
     exec 9>"$RUN/storage.lock"; flock -n 9 || exit 0
     if resolve && ours && check && mount_data; then
-        if consumers; then log 'layout v1 mounted with BlueZ and NetworkManager';
+        if consumers; then
+            log 'layout v1 mounted with BlueZ and NetworkManager'
+            if optional_consumers; then log 'state directories and chrony drift ready'
+            else log 'optional state consumers incomplete; continuing'; fi
         else log 'consumer binds failed; rolling back persistent mounts'; rollback || log 'storage rollback failure; inspect mounts before using consumers'; fi
     else log 'RAM-only boot'; fi
     ;;

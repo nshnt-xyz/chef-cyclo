@@ -81,7 +81,7 @@ PID=$!
 wait_for "state file appears" 5 '[ -s "$T/run/state" ]'
 check "startup reset system_temp_level from the stale 3" 'grep -qx 0 "$S/battery/system_temp_level" || grep -qx 1 "$S/battery/system_temp_level"'
 check "TEST OVERRIDE logged" 'grep -q "powerd: TEST OVERRIDE: shutdown-cmd throttle-set=30 throttle-clear=29 step-ms=200 confirm-gap-ms=200 poll-s=1" "$T/kmsg"'
-check "ready line" 'grep -q "powerd: ready: $S -> $T/run, warn 15 %, critical 5 %, off at 0 % / 3300 mV / 68.0 C, throttle on" "$T/kmsg"'
+check "ready line" 'grep -q "powerd: ready: $S -> $T/run, log $T/run, warn 15 %, critical 5 %, off at 0 % / 3300 mV / 68.0 C, throttle on" "$T/kmsg"'
 check "start line" 'grep -q "powerd: start: Charging, 79 %, 4.10 V, battery 32.0 C, source usb USB_CDP" "$T/kmsg"'
 # 32 C >= the 30 C test set point: steps to the top level through real sysfs writes
 wait_for "throttle reaches 7 in the fake sysfs" 5 'grep -qx 7 "$S/battery/system_temp_level"'
@@ -121,9 +121,12 @@ put usb online 1
 put battery status Charging
 put battery capacity 50
 : > "$T/kmsg"
-"$BIN" -r "$S" -d "$T/run2" -K "$T/kmsg" -V '' -x "true" --throttle-set 30 --throttle-clear 29 --step-ms 200 &
+"$BIN" -r "$S" -d "$T/run2" -l "$T/log2/power" -K "$T/kmsg" -V '' -x "true" --throttle-set 30 --throttle-clear 29 --step-ms 200 &
 PID=$!
 wait_for "second daemon throttles" 5 'grep -qx 2 "$S/battery/system_temp_level"'
+check "-l: log in the log dir, state in the run dir" '[ -s "$T/log2/power/log.csv" ] && [ ! -e "$T/run2/log.csv" ] && [ -s "$T/run2/state" ]'
+check "-l: start row carries the boot id" 'sed -n 2p "$T/log2/power/log.csv" | grep -Eq ",start,.*,[0-9a-f-]{36}\$"'
+check "-l: ready line names the log dir" 'grep -q "powerd: ready: $S -> $T/run2, log $T/log2/power," "$T/kmsg"'
 kill -TERM "$PID"
 wait "$PID"
 PID=

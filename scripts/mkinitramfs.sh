@@ -113,6 +113,7 @@ ln -s /run/NetworkManager/resolv.conf "$ROOT/etc/resolv.conf"
 # silently disabled the overlap guard and chrony refresh: strip those bits.
 (cd initramfs && find . -mindepth 1 ! -type l -print0) | (cd "$ROOT" && xargs -0 chmod go-w)
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up "$ROOT"/usr/bin/chef-storage \
+    "$ROOT"/usr/bin/chef-state \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
     "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \
@@ -347,9 +348,17 @@ echo "built $ROOT/usr/bin/chefui-demo"
 "$MUSLCC" -Wall -Wextra -Werror -O2 -static -o "$ROOT/usr/bin/abslot" tools/abslot.c
 echo "built $ROOT/usr/bin/abslot"
 
+# Sub-second wall clock against the PMIC RTC (tools/rtc-edge.c,
+# docs/features/storage.md): chef-state saves and restores the
+# wall-minus-RTC offset with it. Plain libc.
+[ -f tools/rtc-edge.c ] || { echo "missing required source: tools/rtc-edge.c" >&2; exit 1; }
+"$MUSLCC" -Wall -Wextra -Werror -O2 -static -o "$ROOT/usr/bin/rtc-edge" tools/rtc-edge.c
+echo "built $ROOT/usr/bin/rtc-edge"
+
 # Battery daemon (tools/powerd.c, docs/features/battery-and-charging.md):
 # low-battery warn/critical and clean shutdown (BatteryService clone),
-# power_supply CSV log + state file under /run/power, and the 44/42 C
+# power_supply CSV log (/data/v1/power or /run/power) + state file under
+# /run/power, and the 44/42 C
 # charge throttle on battery/system_temp_level (thermal-engine SS-BATT-BATT
 # clone). Started from both inittabs (respawn). Plain libc.
 [ -f tools/powerd.c ] || { echo "missing required source: tools/powerd.c" >&2; exit 1; }
