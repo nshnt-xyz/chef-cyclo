@@ -99,6 +99,6 @@ Record the image hash (`phone-boot.sh` prints it).
 Back to the installed image: `scripts/phone.py run reboot`. Into fastboot
 without a working image: hold Power with VolDown for about 9 s. A fallback
 for `boot_a` that never reads `system_a` is the full RAM image
-(`out/boot-ram.img`, or the earlier baseline `out/boot.img`). Android is
+(`out/boot.img`, the baseline `42f362b0` with kernel #22, or a fresh `out/boot-ram.img`). Android is
 retired; its restore route is under
 [images to restore](next-steps/storage-and-boot.md#images-to-restore).
