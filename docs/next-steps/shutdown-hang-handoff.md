@@ -166,7 +166,8 @@ only.
 - Install with the phase 3 guarded procedure (`fastboot boot` first,
   then `system_a` + `boot_a` as a matching pair, read-back). If the new
   pair fails, the fallback is the current pair (`9c47c6b8` + `5c509eb2`)
-  or the full RAM image `out/boot.img` `df856fc3`.
+  or a full RAM image (`out/boot-data.img` `df856fc3`, or the new
+  baseline `out/boot.img` `42f362b0`).
 - Answer in the write-up why earlier reboots never showed it (for
   example HCI traffic `bluetoothd` sends at SIGTERM since phase 2 made
   its state persistent).
@@ -258,8 +259,8 @@ build: kernel `0cf2981c`, `system_a` `e72a3039` (stamp `13f336e5`),
 flash), then the phase 3 order: `fastboot flash system_a`, `fastboot boot`
 of the new stage-1 (stamp, read-back), `fastboot flash boot_a`, reboot; both
 partitions read back exactly and `abslot` marked the slot. Fallbacks: the old
-pair `9c47c6b8` + `5c509eb2` (kept in `out/pre-btfix/`) or `out/boot.img`
-`df856fc3`.
+pair `9c47c6b8` + `5c509eb2` (kept in `out/pre-btfix/`), or a full RAM image:
+`out/boot-data.img` `df856fc3`, or the new baseline `out/boot.img` `42f362b0`.
 
 **Acceptance.** 105 shutdowns on the installed pair (2026-10-05 18:10 to 20:26Z) without a hang: 100 ordinary reboots (79 at 36.2 to 40.5 s uptime, 1 at 121.6 s, 20 at 180.1 to 180.6 s), all `bootreason=reboot` with a cold PON, and 5 `poweroff`s at 36 to 40 s that came back in charger mode (USB attached) with a cold PON. Ping gap 15.75 to 19.05 s, no pstore records; the shutdown kmsg streams carry no oops (only the known `fblog` `clk_branch_wait` WARN, 5 of 105). At the pooled pre-fix rate (about 4 in 65), 0 in 100 by chance is about 0.2 %. Final getvar: slot `a` current, successful, retry 6; `b` unbootable.
 
