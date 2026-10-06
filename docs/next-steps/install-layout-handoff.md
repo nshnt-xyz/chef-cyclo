@@ -289,7 +289,9 @@ Installed: `system_a` = `out/system_a.img` `9c47c6b8…` (stamp `f52cfe21…`),
   read back exactly; final `slot-successful:a` yes, retry 6.
 - Timing: `exec init` at about 5.4 s (9.7 s before), boot image 13 MB with a
   46 MB loader margin.
-- Deferred to the user: the audible speaker tone and a cold boot without USB.
+- Deferred to the user, done 2026-10-06 on the fixed pair (`e72a3039` +
+  `81a5c5ef`): the audible speaker tone and a cold boot without USB (see the
+  [build log](../build-log.md#2026-10-06-user-checks-on-the-installed-layout)).
 
 Evidence: `~/chef-cyclo-evidence/rootfs-phase3-20261005/` (private),
 summary in [logs](../../logs/install-layout-phase3-2026-10-05.txt).

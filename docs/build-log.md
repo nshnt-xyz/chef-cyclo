@@ -1254,3 +1254,13 @@ Herdr agents `rootfs_impl` and `rootfs_review`, coordinated by `rootfs_research`
 - **Installed.** `system_a` `e72a3039` and `boot_a` `81a5c5ef` in the phase 3 order (flash `system_a`, `fastboot boot` of the new stage-1, flash `boot_a`), both read back exactly, slot marked by `abslot`. The previous pair (`9c47c6b8` + `5c509eb2`) is kept in `out/pre-btfix/`; `out/boot.img` is still `df856fc3`. The uncompressed `df474390` carries the old kernel and no longer matches `system_a`.
 
 [Summary](../logs/shutdown-hang-2026-10-05.txt); raw evidence in `~/chef-cyclo-evidence/shutdown-hang-20261005/` (local). The coordinator promoted `out/boot-ram.img` to the baseline `out/boot.img` (`42f362b0`, kernel #22, full RAM image that never reads `system_a`); the previous baseline `df856fc3` (kernel #21) is kept as `out/boot-data.img`.
+
+## 2026-10-06: user checks on the installed layout
+
+The checks phase 3 left for the user, run on the installed pair `system_a` `e72a3039` + `boot_a` `81a5c5ef` (kernel #22), with the user at the phone.
+
+- **Speaker.** `audio-up` brought card 0 up; `speaker-test-tone` at 1000 Hz 1 s (-20 dBFS, vol 10), 440 Hz 2 s (-12 dBFS, vol 15) and 1500 Hz 1 s all finished with no XRUN or `msm_pcm_trigger` line in `dmesg`. The user heard all three, clean.
+- **Cold boot without USB.** USB unplugged, Power held 3 s and released (buttond `poweroff`), Power pressed to start: `bootreason=power_key_press`, `androidboot.mode=normal`, powerd's first sample `Discharging` on `battery` with USB first seen at 26.4 s, after the boot. Panel log at 5.3 s; a short Power press blanked it at 9.1 s and the next restored it at 10.2 s.
+- **Touch** (after replugging USB, same boot): `fbtouch show -t 25`, 10 contacts, two at once, x 97..1046, y 71..2243; `fblog` paused for the borrowed screen and resumed. `crash_count` 0 on venus, a512_zap, adsp and modem.
+
+Charger-mode boot of the stage-1 layout was already seen on 2026-10-05 ([boot compression](next-steps/boot-compression-handoff.md)). Nothing from phase 3 is left open.
