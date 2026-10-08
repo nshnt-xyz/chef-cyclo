@@ -17,7 +17,10 @@
 #                            a fresh registry copy from persist
 #   chef-state shutdown      inittab, before chef-storage shutdown: last
 #                            offset save, stop chronyd (it writes its drift
-#                            file on exit) and sensors-up, last bias save
+#                            file on exit), powerd (it flushes its pending
+#                            power log rows on exit; rows a stopped powerd
+#                            left are flushed here) and sensors-up, last
+#                            bias save
 #
 # Nothing is read from or written to /data unless `ours` holds (mounted
 # /data with the chef-layout marker); otherwise every consumer runs from
@@ -50,6 +53,7 @@ MAG_BIAS_MAX=131072		# 2 G
 WALL_MIN=1767225600		# 2026-01-01T00:00:00Z
 WALL_MAX=4102444800		# 2100-01-01T00:00:00Z
 SPAN_MAX=157680000		# 5 years of RTC seconds between save and restore
+POWER_LOG_MAX=4194304		# powerd -L in inittab (a host test checks they agree)
 CRASH_KEEP=32
 CRASH_MAX_KB=16384
 BOOTS_MAX=262144
@@ -132,12 +136,24 @@ put() {
 }
 
 # Run "$@" holding the lock for kind $1 (on /run, never /data). Stale temp
-# files of that kind are only removed under the lock.
+# files of that kind are only removed under the lock. With LOCK_TRIES set,
+# give up with 75 after that many 0.1 s retries instead of queueing behind
+# the holder (BusyBox flock has no -w). Commands that may outlive the
+# holder (BusyBox timeout's watchdog daemon) get 8>&- so they never pin it.
 locked() {
 	kind=$1; shift
 	mkdir -p "$RUN" 2>/dev/null
 	(
-		flock 8 || exit 1
+		if [ -n "${LOCK_TRIES:-}" ]; then
+			tries=$LOCK_TRIES
+			until flock -n 8; do
+				[ "$tries" -gt 0 ] || exit 75
+				sleep 0.1
+				tries=$((tries - 1))
+			done
+		else
+			flock 8 || exit 1
+		fi
 		"$@"
 	) 8>"$RUN/chef-state-$kind.lock"
 }
@@ -179,7 +195,7 @@ time_load() {
 # reference that is neither none nor its local clock. The GPS SHM refclock
 # counts.
 synced() {
-	out=$(timeout -k 1 "${CHRONYC_SECS:-3}" chronyc -h "$CHRONY_SOCK" -n tracking 2>/dev/null) || return 1
+	out=$(timeout -k 1 "${CHRONYC_SECS:-3}" chronyc -h "$CHRONY_SOCK" -n tracking 2>/dev/null 8>&-) || return 1
 	leap=$(printf '%s\n' "$out" | sed -n 's/^Leap status *: *//p')
 	ref=$(printf '%s\n' "$out" | sed -n 's/^Reference ID *: *\([0-9A-Fa-f]*\).*/\1/p')
 	name=$(printf '%s\n' "$out" | sed -n 's/^Reference ID *: *[0-9A-Fa-f]* *(\(.*\)).*/\1/p')
@@ -192,7 +208,7 @@ synced() {
 time_save_locked() {
 	rm -f "$TIME_FILE".tmp.*
 	synced || return 1
-	out=$(timeout -k 1 3 rtc-edge -r "$RTC" sample) || { log "time: no RTC tick; offset not saved"; return 1; }
+	out=$(timeout -k 1 "${EDGE_SECS:-3}" rtc-edge -r "$RTC" sample 8>&-) || { log "time: no RTC tick; offset not saved"; return 1; }
 	# shellcheck disable=SC2086
 	set -- $out
 	if [ "$#" != 2 ] || ! isrtc "$1" || ! isint "$2" || [ "$2" -lt 1767225600000000000 ] || [ "$2" -ge 4102444800000000000 ]; then
@@ -217,6 +233,9 @@ time_save_locked() {
 time_save() {
 	ours || return 1
 	locked time time_save_locked
+	rc=$?
+	[ "$rc" != 75 ] || { log "time: save lock still busy; offset save skipped"; return 1; }
+	return "$rc"
 }
 
 # Write /run/chef-time: source=rtc-offset|floor|none, reason, saved_age_s.
@@ -554,6 +573,26 @@ pid_tokens() {
 	done
 }
 
+# The timekeeper's process group: its PID when it leads its own group (busybox
+# init setsid()s every child), else the PID and its descendants by parent PID.
+keeper_targets() {
+	pgrp=$(awk -v pid="$1" '$1 == pid && $0 ~ /^[0-9]+ \(.*\) / {
+		sub(/^.*\) /, ""); if ($3 ~ /^[0-9]+$/) print $3 }' "$PROC/$1/stat" 2>/dev/null)
+	if [ "$pgrp" = "$1" ]; then
+		echo "-$1"
+		return
+	fi
+	echo "$1"
+	for f in "$PROC"/[0-9]*/stat; do cat "$f" 2>/dev/null; echo; done | awk -v root="$1" '
+		$0 ~ /^[0-9]+ \(.*\) / { pid = $1; sub(/^.*\) /, ""); parent[pid] = $2 }
+		END {
+			q[n = 1] = root
+			for (i = 1; i <= n; i++)
+				for (c in parent)
+					if (parent[c] == q[i]) { q[++n] = c; print c }
+		}'
+}
+
 # Wait (0.1 s steps, at most $1 tenths) for original processes to exit.
 wait_gone() {
 	n=$1; shift
@@ -579,6 +618,37 @@ wait_gone() {
 	return 1
 }
 
+# Any powerd alive (not zombie or dead)? Unreadable state counts as alive.
+live_powerd() {
+	for pid in $(pidof powerd 2>/dev/null); do
+		state=$(proc_state "$pid")
+		case "${state%% *}" in Z|X|x) ;; *) return 0;; esac
+	done
+	return 1
+}
+
+# Power log rows a powerd that is gone left in /run/power/log.pending
+# (normally none: powerd's exit flush on TERM appends and fsyncs them).
+# Only when the powerd seen at entry ($@: its pid:start tokens) is
+# confirmed gone and no other is alive, never while one may still write.
+# `powerd ... flush` applies powerd's own rules (header, rotation, torn
+# tail) and fsyncs. 0: nothing pending or flushed, 1: rows left (logged).
+power_flush() {
+	pending=$RUN/power/log.pending
+	[ -s "$pending" ] || return 0
+	rows=$(($(wc -l < "$pending")))
+	if ! wait_gone 0 "$@" || live_powerd; then
+		log "power: powerd may still be running; $rows pending rows left in $pending"
+		return 1
+	fi
+	if timeout -k 1 2 powerd -d "$RUN/power" -l "$DATA/v1/power" -L "$POWER_LOG_MAX" flush </dev/null 8>&-; then
+		log "power: appended $rows pending rows a stopped powerd left"
+		return 0
+	fi
+	log "power: flushing $rows pending rows failed; left in $pending"
+	return 1
+}
+
 do_shutdown() {
 	cd / || return 1
 	ours || return 0
@@ -586,6 +656,12 @@ do_shutdown() {
 	keeper=$(cat "$RUN/chef-state-timekeeper.pid" 2>/dev/null)
 	case "$keeper" in ''|*[!0-9]*) keeper=;; esac
 	[ -z "$keeper" ] || tr '\000' ' ' 2>/dev/null < "$PROC/$keeper/cmdline" | grep -q 'chef-state timekeeper' || keeper=
+	# The whole timekeeper: its locked save runs in a subshell with chronyc
+	# and rtc-edge children, which a TERM to the shell alone leaves running.
+	# A save killed before its rename leaves only a temp file, which the
+	# next save removes. Negative PIDs after a positive one (BusyBox ash
+	# kill rejects --).
+	[ -z "$keeper" ] || keeper=$(keeper_targets "$keeper")
 	sensors=$(pidof sensors-up 2>/dev/null)
 	# shellcheck disable=SC2086
 	sensor_tokens=$(pid_tokens $sensors)
@@ -595,8 +671,10 @@ do_shutdown() {
 	# Powerd is not needed by time_save. Its in-flight sysfs read/reset can
 	# finish while chronyc/RTC sampling runs, rather than serially after it.
 	# shellcheck disable=SC2086
-	[ -z "$keeper$sensors$power" ] || kill -TERM $keeper $sensors $power 2>/dev/null
-	CHRONYC_SECS=1 time_save; time_rc=$?
+	[ -z "$keeper$sensors$power" ] || kill -TERM $sensors $power $keeper 2>/dev/null
+	# Never queue behind a save in flight (about 1 s at most), and keep the
+	# save itself short: chronyc 1 s, one RTC edge (at most 1.1 s) 1.5 s.
+	LOCK_TRIES=10 CHRONYC_SECS=1 EDGE_SECS=1.5 time_save; time_rc=$?
 	chrony=$(pidof chronyd 2>/dev/null)
 	# shellcheck disable=SC2086
 	stop_tokens="$sensor_tokens $power_tokens $(pid_tokens $chrony)"
@@ -605,15 +683,19 @@ do_shutdown() {
 	read -r stop_now _ < "$PROC/uptime"
 	# Share a normal 1.8 s stop deadline with the time-save work; leave
 	# about 0.2 s for the final small bias snapshot/sync in the usual case.
+	# At least 0.3 s even when a slow time save used the budget up, so
+	# chronyd can write its drift file (the 5 s hook bound has room).
 	# The outer hook timeout still bounds failed/blocking I/O separately.
-	stop_wait=$(awk -v a="$t0" -v b="$stop_now" 'BEGIN { n=int((1.8-(b-a))*10); if(n<0)n=0; if(n>18)n=18; print n }')
+	stop_wait=$(awk -v a="$t0" -v b="$stop_now" 'BEGIN { n=int((1.8-(b-a))*10); if(n<3)n=3; if(n>18)n=18; print n }')
 	# shellcheck disable=SC2086
 	wait_gone "$stop_wait" $stop_tokens; stop_rc=$?
 	[ "$stop_rc" = 0 ] || log "shutdown: chronyd/sensors-up/powerd not confirmed stopped by 1.8 s deadline; final flush not confirmed"
+	# shellcheck disable=SC2086
+	power_flush $power_tokens; power_rc=$?
 	CHEF_STATE_MAG_FINAL=1 mag_save; mag_rc=$?
 	sync; sync_rc=$?
 	read -r t1 _ < "$PROC/uptime"
-	log "shutdown: time_save_rc=$time_rc (1=skipped/failed) mag_save_rc=$mag_rc sync_rc=$sync_rc stop_rc=$stop_rc (uptime $t0 -> $t1)"
+	log "shutdown: time_save_rc=$time_rc (1=skipped/failed) power_flush_rc=$power_rc mag_save_rc=$mag_rc sync_rc=$sync_rc stop_rc=$stop_rc (uptime $t0 -> $t1)"
 }
 
 case "${1:-}" in

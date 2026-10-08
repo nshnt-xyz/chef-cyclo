@@ -36,14 +36,29 @@
  *                      on every sample; `powerd status` prints it
  *   log.csv(.1)        (in the -l log directory if given) one row per
  *                      uevent/poll sample (5 s throttle ticks only when
- *                      something changed or 60 s passed), with a header;
+ *                      something changed or 30 s passed), with a header;
  *                      rotated to log.csv.1 at the size limit, or when the
  *                      existing file starts with another header. The last
  *                      column, boot_id, is filled on the start row only.
- *                      The file is opened, appended and closed per row
- *                      (never held open) and not fsynced: commit=5 does not bound dirty data
- *                      writeback; abrupt power loss can lose recent rows. A failed append is logged
- *                      once and retried on the next row.
+ *                      The file is opened, appended and closed (never held
+ *                      open). Without -l (tmpfs) each row is appended as it
+ *                      is made; a failed append is logged once and retried
+ *                      on the next row.
+ *   log.pending        with -l only: rows wait here, on tmpfs, and reach
+ *                      LOGDIR/log.csv in one batch every -F seconds
+ *                      (default 600), so the eMMC is not woken for every
+ *                      row (each dirty append cost a journal commit,
+ *                      about 12 to 15 KiB of writes per 175-byte row). Rows that
+ *                      matter after a crash flush at once: the start row
+ *                      (with any rows a previous powerd of this boot left
+ *                      here), plug/unplug, a status change, an alert or
+ *                      throttle level change, and the shutdown row, which
+ *                      is fsynced before the shutdown command runs. SIGTERM
+ *                      (chef-state shutdown, on every orderly shutdown
+ *                      path) flushes once before exit, fsynced. A failed flush keeps the
+ *                      rows (logged once); the file is bounded (256 KiB) by
+ *                      dropping its oldest rows. On abrupt power loss up to
+ *                      one interval of ordinary rows is lost.
  *   shutdown-pending   written with the reason just before a shutdown
  * and "powerd: ..." kmsg lines for transitions only (plug/unplug, status,
  * warn/critical, throttle level, shutdown), which fblog shows on the panel.
@@ -79,9 +94,15 @@
  *   - Nothing else is written: no ICL/FCC/input_suspend/ship-mode/demo-mode
  *     knobs, no persist or EFS. The kernel's own charging stays in charge.
  *
- * Usage: powerd [-r SYSFS] [-d RUNDIR] [-l LOGDIR] [-x CMD] [-V VIB] [-K KMSG] [-v]
+ * Usage: powerd [-r SYSFS] [-d RUNDIR] [-l LOGDIR] [-F SECS] [-x CMD] [-V VIB] [-K KMSG] [-v]
  *               [test overrides, see usage()]
  *        powerd [-d RUNDIR] status
+ *        powerd [-d RUNDIR] -l LOGDIR [-L LOG_MAX] flush
+ *                      append the log.pending rows a powerd that is no
+ *                      longer running left behind (chef-state shutdown's
+ *                      fallback), fsynced, with the same rotation rules.
+ *                      Only while no powerd daemon runs on RUNDIR: next to
+ *                      one it could duplicate or reorder rows.
  *
  * The pure parts (sysfs sample reader against any root, uevent filter,
  * policy step with injected hooks, state/CSV formatting and rotation,
@@ -129,6 +150,8 @@
 #define POWERD_POLL_LOW_MS  10000
 #define POWERD_ROW_IDLE_MS  30000	/* unchanged throttle ticks: a row every 30 s */
 #define POWERD_LOG_MAX      (1024 * 1024)
+#define POWERD_FLUSH_MS     600000	/* -l: pending rows reach LOGDIR at least this often */
+#define POWERD_PENDING_MAX  (256 * 1024)
 #define POWERD_CRIT_BUZZ_MS 600
 #define POWERD_NA           INT_MIN		/* unreadable, -22, not a number */
 #define POWERD_ABSENT       (INT_MIN + 1)	/* online of a psy that does not exist */
@@ -424,7 +447,13 @@ struct powerd {
 	const char *dir;
 	const char *logdir;		/* log.csv(.1); NULL = dir */
 	char boot_id[40];		/* for the start row */
-	bool log_failed;		/* an append failed; logged once */
+	bool log_failed;		/* an append (or -l: a flush) failed; logged once */
+	int flush_ms;			/* -l: batch interval */
+	long pending_max;		/* -l: bound of dir/log.pending */
+	int64_t flush_due;		/* -l: when pending rows must be flushed; -1 none */
+	bool pending_checked;		/* -l: a torn tail from an earlier powerd removed */
+	bool pending_failed;		/* -l: appending to log.pending failed; logged once */
+	long pending_dropped;		/* -l: rows dropped from a full log.pending */
 	const char *vib;		/* NULL/"" = no buzz */
 	char overrides[256];		/* "" in production */
 	long log_max;
@@ -449,6 +478,7 @@ struct powerd {
 	int (*write_level)(struct powerd *p, int level);
 	void (*shutdown)(struct powerd *p);
 	void (*buzz)(struct powerd *p, int ms);
+	int (*sync_fd)(int fd);		/* fsync; the tests count the calls */
 };
 
 static int sysfs_write_level(struct powerd *p, int level);
@@ -463,10 +493,14 @@ static void powerd_init(struct powerd *p)
 	p->dir = POWERD_RUNDIR;
 	p->vib = POWERD_VIB_PATH;
 	p->log_max = POWERD_LOG_MAX;
+	p->flush_ms = POWERD_FLUSH_MS;
+	p->pending_max = POWERD_PENDING_MAX;
+	p->flush_due = -1;
 	p->log = kmsg_note;
 	p->write_level = sysfs_write_level;
 	p->shutdown = system_shutdown;
 	p->buzz = vib_buzz;
+	p->sync_fd = fsync;
 }
 
 static const char *alert_name(const struct powerd *p)
@@ -898,6 +932,368 @@ static int csv_append(const struct powerd *p, const char *row)
 	return 0;
 }
 
+/* ------------------------------------------------- -l: batched log.csv */
+
+static void pending_path(const struct powerd *p, char *buf, size_t len)
+{
+	snprintf(buf, len, "%s/log.pending", p->dir);
+}
+
+/* The whole of path into a malloc'd, NUL-terminated buffer. NULL with
+ * *len 0 if it does not exist; NULL with -errno in *err on a read error. */
+static char *read_file(const char *path, size_t *len, int *err)
+{
+	struct stat st;
+	char *buf;
+	size_t n = 0;
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+
+	*len = 0;
+	*err = 0;
+	if (fd < 0) {
+		*err = errno == ENOENT ? 0 : -errno;
+		return NULL;
+	}
+	if (fstat(fd, &st) < 0 || !(buf = malloc((size_t)st.st_size + 1))) {
+		*err = -ENOMEM;
+		close(fd);
+		return NULL;
+	}
+	while (n < (size_t)st.st_size) {
+		ssize_t r = read(fd, buf + n, (size_t)st.st_size - n);
+
+		if (r < 0 && errno == EINTR)
+			continue;
+		if (r < 0) {
+			*err = -errno;
+			free(buf);
+			close(fd);
+			return NULL;
+		}
+		if (r == 0)
+			break;
+		n += (size_t)r;
+	}
+	close(fd);
+	buf[n] = '\0';
+	*len = n;
+	return buf;
+}
+
+/* Replace log.pending with len bytes of data (tmp + rename, tmpfs). */
+static int pending_replace(const struct powerd *p, const char *data, size_t len)
+{
+	char path[512], tmp[512];
+	int fd;
+
+	pending_path(p, path, sizeof(path));
+	if (len == 0)
+		return truncate(path, 0) < 0 && errno != ENOENT ? -errno : 0;
+	snprintf(tmp, sizeof(tmp), "%s/.log.pending.tmp", p->dir);
+	fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
+	if (fd < 0)
+		return -errno;
+	if (write(fd, data, len) != (ssize_t)len) {
+		int err = errno ? errno : EIO;
+
+		close(fd);
+		unlink(tmp);
+		return -err;
+	}
+	close(fd);
+	if (rename(tmp, path) < 0) {
+		int err = errno;
+
+		unlink(tmp);
+		return -err;
+	}
+	return 0;
+}
+
+/* Write all of buf; -errno on error (a partial write may have happened). */
+static int write_all(int fd, const char *buf, size_t len)
+{
+	while (len) {
+		ssize_t n = write(fd, buf, len);
+
+		if (n < 0 && errno == EINTR)
+			continue;
+		if (n <= 0)
+			return n < 0 ? -errno : -EIO;
+		buf += n;
+		len -= (size_t)n;
+	}
+	return 0;
+}
+
+/*
+ * Append the complete rows of log.pending to LOGDIR/log.csv with the same
+ * rules as csv_append: a header on a new file, rotation to log.csv.1 first
+ * when another header is there or the rows would pass log_max (a batch
+ * bigger than that is split at row boundaries, so the file stays within
+ * log_max unless one row alone is bigger). Usually one write. With durable,
+ * log.csv and LOGDIR are fsynced afterwards, even with nothing to add. A failed write
+ * truncates log.csv back to its size before it, so no partial row is left
+ * to be duplicated by the retry. Rows that reached log.csv are removed from
+ * log.pending, the rest stay. 0, or -errno of the first failure.
+ */
+static int log_flush(struct powerd *p, bool durable)
+{
+	char path[512], old[512], pp[512];
+	size_t len, end, off = 0;
+	char *buf;
+	int rc = 0, err;
+
+	pending_path(p, pp, sizeof(pp));
+	buf = read_file(pp, &len, &err);
+	if (!buf)
+		return err;
+	/* a torn last row (a powerd killed mid-append) is never flushed */
+	for (end = len; end > 0 && buf[end - 1] != '\n'; end--)
+		;
+	snprintf(path, sizeof(path), "%s/log.csv", p->logdir);
+	snprintf(old, sizeof(old), "%s/log.csv.1", p->logdir);
+	while (off < end) {
+		struct stat st;
+		size_t chunk = end - off, hl = sizeof(csv_header) - 1;
+		off_t size = stat(path, &st) == 0 ? st.st_size : 0;
+		long room;
+		int fd;
+
+		if (size > 0 && !csv_header_matches(path)) {
+			if (rename(path, old) < 0) {
+				rc = -errno;
+				break;
+			}
+			size = 0;
+		}
+		room = p->log_max - (size > 0 ? (long)size : (long)hl);
+		if ((long)chunk > room) {
+			/* the whole rows that fit */
+			size_t fit = 0, i;
+
+			for (i = off; i < end && (long)(i - off) < room; i++)
+				if (buf[i] == '\n' && (long)(i + 1 - off) <= room)
+					fit = i + 1 - off;
+			if (fit == 0 && size > 0) {
+				if (rename(path, old) < 0) {
+					rc = -errno;
+					break;
+				}
+				continue;
+			}
+			if (fit == 0)	/* one row bigger than log_max on its own */
+				fit = (size_t)((char *)memchr(buf + off, '\n', end - off) - (buf + off)) + 1;
+			chunk = fit;
+		}
+		fd = open(path, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+		if (fd < 0) {
+			rc = -errno;
+			break;
+		}
+		if (fstat(fd, &st) == 0)
+			size = st.st_size;
+		rc = size == 0 ? write_all(fd, csv_header, hl) : 0;
+		if (rc == 0)
+			rc = write_all(fd, buf + off, chunk);
+		if (rc < 0) {
+			if (ftruncate(fd, size) < 0)
+				p->log("log.csv in %s: cannot truncate a failed append (%s)",
+				       p->logdir, strerror(errno));
+			close(fd);
+			break;
+		}
+		close(fd);
+		off += chunk;
+	}
+	/* durable: log.csv and the directory, also when this flush had
+	 * nothing to add (the ordinary batches before it were not synced) */
+	if (rc == 0 && durable) {
+		int fd = open(path, O_RDONLY | O_CLOEXEC);
+
+		if (fd >= 0) {
+			if (p->sync_fd(fd) < 0)
+				rc = -errno;
+			close(fd);
+		}
+		fd = open(p->logdir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+		if (fd >= 0) {
+			if (p->sync_fd(fd) < 0 && rc == 0)
+				rc = -errno;
+			close(fd);
+		}
+	}
+	/* keep only the rows that did not make it (and drop a torn tail) */
+	if (off > 0 || end < len) {
+		err = pending_replace(p, buf + off, end - off);
+		if (err < 0 && rc == 0)
+			rc = err;
+	}
+	free(buf);
+	return rc;
+}
+
+/* Flush now and report a failure once, with recovery. */
+static void log_flush_now(struct powerd *p, bool durable, int64_t now)
+{
+	int rc = log_flush(p, durable);
+
+	if (rc < 0) {
+		if (!p->log_failed)
+			p->log("log.csv in %s: %s; rows kept in %s/log.pending until it works again",
+			       p->logdir, strerror(-rc), p->dir);
+		p->log_failed = true;
+		p->flush_due = now + p->flush_ms;
+		return;
+	}
+	if (p->log_failed) {
+		if (p->pending_dropped)
+			p->log("log.csv in %s writable again (%ld oldest rows were dropped meanwhile)",
+			       p->logdir, p->pending_dropped);
+		else
+			p->log("log.csv in %s writable again", p->logdir);
+	}
+	p->log_failed = false;
+	p->pending_dropped = 0;
+	p->flush_due = -1;
+}
+
+/*
+ * Before the first append of this process, cut a torn last row that an
+ * earlier powerd (killed mid-write) left in log.pending, so the next row
+ * does not run into it. When the file is full, drop its oldest rows (a
+ * quarter of the bound at a time, so this is rare) with one log line per
+ * failure episode.
+ */
+static int pending_make_room(struct powerd *p, size_t rl)
+{
+	char pp[512];
+	size_t len, cut = 0, i;
+	struct stat st;
+	char *buf;
+	long rows = 0;
+	int err;
+
+	pending_path(p, pp, sizeof(pp));
+	if (stat(pp, &st) < 0)
+		return errno == ENOENT ? 0 : -errno;
+	if (p->pending_checked && st.st_size + (long)rl <= p->pending_max)
+		return 0;
+	buf = read_file(pp, &len, &err);
+	if (!buf)
+		return err;
+	if (!p->pending_checked)
+		while (len > 0 && buf[len - 1] != '\n')
+			len--;
+	if ((long)(len + rl) > p->pending_max) {
+		cut = len + rl - (size_t)p->pending_max + (size_t)p->pending_max / 4;
+		if (cut > len)
+			cut = len;
+		while (cut < len && buf[cut - 1] != '\n')
+			cut++;
+		for (i = 0; i < cut; i++)
+			rows += buf[i] == '\n';
+	}
+	if (cut > 0 || len < (size_t)st.st_size) {
+		err = pending_replace(p, buf + cut, len - cut);
+		if (err < 0) {
+			free(buf);
+			return err;
+		}
+	}
+	free(buf);
+	p->pending_checked = true;
+	if (rows) {
+		if (!p->pending_dropped)
+			p->log("%s full: dropped %ld oldest rows; log.csv in %s is not taking them",
+			       pp, rows, p->logdir);
+		p->pending_dropped += rows;
+	}
+	return 0;
+}
+
+/* Append one row to log.pending; a short write (tmpfs full) is truncated
+ * back, so the next row never runs into a torn one. */
+static int pending_add(struct powerd *p, const char *row)
+{
+	char pp[512];
+	struct stat st;
+	int fd, rc;
+
+	rc = pending_make_room(p, strlen(row));
+	if (rc < 0)
+		return rc;
+	pending_path(p, pp, sizeof(pp));
+	fd = open(pp, O_WRONLY | O_CREAT | O_APPEND | O_CLOEXEC, 0644);
+	if (fd < 0)
+		return -errno;
+	if (fstat(fd, &st) < 0) {
+		rc = -errno;
+		close(fd);
+		return rc;
+	}
+	rc = write_all(fd, row, strlen(row));
+	if (rc < 0 && ftruncate(fd, st.st_size) < 0)
+		p->pending_checked = false;	/* cut the torn tail before the next row */
+	close(fd);
+	return rc;
+}
+
+/*
+ * One finished row. Without -l: appended to RUNDIR/log.csv at once. With
+ * -l: queued in log.pending and flushed when urgent (durable: the shutdown
+ * row, fsynced) or when the oldest pending row is flush_ms old.
+ */
+static void log_row(struct powerd *p, const char *row, bool urgent, bool durable, int64_t now)
+{
+	int rc;
+
+	if (!p->logdir) {
+		rc = csv_append(p, row);
+		if (rc < 0 && !p->log_failed)
+			p->log("log.csv in %s: %s; rows are lost until it works again", p->dir, strerror(-rc));
+		else if (rc == 0 && p->log_failed)
+			p->log("log.csv in %s writable again", p->dir);
+		p->log_failed = rc < 0;
+		return;
+	}
+	rc = pending_add(p, row);
+	if (rc < 0 && !p->pending_failed)
+		p->log("%s/log.pending: %s; rows are lost until it works again", p->dir, strerror(-rc));
+	else if (rc == 0 && p->pending_failed)
+		p->log("%s/log.pending writable again", p->dir);
+	p->pending_failed = rc < 0;
+	if (rc == 0 && p->flush_due < 0)
+		p->flush_due = now + p->flush_ms;
+	if (urgent || (p->flush_due >= 0 && now >= p->flush_due))
+		log_flush_now(p, durable, now);
+}
+
+/* -l: flush if the batch interval is up (also between samples). */
+static void log_flush_if_due(struct powerd *p, int64_t now)
+{
+	if (p->logdir && p->flush_due >= 0 && now >= p->flush_due)
+		log_flush_now(p, false, now);
+}
+
+/*
+ * `powerd -d RUNDIR -l LOGDIR [-L MAX] flush`: append what a powerd that is
+ * no longer running left in RUNDIR/log.pending to LOGDIR, with the same
+ * rules and fsyncs as its own exit flush. For chef-state shutdown, only
+ * once no powerd can still be writing. 0: done or nothing pending.
+ */
+static int flush_main(struct powerd *p)
+{
+	int rc = log_flush(p, true);
+
+	if (rc < 0) {
+		p->log("flush: log.csv in %s: %s; rows left in %s/log.pending",
+		       p->logdir, strerror(-rc), p->dir);
+		return 1;
+	}
+	return 0;
+}
+
 /* Did anything a reader of the log cares about change since the last row? */
 static bool sample_changed(const struct sample *a, const struct sample *b)
 {
@@ -932,27 +1328,29 @@ static int powerd_sample(struct powerd *p, const char *reason, int64_t now, doub
 	const char *alert_before = alert_name(p);
 	int level_before = p->level;
 	char buf[2048], utc[32];
-	int rc;
+	bool urgent;
 
 	memset(&s, 0, sizeof(s));
 	sample_read(p->sysfs, &s);
 	policy_step(p, &s, now);
 	state_format(p, &s, uptime, buf, sizeof(buf));
 	write_file_atomic(p->dir, "state", buf);
-	if (p->shutdown_now || strcmp(reason, "tick") != 0 || !had_prev || !p->have_row ||
-	    sample_changed(&s, &before) || p->level != level_before ||
-	    strcmp(alert_before, alert_name(p)) != 0 || now - p->last_row >= POWERD_ROW_IDLE_MS) {
+	/* rows worth having on /data at once (-l): after a crash or power loss
+	 * these are what explain it */
+	urgent = p->shutdown_now || strcmp(reason, "start") == 0 || !had_prev ||
+		 supply_online(&s) != supply_online(&before) ||
+		 strcmp(source_name(&s), source_name(&before)) != 0 ||
+		 strcmp(s.status, before.status) != 0 || p->level != level_before ||
+		 strcmp(alert_before, alert_name(p)) != 0;
+	if (urgent || strcmp(reason, "tick") != 0 || !p->have_row ||
+	    sample_changed(&s, &before) || now - p->last_row >= POWERD_ROW_IDLE_MS) {
 		utc_now(utc, sizeof(utc));
 		csv_format(p, &s, uptime, utc, reason, buf, sizeof(buf));
-		rc = csv_append(p, buf);
-		if (rc < 0 && !p->log_failed)
-			p->log("log.csv in %s: %s; rows are lost until it works again",
-			       p->logdir ? p->logdir : p->dir, strerror(-rc));
-		else if (rc == 0 && p->log_failed)
-			p->log("log.csv in %s writable again", p->logdir ? p->logdir : p->dir);
-		p->log_failed = rc < 0;
+		log_row(p, buf, urgent, p->shutdown_now, now);
 		p->last_row = now;
 		p->have_row = true;
+	} else {
+		log_flush_if_due(p, now);
 	}
 	if (p->shutdown_now) {
 		p->shutdown_now = false;
@@ -1029,6 +1427,10 @@ static void system_shutdown(struct powerd *p)
 	if (kill(1, SIGUSR2) == 0)
 		return;
 	p->log("init would not take SIGUSR2 (%s); reboot(RB_POWER_OFF)", strerror(errno));
+	/* no ::shutdown lines (chef-state's fallback) on this path: if the
+	 * durable flush with the shutdown row failed, try once more */
+	if (p->logdir && p->log_failed && log_flush(p, true) < 0)
+		p->log("pending rows in %s/log.pending are lost", p->dir);
 	sync();
 	reboot(RB_POWER_OFF);
 }
@@ -1128,11 +1530,17 @@ static int mkdir_p(const char *dir)
 static void usage(void)
 {
 	fprintf(stderr,
-		"usage: powerd [-r SYSFS] [-d RUNDIR] [-l LOGDIR] [-x CMD] [-V VIB] [-K KMSG] [-L LOG_MAX] [-v] [TEST OPTIONS]\n"
+		"usage: powerd [-r SYSFS] [-d RUNDIR] [-l LOGDIR] [-F SECS] [-x CMD] [-V VIB] [-K KMSG] [-L LOG_MAX] [-v] [TEST OPTIONS]\n"
 		"       powerd [-d RUNDIR] status\n"
+		"       powerd [-d RUNDIR] -l LOGDIR [-L LOG_MAX] flush\n"
+		"           append the pending rows a stopped powerd left; only while no powerd\n"
+		"           daemon runs on RUNDIR (it could duplicate or reorder rows)\n"
 		"  -r  power_supply sysfs root (default " POWERD_SYSFS ", or $POWERD_SYSFS)\n"
 		"  -d  run directory for state, shutdown-pending and log.csv (default " POWERD_RUNDIR ")\n"
-		"  -l  log directory for log.csv(.1) instead of the run directory\n"
+		"  -l  log directory for log.csv(.1) instead of the run directory; rows wait in\n"
+		"      RUNDIR/log.pending and are appended in batches (see -F)\n"
+		"  -F  with -l: flush pending rows at least every SECS seconds (default 600;\n"
+		"      0 = every row); important rows always flush at once\n"
 		"  -x  shutdown command (sh -c CMD) instead of sync + poweroff; no fallback\n"
 		"  -V  vibrator for the critical buzz ('' = none; default " POWERD_VIB_PATH ")\n"
 		"  -K  kmsg path (default " POWERD_KMSG_PATH ")\n"
@@ -1225,17 +1633,22 @@ int main(int argc, char **argv)
 	const char *env;
 	int64_t next_at, uevent_at = -1, last_uevent_sample = INT64_MIN / 2;
 	int opt, ufd, ms, rc;
+	char logdesc[600];
 	bool ok = true;
 
 	powerd_init(&p);
 	env = getenv("POWERD_SYSFS");
 	if (env && *env)
 		p.sysfs = env;
-	while ((opt = getopt_long(argc, argv, "r:d:l:x:V:K:L:v", longopts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "r:d:l:F:x:V:K:L:v", longopts, NULL)) != -1) {
 		switch (opt) {
 		case 'r': p.sysfs = optarg; break;
 		case 'd': p.dir = optarg; break;
 		case 'l': p.logdir = optarg; break;
+		case 'F':
+			ok = parse_int(optarg, 0, 86400, &p.flush_ms);
+			p.flush_ms *= 1000;
+			break;
 		case 'x': g_shutdown_cmd = optarg; add_override(&p, "shutdown-cmd", NULL); break;
 		case 'V': p.vib = optarg; break;
 		case 'K': g_kmsg_path = optarg; break;
@@ -1275,6 +1688,8 @@ int main(int argc, char **argv)
 	if (optind < argc) {
 		if (strcmp(argv[optind], "status") == 0 && optind + 1 == argc)
 			return status_main(p.dir);
+		if (strcmp(argv[optind], "flush") == 0 && optind + 1 == argc && p.logdir)
+			return flush_main(&p);
 		usage();
 		return 64;
 	}
@@ -1330,8 +1745,12 @@ int main(int argc, char **argv)
 		kmsg_note("TEST OVERRIDE: %s", p.overrides);
 	if (c->act_when_online)
 		kmsg_note("TEST OVERRIDE: --shutdown-when-online: low-battery policy acts with a supply attached");
+	if (p.logdir)
+		snprintf(logdesc, sizeof(logdesc), "%s (batched every %d s)", p.logdir, p.flush_ms / 1000);
+	else
+		snprintf(logdesc, sizeof(logdesc), "%s", p.dir);
 	kmsg_note("ready: %s -> %s, log %s, warn %d %%, critical %d %%, off at %d %% / %d mV / %d.%d C, throttle %s",
-		  p.sysfs, p.dir, p.logdir ? p.logdir : p.dir, c->warn_pct, c->crit_pct, c->empty_pct, c->empty_mv,
+		  p.sysfs, p.dir, logdesc, c->warn_pct, c->crit_pct, c->empty_pct, c->empty_mv,
 		  c->overtemp_dc / 10, abs(c->overtemp_dc) % 10,
 		  c->throttle ? "on" : "off");
 
@@ -1351,6 +1770,8 @@ int main(int argc, char **argv)
 
 		if (uevent_at >= 0 && uevent_at < due)
 			due = uevent_at;
+		if (p.logdir && p.flush_due >= 0 && p.flush_due < due)
+			due = p.flush_due;
 		timeout = due > now ? (int)(due - now) : 0;
 		if (g_kick)
 			timeout = 0;
@@ -1383,8 +1804,15 @@ int main(int argc, char **argv)
 
 			ms = powerd_sample(&p, fast ? "tick" : "poll", now, uptime_s());
 			next_at = now + ms;
+		} else {
+			log_flush_if_due(&p, now);
 		}
 	}
+	/* every orderly shutdown path (init's ::shutdown lines: chef-state
+	 * shutdown TERMs powerd) gets the pending rows onto the disk here,
+	 * before /data goes read-only: one append and its fsync, no waiting */
+	if (p.logdir)
+		log_flush_now(&p, true, now_ms());
 	if (c->throttle && !p.shutdown_fired && p.level != 0)
 		p.write_level(&p, 0);
 	kmsg_note("exiting");

@@ -12,7 +12,13 @@ test_storage.py. Covered: the `ours` gate for every subcommand, every
 restore refusal of the RTC offset and the group 2980 file, the chronyc
 source rules, the save skip rule and lock, pstore collection with
 de-duplication and retention, boots.log rotation and torn lines, and the
-shutdown order.
+shutdown order, including a timekeeper blocked inside its locked save
+(stopped as a whole process group, or by parent PID when it does not lead
+one) and a bounded wait for the save lock under BusyBox flock semantics;
+the power log on shutdown: the real host powerd's fsynced exit flush on
+TERM, and the fallback that flushes rows a stopped powerd left (never while
+one may be alive), plus a static check that every orderly shutdown path
+runs chef-state shutdown and that it and inittab agree on powerd's -L.
 """
 import hashlib
 import fcntl
@@ -26,6 +32,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "initramfs/usr/bin/chef-state"
+POWERD = ROOT / "tools/powerd"  # host build (make -C tools powerd)
 NS = 10**9
 BOOT_ID = "58cf29ac-5b1a-4c4e-9d19-5742e1808633"
 SYNCED = """Reference ID    : A29FC87B (162.159.200.123)
@@ -54,7 +61,8 @@ chronyc)
 rtc-edge)
     while [ "$#" -gt 0 ]; do case "$1" in -r) shift 2;; -n) shift;; *) break;; esac; done
     case "$1" in
-    sample) [ "${EDGE_SAMPLE_RC:-0}" = 0 ] || exit "$EDGE_SAMPLE_RC"; cat "$EDGE_OUT";;
+    sample) [ -z "${EDGE_SLEEP:-}" ] || exec sleep "$EDGE_SLEEP"
+        [ "${EDGE_SAMPLE_RC:-0}" = 0 ] || exit "$EDGE_SAMPLE_RC"; cat "$EDGE_OUT";;
     set) exit "${EDGE_SET_RC:-0}";;
     floor) exit "${EDGE_FLOOR_RC:-0}";;
     esac;;
@@ -64,6 +72,10 @@ pidof) case "$1" in
     sensors-up) echo "${SENSORS_PID:-}";;
     esac
     exit 0;;
+flock)
+    # BusyBox 1.37 flock: [-sxun] FD only, no -w/--timeout (util-linux has them)
+    case " $* " in *" -w"*|*" --timeout"*|*" -E"*) echo "flock: invalid option" >&2; exit 1;; esac
+    exec "$REAL_FLOCK" "$@";;
 dd)
     # FAIL_DD on writes: 1 fails outright, partial writes 3 bytes then fails
     case "$*" in *of=*) [ "${FAIL_DD:-0}" = 0 ] || { [ "$FAIL_DD" = partial ] && "$REAL_DD" "$@" count=3; exit 1; };; esac
@@ -111,9 +123,11 @@ class ChefState(unittest.TestCase):
         stub = p / "bin/stub"
         stub.write_text(STUB)
         stub.chmod(0o755)
-        names = ["mountpoint", "mount", "umount", "chronyc", "rtc-edge", "pidof", "timeout", "dd"]
+        names = ["mountpoint", "mount", "umount", "chronyc", "rtc-edge", "pidof", "timeout", "dd", "flock"]
         for n in names:
             (p / "bin" / n).symlink_to(stub)
+        (p / "bin/powerd").write_text(f'#!/bin/sh\necho "powerd $*" >> "$TRACE"\nexec {POWERD} "$@"\n')
+        (p / "bin/powerd").chmod(0o755)
         wrapper = "".join(f'{n}() {{ "$TEST_BIN/{n}" "$@"; }}\n' for n in names)
         self.script = p / "chef-state"
         self.script.write_text(SCRIPT.read_text().replace("\nDATA=", "\n" + wrapper + "DATA=", 1))
@@ -126,7 +140,8 @@ class ChefState(unittest.TestCase):
                     "CHEF_STATE_PSTORE": str(p / "pstore"), "CHEF_STATE_SENSORS_RUN": str(p / "sensors"),
                     "CHEF_STATE_MAP": str(p / "map"), "CHEF_STATE_PROC": str(p / "proc"),
                     "CHRONYC_OUT": str(p / "chronyc.out"), "EDGE_OUT": str(p / "edge.out"),
-                    "REAL_DD": subprocess.run(["sh", "-c", "command -v dd"], capture_output=True, text=True).stdout.strip()}
+                    "REAL_DD": subprocess.run(["sh", "-c", "command -v dd"], capture_output=True, text=True).stdout.strip(),
+                    "REAL_FLOCK": subprocess.run(["sh", "-c", "command -v flock"], capture_output=True, text=True).stdout.strip()}
         (p / "proc/uptime").write_text("31.03 100.00\n")
         (p / "chronyc.out").write_text(SYNCED)
 
@@ -733,9 +748,10 @@ class ChefState(unittest.TestCase):
         self.assertNotIn("state saved", self.kmsg)
 
     def test_shutdown_actual_outer_hook_bound_on_blocked_lock(self):
-        # Hold the time-save lock beyond the entire outer hook budget.
-        # Real BusyBox timeout is the same 5s TERM +1s KILL as inittab.
-        with open(self.p / "run/chef-state-time.lock", "w") as lock:
+        # Hold the bias-save lock (unbounded wait) beyond the entire outer
+        # hook budget; the time-save lock is bounded, see below. Real
+        # BusyBox timeout is the same 5s TERM +1s KILL as inittab.
+        with open(self.p / "run/chef-state-mag.lock", "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             with open(self.p / "outer.out", "w") as output:
                 start = time.monotonic()
@@ -758,6 +774,265 @@ class ChefState(unittest.TestCase):
                     except ProcessLookupError:
                         pass
                     pr.wait()
+
+    def test_time_save_lock_not_pinned_by_timeout_watchdog(self):
+        # BusyBox timeout's watchdog daemon (the stub's setsid sleep 1)
+        # outlives chronyc/rtc-edge and would inherit the lock descriptor;
+        # the lock must be free as soon as the save returns.
+        self.edge(1_700_000, 1_791_000_000 * NS)
+        r = self.call("time-save")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("timeout -k 1 3 rtc-edge", self.trace)
+        with open(self.p / "run/chef-state-time.lock", "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_shutdown_skips_time_save_on_busy_lock(self):
+        # A save in flight that is not the timekeeper's (a manual
+        # `chef-state time-save`): shutdown gives up after about 1 s with
+        # BusyBox flock (no -w) and still stops chronyd and saves the bias.
+        chronyd = self.spawn()
+        (self.p / "sensors/sns.reg").write_bytes(self.reg_with_bias(100, 0, 0))
+        self.edge(1_700_000, 1_791_000_000 * NS)
+        with open(self.p / "run/chef-state-time.lock", "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            start = time.monotonic()
+            # real /proc: the TERMed, unreaped chronyd reads as a zombie
+            r = self.call("shutdown", CHRONYD_PID=str(chronyd.pid), CHEF_STATE_PROC="/proc")
+            took = time.monotonic() - start
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertGreater(took, 0.9)
+        self.assertLess(took, 2.5)
+        self.assertEqual(chronyd.wait(timeout=5), -15)
+        self.assertIn("flock -n 8", self.trace)
+        self.assertNotIn("flock: invalid option", r.stderr)
+        self.assertNotIn("chronyc", self.trace)
+        self.assertIn("time: save lock still busy; offset save skipped", self.kmsg)
+        self.assertRegex(self.kmsg, r"time_save_rc=1 .*mag_save_rc=0 sync_rc=0 stop_rc=0")
+        self.assertFalse((self.data / "v1/time/rtc-offset").exists())
+        self.assertTrue(self.mag_file().exists())
+
+    def blocked_keeper(self, own_group, **env):
+        """The real timekeeper, blocked inside its locked save."""
+        trace = self.p / "keeper.trace"
+        trace.write_text("")
+        keeper = subprocess.Popen([*self.shell, str(self.script), "timekeeper"],
+                                  env={**self.env, "TRACE": str(trace), **env},
+                                  stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                  stderr=subprocess.DEVNULL, start_new_session=own_group)
+        self.addCleanup(lambda: (keeper.kill(), keeper.wait()))
+        what = "rtc-edge" if "EDGE_SLEEP" in env else "chronyc"
+        deadline = time.monotonic() + 5
+        while what not in trace.read_text():
+            self.assertLess(time.monotonic(), deadline, "timekeeper never reached " + what)
+            time.sleep(0.05)
+        time.sleep(0.2)
+        return keeper
+
+    def descendants(self, root):
+        kids, todo = set(), [root]
+        while todo:
+            parent = todo.pop()
+            for d in Path("/proc").iterdir():
+                if not d.name.isdigit():
+                    continue
+                try:
+                    stat = (d / "stat").read_text()
+                except OSError:
+                    continue
+                if int(stat.rsplit(")", 1)[1].split()[1]) == parent and int(d.name) not in kids:
+                    kids.add(int(d.name))
+                    todo.append(int(d.name))
+        return kids
+
+    def group_members(self, pgrp):
+        found = []
+        for d in Path("/proc").iterdir():
+            try:
+                fields = (d / "stat").read_text().rsplit(")", 1)[1].split()
+            except (OSError, IndexError):
+                continue
+            if fields[0] not in "ZX" and int(fields[2]) == pgrp:
+                found.append(int(d.name))
+        return found
+
+    def check_blocked_keeper_shutdown(self, own_group, **keeper_env):
+        keeper = self.blocked_keeper(own_group, **keeper_env)
+        kids = self.descendants(keeper.pid)
+        self.assertTrue(kids)  # the locked subshell and its chronyc/rtc-edge
+        chronyd = self.spawn()
+        (self.p / "sensors/sns.reg").write_bytes(self.reg_with_bias(100, 0, 0))
+        self.edge(1_700_000, 1_791_000_000 * NS)
+        start = time.monotonic()
+        r = self.call("shutdown", CHRONYD_PID=str(chronyd.pid), CHEF_STATE_PROC="/proc")
+        took = time.monotonic() - start
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertLess(took, 2.5)
+        self.assertEqual(keeper.wait(timeout=5), -15)
+        self.assertEqual(chronyd.wait(timeout=5), -15)
+        self.assertTrue(self.mag_file().exists())
+        self.assertRegex(self.kmsg, r"mag_save_rc=0 sync_rc=0 stop_rc=0")
+        # the lock was released at once: the shutdown save itself ran, on
+        # its first try (no descriptor pinned by a timeout watchdog)
+        self.assertIn("time_save_rc=0", self.kmsg)
+        self.assertEqual(self.trace.count("flock -n 8"), 1, self.trace)
+        self.assertTrue((self.data / "v1/time/rtc-offset").exists())
+        time.sleep(0.2)
+        left = [k for k in kids if Path(f"/proc/{k}").exists() and
+                Path(f"/proc/{k}/stat").read_text().rsplit(")", 1)[1].split()[0] not in "ZX"]
+        self.assertEqual(left, [])
+        if own_group:
+            self.assertEqual(self.group_members(keeper.pid), [])
+        return took
+
+    def test_shutdown_stops_keeper_group_blocked_in_chronyc(self):
+        self.check_blocked_keeper_shutdown(True, CHRONYC_SLEEP="3")
+
+    def test_shutdown_stops_keeper_group_blocked_in_rtc_edge(self):
+        self.check_blocked_keeper_shutdown(True, EDGE_SLEEP="3")
+
+    def test_shutdown_stops_keeper_children_without_own_group(self):
+        # Not a group leader (pgrp != PID): never signal the group, which
+        # here is the test runner's; find the children by parent PID.
+        self.check_blocked_keeper_shutdown(False, CHRONYC_SLEEP="3")
+
+    # ------------------------------------------------------------ power log
+
+    PENDING_ROWS = "10.0,x,poll,a\n11.0,x,poll,b\n"
+
+    def power_dirs(self):
+        (self.p / "run/power").mkdir(exist_ok=True)
+        return self.p / "run/power/log.pending", self.data / "v1/power"
+
+    def real_powerd(self, sysfs):
+        for psy, attr, val in [("battery", "status", "Charging"), ("battery", "present", "1"),
+                               ("battery", "capacity", "50"), ("battery", "temp", "300"),
+                               ("battery", "voltage_now", "4000000"), ("usb", "online", "1"),
+                               ("usb", "real_type", "USB_CDP"), ("dc", "online", "0"),
+                               ("pc_port", "online", "0"), ("bms", "soc_reporting_ready", "1")]:
+            (sysfs / psy).mkdir(parents=True, exist_ok=True)
+            (sysfs / psy / attr).write_text(val + "\n")
+        pr = subprocess.Popen([str(POWERD), "-r", str(sysfs), "-d", str(self.p / "run/power"),
+                               "-l", str(self.data / "v1/power"), "-K", str(self.p / "powerd.kmsg"),
+                               "-V", "", "-x", "true", "--no-throttle"],
+                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, start_new_session=True)
+        self.addCleanup(lambda: (pr.kill(), pr.wait()))
+        return pr
+
+    def wait_for(self, what, cond, secs=5):
+        deadline = time.monotonic() + secs
+        while not cond():
+            self.assertLess(time.monotonic(), deadline, what)
+            time.sleep(0.05)
+
+    def test_shutdown_real_powerd_flushes_pending_rows(self):
+        # The path buttond, `reboot`/`poweroff` from a shell, powerd's own
+        # poweroff and ::restart share: init's ::shutdown lines run
+        # chef-state shutdown, whose TERM makes powerd append its pending
+        # rows to /data (fsynced) before it exits.
+        pending, logdir = self.power_dirs()
+        pr = self.real_powerd(self.p / "sys")
+        csv = logdir / "log.csv"
+        self.wait_for("start row", lambda: csv.exists() and len(csv.read_text().splitlines()) == 2)
+        for _ in range(2):
+            pr.send_signal(signal.SIGUSR1)
+            time.sleep(1.1)
+        self.wait_for("rows pending", lambda: pending.exists() and pending.read_text().count(",signal,") == 2)
+        self.assertNotIn(",signal,", csv.read_text())
+        r = self.call("shutdown", POWERD_PID=str(pr.pid), CHEF_STATE_PROC="/proc")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(pr.wait(timeout=5), 0)
+        self.assertEqual(csv.read_text().count(",signal,"), 2)
+        self.assertEqual(pending.read_text(), "")
+        self.assertRegex(self.kmsg, r"power_flush_rc=0 .*stop_rc=0")
+        self.assertNotIn("pending rows", self.kmsg)  # powerd did it, no fallback
+        self.assertNotIn("powerd -d", self.trace)
+
+    def test_shutdown_flushes_rows_a_dead_powerd_left(self):
+        # powerd crashed, or was in a respawn gap: its rows are still on /run
+        pending, logdir = self.power_dirs()
+        logdir.mkdir()
+        (logdir / "log.csv").write_text("uptime,utc,reason\n1.0,x,start\n")  # an older format
+        pending.write_text(self.PENDING_ROWS + "12.0,x,po")  # torn tail
+        r = self.call("shutdown", CHEF_STATE_PROC="/proc")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn(f"powerd -d {self.p}/run/power -l {logdir} -L 4194304 flush", self.trace)
+        self.assertIn("power: appended 2 pending rows a stopped powerd left", self.kmsg)
+        self.assertIn("power_flush_rc=0", self.kmsg)
+        self.assertEqual((logdir / "log.csv.1").read_text(), "uptime,utc,reason\n1.0,x,start\n")
+        lines = (logdir / "log.csv").read_text().splitlines()
+        self.assertTrue(lines[0].startswith("uptime,utc,reason,status,"))
+        self.assertEqual(lines[1:], ["10.0,x,poll,a", "11.0,x,poll,b"])
+        self.assertEqual(pending.read_text(), "")
+        # the zombie of a TERMed powerd counts as gone
+        pending.write_text(self.PENDING_ROWS)
+        z = self.spawn()
+        d = self.p / f"proc/{z.pid}"
+        d.mkdir()
+        (d / "stat").write_text(f"{z.pid} (powerd) Z " + "0 " * 18 + "123\n")
+        r = self.call("shutdown", POWERD_PID=str(z.pid))
+        self.assertIn("power: appended 2 pending rows", self.kmsg)
+
+    def test_shutdown_leaves_rows_while_powerd_may_be_alive(self):
+        pending, logdir = self.power_dirs()
+        pending.write_text(self.PENDING_ROWS)
+        pr = subprocess.Popen(["sh", "-c", "trap '' TERM; exec sleep 30"])
+        self.addCleanup(lambda: (pr.kill(), pr.wait()))
+        time.sleep(0.05)
+        r = self.call("shutdown", POWERD_PID=str(pr.pid), CHEF_STATE_PROC="/proc")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIsNone(pr.poll())
+        self.assertNotIn("powerd -d", self.trace)
+        self.assertEqual(pending.read_text(), self.PENDING_ROWS)
+        self.assertFalse(logdir.exists())
+        self.assertIn(f"power: powerd may still be running; 2 pending rows left in {pending}", self.kmsg)
+        self.assertIn("power_flush_rc=1", self.kmsg)
+        # unreadable process state is never taken as gone
+        pr2 = self.spawn()
+        r = self.call("shutdown", POWERD_PID=str(pr2.pid))  # fake proc: no stat
+        self.assertIn("pending rows left", self.kmsg)
+
+    def test_shutdown_nothing_pending_writes_nothing(self):
+        pending, logdir = self.power_dirs()
+        for content in (None, ""):
+            if content is not None:
+                pending.write_text(content)
+            r = self.call("shutdown", CHEF_STATE_PROC="/proc")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertNotIn("powerd -d", self.trace)
+            self.assertFalse(logdir.exists())
+            self.assertIn("power_flush_rc=0", self.kmsg)
+
+    def test_shutdown_flush_failure_keeps_rows(self):
+        pending, logdir = self.power_dirs()
+        pending.write_text(self.PENDING_ROWS)
+        (self.data / "v1/power").write_text("not a directory\n")
+        r = self.call("shutdown", CHEF_STATE_PROC="/proc")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(pending.read_text(), self.PENDING_ROWS)
+        self.assertIn("power: flushing 2 pending rows failed", self.kmsg)
+        self.assertIn("power_flush_rc=1", self.kmsg)
+
+    def test_every_orderly_shutdown_path_runs_chef_state(self):
+        inittab = (ROOT / "initramfs/etc/inittab").read_text().splitlines()
+        shutdown = [l for l in inittab if l.startswith("::shutdown:")]
+        self.assertEqual(shutdown[0], "::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown")
+        self.assertEqual(shutdown[1], "::shutdown:/usr/bin/chef-storage shutdown")
+        restart = [l for l in inittab if l.startswith("::restart:")]
+        self.assertEqual(len(restart), 1)
+        r = restart[0]
+        self.assertLess(r.index("/usr/bin/chef-state shutdown"), r.index("/usr/bin/chef-storage shutdown"))
+        # buttond and powerd go down through init (::shutdown), as `reboot`
+        # and `poweroff` from a shell do
+        for src in ("tools/buttond.c", "tools/powerd.c"):
+            self.assertIn('execlp("poweroff", "poweroff"', (ROOT / src).read_text(), src)
+        # chef-state's fallback flush uses inittab's powerd log dir and -L
+        powerd = [l for l in inittab if "/usr/bin/powerd -l" in l]
+        self.assertEqual(len(powerd), 1)
+        script = SCRIPT.read_text()
+        self.assertIn("exec /usr/bin/powerd -l /data/v1/power -L 4194304;", powerd[0])
+        self.assertIn("\nPOWER_LOG_MAX=4194304\t", script)
+        self.assertIn('-l "$DATA/v1/power" -L "$POWER_LOG_MAX" flush', script)
 
     def test_shutdown_terms_powerd_before_time_save(self):
         pr = self.spawn()
@@ -836,7 +1111,10 @@ class ChefState(unittest.TestCase):
 
     def test_shutdown_after_detach_is_quiet(self):
         # ::restart runs after the ::shutdown lines: /data is gone by then.
+        (self.p / "run/power").mkdir()
+        (self.p / "run/power/log.pending").write_text("1.0,x,poll,a\n")
         r = self.call("shutdown", MP_DATA="1")
+        self.assertEqual((self.p / "run/power/log.pending").read_text(), "1.0,x,poll,a\n")
         self.assertEqual(r.returncode, 0)
         self.assertEqual((r.stderr, self.kmsg), ("", ""))
         self.assertEqual(self.trace.splitlines(), [f"mountpoint -q {self.data}"])

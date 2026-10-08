@@ -1,0 +1,165 @@
+State persistence follow-up, 2026-10-08: batched power log, bounded state shutdown
+
+Spec: docs/next-steps/state-persistence-followup-handoff.md (items 1 and 3
+of the coordinator's review of 71163bd; item 2 waits for the user).
+Kernel #22 unchanged (0cf2981c...). Nothing flashed; RAM images only
+(fastboot boot), each ordinary reboot returns to the installed pair
+system_a 799577b6 + boot_a e5b57eff. Raw evidence:
+~/chef-cyclo-evidence/state-persistence-followup-20261008/ (private).
+
+1. Attribution (spec step 1), before any powerd change
+
+Run on the INSTALLED pair (799577b6/e5b57eff, the same 71163bd powerd
+as the 2026-10-06 baseline), not on a RAM image as the spec named; the
+reviewer accepted that deviation. Boot c45cd27a, phone on USB (CDP,
+charging, 20-21 %), settled (uptime 974 s at the start). Three 300 s
+windows (attr.sh, attr-summary.json, attr-installed.tgz):
+  A powerd logging to /data      456 sectors (233,472 B)  16 jbd2 commits  18 rows, 3172 B
+  B powerd SIGSTOPped            48 sectors (24,576 B)     2 commits        0 rows, nothing
+                                 under /data changed
+  C powerd SIGCONTed, running    504 sectors (258,048 B)  18 commits       17 rows, 3008 B
+powerd was stopped with SIGSTOP for 300 s and resumed with SIGCONT
+(state S again in c0). No battery or thermal event was pending: USB
+attached, Charging, battery 35 C, capacity 20 %, alert none. Protected
+partition write counters 0 at every snapshot. So powerd was about 90 %
+of idle userdata writes, one journal commit per row: about 12 to 15 KiB
+of writes per 175-byte row gross (11.3 to 13.4 KiB net of window B).
+
+2. Implementation (reviewed by persist_review: review 1 on 9778f322,
+review 2 on b5b28368, plus nits; final diff staged, hash in the commit
+request)
+
+powerd (tools/powerd.c): with -l, rows go to /run/power/log.pending and
+reach LOGDIR/log.csv in batches every -F SECS (default 600; the
+deadline is in the poll timeout); urgent rows flush at once (start row
+with any leftover pending rows, plug/unplug, status, alert, throttle
+level, shutdown row). Rotation and header-mismatch rotation inside a
+batch, split at row boundaries; a failed or short write is truncated
+back and the rows stay pending (logged once); pending bounded at
+256 KiB (oldest rows dropped, one log line per episode); a torn pending
+tail is dropped, never flushed; a short append to log.pending is
+truncated back. Durable flushes fsync log.csv and LOGDIR once after the
+appends: the shutdown row before the shutdown hook, the SIGTERM exit
+flush, and the new one-shot `powerd -d RUNDIR -l LOGDIR [-L] flush`.
+Before powerd's last-resort reboot(RB_POWER_OFF) a failed durable flush
+is retried once. Without -l nothing changes.
+chef-state shutdown: TERMs the timekeeper's whole process group (pgrp
+== PID checked; else its descendants by parent PID), waits at most
+about 1 s for the save lock (flock -n loop; BusyBox flock has no -w),
+chronyc 1 s and rtc-edge 1.5 s in the shutdown save, the chronyc and
+rtc-edge calls do not pass the lock fd to BusyBox timeout's watchdog
+(8>&-), stop wait at least 0.3 s; then, only when the powerd seen at
+entry is confirmed gone and no powerd is alive, appends rows a stopped
+powerd left in /run/power/log.pending with `powerd ... flush`
+(power_flush_rc in the summary line). Device check: timekeeper pgrp ==
+PID on the installed pair (1058) and on the RAM images (904, 895).
+
+Host: make -C tools test rc 0 on the final tree (host-tools-test4.txt):
+test-powerd 226/226, test_powerd.sh 58/58 (strace: no fsync before TERM,
+exactly 2 on TERM), test_chef_state.py 104 OK under bash and BusyBox
+ash. Mutations checked by both of us are caught (see the review
+messages): removing 8>&-, keeper_targets, the pending rollback, the
+durable flushes, the exit flush, the poll-timeout deadline, the
+power_flush liveness guard.
+
+3. Live on RAM images
+
+Images (out/, hash-suffixed copies kept):
+  RAM 0ca8b56188cfaf546a3c83ea2056887f48f2d6f507c32553314f40e410491e2b
+      (first build: batching without the later shutdown-path and
+      pending-rollback changes; used only for the idle window)
+  RAM 688e170a846784b9fd292728489db92f65bf86e4bc8ada0e27051863f6d62623
+      (all paths below; same code as the final tree except the usage
+      text and comments of powerd)
+  RAM 2af93ff71c34b789b4420db868ecab550759dc4a28d280fad6cd46fa202c9635
+      final tree (build4.txt), confirming reboot below
+  with it: system_a 84a0baa4106c7eda6d926d23d1d67d283cb61f5dbd538025d33abb4299a62973
+           boot_a (stage-1) 6062f115984ceb38590a278e8a1ea4a93d3aa087aa151313b55efbb3fb4e0235
+           stamp 7ff6f75a39940aa98f3293807b297326cc8bb9c7b7857d87bb0d58c3d232af83
+  (not installed; installation needs reviewer clearance and the
+  coordinator's go)
+Binaries on the phone matched the source build each time
+(ram3-binaries.txt, final-rb-binaries.txt).
+
+Idle, RAM 0ca8b561 (ram1-idle-*): settled 1200.33 s, same boot c89fb6c0,
+uptime 121.53 -> 1321.86: 248 sectors (126,976 B), 4 jbd2 commits, 74
+rows reached log.csv in batches, 6 pending at the end; only log.csv
+changed under /data. Per 300 s: 62 sectors and 1 commit, against A
+456/16, C 504/18 and B (powerd stopped) 48/2. Extrapolated 8.7 MiB/day
+for all of userdata (was 65.16 MiB/day on 2026-10-06); a 20-minute
+extrapolation, not a long-term guarantee. Its idle path equals the
+final code: ordinary interval flushes are not fsynced in either; the
+later changes touch only failure paths and shutdown flushes.
+
+Shutdown paths, RAM 688e170a, each from a fresh fastboot boot, phone on
+USB. For each: log.pending captured right before the trigger
+(*-pending-before.txt), the kmsg stream to the end (*-kmsg.txt), the
+state after the next boot (*-after.txt) and the check that every
+captured pending row is in /data/v1/power/log.csv exactly once
+(*-verify.json). All shutdown summaries: time_save_rc=0
+power_flush_rc=0 mag_save_rc=0 sync_rc=0 stop_rc=0, "powerd: exiting"
+before the summary (powerd flushed its own rows, no fallback needed),
+"data fully unmounted", protected write counters 0 after each boot.
+  ram3-rb1   shell reboot   hook 420.61 -> 420.84 s; 29 pending rows
+             (uptime 11.5..415.4, captured at 419.24; regenerated
+             ram3-rb1-verify.json, the first parser also counted 3
+             log.csv tail lines) all on /data; previous boot's last row
+             415.4 directly before the new start row
+  ram3-rb2   shell reboot   40.94 -> 41.90 s; 6 rows 11.4..20.0 on /data
+  ram3-rb3   shell reboot   39.95 -> 40.49 s; 7 rows 11.6..20.4
+  ram3-blk   shell reboot with the timekeeper blocked inside its locked
+             save (one-shot slow chronyc bound over /usr/bin/chronyc
+             from /run, never on system_a): keeper 895 pgrp 895, its
+             save subshell 2236, the wrapper chronyc 2239 and its sleep
+             30 all in pgrp 895 (ram3-blk-block-setup.txt). Hook
+             149.34 -> 150.18 s, time_save_rc=0 (the lock was free at
+             once), stop_rc=0; drift file rewritten at the shutdown
+             (15:18:00, -4.859095, was -4.893676 at 15:14:36) and read
+             back after the boot (chronyc 4.859 ppm slow); 13 rows
+             11.7..118.4 on /data. Two earlier attempts at this cycle
+             lost the setup output in the telnet driver (multi-line
+             script, set -e); kept in failed-block-setup/, not accepted.
+  ram3-poff  shell poweroff 39.95 -> 41.02 s; back via charger mode
+             (bootreason=charger, up 26.1 s); 8 rows 11.4..21.4
+  ram3-pwrd  powerd threshold-test poweroff (second powerd, -d
+             /run/power-test, overrides as on 2026-10-06): SHUTDOWN
+             after 3 samples at 38.20 s; hook 38.22 -> 38.73 s; its
+             start row 35.6 (alert confirming) and shutdown row 37.8
+             (alert shutdown) on /data (ram3-pwrd-shutdown-rows.txt);
+             main powerd's 6 rows 11.9..19.8 on /data; back via charger
+  ram3-btn   buttond poweroff by the user (coordinated through
+             persist_coord): released after 3648 ms; hook 73.66 ->
+             74.57 s; back via charger. The driver's last log.pending
+             capture ran during the shutdown (uptime 75.80, already
+             empty) and overwrote the earlier captures, so this cycle's
+             evidence is ram3-btn-rows-on-data.txt: that boot (id
+             771c29d7) lasted under the 600 s interval, so every row
+             after its start row (12.4..66.9, the last one 7 s before
+             the hook) existed only in log.pending until powerd's TERM
+             flush at 73.75 s, and all are on /data.
+  ram3-rst   ::restart (kill -QUIT 1): busybox init ran the ::shutdown
+             lines (hook 39.96 -> 40.46 s, all rc0, data fully
+             unmounted), then the ::restart line (a quiet chef-state
+             second run, chef-storage "userdata identity ambiguous"
+             with /data gone) and exec /sbin/init. The phone stayed
+             reachable; an orderly reboot followed. 7 rows 11.2..19.5
+             on /data after that boot. Side observation, not part of
+             this change: after exec /sbin/init powerd started with
+             /run/power and read "?" for every value, so /sys was gone
+             (umount -a -r in ::shutdown, and /init is not rerun).
+Final tree, RAM 2af93ff7 (final-rb-*): shell reboot, hook 40.90 ->
+41.84 s, all rc0 incl power_flush_rc=0, data fully unmounted; 8 rows
+11.0..21.0 on /data.
+
+4. What can still lose pending power rows (documented in
+docs/features/battery-and-charging.md and storage.md)
+
+Lossless: every orderly shutdown through init's ::shutdown lines
+(reboot/poweroff from a shell, buttond, powerd's own poweroff,
+::restart), and powerd's own poweroff even through its last-resort
+reboot(RB_POWER_OFF) (rows fsynced before any shutdown command; a
+failed flush retried once before the syscall). Up to one interval of
+ordinary rows can be lost on: PMIC hardware reset (Power about 8.7 s),
+sudden power loss, kernel panic or watchdog reset, reboot -f /
+poweroff -f, the outer 5 s hook bound killing chef-state shutdown,
+buttond's last-resort reboot(RB_POWER_OFF), or /data failing.

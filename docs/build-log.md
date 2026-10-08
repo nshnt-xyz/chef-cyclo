@@ -1319,3 +1319,13 @@ Magnetometer learning/save and seeded-first-sample acceptance remains
 explicitly user-deferred; no guided capture ran. [Acceptance ledger](../logs/state-persistence-2026-10-06.txt)
 contains the version mapping and remaining limits. Raw evidence is in
 `~/chef-cyclo-evidence/state-persistence-20261006/` (private).
+
+## 2026-10-08: power log batching and bounded state shutdown
+
+Follow-up to the 2026-10-06 state persistence ([spec](next-steps/state-persistence-followup-handoff.md), [results](../logs/state-persistence-followup-2026-10-08.txt)). Measured first on the installed pair: with powerd logging to `/data`, an idle 300 s wrote 456 to 504 sectors in 16 to 18 journal commits; with powerd stopped (SIGSTOP), 48 sectors and 2 commits. Each per-row append cost a journal commit, about 12 to 15 KiB of writes per 175-byte row.
+
+**powerd** now queues its `/data` rows in `/run/power/log.pending` and appends them in batches every 10 minutes (`-F`), at once for the rows that matter after a crash (start, plug/unplug, status, alert, throttle level, shutdown). Every orderly shutdown path writes and fsyncs the pending rows before `/data` goes read-only: powerd's SIGTERM exit flush, or `chef-state shutdown`'s fallback (`powerd ... flush`) once no powerd is alive; powerd's own poweroff fsyncs its rows before any shutdown command. Short or failed writes are rolled back, the pending file is bounded, a torn tail is dropped. A settled 1200 s idle window on a RAM image wrote 248 sectors in 4 commits (62 sectors and 1 commit per 300 s), about 8.7 MiB/day for all of userdata instead of 65 MiB/day.
+
+**chef-state shutdown** stops the timekeeper's whole process group, so a save in flight with its chronyc/rtc-edge children no longer blocks the shutdown save; the lock wait is bounded at about 1 s (a `flock -n` loop, as BusyBox flock has no `-w`), the shutdown save's chronyc and RTC edge are bounded, and the lock descriptor is no longer inherited by BusyBox timeout's watchdog.
+
+Live on RAM images (`688e170a`, final tree `2af93ff7`): shell reboot (four times), reboot with the timekeeper blocked in its save, shell poweroff, the powerd threshold poweroff, a buttond poweroff by the user and `::restart`; every hook 0.23 to 1.07 s with all codes 0, `/data` fully unmounted, every row pending before the shutdown on `/data` after the next boot, protected write counters zero. Host suite green. Not installed yet: `boot_a`/`system_a` need the reviewer's clearance and the coordinator's go.

@@ -10,7 +10,12 @@
  * over-temperature strictly above 68.0 C regardless of supply, fires once,
  * marker + state + CSV row written before the injected shutdown runs), the charge throttle (step up/down
  * every 5 s, clamp, hold band, reset on unplug, write failure disables
- * it), the state file, CSV header/rotation, and the poll cadence.
+ * it), the state file, CSV header/rotation, the -l batched log (rows
+ * reach the log directory only on the flush triggers, the urgent rows at
+ * once and the shutdown row before the shutdown hook, leftover and torn
+ * pending rows, rotation and header-mismatch rotation inside a batch, a
+ * failing or short write kept and never duplicated, the pending bound),
+ * and the poll cadence.
  * powerd.c is included with POWERD_NO_MAIN; hooks are injected, nothing
  * touches /sys, /dev/kmsg or powers off.
  * Build/run: see tools/Makefile ("make test").
@@ -19,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 
 #define POWERD_NO_MAIN
@@ -86,7 +92,10 @@ static int test_write_level(struct powerd *p, int level)
 }
 
 static int g_shutdowns;
+static int g_fsyncs;
+static int g_fsyncs_at_shutdown;
 static char g_state_at_shutdown[2048];
+static char g_log_at_shutdown[1 << 16];
 
 static void test_shutdown(struct powerd *p)
 {
@@ -95,6 +104,7 @@ static void test_shutdown(struct powerd *p)
 	size_t n = 0;
 
 	g_shutdowns++;
+	g_fsyncs_at_shutdown = g_fsyncs;
 	/* the state file must already say why */
 	snprintf(path, sizeof(path), "%s/state", p->dir);
 	f = fopen(path, "r");
@@ -103,9 +113,26 @@ static void test_shutdown(struct powerd *p)
 		fclose(f);
 	}
 	g_state_at_shutdown[n] = '\0';
+	/* -l: the shutdown row must already be in the log directory */
+	n = 0;
+	if (p->logdir) {
+		snprintf(path, sizeof(path), "%s/log.csv", p->logdir);
+		f = fopen(path, "r");
+		if (f) {
+			n = fread(g_log_at_shutdown, 1, sizeof(g_log_at_shutdown) - 1, f);
+			fclose(f);
+		}
+	}
+	g_log_at_shutdown[n] = '\0';
 }
 
 static int g_buzzes;
+
+static int test_sync_fd(int fd)
+{
+	g_fsyncs++;
+	return fsync(fd);
+}
 
 static void test_buzz(struct powerd *p, int ms)
 {
@@ -209,6 +236,8 @@ static void clear_run(void)
 	unlink(path);
 	snprintf(path, sizeof(path), "%s/shutdown-pending", g_run);
 	unlink(path);
+	snprintf(path, sizeof(path), "%s/log.pending", g_run);
+	unlink(path);
 }
 
 static void fresh(struct powerd *p)
@@ -221,6 +250,8 @@ static void fresh(struct powerd *p)
 	p->write_level = test_write_level;
 	p->shutdown = test_shutdown;
 	p->buzz = test_buzz;
+	p->sync_fd = test_sync_fd;
+	g_fsyncs = 0;
 	g_nlevels = 0;
 	g_level_rc = 0;
 	g_shutdowns = 0;
@@ -849,64 +880,415 @@ static void test_outputs(void)
 	CHECK(strstr(csv, "\n39.0,") != NULL);	/* newest row in the live file */
 }
 
-/* -l: log.csv(.1) in its own directory, state stays in the run dir; the
- * boot id only on the start row; another header rotates; a failing append
- * is logged once and recovers. */
+/* ---- -l: the batched log ---- */
+
+static char g_logdir[512];
+
+/* NAME in DIR into BUF; NULL if missing. */
+static char *slurp_in(const char *dir, const char *name, char *buf, size_t len)
+{
+	char path[600];
+	FILE *f;
+	size_t n;
+
+	snprintf(path, sizeof(path), "%s/%s", dir, name);
+	f = fopen(path, "r");
+	if (!f)
+		return NULL;
+	n = fread(buf, 1, len - 1, f);
+	fclose(f);
+	buf[n] = '\0';
+	return buf;
+}
+
+static char g_lbuf[1 << 16], g_pbuf[1 << 16];
+
+/* rows (lines) of the log directory's log.csv, header included; 0 if none */
+static int log_lines(void)
+{
+	return lines(slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf)));
+}
+
+static int pending_lines(void)
+{
+	return lines(slurp_in(g_run, "log.pending", g_pbuf, sizeof(g_pbuf)));
+}
+
+static off_t file_size(const char *dir, const char *name)
+{
+	char path[600];
+	struct stat sb;
+
+	snprintf(path, sizeof(path), "%s/%s", dir, name);
+	return stat(path, &sb) == 0 ? sb.st_size : -1;
+}
+
+static void put_file(const char *dir, const char *name, const char *data)
+{
+	char path[600];
+	FILE *f;
+
+	snprintf(path, sizeof(path), "%s/%s", dir, name);
+	f = fopen(path, "w");
+	if (!f) {
+		perror(path);
+		exit(2);
+	}
+	fputs(data, f);
+	fclose(f);
+}
+
+static void fresh_l(struct powerd *p)
+{
+	char path[600];
+
+	fresh(p);
+	mkdir(g_logdir, 0755);
+	snprintf(path, sizeof(path), "%s/log.csv", g_logdir);
+	unlink(path);
+	snprintf(path, sizeof(path), "%s/log.csv.1", g_logdir);
+	unlink(path);
+	p->logdir = g_logdir;
+	snprintf(p->boot_id, sizeof(p->boot_id), "58cf29ac-5b1a-4c4e-9d19-5742e1808633");
+}
+
+/* Does the text have exactly one row with this prefix (uptime column)? */
+static int rows_with(const char *text, const char *needle)
+{
+	int n = 0;
+	const char *q = text;
+
+	while (q && (q = strstr(q, needle))) {
+		n++;
+		q++;
+	}
+	return n;
+}
+
+/* State stays in the run dir, rows wait in log.pending and reach the log
+ * directory only at the start, on urgent rows and after the interval. */
 static void test_logdir(void)
 {
 	struct powerd p;
-	char logdir[512], path[600], buf[4096];
-	struct stat sb;
-	FILE *f;
-	size_t n;
+	char *csv;
+
+	fresh_l(&p);
+	CHECK(p.flush_ms == 600000 && p.pending_max == 256 * 1024);
+	powerd_sample(&p, "start", 0, 5.3);
+	CHECK(slurp("state") != NULL);
+	CHECK(slurp("log.csv") == NULL);	/* never in the run dir */
+	csv = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
+	CHECK(csv && strncmp(csv, csv_header, sizeof(csv_header) - 1) == 0);
+	CHECK(csv && strstr(csv, ",start,") && strstr(csv, ",none,58cf29ac-5b1a-4c4e-9d19-5742e1808633\n"));
+	CHECK(lines(csv) == 2 && pending_lines() == 0);
+	CHECK(p.flush_due == -1);
+
+	/* ordinary rows wait */
+	powerd_sample(&p, "poll", 60000, 65.3);
+	CHECK(p.flush_due == 660000);
+	powerd_sample(&p, "tick", 65000, 70.3);	/* no row, not due */
+	powerd_sample(&p, "poll", 120000, 125.3);
+	powerd_sample(&p, "uevent", 600000, 605.3);
+	CHECK(log_lines() == 2 && pending_lines() == 3);
+	log_flush_if_due(&p, 659999);
+	CHECK(log_lines() == 2);
+	/* due between samples (main's poll timeout wakes for it) */
+	log_flush_if_due(&p, 660000);
+	CHECK(log_lines() == 5 && pending_lines() == 0 && p.flush_due == -1);
+	CHECK(g_fsyncs == 0);	/* ordinary batches are not fsynced */
+	csv = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
+	CHECK(strstr(csv, "\n65.3,") < strstr(csv, "\n125.3,") && strstr(csv, "\n125.3,") < strstr(csv, "\n605.3,"));
+	CHECK(rows_with(csv, ",poll,") == 2 && csv[strlen(csv) - 1] == '\n');
+
+	/* due at a sample that writes no row of its own */
+	powerd_sample(&p, "poll", 700000, 705.3);	/* due at 1300000 */
+	powerd_sample(&p, "poll", 1290000, 1295.3);
+	CHECK(log_lines() == 5 && pending_lines() == 2);
+	powerd_sample(&p, "tick", 1300000, 1305.3);	/* online, unchanged, < 30 s: no row */
+	CHECK(log_lines() == 7 && pending_lines() == 0);
+
+	/* -F 0: every row */
+	fresh_l(&p);
+	p.flush_ms = 0;
+	powerd_sample(&p, "start", 0, 1.0);
+	powerd_sample(&p, "poll", 60000, 61.0);
+	CHECK(log_lines() == 3 && pending_lines() == 0);
+
+	/* without -l nothing is batched and no log.pending appears */
+	fresh(&p);
+	powerd_sample(&p, "start", 0, 1.0);
+	powerd_sample(&p, "poll", 60000, 61.0);
+	CHECK(lines(slurp("log.csv")) == 3 && slurp("log.pending") == NULL);
+}
+
+/* Rows that matter after a crash or power loss flush at once. */
+static void test_logdir_urgent(void)
+{
+	struct powerd p;
+	int64_t t = 0;
+	int n;
+
+	fresh_l(&p);
+	powerd_sample(&p, "start", t, 1.0);
+	powerd_sample(&p, "poll", t += 60000, 2.0);
+	n = log_lines();
+	CHECK(n == 2 && pending_lines() == 1);
+
+	/* unplug: source and status change, both rows out */
+	puti("battery", "capacity", 50);
+	unplug();
+	powerd_sample(&p, "uevent", t += 1000, 3.0);
+	CHECK(log_lines() == n + 2 && pending_lines() == 0);
+	n = log_lines();
+
+	/* capacity alone: waits */
+	puti("battery", "capacity", 49);
+	powerd_sample(&p, "poll", t += 60000, 4.0);
+	CHECK(log_lines() == n && pending_lines() == 1);
+
+	/* low-battery alert */
+	puti("battery", "capacity", 15);
+	powerd_sample(&p, "poll", t += 60000, 5.0);
+	CHECK(log_lines() == n + 2 && pending_lines() == 0);
+	n = log_lines();
+
+	/* battery status change without a supply change */
+	put("battery", "status", "Not charging");
+	powerd_sample(&p, "poll", t += 60000, 6.0);
+	CHECK(log_lines() == n + 1);
+	n = log_lines();
+
+	/* plug */
+	plug();
+	puti("battery", "capacity", 50);
+	powerd_sample(&p, "uevent", t += 60000, 7.0);
+	CHECK(log_lines() == n + 1 && pending_lines() == 0);
+	n = log_lines();
+
+	/* throttle level change (online, hot) */
+	puti("battery", "temp", 450);
+	powerd_sample(&p, "tick", t += 5000, 8.0);
+	CHECK(p.level == 1 && log_lines() == n + 1 && pending_lines() == 0);
+	n = log_lines();
+	puti("battery", "temp", 430);	/* hold band: no change, no row */
+	powerd_sample(&p, "tick", t += 5000, 9.0);
+	CHECK(log_lines() == n && pending_lines() == 0);
+
+	/* the shutdown row is in log.csv before the shutdown hook runs */
+	p.cfg.throttle = false;	/* no level steps: only the alert matters below */
+	puti("battery", "temp", 690);
+	powerd_sample(&p, "poll", t += 60000, 10.0);	/* confirming 1/3 */
+	CHECK(log_lines() == n + 1);
+	powerd_sample(&p, "poll", t += 60000, 11.0);	/* 2/3: same alert, waits */
+	CHECK(log_lines() == n + 1 && pending_lines() == 1);
+	g_fsyncs = 0;
+	powerd_sample(&p, "poll", t += 60000, 12.0);	/* 3/3: shutdown */
+	CHECK(g_shutdowns == 1);
+	CHECK(g_fsyncs_at_shutdown == 2);	/* log.csv and the log directory, before the hook */
+	CHECK(strstr(g_log_at_shutdown, "\n12.0,") && strstr(g_log_at_shutdown, ",shutdown,\n"));
+	CHECK(strstr(g_log_at_shutdown, "\n11.0,") < strstr(g_log_at_shutdown, "\n12.0,"));	/* earlier pending rows too, in order */
+	CHECK(pending_lines() == 0);
+}
+
+/* The exit flush (SIGTERM from chef-state shutdown, every orderly shutdown
+ * path) and the one-shot `flush` are durable: log.csv and the directory are
+ * fsynced, also when the batch only appends to an existing file. */
+static void test_logdir_durable_exit(void)
+{
+	struct powerd p;
+
+	fresh_l(&p);
+	powerd_sample(&p, "start", 0, 1.0);
+	powerd_sample(&p, "poll", 60000, 61.0);
+	CHECK(pending_lines() == 1 && g_fsyncs == 0);
+	log_flush_now(&p, true, 61000);	/* what main does after SIGTERM */
+	CHECK(log_lines() == 3 && pending_lines() == 0 && g_fsyncs == 2);
+	CHECK(flush_main(&p) == 0 && g_fsyncs == 4);	/* nothing pending: still synced */
+}
+
+/* Rows a previous powerd of this boot left behind flush first at start; a
+ * torn last row (killed mid-append) is dropped, never flushed or joined. */
+static void test_logdir_leftover(void)
+{
+	struct powerd p;
+	char *csv;
+
+	fresh_l(&p);
+	put_file(g_run, "log.pending", "100.0,a,poll,old1\n101.0,a,poll,old2\n102.0,a,po");
+	powerd_sample(&p, "start", 0, 5.0);
+	csv = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
+	CHECK(csv && strstr(csv, "\n100.0,a,poll,old1\n101.0,a,poll,old2\n5.0,"));
+	CHECK(csv && !strstr(csv, "102.0"));
+	CHECK(lines(csv) == 4 && pending_lines() == 0 && file_size(g_run, "log.pending") == 0);
+
+	/* a torn tail with a flush that has nothing complete to write */
+	fresh_l(&p);
+	put_file(g_run, "log.pending", "102.0,a,po");
+	CHECK(log_flush(&p, false) == 0);
+	CHECK(file_size(g_run, "log.pending") == 0 && file_size(g_logdir, "log.csv") < 0);
+
+	/* torn tail when the next row is ordinary (not flushed yet): cut first */
+	fresh_l(&p);
+	powerd_sample(&p, "start", 0, 5.0);
+	put_file(g_run, "log.pending", "6.0,a,poll,x\n7.0,a,po");
+	p.pending_checked = false;		/* as a respawned powerd */
+	powerd_sample(&p, "poll", 60000, 65.0);
+	slurp_in(g_run, "log.pending", g_pbuf, sizeof(g_pbuf));
+	CHECK(strncmp(g_pbuf, "6.0,a,poll,x\n65.0,", 18) == 0 && lines(g_pbuf) == 2);
+}
+
+/* log.csv rules inside a batch: rotation at log_max (split at a row
+ * boundary, no row lost or repeated), and another header. */
+static void test_logdir_rotation(void)
+{
+	struct powerd p;
+	char *cur, *old, *last_old, *first_cur;
+	int64_t t = 0;
+	int n, total;
+
+	fresh_l(&p);
+	p.log_max = 4096;
+	powerd_sample(&p, "start", t, 0.0);
+	for (n = 1; n <= 30; n++)
+		powerd_sample(&p, "poll", t += 1000, (double)n);
+	CHECK(file_size(g_logdir, "log.csv.1") < 0 && pending_lines() == 30);
+	log_flush_now(&p, false, t);
+	CHECK(file_size(g_logdir, "log.csv") > 0 && file_size(g_logdir, "log.csv") <= 4096);
+	CHECK(file_size(g_logdir, "log.csv.1") > 0 && file_size(g_logdir, "log.csv.1") <= 4096);
+	cur = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
+	old = slurp_in(g_logdir, "log.csv.1", g_pbuf, sizeof(g_pbuf));
+	CHECK(strncmp(cur, csv_header, sizeof(csv_header) - 1) == 0);
+	CHECK(strncmp(old, csv_header, sizeof(csv_header) - 1) == 0);
+	total = lines(cur) + lines(old) - 2;
+	CHECK(total == 31);	/* start + 30, none lost or doubled */
+	CHECK(strstr(old, "\n0.0,") && strstr(cur, "\n30.0,"));
+	/* the split is at a row boundary and continuous */
+	last_old = strrchr(old, '\n');
+	*last_old = '\0';
+	last_old = strrchr(old, '\n') + 1;
+	first_cur = cur + sizeof(csv_header) - 1;
+	CHECK(atof(first_cur) == atof(last_old) + 1);
+	CHECK(file_size(g_run, "log.pending") == 0);
+
+	/* another header: rotated away before the batch */
+	fresh_l(&p);
+	put_file(g_logdir, "log.csv", "uptime,utc,reason\n1.0,x,start\n");
+	powerd_sample(&p, "start", 0, 5.0);
+	CHECK(file_size(g_logdir, "log.csv.1") == 30);
+	cur = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
+	CHECK(strncmp(cur, csv_header, sizeof(csv_header) - 1) == 0 && lines(cur) == 2);
+}
+
+/* A failing log directory keeps the rows (one log line), recovers with
+ * every row once; a short write is rolled back, never left half and then
+ * repeated. */
+static void test_logdir_failures(void)
+{
+	struct powerd p;
+	struct rlimit rl, saved;
+	char path[600], *csv;
+	off_t size;
 	int before;
 
-	snprintf(logdir, sizeof(logdir), "%s-log", g_run);
-	mkdir(logdir, 0755);
-	fresh(&p);
-	p.logdir = logdir;
-	snprintf(p.boot_id, sizeof(p.boot_id), "58cf29ac-5b1a-4c4e-9d19-5742e1808633");
-	powerd_sample(&p, "start", 0, 5.3);
-	powerd_sample(&p, "poll", 60000, 65.3);
-	CHECK(slurp("state") != NULL);
-	CHECK(slurp("log.csv") == NULL);	/* not in the run dir */
-	snprintf(path, sizeof(path), "%s/log.csv", logdir);
-	f = fopen(path, "r");
-	CHECK(f != NULL);
-	n = f ? fread(buf, 1, sizeof(buf) - 1, f) : 0;
-	if (f)
-		fclose(f);
-	buf[n] = '\0';
-	CHECK(strncmp(buf, csv_header, sizeof(csv_header) - 1) == 0);
-	CHECK(strstr(buf, ",none,58cf29ac-5b1a-4c4e-9d19-5742e1808633\n65.3,") != NULL);
-	CHECK(strstr(buf, ",poll,") && buf[n - 1] == '\n' && buf[n - 2] == ',');
-
-	/* an older header: the file is rotated, the new one starts clean */
-	f = fopen(path, "w");
-	fputs("uptime,utc,reason\n1.0,x,start\n", f);
-	fclose(f);
-	powerd_sample(&p, "poll", 120000, 125.3);
-	snprintf(buf, sizeof(buf), "%s/log.csv.1", logdir);
-	CHECK(stat(buf, &sb) == 0 && sb.st_size == 30);
-	CHECK(stat(path, &sb) == 0 && sb.st_size > (off_t)sizeof(csv_header));
-
-	/* append failure: one log line, not one per row, then recovery */
+	fresh_l(&p);
+	powerd_sample(&p, "start", 0, 1.0);
+	snprintf(path, sizeof(path), "%s/log.csv", g_logdir);
 	unlink(path);
-	snprintf(buf, sizeof(buf), "%s/log.csv.1", logdir);
-	unlink(buf);
-	rmdir(logdir);
+	rmdir(g_logdir);
 	before = g_nlog;
-	powerd_sample(&p, "poll", 180000, 185.3);
-	powerd_sample(&p, "poll", 240000, 245.3);
-	powerd_sample(&p, "poll", 300000, 305.3);
-	CHECK(g_nlog == before + 1 && logged_since(before, "rows are lost"));
-	CHECK(slurp("state") != NULL);	/* state still written */
-	mkdir(logdir, 0755);
-	powerd_sample(&p, "poll", 360000, 365.3);
+	puti("battery", "capacity", 50);
+	unplug();
+	powerd_sample(&p, "uevent", 1000, 2.0);	/* urgent: tries, fails */
+	powerd_sample(&p, "poll", 61000, 62.0);
+	powerd_sample(&p, "poll", 700000, 701.0);	/* due: tries again */
+	CHECK(count_since(before, "rows kept in") == 1 && g_nlog == before + 3);	/* + unplugged, status */
+	CHECK(p.log_failed && pending_lines() == 3);
+	CHECK(p.flush_due == 1300000);	/* next attempt one interval after the failed one */
+	CHECK(slurp("state") != NULL);
+	mkdir(g_logdir, 0755);
+	powerd_sample(&p, "poll", 760000, 761.0);	/* not due, not urgent: still waiting */
+	CHECK(pending_lines() == 4 && log_lines() == 0);
+	put("battery", "status", "Not charging");
+	powerd_sample(&p, "poll", 820000, 821.0);	/* urgent */
 	CHECK(logged_since(before, "writable again") && !p.log_failed);
-	CHECK(stat(path, &sb) == 0);
+	csv = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
+	CHECK(lines(csv) == 6 && pending_lines() == 0);
+	CHECK(strstr(csv, "\n2.0,") < strstr(csv, "\n62.0,") && strstr(csv, "\n761.0,") < strstr(csv, "\n821.0,"));
+
+	/* short write: the file size limit cuts a batch in the middle of a row */
+	fresh_l(&p);
+	powerd_sample(&p, "start", 0, 1.0);
+	powerd_sample(&p, "poll", 60000, 61.0);
+	powerd_sample(&p, "poll", 120000, 121.0);
+	size = file_size(g_logdir, "log.csv");
+	getrlimit(RLIMIT_FSIZE, &saved);
+	rl = saved;
+	rl.rlim_cur = (rlim_t)size + 100;
+	signal(SIGXFSZ, SIG_IGN);
+	setrlimit(RLIMIT_FSIZE, &rl);
+	before = g_nlog;
+	log_flush_now(&p, false, 130000);
+	setrlimit(RLIMIT_FSIZE, &saved);
+	CHECK(p.log_failed && count_since(before, "rows kept in") == 1);
+	CHECK(file_size(g_logdir, "log.csv") == size);	/* rolled back */
+	CHECK(pending_lines() == 2);
+	log_flush_now(&p, false, 140000);
+	csv = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
+	CHECK(!p.log_failed && lines(csv) == 4);
+	CHECK(rows_with(csv, "\n61.0,") == 1 && rows_with(csv, "\n121.0,") == 1);
+
+	/* short append to log.pending (tmpfs full): rolled back, the next row
+	 * starts on a line of its own */
+	fresh_l(&p);
+	powerd_sample(&p, "start", 0, 1.0);
+	powerd_sample(&p, "poll", 60000, 61.0);
+	size = file_size(g_run, "log.pending");
+	rl = saved;
+	rl.rlim_cur = (rlim_t)size + 50;
+	setrlimit(RLIMIT_FSIZE, &rl);
+	before = g_nlog;
+	powerd_sample(&p, "poll", 120000, 121.0);
+	setrlimit(RLIMIT_FSIZE, &saved);
+	CHECK(p.pending_failed && count_since(before, "rows are lost") == 1);
+	CHECK(file_size(g_run, "log.pending") == size);
+	powerd_sample(&p, "poll", 180000, 181.0);
+	CHECK(!p.pending_failed && logged_since(before, "log.pending writable again"));
+	slurp_in(g_run, "log.pending", g_pbuf, sizeof(g_pbuf));
+	CHECK(lines(g_pbuf) == 2 && strncmp(g_pbuf, "61.0,", 5) == 0 && strstr(g_pbuf, "\n181.0,"));
+	CHECK(!strstr(g_pbuf, "121.0"));
+}
+
+/* While log.csv fails, log.pending stays bounded: the oldest rows go, with
+ * one log line, and the recovery line says how many. */
+static void test_logdir_bound(void)
+{
+	struct powerd p;
+	char path[600], *pend;
+	int64_t t = 0;
+	int n, before;
+
+	fresh_l(&p);
+	p.pending_max = 2048;
+	powerd_sample(&p, "start", t, 0.0);
+	snprintf(path, sizeof(path), "%s/log.csv", g_logdir);
 	unlink(path);
-	rmdir(logdir);
+	rmdir(g_logdir);
+	before = g_nlog;
+	for (n = 1; n <= 40; n++)
+		powerd_sample(&p, "poll", t += 60000, (double)n);
+	CHECK(file_size(g_run, "log.pending") <= 2048);
+	CHECK(count_since(before, "full: dropped") == 1);
+	CHECK(p.pending_dropped > 0);
+	pend = slurp_in(g_run, "log.pending", g_pbuf, sizeof(g_pbuf));
+	CHECK(strstr(pend, "\n40.0,") && !strstr(pend, "\n1.0,") && strncmp(pend, "1.0,", 4) != 0);
+	CHECK(lines(pend) + p.pending_dropped == 40);
+	CHECK(pend[strlen(pend) - 1] == '\n' && atof(pend) == 40 - lines(pend) + 1);
+	mkdir(g_logdir, 0755);
+	before = g_nlog;
+	log_flush_now(&p, false, t);
+	CHECK(logged_since(before, "oldest rows were dropped meanwhile") && p.pending_dropped == 0);
+	CHECK(log_lines() == 1 + 40 - 40 + lines(pend));
+	rmdir(g_logdir);
 }
 
 static void test_cadence(void)
@@ -944,6 +1326,7 @@ int main(void)
 	}
 	snprintf(g_root, sizeof(g_root), "%s/sys", tmpl);
 	snprintf(g_run, sizeof(g_run), "%s/run", tmpl);
+	snprintf(g_logdir, sizeof(g_logdir), "%s/log", tmpl);
 	mkdir(g_root, 0755);
 	mkdir(g_run, 0755);
 
@@ -956,6 +1339,12 @@ int main(void)
 	test_throttle();
 	test_outputs();
 	test_logdir();
+	test_logdir_urgent();
+	test_logdir_durable_exit();
+	test_logdir_leftover();
+	test_logdir_rotation();
+	test_logdir_failures();
+	test_logdir_bound();
 	test_cadence();
 
 	snprintf(cmd, sizeof(cmd), "rm -rf '%s'", tmpl);
