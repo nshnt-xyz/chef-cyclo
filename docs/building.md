@@ -31,9 +31,9 @@ The kernel config combines stock Android's `sdm660-perf_defconfig`, `moto-sdm660
 
 `mkrootfs.sh` builds an Alpine aarch64 root with musl, BusyBox, D-Bus, BlueZ, QMI tools, gpsd, tinyalsa, wpa_supplicant, iw, e2fsprogs/e2fsprogs-extra, dropbear and the OpenSSH SFTP server ([SSH](features/ssh.md), added 2026-10-10) and the [Wi-Fi UI/diagnostic utilities](features/wifi-ui.md). Rerun it when the package list changes; roots created before the 2026-09-19 gpsd addition, or before the same-day tinyalsa addition, need rebuilding.
 
-`mkinitramfs.sh` overlays `initramfs/` and cross-builds the device helpers. GPS requires RMTFS, IRSC, SERVREG-LOCATOR, TFTP/RFS, and QMUX support. Missing mandatory sources, failed cross-builds, a missing persist seed, a rootfs without gpsd, or a rootfs without tinymix/tinyplay abort image generation. `fbtouch`, `fblog`, the [UI platform](next-steps/ui-platform.md) demo `chefui-demo` (baseline image only; built by `make -C tools/chefui device` against the LVGL submodule), `nmea-broker`, `buttond`, the [audio helpers](features/audio.md) `audio-up`/`speaker-test-tone`/`wavtone`/`tas2560-send-cal` the speaker-protection experiment `spk-protect-probe`/`afe-debug`/`afe-topology-cal`/`tert-tx-hold`, the [sensors](features/sensors.md) bring-up `sensors-up` and daemon `sensord`, and `abslot`, which inittab runs 30 s into each boot to mark `boot_a` successful in the GPT ([A/B slot flags](next-steps/storage-and-boot.md#ab-slot-flags)), are also packed. The sensors registry map `/usr/share/sensord/sns_reg.map` is generated at build time by `tools/sns-reg-map.py` from `sensors.qti` in `stock/partitions/vendor_a.img` (read with debugfs); if that fails the build only warns, and the image then has no map and `sensors-up` refuses to start.
+`mkinitramfs.sh` overlays `initramfs/` and cross-builds the device helpers. GPS requires RMTFS, IRSC, SERVREG-LOCATOR, TFTP/RFS, and QMUX support. Missing mandatory sources, failed cross-builds, a missing persist seed, a rootfs without gpsd, or a rootfs without tinymix/tinyplay abort image generation. `fbtouch`, `fblog`, the [UI platform](features/ui-platform.md) demo `chefui-demo` (baseline image only; built by `make -C tools/chefui device` against the LVGL submodule), `nmea-broker`, `buttond`, the [audio helpers](features/audio.md) `audio-up`/`speaker-test-tone`/`wavtone`/`tas2560-send-cal` the speaker-protection experiment `spk-protect-probe`/`afe-debug`/`afe-topology-cal`/`tert-tx-hold`, the [sensors](features/sensors.md) bring-up `sensors-up` and daemon `sensord`, and `abslot`, which inittab runs 30 s into each boot to mark `boot_a` successful in the GPT ([A/B slot flags](features/boot.md#ab-slot-flags)), are also packed. The sensors registry map `/usr/share/sensord/sns_reg.map` is generated at build time by `tools/sns-reg-map.py` from `sensors.qti` in `stock/partitions/vendor_a.img` (read with debugfs); if that fails the build only warns, and the image then has no map and `sensors-up` refuses to start.
 
-`mkboot.sh` uses the stock `boot_a.img` header values and the built kernel/initramfs. `fastboot boot` runs an image once; installing one is `fastboot flash boot_a` (procedure in [standalone boot](next-steps/storage-and-boot.md#procedure-as-run)). A normal reboot runs whatever `boot_a` holds; see [device recovery](device.md#stock-backups-and-recovery).
+`mkboot.sh` uses the stock `boot_a.img` header values and the built kernel/initramfs. `fastboot boot` runs an image once; installing one is `fastboot flash boot_a` (procedure in [standalone boot](features/boot.md#procedure-as-run)). A normal reboot runs whatever `boot_a` holds; see [device recovery](device.md#stock-backups-and-recovery).
 
 The ramdisk is LZMA-encoded (`xz --format=lzma -6` of the same deterministic
 cpio stream) because Chef's loader gives the kernel only the region space the
@@ -123,7 +123,7 @@ In phase 2 the root remained in the RAM disk and this build did not create or wr
 
 ## Installed layout (phase 3)
 
-Since phase 3 of the [install layout](next-steps/install-layout-handoff.md) the
+Since phase 3 of the [install layout](archive/install-layout-handoff.md) the
 OS lives on `system_a` as a read-only ext4 root, and `boot_a` holds the kernel
 with a small stage-1 ramdisk. One command builds everything with matching
 stamps:
@@ -230,7 +230,7 @@ PACK_ONLY=1 UNCOMPRESSED=1 scripts/mkinstall.sh  # only repack the stage-1 boot 
 
 Size: 38666240 bytes against 13484032 for `out/boot-stage1.img` (`boot_a` is
 64 MiB). Measured 2026-10-05 (details in the
-[boot compression handoff](next-steps/boot-compression-handoff.md#result-rootfs_impl-2026-10-05)):
+[boot compression handoff](archive/boot-compression-handoff.md#result-rootfs_impl-2026-10-05)):
 
 - `fastboot boot`: abl starts the kernel about 1.24 s sooner after the download,
   but the USB upload takes 0.6 s longer.

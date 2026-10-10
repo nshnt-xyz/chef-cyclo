@@ -1,6 +1,6 @@
 # Persistent data
 
-[Feature guides](README.md) · [Install handoff](../next-steps/install-layout-handoff.md)
+[Feature guides](README.md) · [Install handoff](../archive/install-layout-handoff.md)
 
 Phase 2 adds writable storage on `userdata`, discovered by its unique
 `PARTNAME` in sysfs. It requires slot `_a`, exactly 55,289,298,432 bytes
@@ -97,7 +97,7 @@ from that hook would stall init.
 
 [Acceptance audit](../../logs/state-persistence-2026-10-06.txt) distinguishes the prior installed image from subsequent fixes and the live checks then pending. The magnetometer bias seed (part D) was accepted live on 2026-10-10 ([log](../../logs/mag-seed-live-2026-10-10.txt)).
 
-Since 2026-10-06 (`chef-state`, `tools/rtc-edge.c`; [handoff](../next-steps/state-persistence-handoff.md)) these also survive a reboot:
+Since 2026-10-06 (`chef-state`, `tools/rtc-edge.c`; [handoff](../archive/state-persistence-handoff.md)) these also survive a reboot:
 
 | State | Directory | Written by | Read back by |
 |---|---|---|---|

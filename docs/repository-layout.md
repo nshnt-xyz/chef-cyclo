@@ -13,7 +13,7 @@ Paths below are relative to the repository root.
 | `initramfs/` | Alpine overlay: `/init`, users, service configuration, `bt-up`, `gps-up`, [`audio-up`/`speaker-test-tone`](features/audio.md) and the speaker-protection experiment scripts `spk-protect-probe`/`afe-debug`. |
 | `tools/btprobe.c` | Freestanding power/UART/HCI helper for [Bluetooth](features/bluetooth.md). |
 | `tools/fbdev.h` | Shared framebuffer lifecycle, advisory screen-lock and screen-off flag contract. |
-| `tools/chefui/`, `third_party/lvgl/` | [UI platform](next-steps/ui-platform.md): `libchefui` (LVGL v9.6 on the MDSS fbdev: shadow copy and page flips, multitouch reader, buttond client, screen lock/flag/handoff), the `chefui-demo` verification app, the SDL2 host build and host tests; LVGL is a submodule pinned to v9.6.0. |
+| `tools/chefui/`, `third_party/lvgl/` | [UI platform](features/ui-platform.md): `libchefui` (LVGL v9.6 on the MDSS fbdev: shadow copy and page flips, multitouch reader, buttond client, screen lock/flag/handoff), the `chefui-demo` verification app, the SDL2 host build and host tests; LVGL is a submodule pinned to v9.6.0. |
 | `tools/fbtouch.c`, `tools/fblog/` | [Display/touch probe and on-device log screen](features/display-and-touch.md); generated public-domain X11 font included. |
 | `tools/buttond.c` | [Button gesture daemon](features/buttons-and-power-off.md) and socket client. |
 | `tools/powerd.c` | [Battery daemon](features/battery-and-charging.md): low-battery/over-temperature shutdown, charge throttle, `/run/power` state and log, `powerd status`. |
@@ -36,4 +36,4 @@ Paths below are relative to the repository root.
 | `logs/` | Captured device evidence; GPS trace archives may be intentionally gitignored. |
 | `toolchain/` | Gitignored GCC 4.9, musl cross compiler, boot tools, Alpine keys and package cache. |
 | `out/` | Generated kernel, rootfs, initramfs, and boot images. |
-| `docs/` | Current guides, future work, and chronological build log. |
+| `docs/` | Current feature/build guides, remaining work in `next-steps/`, completed plans in `archive/`, investigations in `research/`, and chronological build log. |

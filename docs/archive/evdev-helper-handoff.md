@@ -1,6 +1,8 @@
 # Shared evdev helper (handoff)
 
-[Next steps index](README.md)
+**Archived 2026-10-11.** Completed and live verified on the date recorded below. Current behavior belongs in the linked feature guide; application follow-ups belong in [next steps](../next-steps/README.md). The original design and process instructions below are historical, not active assignments.
+
+[Archive index](README.md)
 
 **Status:** done. Implemented, host-tested and live-verified 2026-10-04
 (see the [build log](../build-log.md)); kept as the design record.

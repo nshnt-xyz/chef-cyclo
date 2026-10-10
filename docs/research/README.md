@@ -12,4 +12,6 @@ These records preserve completed investigations, original designs, experiment pl
 - [Sensors](sensors.md): protocol recovery, bring-up, magnetometer calibration and compass experiments through October 1.
 - [Speaker protection](speaker-protection.md): playback bring-up evidence and the investigation abandoned September 26, including diagnostic hazards.
 
+Completed implementation handoffs and acceptance checklists live in the [archive](../archive/README.md).
+
 Keep unique findings and evidence references here. Update feature guides and roadmaps when behavior or decisions change rather than treating an original experiment plan as an active task.

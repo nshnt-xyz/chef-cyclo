@@ -2,7 +2,7 @@
  * chefui.h - the chef-cyclo UI platform: LVGL v9.6 on the MDSS fbdev
  * (device) or an SDL2 window (host), with the screen lock, screen-off
  * flag, multitouch, buttond gestures and app handoff handled here.
- * Specification: docs/next-steps/ui-platform.md.
+ * Specification: docs/archive/ui-platform.md.
  *
  * A fullscreen application:
  *

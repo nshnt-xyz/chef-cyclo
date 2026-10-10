@@ -1,6 +1,8 @@
 # Volatile state onto /data (handoff)
 
-[Next steps index](README.md) · [Storage guide](../features/storage.md) · [Install layout handoff](install-layout-handoff.md) · [Live testing](../live-testing.md)
+**Archived 2026-10-11.** Implemented and installed 2026-10-06; magnetometer seeded-first-sample acceptance completed 2026-10-10. GNSS shadow persistence and assistance injection remain in the [GPS roadmap](../next-steps/gps-and-time.md#warm-starts-and-assistance). See the [current storage contract](../features/storage.md#persistent-state). The original design and process instructions below are historical, not active assignments.
+
+[Archive index](README.md) · [Storage guide](../features/storage.md) · [Install layout handoff](install-layout-handoff.md) · [Live testing](../live-testing.md)
 
 **Status:** started 2026-10-06 at the user's request. Handed to Herdr agents
 `rootfs_impl` (implementation, live runs) and `rootfs_review` (review),

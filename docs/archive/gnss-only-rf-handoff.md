@@ -1,6 +1,8 @@
 # GNSS-only RF (handoff)
 
-[Next steps index](README.md) · [GPS and time plan](gps-and-time.md) · [GPS guide](../features/gps.md) · [Live testing](../live-testing.md)
+**Archived 2026-10-11.** Completed and live verified on the date recorded below. Current behavior belongs in the linked feature guide; application follow-ups belong in [next steps](../next-steps/README.md). The original design and process instructions below are historical, not active assignments.
+
+[Archive index](README.md) · [GPS and time plan](../next-steps/gps-and-time.md) · [GPS guide](../features/gps.md) · [Live testing](../live-testing.md)
 
 **Status:** done, documentation only. Live-measured 2026-10-04: the boot
 default draws the same idle current as DMS `low-power`, so no mode is applied

@@ -1,5 +1,7 @@
 # State persistence follow-up: batched power log, bounded shutdown lock
 
+**Archived 2026-10-11.** Implemented, live verified and installed 2026-10-08: batched power logs and bounded state shutdown. See the [current storage contract](../features/storage.md#persistent-state) and [results](../../logs/state-persistence-followup-2026-10-08.txt). The original design and process instructions below are historical, not active assignments.
+
 Two fixes on top of 71163bd ("Persist crash, clock, power and sensor state
 on data"), from the coordinator's review of that commit on 2026-10-08.
 Read `docs/next-steps/state-persistence-handoff.md`,

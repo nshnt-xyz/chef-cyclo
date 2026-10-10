@@ -1,6 +1,6 @@
 # UI platform
 
-[Feature guides](README.md) · [Display and touch](display-and-touch.md) · [Buttons](buttons-and-power-off.md) · [Build and boot](../building.md) · [Acceptance checklist](../next-steps/ui-platform.md)
+[Feature guides](README.md) · [Display and touch](display-and-touch.md) · [Buttons](buttons-and-power-off.md) · [Build and boot](../building.md) · [Acceptance checklist](../archive/ui-platform.md)
 
 `tools/chefui/` is the shared fullscreen application platform, using pinned
 LVGL v9.6.0 on the existing MDSS framebuffer and an SDL2 host backend. It owns
@@ -200,7 +200,7 @@ matrix subsequently passed. Static cost is about 0.1% CPU and two wakeups/s;
 animation costs about 2.4% CPU at 30 fps and 4.3% at 60 fps; full redraw at
 30 fps costs about 37.5% CPU. Normal handoff software timing is 561–563 ms.
 Host suites, independent review, archive verification and guided live checks are
-recorded in the [final acceptance record](../next-steps/ui-platform.md#final-acceptance-record-2026-10-03).
+recorded in the [final acceptance record](../archive/ui-platform.md#final-acceptance-record-2026-10-03).
 
 Resolved live issue (2026-10-03): dark SIGKILL/default wake blinked because
 buttond removed the flag, waking fblog, then sent SIGTERM and blanked it until

@@ -2,17 +2,16 @@
 
 [Next-steps index](README.md) · [Current features](../features/README.md)
 
-These are plans, not implemented behavior. Package versions and candidate approaches reflect the 2026-09-19 notes and must be checked when implementing.
+Remaining integration and validation work, reviewed 2026-10-11. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
 
 ## BLE sensors
 
-Pair/connect real HR, speed/cadence, and power sensors through BlueZ and verify GATT notifications. Scanning and IBS sleep are already verified; see [Bluetooth](../features/bluetooth.md). Persist pairing keys once [writable storage](storage-and-boot.md#persistent-storage) exists and compare BT asleep/off current with the power measurements.
+Pair/connect real HR, speed/cadence, and power sensors through BlueZ and verify GATT notifications. Scanning and IBS sleep are already verified; see [Bluetooth](../features/bluetooth.md). Pairing keys already persist on [writable storage](../features/storage.md); verify real-device reconnect across reboots and compare BT asleep/off current with the power measurements.
 
 ## Standard Bluetooth tooling
 
 Goal: any ordinary BlueZ client installed with `apk add` (or added to the rootfs) works as it would on a desktop distribution. The classic protocol layers, dual mode, root's session bus, classic HID (uhid and kernel HIDP, emulated keyboard), PAN (D-Bus and NetworkManager), A2DP through PipeWire/WirePlumber, `bluetooth-meshd` with a local `mesh-cfgclient` network and bonded idle current are done and live-verified; see [Bluetooth](../features/bluetooth.md). Remaining:
 
-- **Persistence**: `/var/lib/bluetooth` and `apk add`ed packages are lost at reboot until [writable storage](storage-and-boot.md#persistent-storage) exists.
 - **Mesh devices**: only a local network was created; provisioning and configuring a real mesh node is untried, and meshd takes the adapter from bluetoothd while it runs.
 - **Real classic devices**: HID was verified with a keyboard emulated on the build PC; a real keyboard or mouse (and its reconnect after power cycling) is still untried. bluez-alsa is untried as an alternative to PipeWire. HFP voice needs the unwired board PCM path.
 - **PAN lease overlap**: NM's dispatcher rejects `wlan0` leases overlapping the USB subnet but not `bnep*` ones. The ingress rule still blocks PAN traffic to USB, but a lease containing the USB host's address would break USB telnet (the local table is consulted before table 142). Extend the check to PAN (NM passes `bnep0` on up and the device's address on down) and test DHCP over `bnep0`, which is untested; both live runs used a manual address.
@@ -28,8 +27,8 @@ BT presence and zero modem crashes retained. Earlier55bb covers2.4GHz,
 standard APIs, strict USB unmanaged behavior and disconnect cleanup. Final5GHz reconnect/ping5/5/HTTPS200, native wpa_cli, GPS LOC noop and
 USB-only listeners passed, with no UDP123/323 listener.
 
-Remaining work: build a UI on native NM/libnm APIs; add deliberate credential
-persistence once writable storage exists; measure the always-resident stack and
+Remaining work: build a UI on native NM/libnm APIs; verify saved-profile reconnect with the application UI (profiles already
+persist on `/data`); measure the always-resident stack and
 associated/disabled current and assess demand-driven power management and long
 rides. Controlled overlapping DHCP leases remain untested live (host checks
 cover the hook). GPS/time architecture modernization is deferred: retain the
@@ -58,10 +57,10 @@ The [audio guide](../features/audio.md) owns the verified playback contract, mma
 
 ## Strava
 
-After a ride, upload the recording ([bike-computer application](ui-and-ride-app.md#bike-computer-application)) from the phone itself over [Wi-Fi](#wi-fi): Strava's v3 API takes a FIT/GPX/TCX file at `POST /api/v3/uploads` with an OAuth2 token, so we need our own API application (client id/secret), a one-time browser authorisation done on the host, and the refresh token kept on writable storage ([persistent storage](storage-and-boot.md#persistent-storage)). Queue uploads while offline and flush when associated; show the result (activity id/URL) on the panel. Fallback plan: pull a finished GPX/FIT recording over USB/HTTP and upload from the host. USB/HTTP extraction is already verified for raw GPS logs; a Strava-ready recording/exporter remains to be built.
+After a ride, upload the recording ([bike-computer application](ui-and-ride-app.md#bike-computer-application)) from the phone itself over [Wi-Fi](#wi-fi): Strava's v3 API takes a FIT/GPX/TCX file at `POST /api/v3/uploads` with an OAuth2 token, so we need our own API application (client id/secret), a one-time browser authorisation done on the host, and the refresh token kept on writable storage ([persistent storage](../features/storage.md)). Queue uploads while offline and flush when associated; show the result (activity id/URL) on the panel. Fallback plan: pull a finished GPX/FIT recording over USB/HTTP and upload from the host. USB/HTTP extraction is already verified for raw GPS logs; a Strava-ready recording/exporter remains to be built.
 
 <a id="slpi-sensors"></a>
 
 ## On-board sensors
 
-Current sensor and compass behavior is documented in the [sensor guide](../features/sensors.md). The [sensor roadmap](sensors.md) owns boot integration, retained calibration, wake/tap, optional compass refinements and the optional desktop interface. ALS backlight policy, GPS-course blending and declination belong to [UI integration](ui-and-ride-app.md#sensor-integration).
+Current sensor and compass behavior is documented in the [sensor guide](../features/sensors.md). The [sensor roadmap](sensors.md) owns boot integration, wake/tap, optional compass refinements and the optional desktop interface. ALS backlight policy, GPS-course blending and declination belong to [UI integration](ui-and-ride-app.md#sensor-integration).

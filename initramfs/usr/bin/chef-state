@@ -2,7 +2,7 @@
 # Small state that outlives a reboot, on the /data layout (chef-storage):
 # crash records and a boot history, the wall clock against the RTC, and the
 # magnetometer bias the ADSP learns. See docs/features/storage.md
-# ("Persistent state") and docs/next-steps/state-persistence-handoff.md.
+# ("Persistent state") and docs/archive/state-persistence-handoff.md.
 #
 #   chef-state ours          exit 0 if /data is our mounted layout (silent)
 #   chef-state boot          /init: restore the clock, save pstore records,

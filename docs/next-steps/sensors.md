@@ -2,7 +2,7 @@
 
 [Next-steps index](README.md) · [Current sensors](../features/sensors.md) · [Research](../research/sensors.md)
 
-Raw sensors, within-boot registry reuse, magnetometer calibration and the tilt-compensated compass are implemented. The compass was accepted on 2026-10-01 as good enough to orient a map at a stop; the original stricter accuracy checks did not all pass.
+Raw sensors, within-boot registry reuse, magnetometer calibration, across-boot bias persistence and the tilt-compensated compass are implemented. The compass was accepted on 2026-10-01 as good enough to orient a map at a stop; the original stricter accuracy checks did not all pass.
 
 ## Boot integration and power
 
@@ -12,9 +12,7 @@ Acceptance: boot integration preserves manual bring-up behavior, clients reconne
 
 ## Calibration across boots
 
-Within a boot, DSP registry writes are retained in `/run`; across reboots they are lost. Once [writable storage](storage-and-boot.md#persistent-storage) exists, retain our registry copy there and seed it at boot. Never write stock persist.
-
-Acceptance: learned calibration survives a reboot, an invalid saved copy has a safe fallback, and persist remains untouched.
+Completed: `chef-state` saves only magnetometer hard-iron group 2980 to `/data`; `sensors-up` overlays an accepted saved group onto the RAM registry copy without writing stock persist. Learning, saving, rebooting and applying the bias from the first samples were accepted live on 2026-10-10 ([evidence](../../logs/mag-seed-live-2026-10-10.txt), [current contract](../features/storage.md#persistent-state)). A changed magnetic environment still needs re-learning. No full-registry persistence task remains planned.
 
 ## Wake-on-motion and tap
 

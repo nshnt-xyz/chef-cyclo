@@ -1,5 +1,7 @@
 # Reboot to the bootloader without losing state
 
+**Archived 2026-10-11.** Implemented and live verified 2026-10-10; installed with the SSH pair on 2026-10-11. See the [current shutdown contract](../features/storage.md) and [results](../../logs/reboot-bootloader-2026-10-10.txt). The original design and process instructions below are historical, not active assignments.
+
 User decision 2026-10-10: add a helper so our test/flash loop's return to
 fastboot runs the same state work as an orderly shutdown. Follows
 8201c79 / 03f40ce (see `logs/state-persistence-followup-2026-10-08.txt`

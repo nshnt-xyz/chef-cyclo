@@ -1,5 +1,7 @@
 # UI platform: implementation handoff (2026-10-03)
 
+**Archived 2026-10-11.** Completed and live verified on the date recorded below. Current behavior belongs in the linked feature guide; application follow-ups belong in [next steps](../next-steps/README.md). The original design and process instructions below are historical, not active assignments.
+
 [UI platform spec](ui-platform.md)
 
 Coordinator: herdr agent `ui_coord` (research, prototype, device tests, commits). Implementation: `ui_impl`. Review: `ui_review`. All three run in the same herdr workspace; address each other with `herdr agent prompt <name> "<text>"` (without `--wait`) and start every message with `[From: <agent-name>]`. Never poll or wait on another agent; each one reports when it is done.

@@ -2,7 +2,7 @@
 
 [Next-steps index](README.md) · [Current features](../features/README.md)
 
-These are plans, not implemented behavior. Package versions and candidate approaches reflect the 2026-09-19 notes and must be checked when implementing.
+Remaining integration and validation work, reviewed 2026-10-11. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
 
 ## Button integration
 
@@ -16,7 +16,7 @@ Decided 2026-10-03: **LVGL directly on the existing MDSS fbdev**, with touch rea
 
 This replaces the 2026-10-02 direction of DRM/KMS, a Wayland compositor and libinput. That direction would have needed SDE 3.2/14 nm PHY/panel enablement on 4.4 or a mainline board port, and would only have added GPU acceleration (mainline plus Mesa) and composition the project does not need. The [display modernization](../research/display-modernization.md), [DRM bring-up](../research/drm-bringup.md) and [loader budget](../research/chef-loader-kernel-budget.md) records remain as historical evidence. Kernel commit `64fa801` (DRM helper namespace separation) only affects DRM builds and is harmless to the baseline.
 
-The current phase is the shared platform layer: display backend, own multitouch reader, buttond client, screen-state/handoff protocol, host SDL simulator and a demo application. See [UI platform](ui-platform.md) for the specification and acceptance checks. Touch requirements from the earlier plan carry over there: discovery by capability, scaling from the MT ABS ranges, slot lifecycle, dropped-event recovery, sleep/wake and consistent rotation. Physical gloves/rain behavior is still unmeasured.
+The shared platform layer is implemented and live accepted: display backend, own multitouch reader, buttond client, screen-state/handoff protocol, host SDL simulator and a demo application. Use the [UI platform guide](../features/ui-platform.md) for the application contract; the [archived design](../archive/ui-platform.md) retains acceptance checks. Touch requirements from the earlier plan carry over there: discovery by capability, scaling from the MT ABS ranges, slot lifecycle, dropped-event recovery, sleep/wake and consistent rotation. Physical gloves/rain behavior is still unmeasured.
 
 Application work on top of the platform: define one normal screen policy (the foreground application owns screen power and brightness requests; `fblog` remains the diagnostic fallback and must not wake a screen deliberately left off). A UI restart must not interrupt recording.
 
@@ -26,11 +26,11 @@ Provide a **sunlight and gloves** mode: maximum backlight on request, a high-con
 
 Inputs: gpsd ([GPS manager](../features/gps.md#use-gnss-gps-manager), [client integration](gps-and-time.md#client-integration)) for position/speed/track/altitude, BLE sensors through BlueZ ([BLE sensors](connectivity-and-sensors.md#ble-sensors): HR strap, speed/cadence, power), battery (`power_supply/battery`), side buttons ([button integration](ui-and-ride-app.md#button-integration)), touch ([UI stack](ui-and-ride-app.md#ui-stack)). Outputs: the panel through the chosen [UI stack](#ui-stack), vibrator/speaker ([audio](connectivity-and-sensors.md#audio)) for alerts.
 
-Core: ride recording (GPX/FIT to [persistent storage](storage-and-boot.md#persistent-storage)), live data pages (speed, distance, time, HR, cadence, climb), lap/auto-pause, route following later. Housekeeping: screen on/off, GPS leases and idle power, clean shutdown, upload over Wi-Fi ([Wi-Fi](connectivity-and-sensors.md#wi-fi)).
+Core: ride recording (GPX/FIT to [persistent storage](../features/storage.md)), live data pages (speed, distance, time, HR, cadence, climb), lap/auto-pause, route following later. Housekeeping: screen on/off, GPS leases and idle power, clean shutdown, upload over Wi-Fi ([Wi-Fi](connectivity-and-sensors.md#wi-fi)).
 
 Opening the map acquires a temporary `map` lease from the GPS manager; leaving it releases that lease. Starting a ride starts or hands off to a recorder that owns a durable `ride` lease until the ride is explicitly ended, independent of the visible page and UI process lifetime. The modem shuts down after the manager's grace period only when neither lease remains.
 
-Order: (a) **UI first** — the data pages on the panel with touch/buttons on the chosen UI stack, driven by gpsd and the sensors, ride recording underneath; (b) **then a map source** — offline tiles or vector data on the writable storage ([persistent storage](storage-and-boot.md#persistent-storage): OSM extracts, e.g. MBTiles/PMTiles or a raster tile cache pre-fetched over Wi-Fi/USB), rendered under the position with track-up rotation, then route following on top; no online map dependency on a ride; GPS altitude is noisy and there is no barometer, so take **elevation** from a DEM shipped with the map data (climb totals, gradient).
+Order: (a) **UI first** — the data pages on the panel with touch/buttons on the chosen UI stack, driven by gpsd and the sensors, ride recording underneath; (b) **then a map source** — offline tiles or vector data on the writable storage ([persistent storage](../features/storage.md): OSM extracts, e.g. MBTiles/PMTiles or a raster tile cache pre-fetched over Wi-Fi/USB), rendered under the position with track-up rotation, then route following on top; no online map dependency on a ride; GPS altitude is noisy and there is no barometer, so take **elevation** from a DEM shipped with the map data (climb totals, gradient).
 
 **Time zone**: chrony ([time synchronization](gps-and-time.md#time-synchronization)) gives UTC; the UI needs local time (tzdata or a fixed `TZ`). Written as an ordinary Linux app against gpsd/BlueZ and the chosen toolkit/input stack so it is testable on the host with replayed `nmea.log` from the ride runs.
 
@@ -40,8 +40,4 @@ Use the [sensord contract](../features/sensors.md) for raw sensors and magnetic 
 
 For maps, show calibration/disturbance state and use the accepted compass behavior when stopped. Blend with GPS course over ground when moving, and compute declination from GPS/WMM on the consumer side before setting true heading. Validate switching at low speeds, disturbed or uncalibrated input, and missing GPS. Daemon accuracy refinements remain in the [sensor roadmap](sensors.md#optional-compass-refinements).
 
-## GPU
-
-Not planned for the LVGL platform, which renders on the CPU. Record kept for a possible later mainline route. The Adreno 509 currently uses the downstream `kgsl` driver and is unused by our display clients. As part of the kernel investigation, establish the exact GPU revision, DRM `msm`/Mesa freedreno compatibility, required firmware, and buffer-sharing support with the display driver. Do not assume KMS scanout also enables GPU rendering, or that Mesa can use the existing KGSL interface unchanged.
-
-Once software-rendered DRM/KMS works, bring up Mesa/EGL acceleration and verify actual hardware rendering, compositor buffer import/presentation, and recovery across screen cycles. Compare CPU usage, frame latency and power on data pages and rotating maps. Record software-rendering fallback behavior. Libhybris over stock Android GLES blobs may be investigated if the native route is blocked, but is a separate compatibility approach, not proof of native DRM/Mesa support.
+GPU acceleration and the shelved DRM/Wayland route are historical investigations, retained in [display research](../research/display-modernization.md) and [DRM bring-up](../research/drm-bringup.md). They are outside the current LVGL application roadmap.

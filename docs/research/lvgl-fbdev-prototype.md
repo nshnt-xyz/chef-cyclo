@@ -1,6 +1,6 @@
 # LVGL on the MDSS framebuffer: prototype
 
-[Research index](README.md) · [UI platform plan](../next-steps/ui-platform.md) · [Framebuffer contract](../features/display-and-touch.md#framebuffer-and-touch-contract)
+[Research index](README.md) · [UI platform plan](../archive/ui-platform.md) · [Framebuffer contract](../features/display-and-touch.md#framebuffer-and-touch-contract)
 
 2026-10-03. Research prototype for the UI platform decision recorded in the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack): LVGL rendering directly on the existing 4.4 MDSS fbdev, touch read from evdev, side buttons through `buttond`, with no kernel change. The prototype `lvproto` is research code. Its final source is retained as [evidence](../../logs/lvgl-proto-2026-10-03-lvproto.c), and the production platform is specified separately.
 

@@ -1,11 +1,13 @@
 # Install layout: retire Android (handoff)
 
-[Next steps index](README.md) · [Storage and boot plan](storage-and-boot.md) · [Device reference](../device.md) · [Building](../building.md) · [Live testing](../live-testing.md)
+**Archived 2026-10-11.** All three phases completed 2026-10-04/05; remaining user cold-boot, speaker and touch checks accepted 2026-10-06. Later pairs supersede the hashes below; see [boot and recovery](../features/boot.md), [storage](../features/storage.md) and the [build log](../build-log.md). The original design and process instructions below are historical, not active assignments.
+
+[Archive index](README.md) · [Storage and boot plan](../next-steps/storage-and-boot.md) · [Device reference](../device.md) · [Building](../building.md) · [Live testing](../live-testing.md)
 
 **Status:** handed to Herdr agents `gnss_impl` (implementation, live runs)
 and `gnss_review` (review) on 2026-10-04. Phase 1 done 2026-10-04
 (phase 1 installed `out/boot-abslot.img`; slot flags answered and handled by
-`abslot`, see [standalone boot](storage-and-boot.md#standalone-boot)).
+`abslot`, see [standalone boot](../features/boot.md#standalone-boot)).
 Phase 2 resumed on 2026-10-05 with Herdr agents `storage_impl` and
 `storage_review`, coordinated by `storage_research`. Reviewed provisioning
 of `userdata` is complete and reviewed `out/boot-data.img` (`df856fc3`) is
@@ -62,7 +64,7 @@ So `boot_a` gets our image first.
 
 ### Phase 1: our image in `boot_a` (standalone boot)
 
-Run the existing [standalone boot procedure](storage-and-boot.md#standalone-boot)
+Run the existing [standalone boot procedure](../features/boot.md#standalone-boot)
 with the current baseline `out/boot.img` (`343fc3f7`, full OS in the
 ramdisk, nothing else changes). Check the restore images first
 (Magisk `c6ab9f3a…` and stock `c77eb87d…`; copy the Magisk image next to

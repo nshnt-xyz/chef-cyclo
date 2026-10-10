@@ -127,7 +127,7 @@ clearance with a gap, not the hardware notch depth. It remains configurable
 through `chefui_config.safe_top_px` (0 selects the default, -1 disables it). The demo's
 `--calibrate-notch --safe-top N` guide adjusts clearance by 4 px with volume
 keys and logs the chosen value without saving it. See the
-[calibration procedure](../next-steps/ui-platform.md#safe-content-and-notch-calibration).
+[calibration procedure](../archive/ui-platform.md#safe-content-and-notch-calibration).
 Corner targets and contact dots still cover the full panel. Chefui defaults
 to a 16 ms refresh period (60 fps target); the demo retains `-f 30`, and apps
 can set an explicit refresh period. Rendering/copy/pan can limit actual rate.

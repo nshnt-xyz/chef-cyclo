@@ -1,6 +1,8 @@
 # UI platform (LVGL on fbdev)
 
-[Current operating/app contract](../features/ui-platform.md) · [Next-steps index](README.md) · [UI roadmap](ui-and-ride-app.md) · [Prototype research](../research/lvgl-fbdev-prototype.md) · [Framebuffer contract](../features/display-and-touch.md#framebuffer-and-touch-contract)
+**Archived 2026-10-11.** Completed and live verified on the date recorded below. Current behavior belongs in the linked feature guide; application follow-ups belong in [next steps](../next-steps/README.md). The original design and process instructions below are historical, not active assignments.
+
+[Current operating/app contract](../features/ui-platform.md) · [Archive index](README.md) · [UI roadmap](../next-steps/ui-and-ride-app.md) · [Prototype research](../research/lvgl-fbdev-prototype.md) · [Framebuffer contract](../features/display-and-touch.md#framebuffer-and-touch-contract)
 
 Implemented, independently reviewed and live accepted on 2026-10-03; results are recorded below.
 The [feature guide](../features/ui-platform.md) is the current operating and

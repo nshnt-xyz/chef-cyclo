@@ -1,6 +1,8 @@
 # GPS manager (handoff)
 
-[Next steps index](README.md) · [GPS and time plan](gps-and-time.md#client-integration) · [GPS guide](../features/gps.md) · [Live testing](../live-testing.md)
+**Archived 2026-10-11.** Completed and live verified on the date recorded below. Current behavior belongs in the linked feature guide; application follow-ups belong in [next steps](../next-steps/README.md). The original design and process instructions below are historical, not active assignments.
+
+[Archive index](README.md) · [GPS and time plan](../next-steps/gps-and-time.md#client-integration) · [GPS guide](../features/gps.md) · [Live testing](../live-testing.md)
 
 **Status:** done. Implemented, host-tested and live-verified 2026-10-04
 (see the [GPS guide](../features/gps.md#use-gnss-gps-manager) and the
@@ -20,7 +22,7 @@ client, tests and live verification, not the UI integration.
 
 ## What changed since the original plan
 
-The plan in [gps-and-time.md](gps-and-time.md#gps-manager) predates the
+The plan in [gps-and-time.md](../features/gps.md#use-gnss-gps-manager) predates the
 shared modem owner. Reconcile it, and update that section when done:
 
 - `gps-up` now runs once at boot from inittab (`::once:`) and is the shared

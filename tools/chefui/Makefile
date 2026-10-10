@@ -1,6 +1,6 @@
 # chefui: the UI platform (LVGL v9.6 on the MDSS fbdev) -- library,
 # demo application and host tests. Specification:
-# docs/next-steps/ui-platform.md; LVGL is the third_party/lvgl submodule,
+# docs/archive/ui-platform.md; LVGL is the third_party/lvgl submodule,
 # configured by lv_conf.h here. Everything is built under build/.
 #
 #   make device   static aarch64 musl build for the phone:

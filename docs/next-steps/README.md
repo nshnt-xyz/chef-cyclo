@@ -1,22 +1,22 @@
 # Next steps
 
-[Project overview](../../README.md) · [Current feature guides](../features/README.md) · [Build log](../build-log.md)
+[Project overview](../../README.md) · [Current feature guides](../features/README.md) · [Completed plans](../archive/README.md) · [Build log](../build-log.md)
 
-This directory contains unfinished work. Completed bring-up and operating recipes live in the feature guides; completed investigations live in [research](../research/README.md), and dated results remain in the build log. The grouping below preserves the existing roadmap without treating every dependency as a strict serial schedule.
+Reviewed against the code and recorded acceptance through 2026-10-11. This directory contains remaining work. Completed operating recipes live in feature guides, original implementation handoffs in the archive, and investigations in [research](../research/README.md).
 
 ## Work areas
 
 | Plan | Remaining work and dependencies |
 |---|---|
-| [GPS and time](gps-and-time.md) | GPS manager and GPS time (chrony SHM refclock) done; clients (UI, ride recorder) next. Assistance persistence needs storage, downloads need connectivity. |
-| [Storage and boot](storage-and-boot.md) | Standalone boot done (our image in `boot_a`, Android retired 2026-10-04). Next: `/data` on `userdata`, then the root on `system_a` ([install layout handoff](install-layout-handoff.md)). An uncompressed boot image is built and measured (0.2 s faster flashed; installing it is the user's call, [boot compression handoff](boot-compression-handoff.md)). Storage enables recordings, maps, credentials, and retained state. |
-| [UI and ride app](ui-and-ride-app.md) | UI stack decided: LVGL on fbdev. The [UI platform](../features/ui-platform.md) is implemented and live verified; next integrate GPS/sensors, pages and recording, and offline maps/routes. Durable recordings require storage. |
-| [Connectivity and sensors](connectivity-and-sensors.md) | Real BLE sensors, remaining Bluetooth tooling (persistence, real classic and mesh devices, PAN DHCP/NAP), Wi-Fi lifecycle/UI/power integration, audio alerts, and Strava. Manual Wi-Fi and safe listener bindings are verified; Strava still needs recording, storage, and upload integration. Links to the separate on-board sensor roadmap. |
-| [On-board sensors](sensors.md) | Boot/power integration, calibration persistence, wake/tap, optional compass accuracy improvements and desktop facade. Raw sensors and stopped-map compass already work. |
-| [Power and reliability](power-and-reliability.md) | Finish charging/drain validation, measure idle/suspend and shared ADSP lifecycle, and add crash recovery. Crash recovery depends on standalone boot and persistent evidence. The intermittent [shutdown hang](shutdown-hang-handoff.md) (warm reset, `bootreason=kernel_panic`) was a Bluetooth UART use-after-free, fixed in kernel #22 on 2026-10-05. |
+| [GPS and time](gps-and-time.md) | UI/recorder clients, modem-restart validation, GNSS shadow attribution/persistence and assistance injection; optional USB-host time source. GPS manager, GPS time, retained RTC offset and chrony drift already work. |
+| [Storage and boot](storage-and-boot.md) | Charger mode, test-image slot marking, durable ride/map/GNSS consumers and optional root integrity. Standalone boot, `/data`, read-only `system_a`, state persistence and orderly return to fastboot are implemented and installed. |
+| [UI and ride app](ui-and-ride-app.md) | Data pages, GPS/sensor integration, ride recording, screen policy, offline maps/routes and alerts. The LVGL/fbdev platform and SDL host build are complete. Storage is available. |
+| [Connectivity and sensors](connectivity-and-sensors.md) | Real BLE/classic/mesh devices, PAN DHCP/NAP guards, Wi-Fi UI/power measurements, audio alerts and Strava. Bluetooth keys and Wi-Fi profiles already persist; SSH is installed. |
+| [On-board sensors](sensors.md) | Boot/power integration, wake/tap, optional compass refinements and desktop facade. Raw sensors, stopped-map compass and retained magnetometer bias already work. |
+| [Power and reliability](power-and-reliability.md) | Charging/drain validation, idle/suspend and shared ADSP lifecycle, watchdog/reboot supervision and recorder recovery. Persistent crash evidence and batched power logs are implemented; the Bluetooth shutdown hang is fixed. |
 
 ## How to update a plan
 
-Keep implementation choices, prerequisites, unresolved decisions, and acceptance checks with their work area. Link to another plan instead of referring to numbered backlog items. When work lands, move the current operating contract into its feature guide and append verification evidence to the build log; leave only remaining work here. Preserve completed research and original experiment designs under `docs/research/`, labelled historical. Give each task one roadmap owner; feature guides may state limitations and link to that task.
+Keep implementation choices, prerequisites, unresolved decisions, and acceptance checks with their work area. Link to another plan instead of duplicating its task. When work lands, move the current operating contract into its feature guide and append verification evidence to the build log; leave only remaining work here. Preserve completed plans under `docs/archive/` and investigations under `docs/research/`, clearly labelled historical. Give each task one roadmap owner; feature guides may state limitations and link to that task.
 
 Firmware redistribution considerations are tracked in [building](../building.md#firmware-and-distribution).

@@ -2,7 +2,7 @@
 
 [Next-steps index](README.md) · [Current features](../features/README.md)
 
-These are plans, not implemented behavior. Package versions and candidate approaches reflect the 2026-09-19 notes and must be checked when implementing.
+Remaining integration and validation work, reviewed 2026-10-11. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
 
 ## Client integration
 
@@ -18,7 +18,7 @@ Done: chrony steps the boot clock from the NTP pool over Wi-Fi or, offline, from
 
 ## Warm starts and assistance
 
-New RAM-shadow GNSS state disappears across boots. The recorded terrace cold start was ≤78 seconds; repeat measurements before treating that as a typical startup time. Investigate two improvements without touching real EFS: persist the *shadow* (or only the GNSS state files it contains — identify them through additional filesystem-level investigation; sector-only RMTFS traffic does not identify filenames) to our own writable storage ([persistent storage](storage-and-boot.md#persistent-storage)) and re-seed the shadow from it at boot; and once [Wi-Fi](connectivity-and-sensors.md#wi-fi) exists, fetch the modem-advertised gpsOneXTRA source (`xtra3grcej.bin` in the 2026-10-06 query) and inject it plus time through LOC and measure TTFF before/after. Faster warm or assisted starts remain an expected benefit to verify.
+New RAM-shadow GNSS state disappears across boots. The recorded terrace cold start was ≤78 seconds; repeat measurements before treating that as a typical startup time. Investigate two improvements without touching real EFS: persist the *shadow* (or only the GNSS state files it contains — identify them through additional filesystem-level investigation; sector-only RMTFS traffic does not identify filenames) to our own writable storage ([persistent storage](../features/storage.md)) and re-seed the shadow from it at boot; and using the existing [Wi-Fi](../features/wifi-ui.md), fetch the modem-advertised gpsOneXTRA source (`xtra3grcej.bin` in the 2026-10-06 query) and inject it plus time through LOC and measure TTFF before/after. Faster warm or assisted starts remain an expected benefit to verify.
 
 ## Carrier work outside GPS
 

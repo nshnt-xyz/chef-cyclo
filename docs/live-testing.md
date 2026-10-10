@@ -5,7 +5,7 @@
 Two host scripts drive every live test: `scripts/phone-boot.sh` boots an image
 and `scripts/phone.py` talks to the booted image's USB shell. `fastboot boot`
 flashes nothing; a normal reboot boots the image installed in `boot_a` (ours
-since 2026-10-04, see [standalone boot](next-steps/storage-and-boot.md#standalone-boot)),
+since 2026-10-04, see [standalone boot](features/boot.md#standalone-boot)),
 not Android. Host needs: `fastboot`, `telnet` and python3-pexpect (`adb` only
 for the old Android path).
 
@@ -98,7 +98,7 @@ Push a rebuilt static binary instead of rebooting when iterating on a tool;
   `console-ramoops-0` off the phone; the next ordinary reboot is a cold PON
   and the records are gone. The 2026-10-05 shutdown hang (a Bluetooth UART
   use-after-free, fixed in kernel #22) was found this way, see the
-  [shutdown hang](next-steps/shutdown-hang-handoff.md#result-rootfs_impl-2026-10-05).
+  [shutdown hang](archive/shutdown-hang-handoff.md#result-rootfs_impl-2026-10-05).
 - **The panel is not visible from here.** Display, touch and button checks need
   someone watching the phone. Announce a window ("tap now for 25 s"), then
   run the check (`fbtouch show -t 25 -r`, `chefui-demo`), and ask what they saw.
@@ -120,4 +120,4 @@ without a working image: hold Power with VolDown for about 9 s. A fallback
 for `boot_a` that never reads `system_a` is the full RAM image
 (`out/boot.img`, the baseline `42f362b0` with kernel #22, or a fresh `out/boot-ram.img`). Android is
 retired; its restore route is under
-[images to restore](next-steps/storage-and-boot.md#images-to-restore).
+[images to restore](features/boot.md#images-to-restore).

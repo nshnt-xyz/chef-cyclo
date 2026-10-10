@@ -357,7 +357,7 @@ done
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/buttond" tools/buttond.c
 echo "built $ROOT/usr/bin/buttond"
 
-# UI platform demo (tools/chefui/, docs/next-steps/ui-platform.md): LVGL
+# UI platform demo (tools/chefui/, docs/archive/ui-platform.md): LVGL
 # v9.6.0 (the third_party/lvgl submodule) rendering on the MDSS fbdev with
 # chefui's screen lock/flag handling, multitouch reader and buttond client;
 # chefui-demo is the platform's verification vehicle. tools/chefui's
@@ -368,7 +368,7 @@ make -C tools/chefui -j"$(nproc)" device >/dev/null
 install -m 755 tools/chefui/build/device/chefui-demo "$ROOT/usr/bin/chefui-demo"
 echo "built $ROOT/usr/bin/chefui-demo"
 
-# A/B slot marker (tools/abslot.c, docs/next-steps/storage-and-boot.md):
+# A/B slot marker (tools/abslot.c, docs/features/boot.md):
 # `fastboot flash boot_a` leaves boot_a unsuccessful with 7 retries and abl
 # spends one per boot; inittab runs `abslot mark-successful` 30 s into each
 # boot, the job Android's boot_control HAL did. Plain libc.

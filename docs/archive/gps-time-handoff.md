@@ -1,6 +1,8 @@
 # GPS time to chrony (handoff)
 
-[Next steps index](README.md) · [Time synchronization plan](gps-and-time.md#time-synchronization) · [GPS guide](../features/gps.md) · [Building](../building.md) · [Live testing](../live-testing.md)
+**Archived 2026-10-11.** Completed and live verified on the date recorded below. Current behavior belongs in the linked feature guide; application follow-ups belong in [next steps](../next-steps/README.md). The original design and process instructions below are historical, not active assignments.
+
+[Archive index](README.md) · [Time synchronization plan](../next-steps/gps-and-time.md#time-synchronization) · [GPS guide](../features/gps.md) · [Building](../building.md) · [Live testing](../live-testing.md)
 
 **Status:** handed to Herdr agents `gnss_impl` (implementation, live runs)
 and `gnss_review` (review) on 2026-10-04; implemented and live-verified the

@@ -2,7 +2,7 @@
  * chefui.c - application API, the poll() main loop, buttond client glue,
  * lifecycle logging and CHEFUI_STATS. Backend independent: the display,
  * touch and screen state live in backend_fb.c (phone) or backend_sdl.c
- * (PC). See chefui.h and docs/next-steps/ui-platform.md.
+ * (PC). See chefui.h and docs/archive/ui-platform.md.
  *
  * Main loop: lv_timer_handler() says when LVGL next needs to run; the
  * loop sleeps in poll() on the touch fd, the buttond socket, the

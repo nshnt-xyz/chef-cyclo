@@ -1,5 +1,7 @@
 # SSH with key login, then install the next pair
 
+**Archived 2026-10-11.** Implemented and live verified 2026-10-10; installed 2026-10-11, including chef-reboot and the chef-storage mount-sweep fix. See the [SSH guide](../features/ssh.md) and [install results](../../logs/ssh-and-install-2026-10-10.txt). The original design and process instructions below are historical, not active assignments.
+
 User request 2026-10-10: control the phone without the USB cable (it
 gets in the way of physical tests such as the magnetometer holds), and
 install the next pair so `chef-reboot` (4a52140) is on the phone. Do both

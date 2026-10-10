@@ -1,6 +1,8 @@
 # Boot image without compression (handoff)
 
-[Next steps index](README.md) · [Install layout handoff](install-layout-handoff.md) · [Building](../building.md) · [Live testing](../live-testing.md)
+**Archived 2026-10-11.** Experiment completed 2026-10-05. Uncompressed boot remains opt-in; the installed image uses gzip. The shutdown hang found during this experiment was fixed the same day. See [build options](../building.md) and the [remaining boot decisions](../next-steps/storage-and-boot.md#remaining). The original design and process instructions below are historical, not active assignments.
+
+[Archive index](README.md) · [Install layout handoff](install-layout-handoff.md) · [Building](../building.md) · [Live testing](../live-testing.md)
 
 **Status:** requested by the user on 2026-10-05 after phase 3. Handed to
 Herdr agents `rootfs_impl` (implementation, live runs) and `rootfs_review`

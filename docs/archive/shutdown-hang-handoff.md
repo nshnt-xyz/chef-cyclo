@@ -1,6 +1,8 @@
 # Intermittent shutdown hang (handoff)
 
-[Next steps index](README.md) · [Boot compression handoff](boot-compression-handoff.md) · [Install layout handoff](install-layout-handoff.md) · [Live testing](../live-testing.md)
+**Archived 2026-10-11.** Fixed in kernel #22 on 2026-10-05 and verified across 105 shutdowns on the installed pair. See the [result](#result-rootfs_impl-2026-10-05). The original design and process instructions below are historical, not active assignments.
+
+[Archive index](README.md) · [Boot compression handoff](boot-compression-handoff.md) · [Install layout handoff](install-layout-handoff.md) · [Live testing](../live-testing.md)
 
 **Status:** started 2026-10-05 at the user's request. Handed to Herdr agents
 `rootfs_impl` (implementation, live runs) and `rootfs_review` (review),
