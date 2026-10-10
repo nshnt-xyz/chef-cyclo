@@ -18,12 +18,25 @@ EXPECT=<sha256> scripts/phone-boot.sh IMG      # refuse a different build
 ```
 
 It gets the phone into fastboot from wherever it is (already in fastboot, one of
-our images via `btprobe restart bootloader` over telnet, or stock Android via
+our images via `chef-reboot bootloader` over telnet, or stock Android via
 `adb reboot bootloader` if it is ever reinstalled), runs `fastboot boot`, and waits until 172.16.42.1
 answers (about 20 s after `fastboot boot`). If the first `fastboot boot` fails,
 as it can right after `adb reboot bootloader` (garbled `getvar` replies,
 `FAILED (remote: 'unknown command')`), it runs `fastboot reboot bootloader` and
 retries once. If that fails too, move the cable to another USB port.
+
+To return to fastboot by hand from one of our images, run `chef-reboot
+bootloader` (in a telnet session or detached with `setsid`) rather than a bare
+`btprobe restart bootloader`: it pauses init, runs `chef-state shutdown` (RTC
+offset, chronyd's drift file, pending power log rows) and `chef-storage
+shutdown` (`/data` read-only and detached), syncs and then calls `btprobe
+restart bootloader`. A failing or hanging step is logged to kmsg and
+`/run/chef-reboot.log` and the reboot still happens; if btprobe itself returns,
+init is resumed. Images built before the helper (2026-10-10) lack it;
+`scripts/phone-boot.sh` falls back to `chef-storage shutdown --pause-init; sync;
+sleep 2; btprobe restart bootloader` there, which loses that state. Stage 1's
+rescue shell has neither chef tool, so `btprobe restart bootloader` is the way
+there.
 
 Build test images under another name (`OUT=out/boot-foo.img scripts/mkboot.sh`)
 so `out/boot.img` stays the known-good baseline. A test image marks `boot_a`

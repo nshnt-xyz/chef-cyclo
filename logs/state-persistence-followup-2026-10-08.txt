@@ -168,6 +168,17 @@ and the fastboot test and install workflow: only `chef-storage shutdown
 --pause-init` runs before it, which does not stop powerd, see section
 5), or /data failing.
 
+Update 2026-10-10: the return to fastboot is now covered.
+scripts/phone-boot.sh (and the fastboot test and install workflow) runs
+`chef-reboot bootloader`, which pauses init, runs chef-state shutdown
+(offset save, chronyd drift write, powerd's exit flush or the fallback
+flush) and chef-storage shutdown before `btprobe restart bootloader`
+(logs/reboot-bootloader-2026-10-10.txt, section 4: every pending row
+on /data after the next boot, drift written at the shutdown, userdata
+clean). Still lossy: a bare
+`btprobe restart bootloader`, and phone-boot.sh's fallback chain on an
+image built before the helper (such as the pair installed in section 5).
+
 5. Installation, 2026-10-08 (after commit 8201c79)
 
 persist_review cleared exactly the 8201c79 diff (0d4f4fdd...) and these

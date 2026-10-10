@@ -1,0 +1,154 @@
+Reboot to the bootloader without losing state, 2026-10-10
+==========================================================
+
+Spec: docs/next-steps/reboot-bootloader-handoff.md. Roles: persist_impl
+(implementation), persist_review (review), persist_coord (coordination,
+the user's decisions).
+
+1. Problem
+
+scripts/phone-boot.sh and the fastboot test and install workflow returned
+to fastboot with `chef-storage shutdown --pause-init; sync; sleep 2;
+btprobe restart bootloader`. btprobe's restart is a raw reboot(2)
+RESTART2, so init's ::shutdown lines never ran: no chef-state shutdown,
+powerd not stopped (no /data descriptor between flushes, so chef-storage's
+fuser misses it). Lost each time: the pending power rows in
+/run/power/log.pending, the last RTC offset save and chronyd's drift
+write (logs/state-persistence-followup-2026-10-08.txt, sections 4 and 5).
+
+2. Helper: initramfs/usr/bin/chef-reboot
+
+`chef-reboot bootloader`, in /usr/bin of the RAM image and system_a (both
+built from initramfs/; mkinitramfs.sh sets its mode). In order:
+  1. lock /run/chef-reboot.lock (flock -n: a second run refuses, so it
+     cannot resume init under the first); SIGHUP ignored
+  2. exit trap (SIGCONT to init, kill the watchdog), INT/TERM -> exit 1,
+     detached RAM-only CONT watchdog (setsid, cwd /, lock fd closed,
+     150 s, above the bounded chain 1 + 8 + 100 + 20 + 2 s), then
+     `kill -TSTP 1` and sleep 1 (busybox init reaps but respawns nothing
+     while stopped). A refused pause is logged and the helper goes on.
+  3. `timeout -k 1 5 chef-state shutdown` (as in inittab), bound 8 s
+  4. plain `chef-storage shutdown` (never --pause-init: its exit trap would
+     send SIGCONT before the reboot, and it returns before pausing when
+     /data is not mounted), bound 100 s (its own bounds add up to ~85 s)
+  5. sync, bound 20 s; sleep 2 (the caller's telnet session ends)
+  6. `btprobe restart bootloader` as a child, not exec, so a returning
+     btprobe still runs the exit trap: init resumed, exit 1
+Each bounded step runs in the background and is polled every 0.1 s; past
+its bound it gets SIGKILL and is abandoned, so a step stuck in D state
+(which no timeout can kill, and BusyBox timeout execs the command in the
+waited PID) does not block the reboot. Failures and overruns go to
+stderr, /run/chef-reboot.log and kmsg (a missing /dev/kmsg is tolerated)
+and the helper continues to the bootloader. Residual: btprobe calls
+sync(2) itself before reboot(2), so a wedged eMMC can still hold it; then
+only the PMIC reset (Power about 8.7 s) helps.
+Without chef-state and chef-storage (stage 1, where PID 1 is the stage-1
+shell) init is not paused and only sync + btprobe run; without btprobe it
+does nothing and exits 1. Not added to stage 1 (mkstage1.sh): it has
+neither chef tool, so it would add nothing to `btprobe restart
+bootloader` there and would change the installed boot_a image.
+
+Callers: scripts/phone-boot.sh runs `exec chef-reboot bootloader` when the
+image has it and keeps the old chain as the fallback for older images
+(such as the installed pair 84a0baa4 + 6062f115). Docs: live-testing.md,
+features/storage.md (manual mode paragraph and loss cases),
+features/battery-and-charging.md (loss cases), the 2026-10-08 log
+section 4 (dated update).
+
+3. Host tests
+
+tools/tests/test_chef_reboot.py (bash and busybox ash, 15 cases each),
+wired into `make -C tools test`: order (pause < chef-state under timeout
+-k 1 5 < chef-storage shutdown without --pause-init < sync < sleep 2 <
+btprobe), exactly one SIGTSTP and no SIGCONT when btprobe reboots
+(stubbed as SIGKILL of the helper); bootloader reached when chef-state,
+chef-storage or sync fail or hang (and all three hanging), each logged to
+the log, kmsg and stderr; btprobe returning -> SIGCONT after it, exit 1;
+refused pause still reaches the bootloader; TERM and INT during
+chef-state -> SIGCONT, no chef-storage, no btprobe; SIGHUP ignored; lock
+busy -> nothing done; lock fd closed for the watchdog, steps and btprobe
+(also checked by hand: real BusyBox ash and bash leave no lock fd in a
+backgrounded external command, `busybox timeout` or setsid); stage 1
+without chef tools; no btprobe; usage; missing kmsg; closed stderr;
+watchdog budget above the bounds; the watchdog killed on the resume
+paths (round 1 review; fails 6 cases with the kill removed); callers
+(phone-boot.sh order and a fastboot wait of 180 s above the helper's
+131 s chain, mkinitramfs.sh mode).
+
+make -C tools test: exit 0 on 2026-10-10, rerun after round 1 (test_chef_reboot.py: Ran 30
+tests, OK; test_chef_state.py 104 OK; test_storage.py 60 OK).
+
+4. Live, 2026-10-10 (times UTC; kernel #22 0cf2981c unchanged)
+
+Image: out/boot-reboot-test.img (RAM image, not installed)
+  854814d12bcd686726c433683c6d056267a1fa96fabbeca0136694d6c9566a82
+  /usr/bin/chef-reboot 11b930e8..., chef-state 2eea1ae3..., chef-storage
+  9ea22421... (the same chef-state and chef-storage as the installed pair)
+Evidence: ~/chef-cyclo-evidence/reboot-bootloader-20261010/ (private).
+Captures: drv/cap.sh (read-only state dump) before each return and after
+the next boot; the helper's lines streamed live from /dev/kmsg over telnet
+into one file per run (*-kmsg-stream.txt), since /run and kmsg are gone
+after the reboot.
+
+a) Leaving the installed pair (84a0baa4 + 6062f115, boot seq 87, uptime
+   ~331 s), which lacks the helper: the same chef-reboot bytes pushed to
+   /run/push and run detached (`setsid sh -c "cd /; exec sh
+   /run/push/chef-reboot bootloader"`). Before: 22 rows in
+   /run/power/log.pending (7.2..270.2), drift mtime 14:10:35, chrony
+   Normal, mag-group-2980 sha 732824a0 (the /run registry's group 2980
+   was byte-identical to it, so the shutdown mag save had nothing to
+   write; a copy was pulled first). kmsg (uptime):
+     330.59 chef-reboot: init paused (CONT watchdog 150 s)
+     331.70 powerd: exiting
+     332.19 chef-state: shutdown: time_save_rc=0 power_flush_rc=0
+            mag_save_rc=0 sync_rc=0 stop_rc=0 (uptime 331.52 -> 332.11)
+     332.20 chef-reboot: chef-state shutdown done
+     334.57 chef-storage: data filesystem globally read-only
+     334.58 chef-storage: data fully unmounted
+     334.63 chef-reboot: chef-storage shutdown done
+     336.74 chef-reboot: btprobe restart bootloader
+   Pause to btprobe 6.1 s; fastboot 11 s after the launch. Next boot
+   (scripts/phone-boot.sh out/boot-reboot-test.img from fastboot, seq 88):
+   all 22 rows in log.csv exactly once (pulled and compared line by line),
+   followed by the rows up to the shutdown; drift mtime 14:16:20 (the
+   shutdown); e2fsck -p exit 0, no journal recovery; protected write
+   counters (fsc, modemst1/2, persist, boot_a, system_a) 0; mag file
+   unchanged.
+
+b) RAM image, seq 88, through scripts/phone-boot.sh itself (it found
+   chef-reboot on the image), uptime 826 s, chrony Normal. Before: 12 rows
+   pending (626.8..807.8). kmsg:
+     831.34 chef-reboot: init paused (CONT watchdog 150 s)
+     832.44 powerd: exiting
+     833.31 chef-state: shutdown: time_save_rc=0 power_flush_rc=0
+            mag_save_rc=0 sync_rc=0 stop_rc=0 (uptime 832.27 -> 833.23)
+     833.35 chef-reboot: chef-state shutdown done
+     835.70 chef-storage: data filesystem globally read-only
+     835.71 chef-storage: data fully unmounted
+     835.78 chef-reboot: chef-storage shutdown done
+     837.88 chef-reboot: btprobe restart bootloader
+   Steps: pause + 1 s settle, chef-state 1.0 s, chef-storage 2.4 s, sync +
+   2 s sleep 2.1 s; pause to btprobe 6.5 s. phone-boot.sh exit 0: launched
+   14:30:43, fastboot boot 14:31:02, network up 14:31:18 (35 s end to end).
+   Next boot (seq 89): all 12 rows in log.csv exactly once, the last of
+   them (807.8) directly before seq 89's start row (no row was due
+   between 807.8 and the shutdown at 831); drift file mtime 14:30:46 (the
+   shutdown); storage.log "chefdata: clean", e2fsck -p exit 0, no
+   "recover" in dmesg; protected write counters 0; mag file unchanged.
+
+RTC offset: the shutdown save ran both times (time_save_rc=0) but kept
+the file (mtime 13:49:37, from boot seq 86), as its rewrite rule asks:
+the offset had moved -81 ms (a, measured at ram1 uptime 116) and -84 ms
+(b, just before the return) against the saved one, under the 0.1 s
+threshold, and less than 6 h of RTC time had passed. A rewrite on this
+path follows the same rule as an ordinary reboot; it was not forced here.
+
+Back on the installed pair afterwards with an ordinary reboot (seq 90,
+read-only system_a root, protected write counters 0, mag file unchanged).
+
+5. Install
+
+Not installed. RAM-image acceptance only (persist_coord agreed); the
+helper ships with the next planned install. Until then the first return
+to fastboot from the installed pair takes phone-boot.sh's fallback chain
+(lossy), unless the helper is pushed to /run first as in 4a.

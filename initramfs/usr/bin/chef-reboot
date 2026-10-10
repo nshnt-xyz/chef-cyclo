@@ -1,0 +1,112 @@
+#!/bin/sh
+# chef-reboot bootloader: return to fastboot without losing state. Used by
+# scripts/phone-boot.sh and the fastboot test and install workflow instead
+# of a bare `btprobe restart bootloader` (a raw reboot(2) RESTART2 that
+# skips init's ::shutdown lines). In order:
+#
+#   1. pause init (SIGTSTP; busybox init then reaps but respawns nothing)
+#      so chronyd, powerd and the timekeeper stay stopped once 2 stops them
+#   2. chef-state shutdown, bounded as in inittab (timeout -k 1 5): last RTC
+#      offset save, chronyd's drift write, powerd's pending power log rows
+#   3. chef-storage shutdown (plain, never --pause-init: its exit trap would
+#      resume init before 4): /data read-only and detached
+#   4. sync, then btprobe restart bootloader
+#
+# A failure or hang in 2, 3 or the sync is logged (stderr, $RUN/chef-reboot.log,
+# kmsg) and the helper goes on to the bootloader: the recovery path depends
+# on reaching it. Each step runs in the background and is abandoned after
+# its bound, so a step stuck in D state (which no timeout can kill) does not
+# block the reboot. Residual: btprobe itself calls sync(2) before reboot(2),
+# so a wedged eMMC can still hold it; then only the PMIC reset (Power about
+# 8.7 s) helps. If btprobe returns, init is resumed and the exit status is 1.
+#
+# Init is resumed (SIGCONT) on every path that does not reboot: the exit
+# trap, INT/TERM, and a detached RAM-only watchdog for a killed helper,
+# sized above the whole bounded chain. SIGHUP is ignored, so a closing
+# telnet session does not stop it halfway. One run at a time (a lock on
+# /run), so a second run cannot resume init under the first. Without
+# chef-state and chef-storage (stage 1) init is not paused and only
+# btprobe runs. Busybox applets only.
+RUN=${CHEF_REBOOT_RUN:-/run}
+KMSG=${CHEF_REBOOT_KMSG:-/dev/kmsg}
+LOG=$RUN/chef-reboot.log
+STATE_SECS=8		# chef-state under timeout -k 1 5, plus margin
+STORAGE_SECS=100	# chef-storage shutdown's own bounds add up to about 85 s
+SYNC_SECS=20
+WATCHDOG_SECS=150	# above 1 + 8 + 100 + 20 + 2 s (a host test checks)
+
+log() {
+	echo "chef-reboot: $*" >&2 || true
+	echo "chef-reboot: $*" 2>/dev/null >> "$LOG" || true
+	[ ! -c "$KMSG" ] && [ ! -f "$KMSG" ] || echo "chef-reboot: $*" 2>/dev/null >> "$KMSG" || true
+}
+
+# bounded SECS NAME CMD...: run CMD in the background, wait at most SECS.
+# 124 (and CMD left behind, after a SIGKILL) when it is still running.
+bounded() {
+	secs=$1 name=$2
+	shift 2
+	"$@" </dev/null 9>&- &
+	pid=$!
+	n=$((secs * 10))
+	while kill -0 "$pid" 2>/dev/null; do
+		if [ "$n" -le 0 ]; then
+			kill -KILL "$pid" 2>/dev/null
+			log "$name still running after $secs s; going on without it"
+			return 124
+		fi
+		sleep 0.1
+		n=$((n - 1))
+	done
+	wait "$pid"
+}
+
+resume() {
+	rc=$?
+	kill "$watchdog" 2>/dev/null
+	kill -CONT 1 2>/dev/null
+	log "bootloader not reached; init resumed (exit $rc)"
+	exit "$rc"
+}
+
+[ "$#" = 1 ] && [ "$1" = bootloader ] || { log "usage: chef-reboot bootloader"; exit 2; }
+cd / || exit 1
+mkdir -p "$RUN"
+command -v btprobe >/dev/null 2>&1 || { log "no btprobe; nothing done"; exit 1; }
+exec 9>"$RUN/chef-reboot.lock"
+flock -n 9 || { log "another chef-reboot is running; nothing done"; exit 1; }
+trap '' HUP
+
+if command -v chef-state >/dev/null 2>&1 || command -v chef-storage >/dev/null 2>&1; then
+	watchdog=
+	trap resume 0
+	trap 'exit 1' INT TERM
+	setsid sh -c "sleep $WATCHDOG_SECS; kill -CONT 1" </dev/null >/dev/null 2>&1 9>&- &
+	watchdog=$!
+	if kill -TSTP 1; then
+		log "init paused (CONT watchdog ${WATCHDOG_SECS} s)"
+		sleep 1
+	else
+		log "could not pause init; going on"
+	fi
+fi
+
+if command -v chef-state >/dev/null 2>&1; then
+	bounded "$STATE_SECS" "chef-state shutdown" timeout -k 1 5 chef-state shutdown
+	rc=$?
+	if [ "$rc" = 0 ]; then log "chef-state shutdown done"
+	else log "chef-state shutdown failed (exit $rc); offset, drift or power rows may be lost"; fi
+fi
+if command -v chef-storage >/dev/null 2>&1; then
+	bounded "$STORAGE_SECS" "chef-storage shutdown" chef-storage shutdown
+	rc=$?
+	if [ "$rc" = 0 ]; then log "chef-storage shutdown done"
+	else log "chef-storage shutdown failed (exit $rc); /data may still be writable"; fi
+fi
+bounded "$SYNC_SECS" sync sync || log "sync did not finish"
+# Lets the caller's telnet session end before the USB network goes.
+sleep 2
+log "btprobe restart bootloader"
+btprobe restart bootloader </dev/null 9>&-
+log "btprobe returned (exit $?)"
+exit 1
