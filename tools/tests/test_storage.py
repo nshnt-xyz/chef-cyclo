@@ -46,7 +46,12 @@ umount) case "$*" in
 *) [ "${FAIL_DETACH_DATA:-0}" = 0 ] || exit 1;; esac
 [ "${UMOUNT_RC:-0}" = 0 ] || exit "$UMOUNT_RC"
 awk -v path="$1" '$5!=path' "$CHEF_STORAGE_MOUNTS" > "$TRACE.mounts" && cat "$TRACE.mounts" > "$CHEF_STORAGE_MOUNTS";;
-fuser) echo 30001;;
+fuser) case "${FUSER_DETACH:-}" in
+    all) awk '$3!="259:36"' "$CHEF_STORAGE_MOUNTS" > "$TRACE.mounts" && cat "$TRACE.mounts" > "$CHEF_STORAGE_MOUNTS";;
+    data) awk -v path="$CHEF_STORAGE_DATA" '$5!=path' "$CHEF_STORAGE_MOUNTS" > "$TRACE.mounts" && cat "$TRACE.mounts" > "$CHEF_STORAGE_MOUNTS";;
+    each) awk -v path="$2" '$5!=path' "$CHEF_STORAGE_MOUNTS" > "$TRACE.mounts" && cat "$TRACE.mounts" > "$CHEF_STORAGE_MOUNTS";;
+    esac
+    echo 30001;;
 setsid|sleep) exit 0;;
 mountpoint) exit "${MOUNTPOINT_RC:-1}";;
 esac
@@ -191,6 +196,33 @@ esac
         self.assertIn('mount -o remount,ro /var/lib/bluetooth',t)
         self.assertIn('fuser -m /var/lib/bluetooth',t)
         self.assertLess(t.index('remount,ro'),t.index('umount '))
+    def test_shutdown_path_detached_during_sweep(self):
+        # Another shutdown detaches everything while fuser runs: fuser then
+        # named root-filesystem users, so nothing may be killed.
+        r,t=self.call('shutdown',MOUNTPOINT_RC='0',FUSER_DETACH='all')
+        self.assertEqual(r.returncode,0,r.stderr)
+        self.assertNotIn('kill -TERM 30001',t);self.assertNotIn('kill -KILL 30001',t)
+        self.assertNotIn('remount,ro',t);self.assertNotIn('sleep 2',t)
+        self.assertIn('detached during the TERM sweep; trying the next alias',r.stderr)
+        self.assertIn('data detached meanwhile; nothing left to stop',r.stderr)
+        # Only /data goes: the TERM sweep is redone on the next alias, with
+        # its grace, then KILL.
+        r,t=self.call('shutdown',MOUNTPOINT_RC='0',FUSER_DETACH='data')
+        self.assertEqual(r.returncode,0,r.stderr)
+        bt=t.index('fuser -m /var/lib/bluetooth')
+        self.assertLess(bt,t.index('kill -TERM 30001'))
+        self.assertLess(t.index('kill -TERM 30001'),t.index('sleep 2'))
+        self.assertLess(t.index('sleep 2'),t.index('kill -KILL 30001'))
+        self.assertEqual(t.count('kill -TERM 30001'),1);self.assertEqual(t.count('kill -KILL 30001'),1)
+        self.assertIn('mount -o remount,ro /var/lib/bluetooth',t)
+        # Every alias vanishes under fuser: three TERM tries, no kill, no grace.
+        (self.p/'mounts').write_text(f'25 0 259:36 / {self.data} rw - ext4 node rw\n26 0 259:36 / /var/lib/bluetooth rw - ext4 node rw\n'
+                                     '27 0 259:36 / /run/NetworkManager/system-connections rw - ext4 node rw\n28 0 259:36 /v1/chrony /var/lib/chrony rw - ext4 node rw\n')
+        r,t=self.call('shutdown',FUSER_DETACH='each')
+        self.assertEqual(r.returncode,0,r.stderr)
+        self.assertEqual(t.count('fuser -m '),4)
+        self.assertIn('no stable userdata alias for the TERM sweep after 3 tries; skipped',r.stderr)
+        self.assertNotIn('kill -',t);self.assertNotIn('sleep 2',t)
     def test_boot_closed_console(self):
         r=subprocess.run([*self.shell,str(self.script),'boot'],env=self.env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         self.assertEqual(r.returncode,0)

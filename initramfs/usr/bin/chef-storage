@@ -175,13 +175,36 @@ shutdown() {
     fi
     # BusyBox init invokes shutdown hooks before its global SIGTERM. Stop
     # users of this filesystem first; init itself must survive this hook.
+    # Another shutdown (or anything else) may detach the path meanwhile, and
+    # fuser -m on a path that is no longer a userdata mount names every
+    # process on the filesystem underneath, normally the root: so the alias
+    # is re-read before each sweep, and a sweep whose path stopped being a
+    # userdata mount while fuser ran is redone on the alias read next (at
+    # most 3 tries per signal). Only the milliseconds between that check and
+    # the kills remain unguarded.
     for sig in TERM KILL; do
-        for pid in $(timeout -k 2 5 fuser -m "$mounted_path" 2>/dev/null || true); do
-            case "$pid" in 1|$$|$PPID) continue;; esac
-            kill -"$sig" "$pid" 2>/dev/null || true
+        tries=0 swept=
+        while [ "$tries" -lt 3 ]; do
+            tries=$((tries + 1))
+            mounted_path=$(awk -v dev="$major_minor" '$3==dev {print $5; exit}' "$MOUNTS") || return 1
+            [ -n "$mounted_path" ] || { log 'data detached meanwhile; nothing left to stop'; return 0; }
+            pids=$(timeout -k 2 5 fuser -m "$mounted_path" 2>/dev/null || true)
+            if ! awk -v p="$mounted_path" -v dev="$major_minor" '$5==p && $3==dev {f=1} END {exit !f}' "$MOUNTS"; then
+                log "$mounted_path detached during the $sig sweep; trying the next alias"
+                continue
+            fi
+            for pid in $pids; do
+                case "$pid" in 1|$$|$PPID) continue;; esac
+                kill -"$sig" "$pid" 2>/dev/null || true
+            done
+            swept=1
+            break
         done
-        [ "$sig" != TERM ] || sleep 2
+        [ -n "$swept" ] || log "no stable userdata alias for the $sig sweep after 3 tries; skipped"
+        [ "$sig" != TERM ] || [ -z "$swept" ] || sleep 2
     done
+    mounted_path=$(awk -v dev="$major_minor" '$3==dev {print $5; exit}' "$MOUNTS") || return 1
+    [ -n "$mounted_path" ] || { log 'data detached meanwhile; nothing left to stop'; return 0; }
     timeout -k 2 15 sync || log 'sync timed out'
     # Ordinary remount changes the ext4 superblock, protecting every bind.
     # Never detach first: a surviving independent alias could stay writable.

@@ -50,7 +50,14 @@ acceptance is recorded in the build log.
 
 BusyBox init runs `chef-storage shutdown` before its global termination of
 processes. The hook finds userdata mounts even if `/data` was detached, stops
-filesystem users and syncs. A bounded filesystem-wide read-only remount must
+filesystem users and syncs. It re-reads the userdata alias before each of its
+TERM and KILL sweeps, and a sweep whose path stopped being a userdata mount
+while `fuser -m` ran is redone on the next alias (at most 3 tries per signal):
+on a detached path `fuser -m` names every process on the root filesystem
+(seen 2026-10-10 when two shutdowns overlapped, see
+[SSH and install](../../logs/ssh-and-install-2026-10-10.txt)). Only the
+milliseconds between that check and the kills stay unguarded. If everything
+is detached meanwhile it returns 0. A bounded filesystem-wide read-only remount must
 succeed before any binds are detached; it protects surviving aliases too.
 The hook then removes service binds and `/data`, and checks mountinfo before
 claiming full unmount. Failed detaches leave read-only aliases and a log entry.
