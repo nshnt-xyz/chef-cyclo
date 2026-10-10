@@ -215,7 +215,8 @@ injecting assistance remains a separate decision for the user.
 
 ## Rules
 
-- Remaining interactive tests are user-deferred. When resumed, ask through
+- Remaining interactive tests are user-deferred (D was done live on
+  2026-10-10, [log](../../logs/mag-seed-live-2026-10-10.txt)). When resumed, ask through
   `rootfs_research` before anything needing them (holding the phone for D,
   unplug, cold boot, hard reset).
   Fastboot boots of test images and ordinary reboots need no further
@@ -248,7 +249,7 @@ The installed first implementation has 20 clean ordinary reboots: two in
 `reboots-newpair-try` and 18 in `reboots-newpair`, not 18 total. Those runs
 validate the prior installed hashes, not later code fixes. The exact mapping
 and remaining live checks are in [the acceptance audit](../../logs/state-persistence-2026-10-06.txt).
-D is explicitly pending guided learning and seeded-first-sample acceptance; the user deferred remaining interactive tests on 2026-10-06. Preparation was cleaned up and no guided capture ran.
+D was pending guided learning and seeded-first-sample acceptance; the user deferred remaining interactive tests on 2026-10-06. Preparation was cleaned up and no guided capture ran then. Update 2026-10-10: D accepted live on the installed pair (learn, save, reboot, seed applied from the first samples; [log](../../logs/mag-seed-live-2026-10-10.txt)).
 Normal shutdown still targets about 2 s; blocking/failing operations retain
 an explicit outer 5 s TERM plus 1 s KILL cap (an acknowledged failure-path
 deviation from that target), with truthful outcome codes rather than a success

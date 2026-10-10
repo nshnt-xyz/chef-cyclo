@@ -88,7 +88,7 @@ from that hook would stall init.
 
 ## Persistent state
 
-[Acceptance audit](../../logs/state-persistence-2026-10-06.txt) distinguishes the prior installed image from subsequent fixes and pending live checks.
+[Acceptance audit](../../logs/state-persistence-2026-10-06.txt) distinguishes the prior installed image from subsequent fixes and the live checks then pending. The magnetometer bias seed (part D) was accepted live on 2026-10-10 ([log](../../logs/mag-seed-live-2026-10-10.txt)).
 
 Since 2026-10-06 (`chef-state`, `tools/rtc-edge.c`; [handoff](../next-steps/state-persistence-handoff.md)) these also survive a reboot:
 

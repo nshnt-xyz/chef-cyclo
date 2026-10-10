@@ -1,0 +1,63 @@
+Magnetometer bias across boots (state persistence part D), live 2026-10-10
+
+Closes the live acceptance deferred on 2026-10-06
+(logs/state-persistence-2026-10-06.txt, "User-deferred D"). Run by the
+coordinator on the installed pair system_a 84a0baa4 + boot_a 6062f115
+(8201c79, kernel #22). No code change. Raw evidence (private):
+~/chef-cyclo-evidence/mag-seed-20261010/magtest/ (steps.txt,
+sensors-up.log, sensors-up-boot2.log, heading.jsonl, heading2.jsonl,
+status.jsonl, dmesg-boot1.txt, dmesg-boot2.txt, mag-group-2980, guide.sh,
+guide30.sh).
+
+Boot 1 (seq 86, no saved bias: "chef-state: mag: no saved bias"):
+- sensors-up, then `sensord watch heading 5` (heading claims magn 20 Hz
+  full + 5 Hz factory). Guided six-face holds (8 s move, 10 s hold, then a
+  20 s slow flat turn; guide.sh, kmsg + vibrator cues).
+- Round 1 (uptime 756..903 s, USB attached): live bias stayed about
+  0.002 G, NOT calibrated.
+- Round 2: a first start at 965 s was stopped after step 1 (steps.txt);
+  the run that counted (1088..1236 s, USB unplugged during the holds,
+  guide30.sh with a 30 s countdown from 1058 s): calibrated (source live)
+  at 1172.9 s, about 84 s into round 2, while moving into the left-edge
+  hold (step 5's move window, 1167.0..1175.9 s). Live bias (factory - full, device
+  frame) 0.2123 0.3411 0.0401 G.
+- Releasing the heading claim deleted the magn report; the ADSP wrote
+  group 2980 at 1266.12 s, SMGR frame -0.3392 -0.2132 0.0425 G (the
+  device-frame value with x and y swapped and negated, z unchanged), and
+  sensors-up saved it 3.9 s later, 0.85 s after sensord's write-back to
+  /run at 1269.13 s:
+  "[1269.98] chef-state: mag: saved group 2980 bias -0.3392 -0.2132 0.0425
+  gauss". /data/v1/sensors/mag-group-2980: 526 bytes, sha256 732824a0...
+  First nonzero learned save on the device.
+
+Boot 2 (seq 87, ordinary `reboot` through init at ~14:10Z, phone left
+still, screen up):
+- sensors-up: "[45.70] chef-state: mag: seeded group 2980 bias -0.3392
+  -0.2132 0.0425 gauss into /run/sensors/sns.reg.tmp"; sensord: registry
+  bias -> calibrated (source registry).
+- Heading claimed at 55.8 s (kmsg 55.79) with no movement at all. First line 56.0 s:
+  calibrated, source registry (live not known yet). First live comparison
+  59.1 s (kmsg 59.10, heading2.jsonl 59.19; 3.3 to 3.4 s after the
+  claim): calibrated, source live, live bias 0.2172 0.3401 0.0431 G
+  (kmsg). After that all 235 live heading lines to 106.0 s (47 s) stay
+  calibrated with the live bias magnitude at 0.400..0.409 G
+  (heading2.jsonl carries only the magnitude).
+- So the ADSP applies the seeded group from its first samples: the live
+  bias after the reboot matches boot 1's learned bias to within 5 mG, with
+  no calibration motion. The registry-sourced "calibrated" before the
+  first live comparison lasted 3.3 to 3.4 s.
+
+Conclusions:
+- Part D works end to end: learn, save, reboot, seed, applied at once.
+  Keep it.
+- Learning still needs slow varied holds and can take more than one
+  round (here one round of ~2.5 min was not enough, the second flipped
+  after ~84 s). With a saved bias this is needed once per hard-iron
+  change, not once per boot.
+- The stale-bias risk from the 2026-10-08 review (item 2) remains only
+  for a changed hard iron (new mount, a magnet nearby): the seeded bias is
+  then applied and reported as calibrated until the ADSP re-learns.
+  SENSORS_FRESH=1 skips the overlay. No change made for that.
+- The USB cable gets in the way of the holds; the guide runs on the phone
+  on its own, so unplugging after the start works. Wireless control
+  (SSH with key login) would be a separate task.
