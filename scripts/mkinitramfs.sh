@@ -11,6 +11,13 @@
 # (afe-debug, spk-protect-probe, afe-topology-cal, tert-tx-hold) and the
 # sensors bring-up (sensors-up, sensord and its registry map) on top.
 #
+# SSH (docs/features/ssh.md): the public keys in secrets/ssh/authorized_keys
+# (gitignored; AUTHORIZED_KEYS overrides the path) are checked with
+# scripts/ssh-keys.py and baked in as /etc/chef/ssh/authorized_keys, where
+# chef-sshd's dropbear reads them. SSH=0 builds without them, and chef-sshd
+# then leaves SSH off. The staged tree is scanned for private key material
+# before it is packed: host keys are only ever made on the phone.
+#
 # Encoding: LZMA (xz --format=lzma -6) of the same deterministic newc cpio
 # stream. Chef's loader leaves the kernel only the region space the ramdisk
 # does not take (docs/research/chef-loader-kernel-budget.md): with the gzip
@@ -92,6 +99,16 @@ if [ -z "$USE_GZIP" ]; then
     }
     command -v xz >/dev/null 2>&1 || { echo "xz (XZ Utils) is required for the LZMA ramdisk" >&2; exit 1; }
 fi
+AUTHORIZED_KEYS=${AUTHORIZED_KEYS:-secrets/ssh/authorized_keys}
+case "${SSH:-1}" in
+1)  python3 scripts/ssh-keys.py check "$AUTHORIZED_KEYS" ||
+        { echo "refusing to build an image with SSH and no usable $AUTHORIZED_KEYS (scripts/ssh-setup.sh; SSH=0 builds without SSH)" >&2; exit 1; } ;;
+0)  echo "WARNING: SSH=0: building WITHOUT SSH (no authorized keys; chef-sshd leaves dropbear off)" >&2 ;;
+*)  echo "SSH must be 1 or 0" >&2; exit 1 ;;
+esac
+for f in usr/sbin/dropbear usr/bin/dropbearkey usr/lib/ssh/sftp-server; do
+    [ -x "out/rootfs/$f" ] || { echo "missing $f; rerun scripts/mkrootfs.sh" >&2; exit 1; }
+done
 rm -f "$OUTCPIO"
 rm -rf "$ROOT"
 mkdir -p "$ROOT"
@@ -113,11 +130,22 @@ ln -s /run/NetworkManager/resolv.conf "$ROOT/etc/resolv.conf"
 # silently disabled the overlap guard and chrony refresh: strip those bits.
 (cd initramfs && find . -mindepth 1 ! -type l -print0) | (cd "$ROOT" && xargs -0 chmod go-w)
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up "$ROOT"/usr/bin/chef-storage \
-    "$ROOT"/usr/bin/chef-state "$ROOT"/usr/bin/chef-reboot \
+    "$ROOT"/usr/bin/chef-state "$ROOT"/usr/bin/chef-reboot "$ROOT"/usr/bin/chef-sshd \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
     "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \
     "$ROOT"/usr/bin/sensors-compass-run "$ROOT"/usr/bin/display-touch-inventory
+
+# SSH authorized keys. dropbear (-D) refuses them unless the file and every
+# directory up to / is root-owned (the cpio and system_a make everything
+# root's) and not writable by group or others: the staged / follows the
+# builder's umask (775 under 002), so set the modes explicitly.
+chmod 755 "$ROOT" "$ROOT/etc" "$ROOT/etc/chef"
+if [ "${SSH:-1}" = 1 ]; then
+    install -d -m 755 "$ROOT/etc/chef/ssh"
+    install -m 644 "$AUTHORIZED_KEYS" "$ROOT/etc/chef/ssh/authorized_keys"
+    echo "SSH: $(grep -c '^[^#]' "$ROOT/etc/chef/ssh/authorized_keys") authorized key(s) baked in"
+fi
 
 # Small libc-free helper used by bt-up to exercise /dev/btpower and the
 # WCN3990 UART; also a raw H4/QCA attach and LE scan for debugging without
@@ -451,6 +479,8 @@ else
     echo "warning: no sensors.qti from $VENDOR_IMG; image has no sensor registry map (sensors-up will refuse)" >&2
 fi
 rm -rf "$MAPTMP"
+
+python3 scripts/ssh-keys.py scan "$ROOT" || { echo "refusing: private key material in $ROOT" >&2; exit 1; }
 
 # newc format, everything owned by root, reproducible ordering; the LZMA
 # (lzma_alone) container carries no timestamp, gzip -n drops it.

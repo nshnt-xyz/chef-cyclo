@@ -92,12 +92,12 @@ consumers() {
     timeout -k 5 10 mount --bind "$DATA/v1/bluetooth" /var/lib/bluetooth || return 1
     timeout -k 5 10 mount --bind "$DATA/v1/networkmanager/system-connections" /run/NetworkManager/system-connections
 }
-# Optional state directories (chef-state, powerd) and chronyd's drift
-# directory. A failure here is logged and leaves BlueZ and NetworkManager
-# bound: these consumers fall back to /run on their own.
+# Optional state directories (chef-state, powerd, chef-sshd's host key) and
+# chronyd's drift directory. A failure here is logged and leaves BlueZ and
+# NetworkManager bound: these consumers fall back to /run on their own.
 optional_consumers() {
     ok=1
-    for dir in crash time power sensors; do
+    for dir in crash time power sensors ssh; do
         mkdir -p "$DATA/v1/$dir" && chown 0:0 "$DATA/v1/$dir" && chmod 700 "$DATA/v1/$dir" || { log "optional state dir $dir failed"; ok=; }
     done
     if mkdir -p "$DATA/v1/chrony" /var/lib/chrony && chown chrony:chrony "$DATA/v1/chrony" && chmod 700 "$DATA/v1/chrony"; then

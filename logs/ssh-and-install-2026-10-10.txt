@@ -1,0 +1,180 @@
+SSH with key login, then the next install, 2026-10-10/11
+=======================================================
+
+Spec: docs/next-steps/ssh-and-install-handoff.md. Roles: ssh_impl
+(implementation), ssh_review (review), ssh_coord (coordination, the
+user's decisions). Kernel #22 unchanged (0cf2981c...). Times UTC unless
+marked IST. Raw evidence: ~/chef-cyclo-evidence/ssh-ram-20261010T150201Z/
+(private).
+
+1. What was built
+
+dropbear 2026.91 (Alpine) under initramfs/usr/bin/chef-sshd, respawned
+from inittab, port 22 on every interface, IPv4 and IPv6. The busybox
+telnetd line (inittab line 3) is byte-identical: it stays the USB-only
+recovery shell. docs/features/ssh.md has the behaviour; the points
+where the build differs from the spec's first sketch, with reasons:
+
+- Authorized keys are read in place with -D /etc/chef/ssh, not copied
+  into /root/.ssh: /root is an empty tmpfs that /init mounts (mode 700),
+  not seeded from the image. dropbear's checkpubkeyperms (2026.91
+  source) walks the file and every parent up to / and needs each owned
+  by root (or the user) and not group/other writable. The staged / of
+  the RAM cpio followed the builder's umask (775 under umask 002), so
+  mkinitramfs.sh now sets / /etc /etc/chef 755 explicitly; the cpio and
+  system_a make everything root's.
+- dropbear re-executes itself (fexecve) for every connection and loads
+  its host key again each time, so it gets a copy in /run/ssh and never
+  opens anything under /data. The canonical key is
+  /data/v1/ssh/dropbear_ed25519_host_key (dir 0700, key 0600), made on
+  the phone by dropbearkey through a temp name, sync, rename, sync
+  (dropbearkey 2026.91 also writes NAME.pub, removed). Corrupt or empty
+  key: moved to .bad and replaced. /data not ours or failing: ephemeral
+  key in /run/ssh with a kmsg line; a valid key in a root-only 0700 dir
+  is still used when /data cannot be written (errors=remount-ro).
+- Logging: dropbear -E into a shell read loop that writes one kmsg
+  record per line ("dropbear[PID]: message", fblog shows it), at most
+  20 lines per 60 s plus a suppressed count; "Pubkey auth succeeded"
+  lines always pass (matched on the parsed numeric pid and date shape,
+  so a username cannot fake one). A plain 2>/dev/kmsg was rejected:
+  musl's unbuffered stderr writes a formatted line longer than 80 bytes
+  in several write()s, i.e. several kmsg records.
+- Flags: -F -E -s -m -k -T 3 -K 30 -p 22 -r /run/ssh/... -D
+  /etc/chef/ssh -P /run/ssh/dropbear.pid. No -B, no -R. Remote
+  forwarding off (-k); local -L kept so the host can reach loopback
+  services (gpsd 2947); a key holder is root anyway.
+- Packages: dropbear (530 KB installed; utmps-libs and skalibs-libs were
+  already in the root) and openssh-sftp-server (199 KB) at
+  /usr/lib/ssh/sftp-server, the path compiled into Alpine's dropbear.
+  Modern scp uses SFTP; dropbear-scp (67 KB + dropbear-dbclient 331 KB)
+  would only add legacy `scp -O`, so it is not in the image.
+- Host: scripts/ssh-setup.sh (key ~/.ssh/chef-cyclo_ed25519, no
+  passphrase, secrets/ssh/authorized_keys, prints an ~/.ssh/config
+  snippet, never edits it), scripts/ssh-keys.py (build gates: `check` of
+  the authorized_keys file, `scan` of the staged tree for private key
+  material, run in mkinitramfs.sh before the cpio and in mksystem.sh),
+  scripts/phone.py --ssh ADDR / PHONE_SSH (dedicated key, BatchMode,
+  IdentitiesOnly, own known_hosts with HostKeyAlias chef-cyclo,
+  StrictHostKeyChecking accept-new, telnet-shell PATH/HOME/bus).
+  secrets/ is gitignored (.gitignore:82).
+- Wi-Fi address on the panel: NetworkManager dispatcher
+  30-chef-wifi-ip writes "chef Wi-Fi: <profile> IPv4 <addr>, ssh
+  root@<addr>" to kmsg on wlan0 up and dhcp4-change (two lines 40 ms
+  apart on a connect; left as is).
+
+2. Host tests
+
+tools/tests/test_ssh.py (39 tests; chef-sshd under bash and BusyBox ash
+with applet stubs bound as functions), in `make -C tools test`; a new
+case in tools/tests/test_storage.py for the chef-storage sweep fix
+(section 5). `make -C tools test` and `python3 -m unittest discover
+scripts/tests` pass: commit/make-test-T1.txt (tree of the SSH commit, in
+a detached worktree) and commit/make-test-T2.txt (tree of the
+chef-storage commit).
+
+3. Rootfs package changes against the installed system_a 84a0baa4
+
+From the two images' /lib/apk/db/installed (package-diff-*.txt):
+  + dropbear 2026.91-r0
+  + openssh-sftp-server 10.3_p1-r1
+    libseccomp 2.6.0-r2 -> 2.6.1-r0   (Alpine update picked up by the
+    zlib 1.3.2-r0 -> 1.3.2-r1          rootfs rebuild)
+So the next install is SSH plus these two library updates.
+
+4. Live on RAM images (fastboot boot; nothing flashed)
+
+Images, all kernel #22, built with SKIP_KERNEL=1 scripts/mkinstall.sh:
+  d24af359  first SSH tree           booted 15:06:57 and 15:12:28
+  cf64c1b9  + review fixes + sweep   booted 15:23:23
+  afbb36e9  final tree (sweep retry) booted 19:28:04
+Every boot came up with the same persistent host key,
+SHA256:ab2DYMGcOScozo2qYwfGdYL0QW2viK7eqiiTxU801wA (generated on the
+first boot of d24af359: "no host key in /data/v1/ssh; generating one").
+
+d24af359:
+- State (boot1-state.txt): dropbear and chef-sshd running, listening on
+  0.0.0.0:22 and :::22; stat 755 0:0 for / /etc /etc/chef
+  /etc/chef/ssh, 644 0:0 authorized_keys, /data/v1/ssh 700, key 600,
+  /run/ssh 700, copy 600, host-key-source persistent.
+- Login (ssh-login.txt): phone.py --ssh run as uid 0 with the telnet
+  PATH; first contact recorded the fingerprint above; a login shell got
+  root's session bus from /etc/profile.d/chef-session.sh.
+- Refusals (ssh-refusals.txt, -kmsg.txt): the server offers only
+  "publickey"; empty password, password "root", none-only, a wrong
+  key, a nonexistent user ("Login attempt for nonexistent user") and
+  the sshd account ("invalid shell, rejected") all "Permission denied
+  (publickey)"; the right key still works.
+- Transfers (ssh-xfer.txt): scp up and back and sftp put/get of a 3 MB
+  random file byte-exact; `scp -O` fails ("sh: scp: not found") as
+  documented. With a session open, `fuser -m /data` rc 1 (no process)
+  and dropbear's cwd is /. Telnet over USB unchanged (telnet.txt).
+- Idle (idle-ctxt.txt): 0 voluntary and 0 involuntary context switches
+  in 90 s for dropbear and both chef-sshd shells; dropbear waits in
+  select() without a timeout.
+- Rate limit (ratelimit-1/2.txt): 15 bad logins -> 20 kmsg lines, then
+  "chef-sshd: 25 dropbear log lines suppressed" at the next window.
+- chef-reboot bootloader typed in an SSH session
+  (kmsg-chefreboot-from-ssh.txt, ssh-chefreboot-session.txt): init
+  paused, chef-state shutdown time_save_rc=0 power_flush_rc=0
+  mag_save_rc=0 sync_rc=0 stop_rc=0, data fully unmounted, btprobe;
+  fastboot at once. After the next boot all 23 rows pending before it
+  were in log.csv (boot2-hostkey.txt), and phone.py --ssh accepted the
+  host key under strict checking.
+
+cf64c1b9 (v3-*.txt): refusals, transfers and fuser repeated, same
+results; a login made while the log budget was used up was still logged
+(v3-ratelimit-login.txt).
+
+afbb36e9 (v4-*.txt), the final tree:
+- Booted after leaving the installed pair with the pushed chef-reboot
+  (fastboot after 9 s); pending power rows carried over.
+- Refusals and transfers repeated, same results.
+- Cable-free (v4-cablefree.txt), 19:29:24..19:29:35 (01:00 IST), with
+  the user's cable out: host had no USB link, phone usb online 0,
+  Discharging, usb0 DOWN; over Wi-Fi phone.py --ssh run rc 0, push and
+  pull byte-exact, a kmsg stream. The user saw the line "chef Wi-Fi: ...
+  ssh root@192.168.0.116" on the panel (user-observed, via ssh_coord).
+- Ordinary `reboot` typed in an SSH session after the replug
+  (v4-kmsg-reboot-from-ssh.txt, v4-ssh-reboot-session.txt): chef-state
+  shutdown all codes 0, data globally read-only, fully unmounted; the
+  session ended ("closed by remote host"); the phone came back on the
+  installed pair (bootreason=reboot, e2fsck -p 0), and the 5 rows pending
+  before the reboot (118.8..124.3 s, v4-reboot-before.txt: log.csv 5264
+  lines, the last one 117.4 s, already on /data) plus the shutdown row
+  (126.0 s) were in log.csv after it, followed by the next boot's start
+  row (v4-after-reboot-installed.txt).
+
+5. The first leave of the installed pair raced (my mistake), and the
+   chef-storage fix it led to
+
+Full account: B1-first-attempt-account.txt. I pushed chef-reboot and
+started it detached, then ran scripts/phone-boot.sh before fastboot
+appeared. 172.16.42.1 still answered, so phone-boot.sh started the old
+image's fallback (`chef-storage shutdown --pause-init`). That read
+mountinfo while /data was mounted; the helper's own chef-storage then
+detached /data (1697.66 s); the fallback's `fuser -m /data` ran on the
+now plain directory of the root filesystem and its TERM sweep hit every
+process: the helper ("Terminated" at 1698.25, init resumed by its trap),
+bt-up and others (respawned); its remount then failed. Nothing was lost:
+chef-state shutdown (all codes 0) and the detach had completed. The same
+pushed helper run again reached fastboot in 7 s.
+
+Install-day rule (ssh_impl, agreed by ssh_review): push chef-reboot, start it with
+`setsid sh -c "cd /; exec sh /run/push/chef-reboot bootloader"
+</dev/null >/run/chef-reboot.out 2>&1 & true`, then a host loop on
+`fastboot devices` (up to 180 s) and nothing else talking to the phone
+until fastboot answers.
+
+Fix (ssh_coord: in scope, separate commit): chef-storage shutdown
+re-reads the userdata alias before each TERM and KILL sweep, checks
+after fuser that the path is still a mount of the userdata device, and
+otherwise redoes the same signal on the alias read next (at most 3
+tries); the 2 s grace follows a TERM that ran; everything detached
+meanwhile returns 0. Only the milliseconds between that check and the
+kills stay unguarded. Host test: test_shutdown_path_detached_during_sweep
+(fails on the old script).
+
+6. Installation
+
+Not yet done; recorded here after ssh_review's exact-diff clearance and
+ssh_coord's go.

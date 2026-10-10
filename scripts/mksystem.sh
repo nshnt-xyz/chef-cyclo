@@ -28,6 +28,8 @@ BYTES=2684354560
 HELPER=usr/libexec/dbus-daemon-launch-helper
 E2=/usr/sbin
 [ -x "$SRC/init" ] || { echo "run scripts/mkinitramfs.sh first" >&2; exit 1; }
+# Host keys are only ever made on the phone (docs/features/ssh.md).
+python3 scripts/ssh-keys.py scan "$SRC" || { echo "refusing: private key material in $SRC" >&2; exit 1; }
 for t in mke2fs e2fsck debugfs dumpe2fs; do
     [ -x "$E2/$t" ] || { echo "missing $E2/$t (e2fsprogs)" >&2; exit 1; }
 done

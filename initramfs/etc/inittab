@@ -13,6 +13,11 @@
 ::respawn:/bin/sh -c 'mkdir -p /run/user/0 && chmod 700 /run/user/0 || exit 1; export HOME=/root XDG_RUNTIME_DIR=/run/user/0; exec /usr/bin/dbus-daemon --session --nofork --nopidfile --address=unix:path=/run/user/0/bus'
 ::once:/bin/sh -c 'exec /usr/bin/gps-up > /run/gps-up.log 2>&1'
 ::respawn:/usr/bin/wifi-nm
+# SSH on port 22 of every interface (USB, Wi-Fi, PAN), key login only:
+# dropbear under chef-sshd, authorized keys baked into the image, host key on
+# /data/v1/ssh (ephemeral in /run/ssh when /data is not ours). The telnetd
+# above stays as it is: the passwordless USB-only recovery shell.
+::respawn:/usr/bin/chef-sshd
 # GNSS on demand: idle until a client leases it on /run/gps-manager.sock
 # (`gps-manager hold map`), then runs the LOC session, gpsd and the NMEA
 # pipeline on top of the gps-up modem; never starts or stops gps-up.

@@ -24,6 +24,12 @@ CACHE=$PWD/toolchain/apk/cache
 # pulls ncurses/fftw/dialog, ~6 MB, for tools we don't need (amixer/aplay
 # have no functional advantage here over tinymix/tinyplay). tinymix's
 # control names match stock's mixer_paths.xml verbatim.
+# SSH (docs/features/ssh.md): dropbear 2026.91 (530 KB installed; its
+# utmps-libs and skalibs-libs were already in the root) and
+# openssh-sftp-server (199 KB) at
+# /usr/lib/ssh/sftp-server, the path compiled into Alpine's dropbear. Modern
+# scp speaks SFTP, so that gives both scp and sftp; dropbear-scp (67 KB plus
+# the 331 KB dbclient it depends on) would only add the legacy `scp -O`.
 # UI/network tools: real iproute2 (ip/tc/ss), util-linux-misc provides rfkill.
 # The prebuilt CA bundle works with --no-scripts; no trust-store regeneration
 # is required. jq supports native ip/rfkill JSON workflows. tcpdump/iperf3
@@ -33,7 +39,8 @@ PKGS="alpine-baselayout musl busybox busybox-extras
       qmi-utils gpsd tinyalsa wpa_supplicant iw
       iproute2 util-linux-misc curl ca-certificates-bundle jq tcpdump iperf3
       networkmanager networkmanager-wifi networkmanager-cli networkmanager-tui
-      eudev glib apk-tools iptables iptables-legacy chrony e2fsprogs e2fsprogs-extra"
+      eudev glib apk-tools iptables iptables-legacy chrony e2fsprogs e2fsprogs-extra
+      dropbear openssh-sftp-server"
 
 rm -rf "$ROOT"
 mkdir -p "$ROOT" "$CACHE"
@@ -53,4 +60,5 @@ du -sh "$ROOT"
 ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/dbus-daemon" \
    "$ROOT/usr/bin/qmicli" "$ROOT/usr/sbin/gpsd" "$ROOT/usr/lib/libgps.so.32" \
    "$ROOT/bin/busybox" "$ROOT/bin/busybox-extras" \
-   "$ROOT/usr/bin/tinymix" "$ROOT/usr/bin/tinyplay"
+   "$ROOT/usr/bin/tinymix" "$ROOT/usr/bin/tinyplay" \
+   "$ROOT/usr/sbin/dropbear" "$ROOT/usr/bin/dropbearkey" "$ROOT/usr/lib/ssh/sftp-server"

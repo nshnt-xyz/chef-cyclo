@@ -13,6 +13,15 @@ Options before the subcommand: -t SECS (run/pull timeout, default 60) and
 --log DIR (keep a transcript of each session there; default: none).
 PHONE_HOST overrides the address. Needs `telnet` and python3-pexpect.
 
+--ssh ADDR (or PHONE_SSH=ADDR) uses SSH instead of telnet, for example over
+Wi-Fi with the USB cable out (docs/features/ssh.md): root@ADDR with the
+dedicated key ~/.ssh/chef-cyclo_ed25519 (PHONE_SSH_KEY), BatchMode, only that
+key, and its own known_hosts file ~/.ssh/chef-cyclo_known_hosts
+(PHONE_SSH_KNOWN_HOSTS) under HostKeyAlias chef-cyclo, so every address of the
+phone shares one entry; a new host key is accepted once, a changed one is
+refused. ~/.ssh/config is not read. The remote command gets the telnet
+shell's PATH, HOME and session bus. --log does not apply to SSH.
+
 Quirks this handles (docs/live-testing.md): echo is turned off and the
 terminal widened first, so long lines don't wrap into the output markers;
 output carries CRLF, which is stripped; busybox base64 has no -w, so uploads
@@ -28,6 +37,7 @@ import io
 import os
 import pathlib
 import shlex
+import subprocess
 import sys
 import tarfile
 
@@ -38,6 +48,17 @@ except ImportError:
 
 HOST = os.environ.get("PHONE_HOST", "172.16.42.1")
 PROMPT = "PROBE_SHELL> "
+SSH_KEY = os.environ.get("PHONE_SSH_KEY", os.path.expanduser("~/.ssh/chef-cyclo_ed25519"))
+SSH_KNOWN = os.environ.get("PHONE_SSH_KNOWN_HOSTS", os.path.expanduser("~/.ssh/chef-cyclo_known_hosts"))
+SSH_ALIAS = "chef-cyclo"
+# What the inittab telnetd line gives its shells (dropbear's default PATH
+# lacks the sbin directories).
+SSH_ENV = ("export PATH=/sbin:/usr/sbin:/bin:/usr/bin HOME=/root XDG_RUNTIME_DIR=/run/user/0 "
+           "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; ")
+HOSTKEY_HELP = f"""phone.py: the phone's SSH host key does not match {SSH_KNOWN}.
+A RAM-only boot (/data not ours) serves an ephemeral key from /run/ssh: check
+`cat /run/ssh/host-key-source` over telnet. If the change is expected, drop
+the old entry with: ssh-keygen -R {SSH_ALIAS} -f {SSH_KNOWN}"""
 
 
 class Phone:
@@ -66,10 +87,88 @@ class Phone:
         self.c.close()
 
 
+def ssh_argv(addr, remote, alive=False):
+    """The ssh command line for one remote shell command on ADDR."""
+    argv = ["ssh", "-F", "none", "-T", "-l", "root", "-i", SSH_KEY,
+            "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes",
+            "-o", "PasswordAuthentication=no", "-o", "KbdInteractiveAuthentication=no",
+            "-o", f"UserKnownHostsFile={SSH_KNOWN}", "-o", "GlobalKnownHostsFile=/dev/null",
+            "-o", "StrictHostKeyChecking=accept-new", "-o", f"HostKeyAlias={SSH_ALIAS}",
+            "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR"]
+    if alive:
+        argv += ["-o", "ServerAliveInterval=5", "-o", "ServerAliveCountMax=3"]
+    return argv + [addr, SSH_ENV + remote]
+
+
+def ssh(a, remote, data=None, timeout=None):
+    """Run REMOTE over SSH; return (status, stdout bytes, stderr text)."""
+    try:
+        r = subprocess.run(ssh_argv(a.ssh, remote), input=data, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        sys.exit(f"phone.py: no answer from {a.ssh} within {timeout} s")
+    err = r.stderr.decode(errors="replace")
+    if r.returncode == 255 and ("IDENTIFICATION HAS CHANGED" in err or "Host key verification failed" in err):
+        sys.exit(err.rstrip() + "\n" + HOSTKEY_HELP)
+    return r.returncode, r.stdout, err
+
+
+def ssh_run(a, line):
+    rc, out, err = ssh(a, line, timeout=a.timeout)
+    sys.stdout.write(out.decode(errors="replace"))
+    sys.stderr.write(err)
+    return rc
+
+
+def ssh_push(a):
+    d = a.dir.rstrip("/") or "/"
+    for f in a.files:
+        data = pathlib.Path(f).read_bytes()
+        dst = f"{d}/{pathlib.Path(f).name}"
+        mode = "755" if os.access(f, os.X_OK) else "644"
+        q, qt = shlex.quote(dst), shlex.quote(dst + ".part")
+        rc, out, err = ssh(a, f"mkdir -p {shlex.quote(d)} && cat > {qt} && chmod {mode} {qt} && mv -f {qt} {q} && sha256sum {q}",
+                           data=data, timeout=a.timeout)
+        here = hashlib.sha256(data).hexdigest()
+        if rc or here not in out.decode(errors="replace"):
+            sys.exit(f"{f}: phone copy does not match\n{out.decode(errors='replace')}{err}")
+        print(f"{f} -> {dst} sha256 {here}")
+    return 0
+
+
+def ssh_pull(a):
+    paths = " ".join(shlex.quote(x) for x in a.paths)
+    rc, data, err = ssh(a, f"tar -czf - {paths} 2>/dev/null", timeout=a.timeout)
+    if rc == 255:
+        sys.exit(f"pull: ssh failed, nothing written\n{err}".rstrip())
+    if not data:
+        sys.exit(f"pull: empty archive (no such paths?) {err}".rstrip())
+    try:
+        names = tarfile.open(fileobj=io.BytesIO(data), mode="r:gz").getnames()
+    except (tarfile.TarError, EOFError, OSError) as e:
+        sys.exit(f"pull: truncated or invalid archive ({e}), nothing written\n{err}".rstrip())
+    pathlib.Path(a.out).write_bytes(data)
+    print(f"{a.out}: {len(names)} entries, sha256 {hashlib.sha256(data).hexdigest()}")
+    return 0
+
+
+def ssh_stream(a):
+    with open(a.outfile, "wb") as out:
+        p = subprocess.Popen(ssh_argv(a.ssh, a.cmd, alive=True), stdin=subprocess.DEVNULL,
+                             stdout=out, stderr=subprocess.STDOUT)
+        try:
+            p.wait(timeout=a.max)
+        except subprocess.TimeoutExpired:
+            p.terminate()
+            p.wait()
+    return 0
+
+
 def cmd_run(a):
     line = " ".join(a.cmd) if a.cmd else sys.stdin.read().strip()
     if not line:
         sys.exit("run: no command")
+    if a.ssh:
+        return ssh_run(a, line)
     p = Phone(a.log, "run")
     rc, out = p.run(line, a.timeout)
     p.close()
@@ -78,6 +177,8 @@ def cmd_run(a):
 
 
 def cmd_push(a):
+    if a.ssh:
+        return ssh_push(a)
     p = Phone(a.log, "push")
     d = a.dir.rstrip("/") or "/"
     rc, out = p.run(f"mkdir -p {shlex.quote(d)}")
@@ -103,6 +204,8 @@ def cmd_push(a):
 
 
 def cmd_pull(a):
+    if a.ssh:
+        return ssh_pull(a)
     p = Phone(a.log, "pull")
     paths = " ".join(shlex.quote(x) for x in a.paths)
     p.c.sendline(f"tar -czf - {paths} 2>/dev/null | base64; echo END_TAG")
@@ -120,6 +223,8 @@ def cmd_pull(a):
 
 
 def cmd_stream(a):
+    if a.ssh:
+        return ssh_stream(a)
     c = pexpect.spawn("telnet", [HOST], encoding="utf-8", timeout=None, maxread=65536)
     c.logfile_read = open(a.outfile, "w", buffering=1)
     c.expect("# ")
@@ -136,6 +241,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("-t", "--timeout", type=int, default=60)
     ap.add_argument("--log", metavar="DIR")
+    ap.add_argument("--ssh", metavar="ADDR", default=os.environ.get("PHONE_SSH") or None,
+                    help="use SSH to root@ADDR instead of telnet (default: $PHONE_SSH)")
     sub = ap.add_subparsers(dest="op", required=True)
     s = sub.add_parser("run")
     s.add_argument("cmd", nargs="*")

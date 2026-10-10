@@ -31,7 +31,8 @@ Paths below are relative to the repository root.
 | `tools/tas2560-send-cal.c` | Atomic writer for the TAS2560's write-only five-integer calibration control. |
 | `tools/afe-topology-cal.c`, `tools/tert-tx-hold.c`, `tools/acdb-afe-topology.py` | Speaker-protection experiment helpers: resident AFE topology installer, resident TERT_MI2S_TX hostless holder, read-only stock ACDB topology decoder. See [Audio](features/audio.md). |
 | `tools/tests/`, component Makefiles | Host verification for helpers and lifecycle scripts. |
-| `scripts/` | Toolchain setup, kernel environment, rootfs/initramfs/boot packing, Chef loader-budget check, live-test drivers (`phone-boot.sh`, `phone.py`, see [live testing](live-testing.md)). |
+| `scripts/` | Toolchain setup, kernel environment, rootfs/initramfs/boot packing, Chef loader-budget check, live-test drivers (`phone-boot.sh`, `phone.py`, see [live testing](live-testing.md)), SSH key setup and gates (`ssh-setup.sh`, `ssh-keys.py`, see [SSH](features/ssh.md)). |
+| `secrets/` | Gitignored host-specific inputs: `secrets/ssh/authorized_keys`, the public keys baked into every image ([SSH](features/ssh.md)). |
 | `logs/` | Captured device evidence; GPS trace archives may be intentionally gitignored. |
 | `toolchain/` | Gitignored GCC 4.9, musl cross compiler, boot tools, Alpine keys and package cache. |
 | `out/` | Generated kernel, rootfs, initramfs, and boot images. |

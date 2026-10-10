@@ -76,3 +76,7 @@ tools/rtc-edge
 
 # chefui build tree (tools/chefui/Makefile)
 tools/chefui/build/
+
+# SSH authorized keys baked into the image (scripts/ssh-setup.sh,
+# docs/features/ssh.md): host-specific, never committed.
+secrets/

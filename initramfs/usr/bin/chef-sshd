@@ -1,0 +1,182 @@
+#!/bin/sh
+# chef-sshd: dropbear SSH server, key login only, started from inittab
+# (respawn). See docs/features/ssh.md.
+#
+#   1. The authorized keys come from the image (/etc/chef/ssh/authorized_keys,
+#      baked in by scripts/mkinitramfs.sh from the gitignored
+#      secrets/ssh/authorized_keys) and dropbear reads them there (-D):
+#      /root is an empty tmpfs that /init mounts, so nothing is copied at
+#      boot. An image built with SSH=0 has no key file: this logs once and
+#      idles (no respawn loop).
+#   2. The ed25519 host key lives in /data/v1/ssh (root, 0700) when /data is
+#      ours (chef-state ours): kept if `dropbearkey -y` reads it, else a
+#      broken key is moved aside to .bad and a new one generated (temp
+#      name, sync, rename, sync). Otherwise (RAM-only boot, or the /data
+#      step failed) it is generated in /run/ssh for this boot only, and a
+#      kmsg line says the host key is ephemeral. Private host keys are never
+#      in the image or the repository.
+#   3. dropbear gets a copy in /run/ssh: it re-executes itself for every
+#      connection and reads the host key again each time, so it never opens
+#      anything under /data (chef-storage shutdown's fuser finds nothing).
+#   4. dropbear runs in the foreground: -s (no password logins at all, so
+#      root's empty password is never usable), -m (no motd), -k (no remote
+#      port forwarding; local -L stays, so the host can reach loopback
+#      services such as gpsd on 2947), -T 3 auth tries, -K 30 keepalive
+#      (only while a session is open), port 22 on all interfaces. It
+#      logs to stderr (-E), and each line goes to kmsg (so fblog shows it),
+#      at most LOG_BURST lines per LOG_WINDOW s, with a count of the
+#      suppressed ones, so a Wi-Fi brute force cannot flood the panel.
+#      Successful logins ("Pubkey auth succeeded") always pass, outside the
+#      budget: they need a key, and a flood must not hide the one line that
+#      shows a leaked key in use.
+#      Idle, dropbear blocks in select() with no timeout.
+#
+# A failure sleeps before exiting, so init's respawn cannot spin.
+KEYS=${CHEF_SSHD_KEYS:-/etc/chef/ssh}
+DATA=${CHEF_SSHD_DATA:-/data}
+RUN=${CHEF_SSHD_RUN:-/run/ssh}
+KMSG=${CHEF_SSHD_KMSG:-/dev/kmsg}
+UPTIME=${CHEF_SSHD_UPTIME:-/proc/uptime}
+DROPBEAR=${CHEF_SSHD_DROPBEAR:-/usr/sbin/dropbear}
+KEY=dropbear_ed25519_host_key
+LOG_BURST=20
+LOG_WINDOW=60
+FAIL_SLEEP=10
+
+log() {
+	[ ! -c "$KMSG" ] && [ ! -f "$KMSG" ] || echo "chef-sshd: $*" 2>/dev/null >> "$KMSG" || true
+}
+
+fail() {
+	log "$*; retrying in $FAIL_SLEEP s"
+	sleep "$FAIL_SLEEP"
+	exit 1
+}
+
+valid_key() { [ -f "$1" ] && [ ! -L "$1" ] && [ -s "$1" ] && dropbearkey -y -f "$1" >/dev/null 2>&1; }
+
+# new_key DIR: generate DIR/$KEY through a temp name. dropbearkey itself
+# writes through its own temp file, fsyncs it and links it into place; it
+# also writes NAME.pub, which is not wanted here.
+new_key() {
+	rm -f "$1/$KEY.tmp" "$1/$KEY.tmp".* &&
+	dropbearkey -t ed25519 -f "$1/$KEY.tmp" >/dev/null 2>&1 &&
+	rm -f "$1/$KEY.tmp".* &&
+	chmod 600 "$1/$KEY.tmp" &&
+	valid_key "$1/$KEY.tmp" &&
+	sync &&
+	mv -f "$1/$KEY.tmp" "$1/$KEY" &&
+	sync
+}
+
+# persistent_key: make sure $DATA/v1/ssh/$KEY is a valid key; prints nothing.
+# When the directory cannot be set up (for example /data remounted read-only
+# by errors=remount-ro), a valid key already in it is still used as long as
+# the directory is ours and closed to others: a needless new host key would
+# only cost a host key mismatch on every client.
+persistent_key() {
+	dir=$DATA/v1/ssh
+	if ! { mkdir -p "$dir" && chown 0:0 "$dir" && chmod 700 "$dir"; }; then
+		if [ -d "$dir" ] && [ ! -L "$dir" ] && [ "$(stat -c '%u %a' "$dir")" = "$(id -u) 700" ] && valid_key "$dir/$KEY"; then
+			log "cannot prepare $dir; using its existing host key as it is"
+			return 0
+		fi
+		log "cannot prepare $dir"
+		return 1
+	fi
+	if valid_key "$dir/$KEY"; then
+		chmod 600 "$dir/$KEY" || log "cannot chmod the host key in $dir; using it as it is"
+		return 0
+	fi
+	if [ -e "$dir/$KEY" ] || [ -L "$dir/$KEY" ]; then
+		log "host key in $dir is unreadable or corrupt; moved to $KEY.bad, generating a new one"
+		mv -f "$dir/$KEY" "$dir/$KEY.bad" || { log "cannot move the broken host key aside"; return 1; }
+	else
+		log "no host key in $dir; generating one"
+	fi
+	new_key "$dir" || { rm -f "$dir/$KEY.tmp" "$dir/$KEY.tmp".*; log "host key generation in $dir failed"; return 1; }
+}
+
+# dropbear's -E lines become "dropbear[PID]: message" (the date is dropped:
+# kmsg has its own time); anything else becomes "dropbear: line".
+logloop() {
+	n=0 dropped=0 start=
+	while IFS= read -r line; do
+		up=0
+		read -r up _ 2>/dev/null < "$UPTIME"
+		now=${up%%.*}
+		[ -n "$start" ] || start=$now
+		if [ $((now - start)) -ge "$LOG_WINDOW" ]; then
+			[ "$dropped" = 0 ] || log "$dropped dropbear log lines suppressed"
+			start=$now n=0 dropped=0
+		fi
+		# "[PID] Mon DD HH:MM:SS message": the first "] " ends the PID, so a
+		# client cannot shift the parse with text in a username.
+		pid= msg=$line
+		case "$line" in
+		\[*\]\ *)
+			pid=${line%%\]*}
+			pid=${pid#\[}
+			case "$pid" in
+			''|*[!0-9]*) pid=;;
+			*) msg=${line#*\] }; msg=${msg#??? ?? ??:??:?? };;
+			esac;;
+		esac
+		case "$msg" in
+		"Pubkey auth succeeded for "*) [ -n "$pid" ] || count_it=1;;
+		*) count_it=1;;
+		esac
+		if [ -n "${count_it:-}" ]; then
+			count_it=
+			if [ "$n" -ge "$LOG_BURST" ]; then
+				dropped=$((dropped + 1))
+				continue
+			fi
+			n=$((n + 1))
+		fi
+		if [ -n "$pid" ]; then line="dropbear[$pid]: $msg"; else line="dropbear: $msg"; fi
+		[ ! -c "$KMSG" ] && [ ! -f "$KMSG" ] || echo "$line" 2>/dev/null >> "$KMSG" || true
+	done
+	[ "$dropped" = 0 ] || log "$dropped dropbear log lines suppressed"
+}
+
+cd / || exit 1
+if [ ! -s "$KEYS/authorized_keys" ]; then
+	log "no $KEYS/authorized_keys in this image (built with SSH=0): SSH disabled"
+	sleep 2147483647
+	exit 0
+fi
+
+mkdir -p "$RUN" && chown 0:0 "$RUN" && chmod 700 "$RUN" || fail "cannot prepare $RUN"
+src=
+if chef-state ours 2>/dev/null; then
+	if persistent_key; then
+		src=$DATA/v1/ssh
+	else
+		log "persistent host key unavailable; falling back to RAM"
+	fi
+fi
+if [ -n "$src" ]; then
+	rm -f "$RUN/$KEY.tmp" &&
+	cp "$src/$KEY" "$RUN/$KEY.tmp" &&
+	chmod 600 "$RUN/$KEY.tmp" &&
+	mv -f "$RUN/$KEY.tmp" "$RUN/$KEY" || fail "cannot copy the host key to $RUN"
+	echo persistent > "$RUN/host-key-source"
+else
+	# Keep a key generated earlier this boot (a dropbear respawn) so the
+	# host key at least stays the same until the next reboot.
+	if ! valid_key "$RUN/$KEY"; then
+		rm -f "$RUN/$KEY"
+		new_key "$RUN" || fail "host key generation in $RUN failed"
+	fi
+	echo ephemeral > "$RUN/host-key-source"
+	log "/data is not ours: host key in $RUN is ephemeral (this boot only)"
+fi
+valid_key "$RUN/$KEY" || fail "host key copy in $RUN does not load"
+fp=$(dropbearkey -y -f "$RUN/$KEY" 2>/dev/null | sed -n 's/^Fingerprint: *//p')
+log "host key $(cat "$RUN/host-key-source") ${fp:-?}; listening on port 22, key login only"
+
+set -o pipefail
+"$DROPBEAR" -F -E -s -m -k -T 3 -K 30 -p 22 -r "$RUN/$KEY" -D "$KEYS" -P "$RUN/dropbear.pid" </dev/null 2>&1 | logloop
+rc=$?
+fail "dropbear exited ($rc)"

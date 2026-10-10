@@ -215,7 +215,9 @@ abslot: abslot.c
 # Plain libc. tests/test_rtc_edge.py runs the host binary against a fake
 # since_epoch file (dry run, nothing sets the host clock); tests/
 # test_chef_state.py covers initramfs/usr/bin/chef-state with stubs, and
-# tests/test_chef_reboot.py initramfs/usr/bin/chef-reboot.
+# tests/test_chef_reboot.py initramfs/usr/bin/chef-reboot. tests/test_ssh.py
+# covers SSH: initramfs/usr/bin/chef-sshd, scripts/ssh-keys.py, the Wi-Fi
+# address dispatcher, the build wiring and scripts/phone.py --ssh.
 rtc-edge: rtc-edge.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
@@ -251,6 +253,7 @@ test: $(TEST_BIN) test-shell wifi-psk abslot rtc-edge test-display-inventory
 	python3 tests/test_chef_state.py
 	python3 tests/test_chef_reboot.py
 	python3 tests/test_stage1.py
+	python3 tests/test_ssh.py
 
 # gps-up (initramfs/) selection-logic regression; not a build product of
 # this directory, but this is the natural place to run it alongside the

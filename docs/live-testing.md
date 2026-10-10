@@ -57,6 +57,12 @@ scripts/phone.py --log DIR run '...'                 # keep a session transcript
 ```
 
 `telnet 172.16.42.1` gives the same passwordless root shell interactively.
+
+Without the USB cable (for example during physical tests), images built since
+2026-10-10 take [SSH](features/ssh.md) logins with the dedicated key on every
+interface: `scripts/phone.py --ssh ADDR run|push|pull|stream ...` (or
+`PHONE_SSH=ADDR`) with the Wi-Fi address the panel shows (`chef Wi-Fi: ...
+ssh root@ADDR`). `scripts/phone-boot.sh` still needs USB (fastboot).
 Push a rebuilt static binary instead of rebooting when iterating on a tool;
 `/run` and `/tmp` are RAM.
 

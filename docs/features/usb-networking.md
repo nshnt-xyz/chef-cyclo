@@ -25,6 +25,6 @@ Live checks: confirm host enumeration and DHCP, ping and telnet, then unplug/rep
 
 ## Limitations
 
-The image binds the passwordless telnet listener to 172.16.42.1. See [connectivity plans](../next-steps/connectivity-and-sensors.md). A failed fastboot bulk transfer is a separate host-controller issue covered in [build troubleshooting](../building.md#build-and-boot-troubleshooting).
+The image binds the passwordless telnet listener to 172.16.42.1. Key-only [SSH](ssh.md) listens on every interface, USB included. See [connectivity plans](../next-steps/connectivity-and-sensors.md). A failed fastboot bulk transfer is a separate host-controller issue covered in [build troubleshooting](../building.md#build-and-boot-troubleshooting).
 
 See the [build log](../build-log.md) entries for first boot (2026-09-13) and USB replug testing (2026-09-18) for evidence.
