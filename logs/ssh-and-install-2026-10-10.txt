@@ -140,9 +140,10 @@ afbb36e9 (v4-*.txt), the final tree:
   session ended ("closed by remote host"); the phone came back on the
   installed pair (bootreason=reboot, e2fsck -p 0), and the 5 rows pending
   before the reboot (118.8..124.3 s, v4-reboot-before.txt: log.csv 5264
-  lines, the last one 117.4 s, already on /data) plus the shutdown row
-  (126.0 s) were in log.csv after it, followed by the next boot's start
-  row (v4-after-reboot-installed.txt).
+  lines, the last one 117.4 s, already on /data) plus one more ordinary
+  row recorded after that snapshot (126.0 s, a uevent row; powerd writes
+  no separate shutdown row) were in log.csv after it, followed by the
+  next boot's start row (v4-after-reboot-installed.txt).
 
 5. The first leave of the installed pair raced (my mistake), and the
    chef-storage fix it led to
@@ -174,7 +175,70 @@ meanwhile returns 0. Only the milliseconds between that check and the
 kills stay unguarded. Host test: test_shutdown_path_detached_during_sweep
 (fails on the old script).
 
-6. Installation
+6. Installation, 2026-10-10 19:46..19:48 UTC (2026-10-11 01:16..01:18 IST)
 
-Not yet done; recorded here after ssh_review's exact-diff clearance and
-ssh_coord's go.
+Built with SKIP_KERNEL=1 scripts/mkinstall.sh from 1fae453 (527b576 SSH
++ 1fae453 sweep fix), working tree clean. ssh_review gave exact-diff
+clearance for git diff 8201c79..1fae453 (sha256 e2a36f97..., 36 files;
+commits 03f40ce 4a52140 a202272 527b576 1fae453) and these artifacts,
+with the stamp read back from the image and the stage-1 ramdisk, the
+changed files read back byte-equal to the commit, ssh-keys.py scan rc 0
+and one baked key (SHA256:GfWrmzAU...V9I, the dedicated host key);
+ssh_coord gave the final go (install/clearance.txt). Kernel #22
+unchanged (0cf2981c...). Installed:
+  system_a  out/system_a-e73c8c54.img
+            e73c8c5415e2d69077d5268677cb7148dcc9624afb7555c1b3716b1bd1c246af
+            (stamp 1e289bf2991d900e0ec1f12c6ffd85faac6eaee6d6174d7c002a0177fc46614a,
+            tree manifest 350e40b5...)
+  boot_a    out/boot-stage1-034db212.img (stage 1)
+            034db212d96bb886ef1bd7f850b6f5087c9b1dc35a30e87c6beec56f903aae74
+Fallbacks kept in out/: the previous pair system_a 84a0baa4 + boot_a
+6062f115 (2026-10-08) and the one before, 799577b6 + e5b57eff; RAM image
+of the installed tree out/boot-ram-7eab8e36.img.
+Order (install/install-*.txt, install-times.txt):
+  19:46:22 installed pair 84a0baa4 + 6062f115 left with the pushed
+           chef-reboot (section 5 rule); fastboot at 19:46:35 (9 s)
+  19:46:40 current-slot a; both images rehashed = cleared hashes
+  19:46:45 fastboot flash system_a: sparse 1/1 OKAY, write OKAY 20.6 s
+           (fastboot first prints "Invalid sparse file format at header
+           magic" for the raw image and resparses it); current-slot a
+  19:47:15 fastboot boot of the stage-1 image: "system_a build stamp
+           matches; switch_root", read-only system_a root, tree manifest
+           350e40b5, /data ours, chef-sshd with the persistent host key,
+           chef-sshd/chef-storage/chef-reboot as built
+  ~19:47:58 back to fastboot with the image's own chef-reboot (fastboot
+           after 9 s); the 4 rows pending in that boot are in log.csv
+  19:48:08 current-slot a; both images rehashed = cleared hashes
+  19:48:13 fastboot flash boot_a OKAY; 19:48:14 fastboot reboot
+Installed regression at uptime 49.7 s (install-regression.txt):
+bootreason reboot, slot _a, mode normal, read-only system_a root with
+manifest 350e40b5, /data and the BlueZ, NetworkManager and chrony binds
+owned, chef-sshd/chef-storage/chef-reboot as in 1fae453 and chef-state
+2eea1ae3 / powerd 3d4287c5 (unchanged since 8201c79), wlan0 connected,
+HTTPS 204, chrony Leap Normal, Bluetooth powered, powerd "batched every
+600 s", mag-group-2980 unchanged (sha256 732824a0..., file from
+2026-10-10 14:09), host key persistent (same fingerprint), abslot marked
+boot_a successful at 36.7 s, SSH over Wi-Fi works and fuser -m /data is
+empty with a session open. Write counters: the check walks all 68
+mmcblk0p* partitions and prints any but userdata with a nonzero
+sectors-written count (field 7 of stat); it printed none. The only other
+write is abslot's GPT attribute update (LBAs 122142697, 122142719, 12
+and 1, outside every partition). The full per-partition list from the
+boot after the chef-reboot round trip (uptime 211 s, abslot had nothing
+to mark) is in protected-write-counters.txt: every partition 0 except
+userdata 497, whole disk 497.
+Ordinary reboot typed in an SSH session (installed-rb1-*): chef-state
+shutdown all codes 0, data globally read-only, fully unmounted; back
+with bootreason reboot, e2fsck -p 0; the 9 rows pending before it
+(10.2..58.4 s) in log.csv once.
+chef-reboot bootloader and a normal boot back (installed-crb-*):
+chef-state all codes 0, data fully unmounted, btprobe, fastboot after
+10 s, `fastboot reboot`, stage-1 stamp match, e2fsck -p 0; the 5 rows
+pending (11.1..44.9 s) in log.csv.
+Cable-free on the installed pair (installed-cablefree.txt, 19:52:44 UTC,
+01:22 IST, the user's cable out): no host USB link, phone usb online 0,
+Discharging, usb0 DOWN; phone.py --ssh run rc 0, push and pull
+byte-exact, a kmsg stream.
+Known cosmetic behaviour: the Wi-Fi line is printed twice per connect
+(NetworkManager's up and dhcp4-change, 40 ms apart). The user noticed it
+on the panel and decided no fix is needed.

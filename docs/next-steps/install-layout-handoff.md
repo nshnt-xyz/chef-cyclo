@@ -27,10 +27,12 @@ After the [shutdown hang](shutdown-hang-handoff.md) fix (kernel #22,
 `boot_a` `81a5c5ef`; the phase 3 pair is kept in `out/pre-btfix/`. The
 [state persistence](state-persistence-handoff.md) work replaced it on
 2026-10-06 with `799577b6` + `e5b57eff`, and its
-[follow-up](state-persistence-followup-handoff.md) on 2026-10-08 with the
-current pair `system_a` `84a0baa4` (stamp `7ff6f75a`) + `boot_a` `6062f115`
-(commit 8201c79, kernel #22 unchanged); `799577b6` + `e5b57eff` stay in
-`out/` as the fallback.
+[follow-up](state-persistence-followup-handoff.md) on 2026-10-08 with
+`system_a` `84a0baa4` (stamp `7ff6f75a`) + `boot_a` `6062f115` (commit
+8201c79). The [SSH install](ssh-and-install-handoff.md) on 2026-10-11 put
+in the current pair `system_a` `e73c8c54` (stamp `1e289bf2`) + `boot_a`
+`034db212` (commit 1fae453, kernel #22 unchanged); `84a0baa4` + `6062f115`
+and `799577b6` + `e5b57eff` stay in `out/` as fallbacks.
 
 ## Decision (user, 2026-10-04)
 

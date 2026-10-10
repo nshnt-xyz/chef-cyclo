@@ -107,7 +107,7 @@ Since 2026-10-06 (`chef-state`, `tools/rtc-edge.c`; [handoff](../next-steps/stat
 | Power log | `/data/v1/power/log.csv(.1)` | `powerd -l`, batched through `/run/power/log.pending` ([battery](battery-and-charging.md)) | you |
 | Magnetometer hard-iron bias (REG2 group 2980) | `/data/v1/sensors/mag-group-2980` | `sensors-up` via `chef-state mag-save` | `sensors-up` via `chef-state mag-restore` ([sensors](sensors.md#magnetometer-calibration)) |
 
-`chef-storage boot` creates `crash`, `time`, `power` and `sensors` (root, 0700) and `chrony` (`chrony:chrony`, 0700) after the BlueZ and NetworkManager binds, and binds `chrony` on `/var/lib/chrony`. A failure there is logged and leaves the other binds in place. A failed chrony bind leaves its tmpfs directory; a missing or foreign `/data` gives all consumers their RAM paths. On an owned but unwritable `/data`, state saves are skipped or fail with a log line; powerd falls back if creating its log directory fails, and keeps its pending rows on `/run` (bounded, oldest dropped) while flushing them fails.
+`chef-storage boot` creates `crash`, `time`, `power`, `sensors` and `ssh` (the [SSH](ssh.md) host key; root, 0700) and `chrony` (`chrony:chrony`, 0700) after the BlueZ and NetworkManager binds, and binds `chrony` on `/var/lib/chrony`. A failure there is logged and leaves the other binds in place. A failed chrony bind leaves its tmpfs directory; a missing or foreign `/data` gives all consumers their RAM paths. On an owned but unwritable `/data`, state saves are skipped or fail with a log line; powerd falls back if creating its log directory fails, and keeps its pending rows on `/run` (bounded, oldest dropped) while flushing them fails.
 
 Common rules, all in `initramfs/usr/bin/chef-state`:
 
