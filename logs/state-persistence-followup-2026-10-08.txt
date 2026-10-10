@@ -162,4 +162,67 @@ failed flush retried once before the syscall). Up to one interval of
 ordinary rows can be lost on: PMIC hardware reset (Power about 8.7 s),
 sudden power loss, kernel panic or watchdog reset, reboot -f /
 poweroff -f, the outer 5 s hook bound killing chef-state shutdown,
-buttond's last-resort reboot(RB_POWER_OFF), or /data failing.
+buttond's last-resort reboot(RB_POWER_OFF), a raw reboot(2) to the
+bootloader (`btprobe restart bootloader`, used by scripts/phone-boot.sh
+and the fastboot test and install workflow: only `chef-storage shutdown
+--pause-init` runs before it, which does not stop powerd, see section
+5), or /data failing.
+
+5. Installation, 2026-10-08 (after commit 8201c79)
+
+persist_review cleared exactly the 8201c79 diff (0d4f4fdd...) and these
+artifacts; persist_coord gave the user's go. Kernel #22 unchanged
+(0cf2981c...). Installed (times UTC):
+  system_a  out/system_a-84a0baa4.img
+            84a0baa4106c7eda6d926d23d1d67d283cb61f5dbd538025d33abb4299a62973
+            (stamp 7ff6f75a39940aa98f3293807b297326cc8bb9c7b7857d87bb0d58c3d232af83)
+  boot_a    out/boot-stage1-6062f115.img (stage 1)
+            6062f115984ceb38590a278e8a1ea4a93d3aa087aa151313b55efbb3fb4e0235
+Fallback pair, kept in out/: system_a 799577b6 (system_a-799577b6.img,
+.stamp, .manifest) + boot_a e5b57eff (boot-stage1-e5b57eff.img), the
+pair installed on 2026-10-06.
+Order, as on 2026-10-06 (stage 1 checks its stamp against system_a, so
+its fastboot boot can only pass after the new system_a is written):
+  15:45:51 current-slot a; image rehash matched
+           (install-system_a-slot.txt, install-system_a-preflash-hash.txt)
+  15:46:16 fastboot flash system_a: sparse 1/1 OKAY, write OKAY 20.7 s
+           (install-system_a-flash.txt); current-slot still a
+           (install-system_a-slot-after.txt). That a system_a flash
+           resets slot a to not successful with retry 7 is the
+           2026-10-05 phase 3 finding; it was not read back here.
+  15:46:45 fastboot boot of the stage-1 image: "system_a build stamp
+           matches; switch_root", read-only system_a root, /data ours,
+           RTC offset restored, powerd 3d4287c5 and chef-state 2eea1ae3
+           as built from 8201c79 (install-stage1-boot.txt,
+           install-stage1-probe.txt)
+           Back to fastboot by 15:47:08 the usual way from our image
+           (as scripts/phone-boot.sh does): `chef-storage shutdown
+           --pause-init; sync; sleep 2; btprobe restart bootloader`.
+           chef-storage stops only the processes fuser finds on /data
+           and remounts it read-only; `btprobe restart bootloader` is a
+           raw reboot(2), so init's ::shutdown lines and chef-state
+           shutdown never ran. powerd holds no /data file between
+           flushes, so it was not stopped and its pending rows of this
+           boot (12071bee, seq 82) were lost: in log.csv its start row
+           (6.4, 15:46:40) is followed directly by the next boot's start
+           row (installed-rb1-after.txt). No shutdown time save ran and
+           chronyd was not stopped, so no drift file was written at that
+           point. The next boot's e2fsck -p exited 0
+           (install-regression.txt). The same route ended each boot
+           before a fastboot boot in section 3; their pending rows are
+           not claimed either.
+  15:47:08 current-slot a; image rehash matched; fastboot flash boot_a
+           OKAY (install-boot_a-slot.txt, -preflash-hash.txt, -flash.txt)
+  15:47:18 fastboot reboot (install-reboot.txt)
+Installed regression at uptime 30.72 s (install-regression.txt):
+bootreason reboot, slot _a, read-only system_a root, /data and the
+BlueZ, NetworkManager and chrony binds owned, powerd 3d4287c5 and
+chef-state 2eea1ae3, build stamp kernel 0cf2981c, /run/chef-time
+rtc-offset, wlan0 connected, HTTPS 204, chrony Normal, Bluetooth
+powered, timekeeper pgrp == PID (1053), powerd batching to /data
+("batched every 600 s"), protected write counters 0.
+Ordinary reboot on the installed pair (installed-rb1-*): hook 42.28 ->
+42.92 s, time_save_rc=0 power_flush_rc=0 mag_save_rc=0 sync_rc=0
+stop_rc=0, data fully unmounted, back up in 25.6 s; the 7 rows pending
+before it (6.9..14.8, captured at 40.95) are in log.csv once after the
+boot; protected write counters 0.

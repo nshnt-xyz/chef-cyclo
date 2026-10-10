@@ -22,9 +22,15 @@ Its live steps 2 to 6 passed the same night (see
 [phase 3 result](#phase-3-result-rootfs_impl-2026-10-05)): `system_a` holds
 the read-only root `9c47c6b8` and `boot_a` the stage-1 image `5c509eb2`;
 promotion of `out/boot.img` and the commit are the coordinator's call.
-Since the [shutdown hang](shutdown-hang-handoff.md) fix (kernel #22,
-2026-10-05) the installed pair is `system_a` `e72a3039` (stamp `13f336e5`) +
-`boot_a` `81a5c5ef`; the phase 3 pair is kept in `out/pre-btfix/`.
+After the [shutdown hang](shutdown-hang-handoff.md) fix (kernel #22,
+2026-10-05) the installed pair was `system_a` `e72a3039` (stamp `13f336e5`) +
+`boot_a` `81a5c5ef`; the phase 3 pair is kept in `out/pre-btfix/`. The
+[state persistence](state-persistence-handoff.md) work replaced it on
+2026-10-06 with `799577b6` + `e5b57eff`, and its
+[follow-up](state-persistence-followup-handoff.md) on 2026-10-08 with the
+current pair `system_a` `84a0baa4` (stamp `7ff6f75a`) + `boot_a` `6062f115`
+(commit 8201c79, kernel #22 unchanged); `799577b6` + `e5b57eff` stay in
+`out/` as the fallback.
 
 ## Decision (user, 2026-10-04)
 
