@@ -20,6 +20,7 @@ enum {
 	SYS_WIFI = 1 << 3,
 	SYS_BT = 1 << 4,
 	SYS_STORAGE = 1 << 5,
+	SYS_WIFI_VIEW = 1 << 6,		/* wifi_view (wifi.h): the Wi-Fi pages */
 };
 
 /* gps-manager states (docs/features/gps.md) plus "no manager". */

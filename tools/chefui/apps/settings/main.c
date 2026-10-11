@@ -4,14 +4,21 @@
  * shows the log screen whenever it is not running. See
  * docs/features/system-ui.md.
  *
- *   chef-settings [--fake-state FILE] [--page hub|display] [--theme dark|light]
- *                 [--brightness PCT] [--snapshot PATH [--snapshot-after MS]]
- *                 [--data DIR] [--run DIR]
+ *   chef-settings [--fake-state FILE]... [--page PAGE] [--theme dark|light]
+ *                 [--brightness PCT] [--sleep 30|60|300|0]
+ *                 [--snapshot PATH [--snapshot-after MS]]
+ *                 [--data DIR] [--run DIR] [--keys TEXT]
  *
- * --fake-state   fixed system state (sys/fake.c), no real sources
- * --page         open this page at start
+ * --fake-state   fixed system state (sys/fake.c), no real sources; up to
+ *                four files, read in order
+ * --page         open this page at start: hub, display, wifi, wifi-password
+ *                (for the first network listed), wifi-hidden, wifi-details
+ *                (on real state these two open once NetworkManager has
+ *                given the network or the connection)
+ * --keys         with --fake-state only: type TEXT on the page's keyboard
  * --theme        this theme for this run (not saved)
  * --brightness   this brightness for this run (not saved)
+ * --sleep        this auto-sleep (seconds, 0 = never) for this run (not saved)
  * --snapshot     write the frame as PPM after MS (default 500) and exit
  * --data/--run   settings roots instead of /data and /run (host runs)
  *
@@ -44,19 +51,24 @@
 #include "chefui.h"
 #include "settings.h"
 #include "sys.h"
+#include "wifi.h"
 
 #define RUN_DIR "/run/chef-settings"
 #define ARGS_FILE RUN_DIR "/args"
 #define STOP_FILE RUN_DIR "/stop"
 #define INIT_FAIL_SLEEP_S 5	/* so init's respawn does not spin */
 
+#define FAKE_MAX 4
+
 struct opts {
-	const char *fake, *page, *theme, *snapshot, *data, *run;
+	const char *fake[FAKE_MAX], *page, *theme, *snapshot, *data, *run, *keys;
+	int n_fake;
 	int snapshot_after;
 	int brightness;		/* 0 = from settings */
+	int sleep_s;		/* -1 = from settings */
 };
 
-static struct opts O = { .snapshot_after = 500 };
+static struct opts O = { .snapshot_after = 500, .sleep_s = -1 };
 
 static int64_t now_ms(void)
 {
@@ -68,10 +80,54 @@ static int64_t now_ms(void)
 
 static int usage(void)
 {
-	fprintf(stderr, "usage: chef-settings [--fake-state FILE] [--page hub|display] "
-			"[--theme dark|light] [--brightness PCT] [--snapshot PATH [--snapshot-after MS]] "
-			"[--data DIR] [--run DIR]\n");
+	fprintf(stderr, "usage: chef-settings [--fake-state FILE]... [--page hub|display|wifi|"
+			"wifi-password|wifi-hidden|wifi-details] [--theme dark|light] [--brightness PCT] "
+			"[--sleep 30|60|300|0] "
+			"[--snapshot PATH [--snapshot-after MS]] [--data DIR] [--run DIR] "
+			"[--keys TEXT]\n");
 	return 2;
+}
+
+static int pending_page;
+static void open_pending(void);
+
+static int page_kind(const char *v)
+{
+	static const struct { const char *name; enum app_page kind; } pages[] = {
+		{ "hub", APP_PAGE_HUB }, { "display", APP_PAGE_DISPLAY }, { "wifi", APP_PAGE_WIFI },
+		{ "wifi-password", APP_PAGE_WIFI_PASSWORD }, { "wifi-hidden", APP_PAGE_WIFI_HIDDEN },
+		{ "wifi-details", APP_PAGE_WIFI_DETAILS },
+	};
+
+	for (unsigned i = 0; i < sizeof(pages) / sizeof(pages[0]); i++)
+		if (!strcmp(v, pages[i].name))
+			return (int)pages[i].kind;
+	return -1;
+}
+
+/* --page: the pages a person would pass on the way there */
+static void open_start_page(const char *v)
+{
+	switch (page_kind(v)) {
+	case APP_PAGE_DISPLAY:
+		app_open(APP_PAGE_DISPLAY, "Display");
+		break;
+	case APP_PAGE_WIFI_PASSWORD:
+	case APP_PAGE_WIFI_DETAILS:
+		app_open(APP_PAGE_WIFI, "Wi-Fi");
+		pending_page = page_kind(v);
+		open_pending();		/* now with fake state, later with real */
+		break;
+	case APP_PAGE_WIFI_HIDDEN:
+		app_open(APP_PAGE_WIFI, "Wi-Fi");
+		app_open(APP_PAGE_WIFI_HIDDEN, "Hidden network");
+		break;
+	case APP_PAGE_WIFI:
+		app_open(APP_PAGE_WIFI, "Wi-Fi");
+		break;
+	default:
+		break;
+	}
 }
 
 static int parse(int argc, char **argv, struct opts *o)
@@ -81,12 +137,17 @@ static int parse(int argc, char **argv, struct opts *o)
 
 		if (!v)
 			return -1;
-		if (!strcmp(a, "--fake-state"))
-			o->fake = v;
-		else if (!strcmp(a, "--page") && (!strcmp(v, "hub") || !strcmp(v, "display")))
+		if (!strcmp(a, "--fake-state") && o->n_fake < FAKE_MAX)
+			o->fake[o->n_fake++] = v;
+		else if (!strcmp(a, "--page") && page_kind(v) >= 0)
 			o->page = v;
+		else if (!strcmp(a, "--keys"))
+			o->keys = v;
 		else if (!strcmp(a, "--theme") && (!strcmp(v, "dark") || !strcmp(v, "light")))
 			o->theme = v;
+		else if (!strcmp(a, "--sleep") && (!strcmp(v, "30") || !strcmp(v, "60") ||
+						    !strcmp(v, "300") || !strcmp(v, "0")))
+			o->sleep_s = atoi(v);
 		else if (!strcmp(a, "--brightness") && atoi(v) >= UI_BRIGHTNESS_MIN &&
 			 atoi(v) <= UI_BRIGHTNESS_MAX)
 			o->brightness = atoi(v);
@@ -191,10 +252,29 @@ static void on_screen(bool on, void *user)
 	app_on_screen(on);
 }
 
+/* --page wifi-details / wifi-password on real state: opened once the Wi-Fi
+ * view has what they show (a connection, a network in range). */
+static int pending_page = -1;
+
+static void open_pending(void)
+{
+	if (pending_page < 0 || app_top() != APP_PAGE_WIFI)
+		return;
+	if (pending_page == APP_PAGE_WIFI_DETAILS && wifi_view.cur.valid)
+		app_open(APP_PAGE_WIFI_DETAILS, wifi_view.cur.text);
+	else if (pending_page == APP_PAGE_WIFI_PASSWORD && wifi_view.n > 0)
+		app_open_arg(APP_PAGE_WIFI_PASSWORD, wifi_view.nets[0].text, &wifi_view.nets[0]);
+	else
+		return;
+	pending_page = -1;
+}
+
 static void on_state(unsigned what, void *user)
 {
 	(void)user;
 	app_on_state(what);
+	if (what & SYS_WIFI_VIEW)
+		open_pending();
 }
 
 /* /data became ours late and its settings replace the defaults. */
@@ -203,14 +283,25 @@ static void on_replaced(const struct ui_settings *s, void *user)
 	(void)user;
 	if (!app.persist)
 		return;		/* captures keep their overrides */
-	if (!O.fake)
+	if (!O.n_fake)
 		sys_clock_set_tz(s->tz);
 	app_apply_settings(s);
 }
 
+/* A capture never holds a typed passphrase: the field shows bullets. */
+static int snapshot_guarded(const char *path)
+{
+	int r;
+
+	app_snapshot_guard(true);
+	r = chefui_snapshot(path);
+	app_snapshot_guard(false);
+	return r;
+}
+
 static void snapshot_now(lv_timer_t *t)
 {
-	int r = chefui_snapshot(O.snapshot);
+	int r = O.n_fake ? chefui_snapshot(O.snapshot) : snapshot_guarded(O.snapshot);
 
 	(void)t;
 	if (r)
@@ -233,7 +324,7 @@ static void sigusr1(int fd, short revents, void *user)
 	snprintf(path, sizeof(path), "%s/snapshot.ppm", dir);
 	mkdir(O.run ? O.run : "/run", 0755);	/* exists on the phone */
 	mkdir(dir, 0755);
-	r = chefui_snapshot(path);
+	r = O.n_fake ? chefui_snapshot(path) : snapshot_guarded(path);
 	chefui_log("snapshot %s: %s", path, r ? strerror(-r) : "written");
 }
 
@@ -281,27 +372,35 @@ int main(int argc, char **argv)
 		set.theme = !strcmp(O.theme, "light") ? UI_THEME_LIGHT : UI_THEME_DARK;
 	if (O.brightness)
 		set.brightness = O.brightness;
+	if (O.sleep_s >= 0)
+		set.sleep_s = O.sleep_s;
 	chefui_brightness_set(ui_brightness_level(set.brightness));
 
 	sys_on_change(on_state, NULL);
-	app.fake_state = O.fake != NULL;
-	if (O.fake) {
-		r = sys_fake_load(O.fake);
+	app.fake_state = O.n_fake > 0;
+	for (int i = 0; i < O.n_fake; i++) {
+		r = sys_fake_load(O.fake[i]);
 		if (r) {
-			chefui_log("fake state %s: %s", O.fake, strerror(-r));
+			chefui_log("fake state %s: %s", O.fake[i], strerror(-r));
 			return 2;
 		}
-	} else {
+	}
+	if (!O.n_fake) {
 		sys_clock_start(set.tz);
 		sys_battery_start(NULL, -1);
 		sys_gps_start(NULL, 0);
 		sys_netbus_start();
+		sys_wifi_init();
 	}
 	app_init(&pf, &set, chefui_root(), chefui_content_root());
 	/* captures and overrides change nothing on disk */
-	app.persist = !O.theme && !O.brightness && !O.snapshot;
-	if (O.page && !strcmp(O.page, "display"))
-		app_open(APP_PAGE_DISPLAY, "Display");
+	app.persist = !O.theme && !O.brightness && O.sleep_s < 0 && !O.snapshot;
+	if (O.page)
+		open_start_page(O.page);
+	/* typed text only into fake state: a real passphrase never comes
+	 * from the command line or the args file */
+	if (O.keys && (!O.n_fake || !page_wifi_type(O.keys)))
+		chefui_log("--keys ignored (needs --fake-state and an entry page)");
 
 	chefui_on_button(on_button, NULL);
 	chefui_on_touch(on_touch, NULL);

@@ -79,6 +79,12 @@ storage. Saved profiles persist there; RAM-only fallback loses them on reboot.
 `nmtui` provides the standard terminal UI. Keep `save no` and secret flags 2
 for the intentionally volatile interactive example above.
 
+On the phone itself the [system UI](system-ui.md#wi-fi-pages) lists
+networks, joins them (saved profiles, open networks, new WPA/WPA2/WPA3
+personal networks with an on-screen keyboard, hidden networks) and forgets
+them, over NM's D-Bus API with the passphrase in memory only; its profiles
+are saved keyfiles (`psk-flags` 0) and persist like any other.
+
 For a GUI, use libnm or NetworkManager's system D-Bus API and property signals.
 AddAndActivateConnection2 supports memory/volatile profiles. Keep association,
 IP/DHCP readiness and Internet reachability separate; a completed association

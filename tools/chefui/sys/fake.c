@@ -11,6 +11,16 @@
  *   bt connected 2          unknown|none|off|on|connected N
  *   storage 18200000000     free bytes on an owned /data; or "storage ram"
  *
+ * The Wi-Fi pages' view (wifi.h); the SSID is the rest of the line:
+ *
+ *   wifinet SEC FREQ STRENGTH known|- SSID      one network in range
+ *   wifiactive SEC FREQ STRENGTH IP/PREFIX GW CONN SSID
+ *                           the connection: CONN unknown|none|portal|limited|full
+ *   wifiscan 1              the scanning indicator
+ *
+ * SEC: open wep wpa wpa2 wpa3 wpa2/wpa3 owe enterprise. Several files may
+ * be given (--fake-state twice): later lines win.
+ *
  * The design reference values are tools/chefui/apps/settings/design.state.
  */
 #include <errno.h>
@@ -21,6 +31,82 @@
 #include "chefui.h"
 #include "sys.h"
 #include "sysstate.h"
+#include "wifi.h"
+
+static int sec_from(const char *s)
+{
+	static const char *const n[WIFI_SEC_N] = { "open", "wep", "wpa", "wpa2", "wpa3",
+		"wpa2/wpa3", "owe", "enterprise" };
+
+	for (int i = 0; s && i < WIFI_SEC_N; i++)
+		if (!strcmp(s, n[i]))
+			return i;
+	return -1;
+}
+
+static void ssid_from(const char *text, struct wifi_ssid *ss, char *out, size_t n)
+{
+	ss->len = (int)strnlen(text, WIFI_SSID_MAX);
+	memcpy(ss->b, text, (size_t)ss->len);
+	wifi_ssid_text(ss, out, n);
+}
+
+/* Wi-Fi lines: tokens then the SSID as the rest of the line. */
+static int wifi_field(struct wifi_view *v, const char *key, char *rest)
+{
+	char *save = NULL, *t[6];
+	int ntok = !strcmp(key, "wifinet") ? 4 : 6, sec;
+
+	for (int i = 0; i < ntok; i++) {
+		t[i] = strtok_r(i ? NULL : rest, " \t", &save);
+		if (!t[i])
+			return -1;
+	}
+	rest = save ? save + strspn(save, " \t") : NULL;
+	if (!rest || !*rest || (sec = sec_from(t[0])) < 0)
+		return -1;
+	if (!strcmp(key, "wifinet")) {
+		struct wifi_net *n;
+
+		if (v->n >= WIFI_NETS_MAX)
+			return -1;
+		n = &v->nets[v->n++];
+		memset(n, 0, sizeof(*n));
+		n->sec = (enum wifi_sec)sec;
+		n->freq = (uint32_t)atoi(t[1]);
+		n->strength = atoi(t[2]);
+		n->known = !strcmp(t[3], "known");
+		snprintf(n->ap, sizeof(n->ap), "/fake/ap/%d", v->n);
+		ssid_from(rest, &n->ssid, n->text, sizeof(n->text));
+	} else {
+		static const char *const conn[] = { "unknown", "none", "portal", "limited", "full" };
+		struct wifi_active *c = &v->cur;
+		struct wifi_ssid ss;
+		char *slash = strchr(t[3], '/');
+
+		memset(c, 0, sizeof(*c));
+		c->valid = c->ap_known = true;
+		c->dev_state = SYS_NM_DEVICE_ACTIVATED;
+		c->sec = (enum wifi_sec)sec;
+		c->freq = (uint32_t)atoi(t[1]);
+		c->strength = atoi(t[2]);
+		if (slash) {
+			*slash = 0;
+			c->prefix = atoi(slash + 1);
+		}
+		snprintf(c->ip4, sizeof(c->ip4), "%s", t[3]);
+		snprintf(c->gw, sizeof(c->gw), "%s", t[4]);
+		for (unsigned i = 0; i < 5; i++)
+			if (!strcmp(t[5], conn[i]))
+				c->connectivity = i;
+		c->connectivity_known = c->connectivity != 0;
+		ssid_from(rest, &ss, c->text, sizeof(c->text));
+		snprintf(c->id, sizeof(c->id), "%.63s", c->text);
+		snprintf(c->conn, sizeof(c->conn), "/fake/settings/1");
+		snprintf(c->uuid, sizeof(c->uuid), "00000000-0000-4000-8000-000000000001");
+	}
+	return 0;
+}
 
 static int field(struct sys_state *s, char *key, char *a, char *b, char *c)
 {
@@ -84,6 +170,7 @@ static int field(struct sys_state *s, char *key, char *a, char *b, char *c)
 int sys_fake_load(const char *path)
 {
 	struct sys_state s = sys_state;
+	struct wifi_view v = wifi_view;
 	char line[256];
 	int n = 0;
 	FILE *f = fopen(path, "re");
@@ -98,6 +185,19 @@ int sys_fake_load(const char *path)
 		key = strtok_r(line, " \t", &save);
 		if (!key)
 			continue;
+		if (!strcmp(key, "wifinet") || !strcmp(key, "wifiactive")) {
+			if (wifi_field(&v, key, save)) {
+				chefui_log("fake state %s:%d: bad line", path, n);
+				fclose(f);
+				return -EINVAL;
+			}
+			continue;
+		}
+		if (!strcmp(key, "wifiscan")) {
+			a = strtok_r(NULL, " \t", &save);
+			v.scanning = a && atoi(a);
+			continue;
+		}
 		a = strtok_r(NULL, " \t", &save);
 		b = strtok_r(NULL, " \t", &save);
 		c = strtok_r(NULL, " \t", &save);
@@ -109,6 +209,7 @@ int sys_fake_load(const char *path)
 	}
 	fclose(f);
 	sys_state = s;
-	sys_changed(SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE);
+	wifi_view = v;
+	sys_changed(SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE | SYS_WIFI_VIEW);
 	return 0;
 }

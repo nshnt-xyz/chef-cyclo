@@ -27,6 +27,7 @@
 #include "settings.h"
 #include "sys.h"
 #include "sysstate.h"
+#include "wifi.h"
 
 static char tmp[256];
 static unsigned changes;
@@ -400,7 +401,8 @@ static void test_fake(void)
 	fclose(f);
 	changes = 0;
 	CHECK(sys_fake_load(st) == 0);
-	CHECK(changes == (SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE));
+	CHECK(changes == (SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE |
+			  SYS_WIFI_VIEW));
 	CHECK(!strcmp(sys_state.clock.hhmm, "14:16") && sys_state.batt.capacity == 78);
 	CHECK(sys_state.gps.state == SYS_GPS_RUNNING && sys_state.gps.mode == 3);
 	CHECK(sys_wifi_connected(&sys_state) && !strcmp(sys_state.wifi.ssid, "HomeNet"));
@@ -412,6 +414,154 @@ static void test_fake(void)
 	CHECK(sys_fake_load(st) == -EINVAL);
 	CHECK(sys_state.gps.state == SYS_GPS_RUNNING);	/* unchanged on error */
 	CHECK(sys_fake_load("/nonexistent/x") == -ENOENT);
+
+	/* Wi-Fi view lines: SSIDs with spaces, the active connection */
+	f = fopen(st, "w");
+	fputs("wifiactive wpa2 5180 82 192.168.1.42/24 192.168.1.1 full Home Net\n"
+	      "wifinet wpa2/wpa3 2437 72 known Cafe Velo  2\nwifinet open 2462 30 - OpenRide\n"
+	      "wifiscan 1\n", f);
+	fclose(f);
+	memset(&wifi_view, 0, sizeof(wifi_view));
+	CHECK(sys_fake_load(st) == 0);
+	CHECK(wifi_view.n == 2 && wifi_view.scanning);
+	CHECK(!strcmp(wifi_view.nets[0].text, "Cafe Velo  2") && wifi_view.nets[0].known);
+	CHECK(wifi_view.nets[0].sec == WIFI_SEC_WPA2_WPA3 && wifi_view.nets[0].freq == 2437);
+	CHECK(wifi_view.nets[1].sec == WIFI_SEC_OPEN && !wifi_view.nets[1].known);
+	CHECK(wifi_view.cur.valid && !strcmp(wifi_view.cur.text, "Home Net"));
+	CHECK(!strcmp(wifi_view.cur.ip4, "192.168.1.42") && wifi_view.cur.prefix == 24);
+	CHECK(wifi_view.cur.connectivity_known && wifi_view.cur.connectivity == 4);
+	f = fopen(st, "w");
+	fputs("wifinet wpa9 2437 72 - X\n", f);
+	fclose(f);
+	CHECK(sys_fake_load(st) == -EINVAL);
+	f = fopen(st, "w");
+	fputs("wifinet wpa2 2437 72 -\n", f);	/* no SSID */
+	fclose(f);
+	CHECK(sys_fake_load(st) == -EINVAL);
+}
+
+/* ------------------------------------------------------ Wi-Fi model */
+
+static struct wifi_ap ap(const char *ssid, uint32_t flags, uint32_t wpa, uint32_t rsn,
+			 uint32_t freq, int strength, const char *path)
+{
+	struct wifi_ap a = { .flags = flags, .wpa = wpa, .rsn = rsn, .freq = freq,
+			     .strength = strength };
+
+	a.ssid.len = (int)strlen(ssid);
+	memcpy(a.ssid.b, ssid, (size_t)a.ssid.len);
+	snprintf(a.path, sizeof(a.path), "%s", path);
+	return a;
+}
+
+static void test_wifi_model(void)
+{
+	struct wifi_ap aps[8];
+	struct wifi_net nets[8];
+	struct wifi_ssid active = { .len = 7 }, known[1] = { { .len = 4 } }, raw;
+	struct wifi_active cur = { .valid = true };
+	char b[128];
+	int n;
+
+	/* security from NetworkManager's AP flags */
+	CHECK(wifi_sec_from_flags(0, 0, 0) == WIFI_SEC_OPEN);
+	CHECK(wifi_sec_from_flags(1, 0, 0) == WIFI_SEC_WEP);
+	CHECK(wifi_sec_from_flags(1, 0x144, 0) == WIFI_SEC_WPA);
+	CHECK(wifi_sec_from_flags(1, 0, 0x188) == WIFI_SEC_WPA2);
+	CHECK(wifi_sec_from_flags(1, 0x144, 0x188) == WIFI_SEC_WPA2);
+	CHECK(wifi_sec_from_flags(1, 0, 0x488) == WIFI_SEC_WPA3);
+	CHECK(wifi_sec_from_flags(1, 0, 0x588) == WIFI_SEC_WPA2_WPA3);
+	CHECK(wifi_sec_from_flags(1, 0, 0x288) == WIFI_SEC_ENTERPRISE);
+	CHECK(wifi_sec_from_flags(1, 0, 0x2088) == WIFI_SEC_ENTERPRISE);
+	CHECK(wifi_sec_from_flags(0, 0, 0x888) == WIFI_SEC_OWE);
+	CHECK(wifi_sec_joinable(WIFI_SEC_OPEN) && wifi_sec_joinable(WIFI_SEC_WPA2_WPA3));
+	CHECK(!wifi_sec_joinable(WIFI_SEC_WEP) && !wifi_sec_joinable(WIFI_SEC_ENTERPRISE) &&
+	      !wifi_sec_joinable(WIFI_SEC_OWE));
+	CHECK(!strcmp(wifi_sec_key_mgmt(WIFI_SEC_WPA3), "sae"));
+	CHECK(!strcmp(wifi_sec_key_mgmt(WIFI_SEC_WPA2_WPA3), "wpa-psk"));
+	CHECK(!wifi_sec_key_mgmt(WIFI_SEC_OPEN));
+	CHECK(!strcmp(wifi_sec_long(WIFI_SEC_WPA2), "WPA2 Personal"));
+
+	/* band and channel */
+	CHECK(!strcmp(wifi_band(2412), "2.4 GHz") && wifi_channel(2412) == 1);
+	CHECK(wifi_channel(2484) == 14 && wifi_channel(2472) == 13);
+	CHECK(!strcmp(wifi_band(5180), "5 GHz") && wifi_channel(5180) == 36);
+	CHECK(wifi_channel(5745) == 149);
+	CHECK(!strcmp(wifi_band(5955), "6 GHz") && wifi_channel(5955) == 1);
+	CHECK(!strcmp(wifi_band(0), "") && wifi_channel(0) == 0);
+
+	/* signal */
+	CHECK(wifi_signal_level(72) == 2 && wifi_signal_level(40) == 1 && wifi_signal_level(12) == 0);
+	CHECK(!strcmp(wifi_signal_word(82), "strong") && !strcmp(wifi_signal_word(50), "good") &&
+	      !strcmp(wifi_signal_word(30), "fair") && !strcmp(wifi_signal_word(5), "weak"));
+
+	/* SSIDs that are not clean UTF-8 */
+	raw.len = 6;
+	memcpy(raw.b, "a\x01\xC3\xA9\xFFz", 6);
+	wifi_ssid_text(&raw, b, sizeof(b));
+	CHECK(!strcmp(b, "a?\xC3\xA9?z"));
+	raw.len = 3;
+	memcpy(raw.b, "\xC0\xAFx", 3);		/* overlong '/' */
+	wifi_ssid_text(&raw, b, sizeof(b));
+	CHECK(!strcmp(b, "??x"));
+	raw.len = 4;
+	memcpy(raw.b, "abcd", 4);
+	wifi_ssid_text(&raw, b, 3);			/* truncated, terminated */
+	CHECK(!strcmp(b, "ab"));
+
+	/* grouping: strongest per SSID, hidden and active dropped, known
+	 * marked, sorted by strength then name, capped */
+	memcpy(active.b, "HomeNet", 7);
+	memcpy(known[0].b, "Cafe", 4);
+	aps[0] = ap("Cafe", 1, 0, 0x188, 2412, 40, "/ap/0");
+	aps[1] = ap("Cafe", 1, 0, 0x188, 5180, 70, "/ap/1");
+	aps[2] = ap("", 1, 0, 0x188, 2412, 90, "/ap/2");
+	aps[3] = ap("HomeNet", 1, 0, 0x188, 5180, 90, "/ap/3");
+	aps[4] = ap("Open", 0, 0, 0, 2462, 70, "/ap/4");
+	aps[5] = ap("Weak", 1, 0, 0x188, 2462, 10, "/ap/5");
+	n = wifi_group(aps, 6, &active, known, 1, nets, 8);
+	CHECK(n == 3);
+	CHECK(!strcmp(nets[0].text, "Cafe") && nets[0].strength == 70 && nets[0].freq == 5180 &&
+	      !strcmp(nets[0].ap, "/ap/1") && nets[0].known);
+	CHECK(!strcmp(nets[1].text, "Open") && !nets[1].known && nets[1].sec == WIFI_SEC_OPEN);
+	CHECK(!strcmp(nets[2].text, "Weak"));
+	CHECK(wifi_group(aps, 6, NULL, NULL, 0, nets, 2) == 2);
+	CHECK(!strcmp(nets[0].text, "HomeNet"));	/* nothing active: listed */
+
+	/* state reasons: no secrets, supplicant disconnect */
+	CHECK(wifi_reason_bad_password(7) && wifi_reason_bad_password(8));
+	CHECK(!wifi_reason_bad_password(11) && !wifi_reason_bad_password(0));
+
+	/* texts */
+	CHECK(wifi_group(aps, 6, &active, known, 1, nets, 8) == 3);
+	wifi_net_subtitle(&nets[0], b, sizeof(b));
+	CHECK(!strcmp(b, "Saved \xC2\xB7 WPA2 \xC2\xB7 5 GHz"));
+	nets[1].freq = 0;
+	wifi_net_subtitle(&nets[1], b, sizeof(b));
+	CHECK(!strcmp(b, "Open"));
+	nets[1].sec = WIFI_SEC_ENTERPRISE;
+	wifi_net_subtitle(&nets[1], b, sizeof(b));
+	CHECK(!strcmp(b, "Enterprise \xC2\xB7 not supported"));
+	cur.dev_state = 100;
+	cur.ap_known = true;
+	cur.freq = 5180;
+	wifi_active_subtitle(&cur, b, sizeof(b));
+	CHECK(!strcmp(b, "Connected \xC2\xB7 5 GHz"));	/* no internet claim */
+	cur.connectivity_known = true;
+	cur.connectivity = 4;
+	wifi_active_subtitle(&cur, b, sizeof(b));
+	CHECK(!strcmp(b, "Connected \xC2\xB7 internet OK \xC2\xB7 5 GHz"));
+	cur.connectivity = 2;
+	wifi_active_subtitle(&cur, b, sizeof(b));
+	CHECK(!strcmp(b, "Connected \xC2\xB7 sign-in needed \xC2\xB7 5 GHz"));
+	cur.dev_state = 50;
+	wifi_active_subtitle(&cur, b, sizeof(b));
+	CHECK(!strcmp(b, "Connecting\xE2\x80\xA6"));
+
+	/* the wipe */
+	memcpy(b, "secret", 7);
+	wifi_wipe(b, 7);
+	CHECK(!memcmp(b, "\0\0\0\0\0\0\0", 7));
 }
 
 int main(void)
@@ -429,6 +579,7 @@ int main(void)
 	test_battery();
 	test_clock();
 	test_fake();
+	test_wifi_model();
 	snprintf(cmd, sizeof(cmd), "rm -rf '%s'", tmp);
 	if (system(cmd))
 		fprintf(stderr, "cleanup of %s failed\n", tmp);

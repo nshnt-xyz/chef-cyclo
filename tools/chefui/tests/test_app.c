@@ -21,6 +21,9 @@
 #include "text.h"
 #include "theme.h"
 #include "widgets.h"
+#include "wifi.h"
+#include "wifi_stub.h"
+#include "pages.h"
 
 /* ---------------------------------------------------- fake platform */
 
@@ -86,18 +89,25 @@ static uint32_t border(lv_obj_t *o)
 static void test_fonts(void)
 {
 	const lv_font_t *text[] = { &chefkit_b400_38, &chefkit_b400_40, &chefkit_b400_42,
-		&chefkit_b500_52, &chefkit_b500_54, &chefkit_b500_56, &chefkit_bc600_32,
-		&chefkit_bc600_40, &chefkit_bc600_44, &chefkit_bc600_72, &chefkit_bc600_96 };
-	static const struct { const lv_font_t *f; const char *glyphs[8]; } icons[] = {
+		&chefkit_b400_46, &chefkit_b400_48, &chefkit_b400_72, &chefkit_b500_42,
+		&chefkit_b500_48, &chefkit_b500_52, &chefkit_b500_54, &chefkit_b500_56,
+		&chefkit_b500_60, &chefkit_b500_64, &chefkit_bc600_32, &chefkit_bc600_40,
+		&chefkit_bc600_44, &chefkit_bc600_60, &chefkit_bc600_72, &chefkit_bc600_80,
+		&chefkit_bc600_96 };
+	static const struct { const lv_font_t *f; const char *glyphs[16]; } icons[] = {
 		{ &chefkit_icon_24, { KIT_IC_ZAP } },
 		{ &chefkit_icon_36, { KIT_IC_LOCATE, KIT_IC_LOCATE_FIXED, KIT_IC_LOCATE_OFF, KIT_IC_BLUETOOTH,
 			KIT_IC_BLUETOOTH_CONNECTED, KIT_IC_BLUETOOTH_OFF, KIT_IC_WIFI, KIT_IC_WIFI_OFF } },
-		{ &chefkit_icon_56, { KIT_IC_MOON, KIT_IC_SUN, KIT_IC_SUN_MOON } },
-		{ &chefkit_icon_60, { KIT_IC_SUN_DIM } },
-		{ &chefkit_icon_64, { KIT_IC_CHEVRON_RIGHT } },
+		{ &chefkit_icon_44, { KIT_IC_REFRESH_CW } },
+		{ &chefkit_icon_56, { KIT_IC_MOON, KIT_IC_SUN, KIT_IC_SUN_MOON, KIT_IC_LOCK } },
+		{ &chefkit_icon_60, { KIT_IC_SUN_DIM, KIT_IC_TRASH_2 } },
+		{ &chefkit_icon_64, { KIT_IC_CHEVRON_RIGHT, KIT_IC_ARROW_BIG_UP, KIT_IC_DELETE } },
 		{ &chefkit_icon_72, { KIT_IC_SUN, KIT_IC_SUN_MEDIUM, KIT_IC_VIBRATE, KIT_IC_CLOCK,
-			KIT_IC_HARD_DRIVE, KIT_IC_INFO } },
-		{ &chefkit_icon_84, { KIT_IC_CHEVRON_LEFT } },
+			KIT_IC_HARD_DRIVE, KIT_IC_INFO, KIT_IC_WIFI_HIGH, KIT_IC_WIFI_LOW, KIT_IC_WIFI_ZERO,
+			KIT_IC_PLUS, KIT_IC_CIRCLE_CHECK, KIT_IC_CIRCLE, KIT_IC_EYE, KIT_IC_EYE_OFF } },
+		{ &chefkit_icon_80, { KIT_IC_WIFI } },
+		{ &chefkit_icon_84, { KIT_IC_CHEVRON_LEFT, KIT_IC_X } },
+		{ &chefkit_icon_200, { KIT_IC_WIFI_OFF } },
 		{ &chefkit_icon_96, { KIT_IC_LOCATE, KIT_IC_LOCATE_FIXED, KIT_IC_LOCATE_OFF, KIT_IC_BLUETOOTH,
 			KIT_IC_BLUETOOTH_CONNECTED, KIT_IC_BLUETOOTH_OFF, KIT_IC_WIFI, KIT_IC_WIFI_OFF } },
 	};
@@ -119,8 +129,13 @@ static void test_fonts(void)
 	CHECK(lv_font_get_glyph_dsc(&chefkit_b500_56, &g, 0x2212, 0));	/* − */
 	CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_44, &g, ':', 0));
 	CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_72, &g, '%', 0));
+	CHECK(lv_font_get_glyph_dsc(&chefkit_b400_72, &g, 0x2022, 0));	/* password bullet */
+	for (uint32_t c = 0x20; c <= 0x7E; c++)			/* every key's glyph */
+		CHECK(lv_font_get_glyph_dsc(&chefkit_b500_64, &g, c, 0) &&
+		      lv_font_get_glyph_dsc(&chefkit_b400_72, &g, c, 0));
+	CHECK(lv_font_get_glyph_dsc(&chefkit_b400_48, &g, 0x2013, 0));	/* – (no value) */
 	for (unsigned i = 0; i < sizeof(icons) / sizeof(icons[0]); i++)
-		for (int k = 0; k < 8 && icons[i].glyphs[k]; k++) {
+		for (int k = 0; k < 16 && icons[i].glyphs[k]; k++) {
 			const uint8_t *u = (const uint8_t *)icons[i].glyphs[k];
 			uint32_t cp = (uint32_t)(u[0] & 0x0f) << 12 | (uint32_t)(u[1] & 0x3f) << 6 | (u[2] & 0x3f);
 
@@ -509,6 +524,281 @@ static void test_app(lv_obj_t *scr)
 	CHECK(lv_obj_get_child_count(content) == 1);	/* the hub only */
 }
 
+/* ------------------------------------------------------------- Wi-Fi pages */
+
+static bool shown(lv_obj_t *o)
+{
+	for (; o; o = lv_obj_get_parent(o))
+		if (lv_obj_is_hidden(o))
+			return false;
+	return true;
+}
+
+/* The first label under root whose text is text (only shown ones if
+ * only_shown). */
+static lv_obj_t *find_label(lv_obj_t *root, const char *text, bool only_shown)
+{
+	if (lv_obj_check_type(root, &lv_label_class) && !strcmp(lv_label_get_text(root), text) &&
+	    (!only_shown || shown(root)))
+		return root;
+	for (uint32_t i = 0; i < lv_obj_get_child_count(root); i++) {
+		lv_obj_t *f = find_label(lv_obj_get_child(root, (int32_t)i), text, only_shown);
+
+		if (f)
+			return f;
+	}
+	return NULL;
+}
+
+static lv_obj_t *find_text(lv_obj_t *root, const char *text)
+{
+	return find_label(root, text, false);
+}
+
+static lv_obj_t *shown_text(const char *text)
+{
+	return find_label(lv_screen_active(), text, true);
+}
+
+/* Click what a finger on that text would hit. */
+static bool tap_text(const char *text)
+{
+	lv_obj_t *o = shown_text(text);
+
+	while (o && !lv_obj_is_clickable(o))
+		o = lv_obj_get_parent(o);
+	if (o)
+		click(o);
+	return o != NULL;
+}
+
+static struct wifi_net net(const char *ssid, enum wifi_sec sec, int strength, bool known)
+{
+	struct wifi_net n = { .sec = sec, .freq = 2412, .strength = strength, .known = known };
+
+	n.ssid.len = (int)strlen(ssid);
+	memcpy(n.ssid.b, ssid, (size_t)n.ssid.len);
+	snprintf(n.text, sizeof(n.text), "%s", ssid);
+	snprintf(n.ap, sizeof(n.ap), "/ap/%s", ssid);
+	return n;
+}
+
+static void wifi_set(bool enabled, bool connected)
+{
+	sys_state.wifi.known = sys_state.wifi.device = true;
+	sys_state.wifi.enabled = enabled;
+	sys_state.wifi.dev_state = connected ? SYS_NM_DEVICE_ACTIVATED : SYS_NM_DEVICE_DISCONNECTED;
+	snprintf(sys_state.wifi.ssid, sizeof(sys_state.wifi.ssid), "%s", connected ? "HomeNet" : "");
+	memset(&wifi_view.cur, 0, sizeof(wifi_view.cur));
+	if (connected) {
+		struct wifi_active *c = &wifi_view.cur;
+
+		c->valid = c->ap_known = true;
+		c->dev_state = SYS_NM_DEVICE_ACTIVATED;
+		c->sec = WIFI_SEC_WPA2;
+		c->freq = 5180;
+		c->strength = 82;
+		snprintf(c->text, sizeof(c->text), "HomeNet");
+		snprintf(c->ip4, sizeof(c->ip4), "192.168.1.42");
+		snprintf(c->gw, sizeof(c->gw), "192.168.1.1");
+		snprintf(c->conn, sizeof(c->conn), "/settings/1");
+		snprintf(c->uuid, sizeof(c->uuid), "11111111-1111-4111-8111-111111111111");
+	}
+	app_on_state(SYS_WIFI | SYS_WIFI_VIEW);
+}
+
+static void test_wifi_pages(lv_obj_t *scr)
+{
+	memset(&wifi_stub, 0, sizeof(wifi_stub));
+	memset(&wifi_view, 0, sizeof(wifi_view));
+	wifi_view.nets[0] = net("Cafe Velo", WIFI_SEC_WPA2, 72, false);
+	wifi_view.nets[1] = net("Garage", WIFI_SEC_WPA2, 40, true);
+	wifi_view.nets[2] = net("OpenRide", WIFI_SEC_OPEN, 30, false);
+	wifi_view.nets[3] = net("Corp", WIFI_SEC_ENTERPRISE, 20, false);
+	wifi_view.n = 4;
+	wifi_set(false, false);
+
+	/* the tile opens the page; while it is seen NetworkManager is
+	 * followed, and scanned only with Wi-Fi on */
+	CHECK(app_depth() == 0);
+	click(app.tiles[2].obj);
+	CHECK(app_top() == APP_PAGE_WIFI);
+	CHECK(wifi_stub.watch && !wifi_stub.scan);
+	CHECK(shown_text("Wi-Fi is off") && !shown_text("AVAILABLE"));
+	CHECK(shown_text("Off"));
+	/* the switch (last in the master row, the body's first child) asks
+	 * NetworkManager; the page follows its answer */
+	{
+		lv_obj_t *master = lv_obj_get_child(app_top_page()->kp.body, 0);
+		lv_obj_t *sw = lv_obj_get_child(master, -1);
+
+		lv_obj_update_layout(master);
+		CHECK(lv_obj_get_width(sw) == KIT_SWITCH_W);
+		click(sw);
+		CHECK(wifi_stub.enable_calls == 1 && wifi_stub.enabled);
+		CHECK(shown_text("Wi-Fi is off"));	/* not on until NM says so */
+	}
+	wifi_set(true, true);
+	CHECK(wifi_stub.watch && wifi_stub.scan);
+	CHECK(!shown_text("Wi-Fi is off") && shown_text("AVAILABLE") && shown_text("CONNECTED"));
+	CHECK(shown_text("HomeNet") && shown_text("Connected \xC2\xB7 5 GHz"));
+	CHECK(shown_text("Cafe Velo") && shown_text("WPA2 \xC2\xB7 2.4 GHz"));
+	CHECK(shown_text("Saved \xC2\xB7 WPA2 \xC2\xB7 2.4 GHz"));
+	CHECK(shown_text("Enterprise \xC2\xB7 not supported"));
+	CHECK(!shown_text("Scanning") && !shown_text("No networks found"));
+	wifi_view.scanning = true;
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(shown_text("Scanning"));
+	wifi_view.scanning = false;
+
+	/* screen off: nothing followed or scanned; on again: both */
+	pf_set(false);
+	CHECK(!wifi_stub.watch && !wifi_stub.scan);
+	pf_set(true);
+	CHECK(wifi_stub.watch && wifi_stub.scan);
+
+	/* taps: enterprise says why, saved and open networks join, a new
+	 * secured one asks for its password */
+	CHECK(tap_text("Corp"));
+	CHECK(shown_text("Enterprise networks are not supported") && wifi_stub.join_calls == 0);
+	CHECK(tap_text("Garage"));
+	CHECK(wifi_stub.join_calls == 1 && !strcmp(wifi_stub.last.text, "Garage"));
+	CHECK(shown_text("Joining Garage\xE2\x80\xA6"));
+	CHECK(tap_text("OpenRide") && wifi_stub.join_calls == 1);	/* busy: ignored */
+	wifi_view.join.st = WIFI_JOIN_FAILED;
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(shown_text("Could not join Garage") && wifi_view.join.st == WIFI_JOIN_IDLE);
+	CHECK(tap_text("OpenRide") && wifi_stub.join_calls == 2);
+	wifi_view.join.st = WIFI_JOIN_DONE;
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(shown_text("On") && wifi_view.join.st == WIFI_JOIN_IDLE);
+
+	/* the password page: no scan while it is up, typed text only in the
+	 * page's buffer, a short passphrase refused before any call */
+	CHECK(tap_text("Cafe Velo"));
+	CHECK(app_top() == APP_PAGE_WIFI_PASSWORD && app_depth() == 2);
+	CHECK(wifi_stub.watch && !wifi_stub.scan);
+	CHECK(shown_text("PASSWORD \xC2\xB7 WPA2") && shown_text("Cafe Velo"));
+	CHECK(page_wifi_type("short1"));
+	CHECK(shown_text("short1"));
+	CHECK(page_wifi_type("\n"));			/* Join */
+	CHECK(wifi_stub.join_new_calls == 0 && shown_text("Use 8 to 63 characters."));
+	CHECK(page_wifi_type("\b\b\b\b\b\bRide fast! 2"));
+	CHECK(shown_text("Ride fast! 2"));
+	/* a capture shows bullets, then the text again */
+	app_snapshot_guard(true);
+	CHECK(!shown_text("Ride fast! 2"));
+	CHECK(shown_text("\xE2\x80\xA2\xE2\x80\xA2\xE2\x80\xA2\xE2\x80\xA2\xE2\x80\xA2"
+			 "\xE2\x80\xA2\xE2\x80\xA2\xE2\x80\xA2\xE2\x80\xA2\xE2\x80\xA2"
+			 "\xE2\x80\xA2\xE2\x80\xA2"));
+	app_snapshot_guard(false);
+	CHECK(shown_text("Ride fast! 2"));
+	/* the eye hides it until pressed again */
+	CHECK(tap_text(KIT_IC_EYE_OFF) && !shown_text("Ride fast! 2"));
+	CHECK(tap_text(KIT_IC_EYE) && shown_text("Ride fast! 2"));
+	CHECK(page_wifi_type("\n"));
+	CHECK(wifi_stub.join_new_calls == 1 && wifi_stub.last_sec == WIFI_SEC_WPA2 &&
+	      !wifi_stub.last_hidden && wifi_stub.last_psk_len == 12);
+	CHECK(!strcmp(wifi_stub.psk_seen, "Ride fast! 2"));
+	CHECK(!shown_text("Ride fast! 2") && shown_text("Joining\xE2\x80\xA6"));
+	CHECK(!find_text(scr, "Ride fast! 2"));	/* no copy left in a label */
+	/* refused: back to the field with an error */
+	wifi_view.join.st = WIFI_JOIN_BAD_PASSWORD;
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(app_top() == APP_PAGE_WIFI_PASSWORD && shown_text("Wrong password. Try again."));
+	CHECK(wifi_view.join.st == WIFI_JOIN_IDLE);
+	CHECK(colour(shown_text("Wrong password. Try again.")) == kit_palette_dark.warn);
+	/* joined: the page closes */
+	CHECK(page_wifi_type("goodpassword\n") && wifi_stub.join_new_calls == 2);
+	wifi_view.join.st = WIFI_JOIN_DONE;
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(app_top() == APP_PAGE_WIFI && app_depth() == 1);
+	advance(20);
+	CHECK(wifi_stub.watch && wifi_stub.scan);
+
+	/* hidden network: name, security, password */
+	CHECK(tap_text("Add hidden network"));
+	CHECK(app_top() == APP_PAGE_WIFI_HIDDEN && !wifi_stub.scan);
+	CHECK(page_wifi_type("\n") && shown_text("Enter the network name."));
+	CHECK(page_wifi_type("Back Room"));
+	CHECK(tap_text("Open"));
+	CHECK(!shown_text("PASSWORD"));
+	CHECK(page_wifi_type("\n"));
+	CHECK(wifi_stub.join_new_calls == 3 && wifi_stub.last_hidden &&
+	      wifi_stub.last_sec == WIFI_SEC_OPEN && wifi_stub.last_psk_len == 0 &&
+	      wifi_stub.last_ssid.len == 9 && !memcmp(wifi_stub.last_ssid.b, "Back Room", 9));
+	wifi_view.join.st = WIFI_JOIN_FAILED;
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(shown_text("Could not join. Try again."));
+	CHECK(tap_text("WPA3") && shown_text("PASSWORD"));
+	CHECK(app_back());
+	advance(20);
+
+	/* details: steps, values, Forget takes two taps */
+	CHECK(tap_text("HomeNet"));
+	CHECK(app_top() == APP_PAGE_WIFI_DETAILS && wifi_stub.watch && !wifi_stub.scan);
+	CHECK(shown_text("Joined") && shown_text("IP address") && !shown_text("Internet"));
+	CHECK(shown_text("82% \xC2\xB7 strong") && shown_text("5 GHz \xC2\xB7 channel 36"));
+	CHECK(shown_text("WPA2 Personal") && shown_text("192.168.1.42") && shown_text("192.168.1.1"));
+	CHECK(tap_text("Forget network") && wifi_stub.forget_calls == 0);
+	CHECK(shown_text("Tap again to forget"));
+	advance(4100);
+	CHECK(shown_text("Forget network"));
+	CHECK(tap_text("Forget network") && tap_text("Tap again to forget"));
+	CHECK(wifi_stub.forget_calls == 1 && app_top() == APP_PAGE_WIFI);
+	CHECK(!strcmp(wifi_stub.forget_uuid, "11111111-1111-4111-8111-111111111111"));
+	advance(20);
+	/* the Internet step follows NetworkManager's check */
+	CHECK(tap_text("HomeNet") && app_top() == APP_PAGE_WIFI_DETAILS && !shown_text("Internet"));
+	wifi_view.cur.connectivity_known = true;
+	wifi_view.cur.connectivity = 4;
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(shown_text("Internet"));
+	wifi_view.cur.connectivity_known = false;
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(!shown_text("Internet"));
+	/* another connection replaces this one during the confirmation: the
+	 * page closes and nothing is forgotten */
+	CHECK(tap_text("Forget network") && shown_text("Tap again to forget"));
+	snprintf(wifi_view.cur.uuid, sizeof(wifi_view.cur.uuid), "22222222-2222-4222-8222-222222222222");
+	snprintf(wifi_view.cur.text, sizeof(wifi_view.cur.text), "Other");
+	app_on_state(SYS_WIFI_VIEW);
+	CHECK(app_top() == APP_PAGE_WIFI && wifi_stub.forget_calls == 1);
+	advance(4100);				/* its disarm timer is gone with it */
+	CHECK(!shown_text("Tap again to forget") && wifi_stub.forget_calls == 1);
+	/* the same while the screen is off: closed when the view changes */
+	CHECK(tap_text("Other") && app_top() == APP_PAGE_WIFI_DETAILS);
+	CHECK(tap_text("Forget network"));
+	pf_set(false);
+	wifi_set(true, true);			/* HomeNet again */
+	pf_set(true);
+	CHECK(app_top() == APP_PAGE_WIFI && wifi_stub.forget_calls == 1);
+	advance(20);
+	CHECK(tap_text("HomeNet") && app_top() == APP_PAGE_WIFI_DETAILS);
+	/* disconnected meanwhile: the page closes */
+	wifi_set(true, false);
+	CHECK(app_top() == APP_PAGE_WIFI && !shown_text("CONNECTED"));
+	advance(20);
+
+	/* theme switch restyles the pages in place */
+	kit_theme_set(KIT_THEME_LIGHT);
+	CHECK(colour(shown_text("Cafe Velo")) == kit_palette_light.fg);
+	kit_theme_set(KIT_THEME_DARK);
+
+	/* leaving the Wi-Fi pages stops following NetworkManager */
+	CHECK(app_on_button("power.short") && app_depth() == 0);
+	CHECK(!wifi_stub.watch && !wifi_stub.scan);
+	advance(20);
+	for (int i = 0; i < 10; i++) {
+		click(app.tiles[2].obj);
+		CHECK(tap_text("Cafe Velo"));
+		app_back();
+		app_back();
+		advance(20);
+	}
+	CHECK(!wifi_stub.watch && lv_obj_get_child_count(app.content) == 1);
+}
+
 int main(void)
 {
 	lv_obj_t *scr;
@@ -523,5 +813,6 @@ int main(void)
 	test_text();
 	test_policy();
 	test_app(scr);
+	test_wifi_pages(scr);
 	return check_report("test-app");
 }

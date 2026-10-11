@@ -35,9 +35,12 @@ int kit_font_px(const lv_font_t *f)
 {
 	static const struct { const lv_font_t *f; int px; } map[] = {
 		{ &chefkit_b400_38, 38 }, { &chefkit_b400_40, 40 }, { &chefkit_b400_42, 42 },
-		{ &chefkit_b500_52, 52 }, { &chefkit_b500_54, 54 }, { &chefkit_b500_56, 56 },
-		{ &chefkit_bc600_32, 32 }, { &chefkit_bc600_40, 40 }, { &chefkit_bc600_44, 44 },
-		{ &chefkit_bc600_72, 72 }, { &chefkit_bc600_96, 96 },
+		{ &chefkit_b400_46, 46 }, { &chefkit_b400_48, 48 }, { &chefkit_b400_72, 72 },
+		{ &chefkit_b500_42, 42 }, { &chefkit_b500_48, 48 }, { &chefkit_b500_52, 52 },
+		{ &chefkit_b500_54, 54 }, { &chefkit_b500_56, 56 }, { &chefkit_b500_60, 60 },
+		{ &chefkit_b500_64, 64 }, { &chefkit_bc600_32, 32 }, { &chefkit_bc600_40, 40 },
+		{ &chefkit_bc600_44, 44 }, { &chefkit_bc600_60, 60 }, { &chefkit_bc600_72, 72 },
+		{ &chefkit_bc600_80, 80 }, { &chefkit_bc600_96, 96 },
 	};
 
 	for (unsigned i = 0; i < sizeof(map) / sizeof(map[0]); i++)

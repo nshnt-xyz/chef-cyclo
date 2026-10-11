@@ -35,6 +35,8 @@ extern const struct kit_palette kit_palette_dark, kit_palette_light;
 #define KIT_SWITCH_H		108
 #define KIT_RADIUS		36	/* cards, buttons, segmented controls */
 #define KIT_RADIUS_KEY		24
+#define KIT_RADIUS_CARD		40
+#define KIT_KEY_H		168
 #define KIT_TILE_H		330
 #define KIT_GAP_TILES		24
 
@@ -58,6 +60,16 @@ struct kit_styles {
 	lv_style_t track, track_fill, track_knob;	/* brightness slider */
 	lv_style_t sw_on, sw_off, knob_on, knob_off;	/* switch */
 	lv_style_t batt, batt_warn, batt_fill, batt_fill_warn;
+	/* slice 2 */
+	lv_style_t card;		/* acc frame, radius 40 (connected card) */
+	lv_style_t outline;		/* line2 frame, radius 36 (buttons, eye) */
+	lv_style_t frame;		/* line2 frame, radius 40 (steps) */
+	lv_style_t cell_rule;		/* 3 px line on the left (step cells) */
+	lv_style_t mark;		/* muted fill (corner crosses) */
+	lv_style_t field, field_idle;	/* text field: acc frame on surf; line2 frame */
+	lv_style_t kb;			/* keyboard: surf, line rule on top */
+	lv_style_t key, key_fn, key_join, key_pressed;
+	lv_style_t caret;		/* accent fill (text cursor) */
 };
 extern struct kit_styles kit_st;
 

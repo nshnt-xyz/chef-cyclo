@@ -1,8 +1,9 @@
 /*
  * app.h - chef-settings, the system UI app: status bar, settings hub
- * (P01), Display page (P02) and placeholder pages, with the page stack
+ * (P01), the settings pages and placeholder pages, with the page stack
  * and screen policy. main.c wires it to chefui and the state sources;
- * the tests drive it on a headless LVGL display.
+ * the tests drive it on a headless LVGL display. Pages live in page_*.c
+ * behind pages.h.
  */
 #ifndef CHEF_SETTINGS_APP_H
 #define CHEF_SETTINGS_APP_H
@@ -17,7 +18,15 @@
 
 #define APP_MAX_DEPTH 4
 
-enum app_page { APP_PAGE_HUB, APP_PAGE_DISPLAY, APP_PAGE_PLACEHOLDER };
+enum app_page {
+	APP_PAGE_HUB,
+	APP_PAGE_DISPLAY,
+	APP_PAGE_WIFI,			/* P15 off, P16 list */
+	APP_PAGE_WIFI_PASSWORD,		/* P17: arg a struct wifi_net */
+	APP_PAGE_WIFI_HIDDEN,		/* name, security and password */
+	APP_PAGE_WIFI_DETAILS,		/* P18 */
+	APP_PAGE_PLACEHOLDER,
+};
 
 struct page;
 
@@ -62,11 +71,21 @@ void app_on_touch(void);			/* any touch frame: activity */
 void app_on_screen(bool on);
 void app_on_state(unsigned what);		/* sysstate.h SYS_* bits */
 
-/* Navigation (also used by taps). */
+/* Navigation (also used by taps). arg is the page's own (copied by it). */
 void app_open(enum app_page page, const char *title);
+void app_open_arg(enum app_page page, const char *title, const void *arg);
 bool app_back(void);				/* false on the hub */
 int app_depth(void);
 enum app_page app_top(void);
+struct page *app_top_page(void);
+
+/* Captures: hide what must not reach a file (typed passphrases) while
+ * a snapshot is taken (begin true), and restore it after. */
+void app_snapshot_guard(bool begin);
+
+/* Type text on the open Wi-Fi password or hidden-network page's keyboard
+ * (host captures and tests); false if no such page or a key is missing. */
+bool page_wifi_type(const char *text);
 
 /* Settings changes from the Display page (exposed for tests). */
 void app_set_brightness(int percent);

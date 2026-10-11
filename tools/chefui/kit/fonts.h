@@ -13,21 +13,33 @@
 LV_FONT_DECLARE(chefkit_b400_38)
 LV_FONT_DECLARE(chefkit_b400_40)
 LV_FONT_DECLARE(chefkit_b400_42)
+LV_FONT_DECLARE(chefkit_b400_46)	/* ASCII */
+LV_FONT_DECLARE(chefkit_b400_48)
+LV_FONT_DECLARE(chefkit_b400_72)	/* printable ASCII and U+2022 only */
+LV_FONT_DECLARE(chefkit_b500_42)	/* ASCII */
+LV_FONT_DECLARE(chefkit_b500_48)
 LV_FONT_DECLARE(chefkit_b500_52)
 LV_FONT_DECLARE(chefkit_b500_54)
 LV_FONT_DECLARE(chefkit_b500_56)
+LV_FONT_DECLARE(chefkit_b500_60)
+LV_FONT_DECLARE(chefkit_b500_64)	/* ASCII */
 LV_FONT_DECLARE(chefkit_bc600_32)	/* digits and '-' only */
 LV_FONT_DECLARE(chefkit_bc600_40)
 LV_FONT_DECLARE(chefkit_bc600_44)	/* digits, ':' and '-' only */
+LV_FONT_DECLARE(chefkit_bc600_60)	/* ASCII */
 LV_FONT_DECLARE(chefkit_bc600_72)	/* digits, '%' and '-' only */
+LV_FONT_DECLARE(chefkit_bc600_80)	/* ASCII */
 LV_FONT_DECLARE(chefkit_bc600_96)	/* ASCII titles */
 LV_FONT_DECLARE(chefkit_icon_24)
 LV_FONT_DECLARE(chefkit_icon_36)
+LV_FONT_DECLARE(chefkit_icon_44)
 LV_FONT_DECLARE(chefkit_icon_56)
 LV_FONT_DECLARE(chefkit_icon_60)
 LV_FONT_DECLARE(chefkit_icon_64)
 LV_FONT_DECLARE(chefkit_icon_72)
+LV_FONT_DECLARE(chefkit_icon_80)
 LV_FONT_DECLARE(chefkit_icon_84)
 LV_FONT_DECLARE(chefkit_icon_96)
+LV_FONT_DECLARE(chefkit_icon_200)
 
 #endif /* CHEFKIT_FONTS_H */

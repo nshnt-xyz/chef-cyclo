@@ -42,6 +42,9 @@ static void shapes(void)
 		&s->seg_cell_on, &s->seg_cell_disabled, &s->track, &s->track_fill,
 		&s->track_knob, &s->sw_on, &s->sw_off, &s->knob_on, &s->knob_off,
 		&s->batt, &s->batt_warn, &s->batt_fill, &s->batt_fill_warn,
+		&s->card, &s->outline, &s->frame, &s->cell_rule, &s->mark, &s->field,
+		&s->field_idle, &s->kb, &s->key, &s->key_fn, &s->key_join, &s->key_pressed,
+		&s->caret,
 	};
 
 	for (unsigned i = 0; i < sizeof(all) / sizeof(all[0]); i++)
@@ -87,6 +90,27 @@ static void shapes(void)
 	lv_style_set_radius(&s->batt, 12);
 	lv_style_set_clip_corner(&s->batt, true);
 	lv_style_set_bg_opa(&s->batt_fill, 56);		/* 22 % of 255 */
+
+	lv_style_set_border_width(&s->card, KIT_LINE);
+	lv_style_set_radius(&s->card, KIT_RADIUS_CARD);
+	lv_style_set_border_width(&s->outline, KIT_LINE);
+	lv_style_set_radius(&s->outline, KIT_RADIUS);
+	lv_style_set_border_width(&s->frame, KIT_LINE);
+	lv_style_set_radius(&s->frame, KIT_RADIUS_CARD);
+	lv_style_set_border_side(&s->cell_rule, LV_BORDER_SIDE_LEFT);
+	lv_style_set_border_width(&s->cell_rule, KIT_LINE);
+	lv_style_set_bg_opa(&s->mark, LV_OPA_COVER);
+	lv_style_set_border_width(&s->field, KIT_LINE);
+	lv_style_set_radius(&s->field, KIT_RADIUS);
+	lv_style_set_bg_opa(&s->field, LV_OPA_COVER);
+	lv_style_set_bg_opa(&s->kb, LV_OPA_COVER);
+	lv_style_set_border_side(&s->kb, LV_BORDER_SIDE_TOP);
+	lv_style_set_border_width(&s->kb, KIT_LINE);
+	lv_style_set_radius(&s->key, KIT_RADIUS_KEY);
+	lv_style_set_bg_opa(&s->key, LV_OPA_COVER);
+	lv_style_set_border_width(&s->key, KIT_LINE);	/* inset 3 px line */
+	lv_style_set_bg_opa(&s->key_pressed, LV_OPA_COVER);
+	lv_style_set_bg_opa(&s->caret, LV_OPA_COVER);
 }
 
 /* Colours: rewritten on every theme change. */
@@ -125,6 +149,24 @@ static void colours(const struct kit_palette *p)
 	lv_style_set_text_color(&s->batt_warn, lv_color_hex(p->warn));
 	lv_style_set_bg_color(&s->batt_fill, lv_color_hex(p->fg));
 	lv_style_set_bg_color(&s->batt_fill_warn, lv_color_hex(p->warn));
+	lv_style_set_border_color(&s->card, lv_color_hex(p->acc));
+	lv_style_set_border_color(&s->outline, lv_color_hex(p->line2));
+	lv_style_set_border_color(&s->frame, lv_color_hex(p->line2));
+	lv_style_set_border_color(&s->cell_rule, lv_color_hex(p->line));
+	lv_style_set_bg_color(&s->mark, lv_color_hex(p->mut));
+	lv_style_set_border_color(&s->field, lv_color_hex(p->acc));
+	lv_style_set_bg_color(&s->field, lv_color_hex(p->surf));
+	lv_style_set_border_color(&s->field_idle, lv_color_hex(p->line2));
+	lv_style_set_bg_color(&s->kb, lv_color_hex(p->surf));
+	lv_style_set_border_color(&s->kb, lv_color_hex(p->line));
+	lv_style_set_bg_color(&s->key, lv_color_hex(p->bg));
+	lv_style_set_border_color(&s->key, lv_color_hex(p->line));
+	lv_style_set_text_color(&s->key, lv_color_hex(p->fg));
+	lv_style_set_bg_color(&s->key_fn, lv_color_hex(p->line));
+	lv_style_set_bg_color(&s->key_join, lv_color_hex(p->acc));
+	lv_style_set_text_color(&s->key_join, lv_color_hex(p->onacc));
+	lv_style_set_bg_color(&s->key_pressed, lv_color_hex(p->line2));
+	lv_style_set_bg_color(&s->caret, lv_color_hex(p->acct));
 }
 
 void kit_theme_init(enum kit_theme theme)

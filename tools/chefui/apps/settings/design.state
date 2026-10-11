@@ -7,3 +7,11 @@ gps running 3 3
 wifi connected HomeNet
 bt connected 2
 storage 18200000000
+# Wi-Fi pages (P16 to P18): the design's networks; the connected one is
+# HomeNet. "full" connectivity stands for the design's "internet OK".
+wifiactive wpa2 5180 82 192.168.1.42/24 192.168.1.1 full HomeNet
+wifinet wpa2 2437 72 - Cafe Velo
+wifinet wpa2 2412 40 - Garage-2G
+wifinet open 2462 30 - OpenRide
+wifinet wpa2 5745 12 - TP-LINK_44C1
+wifiscan 1

@@ -32,14 +32,9 @@
 #include <time.h>
 
 #include "chefui.h"
+#include "netbus_int.h"
 #include "sys.h"
 #include "sysstate.h"
-
-#if defined(CHEF_BASU)
-#include <basu/sd-bus.h>
-#else
-#include <systemd/sd-bus.h>
-#endif
 
 #define NM "org.freedesktop.NetworkManager"
 #define NM_PATH "/org/freedesktop/NetworkManager"
@@ -69,6 +64,7 @@ static struct {
 	sd_bus *bus;
 	int fd;
 	bool broken;		/* set in callbacks, acted on after processing */
+	bool in_dispatch;	/* inside sd_bus_process(): never close the bus */
 	lv_timer_t *timeout, *more, *retry;
 	int backoff_ms;
 	bool down_logged;
@@ -84,6 +80,8 @@ static struct {
 		bool known, adapter, powered;
 		int connected;
 	} bt;			/* assembled by the BlueZ refresh */
+	netbus_bus_cb clients[NETBUS_CLIENTS_MAX];
+	int n_clients;
 } N = { .fd = -1 };
 
 static void dispatch(void);
@@ -197,11 +195,16 @@ static void bus_lost(const char *why, int err)
 		chefui_log("netbus: system bus %s: %s; retrying", why, strerror(err > 0 ? err : -err));
 	N.down_logged = true;
 	if (N.bus) {
+		sd_bus *b = N.bus;
+
 		chefui_unwatch_fd(N.fd);
-		sd_bus_close(N.bus);
-		sd_bus_unref(N.bus);
+		sd_bus_close(b);
 		N.bus = NULL;
 		N.fd = -1;
+		/* clients drop their slots (which hold references) first */
+		for (int i = 0; i < N.n_clients; i++)
+			N.clients[i](NULL);
+		sd_bus_unref(b);
 	}
 	N.broken = false;
 	lv_timer_pause(N.timeout);
@@ -222,11 +225,13 @@ static void dispatch(void)
 
 	if (!N.bus)
 		return;
+	N.in_dispatch = true;
 	for (i = 0; i < DISPATCH_MAX; i++) {
 		r = sd_bus_process(N.bus, NULL);
 		if (r <= 0 || N.broken)
 			break;
 	}
+	N.in_dispatch = false;
 	if (r < 0 || N.broken || !sd_bus_is_open(N.bus)) {
 		bus_lost("lost", r < 0 ? r : -ECONNRESET);
 		return;
@@ -706,6 +711,8 @@ static void bus_open(void)
 	add_match("type='signal',sender='" BLUEZ "',interface='" OBJMGR "'", bz_objects_signal, NULL);
 	nm_refresh();
 	bz_refresh();
+	for (int i = 0; i < N.n_clients && !N.broken; i++)
+		N.clients[i](b);
 	if (N.broken) {
 		bus_lost("setup failed", -EIO);
 		return;
@@ -733,10 +740,14 @@ void sys_netbus_stop(void)
 {
 	N.running = false;
 	if (N.bus) {
+		sd_bus *b = N.bus;
+
 		chefui_unwatch_fd(N.fd);
-		sd_bus_close(N.bus);
-		sd_bus_unref(N.bus);
+		sd_bus_close(b);
 		N.bus = NULL;
+		for (int i = 0; i < N.n_clients; i++)
+			N.clients[i](NULL);
+		sd_bus_unref(b);
 	}
 	lv_timer_t **timers[] = { &N.timeout, &N.more, &N.retry, &N.nm.soon, &N.bz.soon };
 
@@ -745,4 +756,72 @@ void sys_netbus_stop(void)
 			lv_timer_delete(*timers[i]);
 			*timers[i] = NULL;
 		}
+}
+
+/* ------------------------------------------------------------- clients */
+
+void netbus_add_client(netbus_bus_cb cb)
+{
+	if (N.n_clients < NETBUS_CLIENTS_MAX)
+		N.clients[N.n_clients++] = cb;
+	if (N.bus)
+		cb(N.bus);
+}
+
+sd_bus *netbus_bus(void)
+{
+	return N.bus;
+}
+
+int netbus_new_call(sd_bus_message **m, const char *dest, const char *path, const char *iface,
+		    const char *member)
+{
+	int r;
+
+	*m = NULL;
+	if (!N.bus)
+		return -ENOTCONN;
+	r = sd_bus_message_new_method_call(N.bus, m, dest, path, iface, member);
+	if (r >= 0)
+		r = sd_bus_message_set_auto_start(*m, 0);
+	if (r < 0) {
+		sd_bus_message_unref(*m);
+		*m = NULL;
+	}
+	return r < 0 ? r : 0;
+}
+
+int netbus_send(sd_bus_message *m, sd_bus_slot **slot, sd_bus_message_handler_t cb, void *ud,
+		uint64_t usec)
+{
+	int r;
+
+	if (!N.bus)
+		return -ENOTCONN;
+	r = sd_bus_call_async(N.bus, slot, m, cb, ud, usec);
+	if (r < 0)
+		N.broken = true;
+	return r < 0 ? r : 0;
+}
+
+int netbus_match(sd_bus_slot **slot, const char *rule, sd_bus_message_handler_t cb, void *ud)
+{
+	int r;
+
+	if (!N.bus)
+		return -ENOTCONN;
+	r = sd_bus_add_match_async(N.bus, slot, rule, cb, match_installed, ud);
+	if (r < 0)
+		N.broken = true;
+	return r < 0 ? r : 0;
+}
+
+void netbus_kick(void)
+{
+	if (!N.bus || N.in_dispatch)
+		return;		/* dispatch() acts on it when it returns */
+	if (N.broken)
+		bus_lost("lost", -EIO);
+	else if (!N.in_dispatch)
+		rearm();
 }

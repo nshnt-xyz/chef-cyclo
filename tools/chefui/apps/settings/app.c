@@ -1,5 +1,6 @@
 /*
- * app.c - chef-settings pages, page stack and screen policy (see app.h).
+ * app.c - chef-settings: the hub, the page stack and the screen policy
+ * (see app.h; the pages are page_*.c behind pages.h).
  *
  * One LVGL screen: the status bar on the full-panel root across the safe
  * top, pages in the content root below it. The hub is built once and
@@ -15,21 +16,17 @@
 #include "app.h"
 #include "fonts.h"
 #include "icons.h"
+#include "pages.h"
 #include "sys.h"
 #include "sysstate.h"
 #include "text.h"
 
 struct app app;
 
-struct page {
-	enum app_page kind;
-	struct kit_page kp;
-	struct display_page *display;
-};
-
 /* ------------------------------------------------------------ screen policy */
 
 static void sleep_timer_cb(lv_timer_t *t);
+static void notify_visible(struct page *p, bool visible);
 
 static void sleep_rearm(void)
 {
@@ -68,6 +65,8 @@ void app_on_screen(bool on)
 	if (on)
 		policy_activity(&app.sleep, app.pf.now_ms());
 	sleep_rearm();
+	if (app.root)
+		notify_visible(app.stack[app.depth], on);
 }
 
 bool app_on_button(const char *gesture)
@@ -92,7 +91,6 @@ static void settings_changed(void)
 
 static void hub_rows_refresh(void);
 static enum kit_theme effective_theme(enum ui_theme_mode m);
-static const int sleep_values[] = { 30, 60, 300, 0 };
 
 void app_set_brightness(int percent)
 {
@@ -136,33 +134,21 @@ void app_set_sleep(int sleep_s)
 /* Settings replaced from storage (a late /data): apply them live. */
 void app_apply_settings(const struct ui_settings *set)
 {
-	struct display_page *d = app_display_page();
-	int i;
-
 	app.set = *set;
 	app.pf.brightness_set(ui_brightness_level(set->brightness));
 	kit_theme_set(effective_theme(set->theme));
 	policy_set_sleep(&app.sleep, set->sleep_s * 1000, app.pf.now_ms());
 	sleep_rearm();
-	if (d) {
-		char b[8];
-
-		kit_slider_set(&d->slider, set->brightness);
-		snprintf(b, sizeof(b), "%d%%", set->brightness);
-		lv_label_set_text(d->value, b);
-		kit_seg_set_active(&d->theme, set->theme == UI_THEME_LIGHT ? 1
-				   : set->theme == UI_THEME_AUTO ? 2 : 0);
-		for (i = 0; i < 4; i++)
-			if (sleep_values[i] == set->sleep_s)
-				kit_seg_set_active(&d->sleep, i);
-	}
+	for (int i = 1; i <= app.depth; i++)
+		if (app.stack[i]->ops->on_settings)
+			app.stack[i]->ops->on_settings(app.stack[i]);
 	if (app.depth == 0)
 		hub_rows_refresh();
 }
 
 /* ------------------------------------------------------------ helpers */
 
-static void help_text(lv_obj_t *parent, const char *s)
+void page_help_text(lv_obj_t *parent, const char *s)
 {
 	/* padding:20px 0 0; 40 px muted */
 	lv_obj_t *l = kit_text(parent, &chefkit_b400_40, 0, KIT_INK_MUT, s);
@@ -178,134 +164,59 @@ static void back_clicked(lv_event_t *e)
 	app_back();
 }
 
-/* ------------------------------------------------------------ Display page */
+/* ------------------------------------------------------------ placeholder */
 
-static void display_value_text(struct display_page *d)
-{
-	char b[8];
-
-	snprintf(b, sizeof(b), "%d%%", app.set.brightness);
-	lv_label_set_text(d->value, b);
-}
-
-static void slider_changed(lv_event_t *e)
-{
-	struct display_page *d = lv_event_get_user_data(e);
-
-	app_set_brightness(d->slider.value);
-	display_value_text(d);
-}
-
-static void theme_changed(lv_event_t *e)
-{
-	struct display_page *d = lv_event_get_user_data(e);
-
-	app_set_theme(d->theme.active == 1 ? UI_THEME_LIGHT : d->theme.active == 2 ? UI_THEME_AUTO
-		      : UI_THEME_DARK);
-}
-
-static void sleep_changed(lv_event_t *e)
-{
-	struct display_page *d = lv_event_get_user_data(e);
-
-	if (d->sleep.active >= 0 && d->sleep.active < 4)
-		app_set_sleep(sleep_values[d->sleep.active]);
-}
-
-static void build_display(struct page *p)
-{
-	static const char *const theme_labels[] = { "Dark", "Light", "Auto" };
-	static const char *const theme_glyphs[] = { KIT_IC_MOON, KIT_IC_SUN, KIT_IC_SUN_MOON };
-	static const char *const sleep_labels[] = { "30 s", "1 min", "5 min", "Never" };
-	struct display_page *d = calloc(1, sizeof(*d));
-	lv_obj_t *body = p->kp.body, *head, *l, *row, *col, *gap;
-	int i;
-
-	p->display = d;
-
-	/* padding 64 0 28; label and value share a baseline (the 72 px
-	 * value's: row height 72 + 0.2 em descent) */
-	head = kit_box(body);
-	lv_obj_set_size(head, lv_pct(100), 64 + 86 + 28);
-	lv_obj_set_style_pad_top(head, 64, 0);
-	l = lv_label_create(head);
-	lv_label_set_text(l, "BRIGHTNESS");
-	lv_obj_set_style_text_font(l, &chefkit_bc600_40, 0);
-	lv_obj_set_style_text_letter_space(l, 5, 0);
-	kit_set_ink(l, KIT_INK_MUT);
-	lv_obj_set_y(l, kit_label_y(&chefkit_bc600_40, 72));
-	d->value = lv_label_create(head);
-	lv_obj_set_style_text_font(d->value, &chefkit_bc600_72, 0);
-	kit_set_ink(d->value, KIT_INK_FG);
-	lv_obj_align(d->value, LV_ALIGN_TOP_RIGHT, 0, kit_label_y(&chefkit_bc600_72, 72));
-	display_value_text(d);
-
-	kit_slider_create(&d->slider, body, UI_BRIGHTNESS_MIN, UI_BRIGHTNESS_MAX, app.set.brightness);
-	lv_obj_add_event_cb(d->slider.obj, slider_changed, LV_EVENT_VALUE_CHANGED, d);
-
-	/* margin-top 40; height 216 between two 3 px rules; gap 40 */
-	gap = kit_box(body);
-	lv_obj_set_size(gap, 1, 40);
-	row = kit_box(body);
-	lv_obj_set_size(row, lv_pct(100), KIT_ROW_H + 2 * KIT_LINE);
-	lv_obj_add_style(row, &kit_st.rule_top_bottom, 0);
-	lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-	lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-	lv_obj_set_style_pad_column(row, 40, 0);
-	col = kit_box(row);
-	lv_obj_set_height(col, LV_SIZE_CONTENT);
-	lv_obj_set_flex_grow(col, 1);
-	lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-	lv_obj_set_style_pad_row(col, 6, 0);
-	/* Auto brightness waits for sensord at boot: shown, muted, no input */
-	kit_text(col, &chefkit_b500_56, 62, KIT_INK_MUT, "Auto brightness");
-	kit_text(col, &chefkit_b400_42, 0, KIT_INK_MUT, "Follows the light sensor");
-	d->auto_switch = kit_switch_create(row);
-	kit_switch_set(d->auto_switch, false);
-	lv_obj_set_disabled(d->auto_switch, true);
-	lv_obj_set_clickable(d->auto_switch, false);
-
-	kit_section(body, "THEME", 72, 28);
-	kit_seg_create(&d->theme, body, 3, theme_labels, theme_glyphs);
-	kit_seg_set_disabled(&d->theme, 2, true);	/* Auto: needs the light sensor */
-	kit_seg_set_active(&d->theme, app.set.theme == UI_THEME_LIGHT ? 1
-			   : app.set.theme == UI_THEME_AUTO ? 2 : 0);
-	lv_obj_add_event_cb(d->theme.obj, theme_changed, LV_EVENT_VALUE_CHANGED, d);
-	help_text(body, "Auto switches to Light in bright sun.");
-
-	kit_section(body, "AUTO-SLEEP", 72, 28);
-	kit_seg_create(&d->sleep, body, 4, sleep_labels, NULL);
-	for (i = 0; i < 4; i++)
-		if (sleep_values[i] == app.set.sleep_s)
-			kit_seg_set_active(&d->sleep, i);
-	lv_obj_add_event_cb(d->sleep.obj, sleep_changed, LV_EVENT_VALUE_CHANGED, d);
-	help_text(body, "Power button wakes the screen.");
-}
-
-static void build_placeholder(struct page *p)
+static void build_placeholder(struct page *p, const void *arg)
 {
 	/* the page's own slice will replace this */
 	lv_obj_t *l = kit_text(p->kp.body, &chefkit_b400_42, 0, KIT_INK_MUT,
 			       "Coming in a later update.");
 	lv_obj_t *box = lv_obj_get_parent(l);
 
+	(void)arg;
 	lv_obj_set_style_pad_top(box, 64, 0);
 	lv_obj_set_height(box, 64 + kit_css_line(&chefkit_b400_42));
 }
 
+static const struct page_ops placeholder_ops = { .build = build_placeholder };
+
+static const struct page_ops *ops_for(enum app_page kind)
+{
+	switch (kind) {
+	case APP_PAGE_DISPLAY: return &page_display_ops;
+	case APP_PAGE_WIFI: return &page_wifi_ops;
+	case APP_PAGE_WIFI_PASSWORD: return &page_wifi_password_ops;
+	case APP_PAGE_WIFI_HIDDEN: return &page_wifi_hidden_ops;
+	case APP_PAGE_WIFI_DETAILS: return &page_wifi_details_ops;
+	default: return &placeholder_ops;
+	}
+}
+
 /* ------------------------------------------------------------ page stack */
+
+bool app_page_visible(const struct page *p)
+{
+	return p && app.stack[app.depth] == p && app.pf.screen_is_on();
+}
+
+static void notify_visible(struct page *p, bool visible)
+{
+	if (p && p->ops && p->ops->on_visible)
+		p->ops->on_visible(p, visible);
+}
 
 static void page_deleted(lv_event_t *e)
 {
 	struct page *p = lv_event_get_user_data(e);
 
-	free(p->display);
+	if (p->ops->destroy)
+		p->ops->destroy(p);
 	free(p);
 }
 
-void app_open(enum app_page kind, const char *title)
+void app_open_arg(enum app_page kind, const char *title, const void *arg)
 {
-	struct page *p;
+	struct page *p, *below;
 
 	if (kind == APP_PAGE_HUB || app.depth + 1 >= APP_MAX_DEPTH)
 		return;
@@ -313,14 +224,20 @@ void app_open(enum app_page kind, const char *title)
 	if (!p)
 		return;
 	p->kind = kind;
-	lv_obj_set_hidden(app.stack[app.depth]->kp.obj, true);
+	p->ops = ops_for(kind);
+	below = app.stack[app.depth];
+	lv_obj_set_hidden(below->kp.obj, true);
 	kit_page_create(&p->kp, app.content, title, back_clicked, NULL);
 	lv_obj_add_event_cb(p->kp.obj, page_deleted, LV_EVENT_DELETE, p);
-	if (kind == APP_PAGE_DISPLAY)
-		build_display(p);
-	else
-		build_placeholder(p);
+	p->ops->build(p, arg);
 	app.stack[++app.depth] = p;
+	notify_visible(below, false);
+	notify_visible(p, app.pf.screen_is_on());
+}
+
+void app_open(enum app_page kind, const char *title)
+{
+	app_open_arg(kind, title, NULL);
 }
 
 bool app_back(void)
@@ -334,10 +251,12 @@ bool app_back(void)
 	/* Hidden now, deleted after this event (Back may come from a click
 	 * on the page itself); page_deleted() frees p. */
 	lv_obj_set_hidden(p->kp.obj, true);
+	notify_visible(p, false);
 	lv_obj_delete_async(p->kp.obj);
 	lv_obj_set_hidden(app.stack[app.depth]->kp.obj, false);
 	if (app.depth == 0)
 		hub_rows_refresh();
+	notify_visible(app.stack[app.depth], app.pf.screen_is_on());
 	return true;
 }
 
@@ -351,18 +270,25 @@ enum app_page app_top(void)
 	return app.stack[app.depth]->kind;
 }
 
-struct display_page *app_display_page(void)
+struct page *app_top_page(void)
 {
-	struct page *p = app.stack[app.depth];
+	return app.stack[app.depth];
+}
 
-	return p && p->kind == APP_PAGE_DISPLAY ? p->display : NULL;
+void app_snapshot_guard(bool begin)
+{
+	for (int i = 1; i <= app.depth; i++)
+		if (app.stack[i]->ops->on_snapshot)
+			app.stack[i]->ops->on_snapshot(app.stack[i], begin);
 }
 
 /* ------------------------------------------------------------ hub */
 
 static void tile_clicked(lv_event_t *e)
 {
-	app_open(APP_PAGE_PLACEHOLDER, lv_event_get_user_data(e));
+	const char *title = lv_event_get_user_data(e);
+
+	app_open(strcmp(title, "Wi-Fi") ? APP_PAGE_PLACEHOLDER : APP_PAGE_WIFI, title);
 }
 
 static void row_clicked(lv_event_t *e)
@@ -421,6 +347,9 @@ void app_on_state(unsigned what)
 	status_from_state(&sys_state, &st);
 	kit_statusbar_set(&app.sb, &st);
 	hub_tiles_refresh(what);
+	for (int i = 1; i <= app.depth; i++)
+		if (app.stack[i]->ops->on_state)
+			app.stack[i]->ops->on_state(app.stack[i], what);
 }
 
 static void build_hub(void)

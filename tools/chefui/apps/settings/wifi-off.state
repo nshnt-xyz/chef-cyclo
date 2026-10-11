@@ -1,0 +1,3 @@
+# Read after design.state for P15 (Wi-Fi off): chef-settings
+# --fake-state design.state --fake-state wifi-off.state --page wifi
+wifi off

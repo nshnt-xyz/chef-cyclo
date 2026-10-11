@@ -1,0 +1,99 @@
+System UI slice 2, 2026-10-11: the remaining settings pages
+
+Spec: docs/next-steps/system-ui-2-handoff.md. Guide: docs/features/system-ui.md.
+Roles: ui_impl (Claude) implements, ui_review (Codex) reviews, ui_coord
+coordinates and relays guided steps to the user. Kernel #22 unchanged.
+Nothing flashed: RAM images only (fastboot boot); ordinary reboots return to
+the installed pair. Raw evidence (private): ~/chef-cyclo-evidence/system-ui2-*.
+One section per milestone, each committed after ui_review's approval.
+
+
+M1 Wi-Fi pages (P15 to P18)
+===========================
+
+Delivered: Wi-Fi switch and list (P15 off, P16), password page with the
+design keyboard (P17), hidden network page, connection details (P18), on
+NetworkManager's D-Bus API (sys/wifi.c on the netbus connection; pure model
+in sys/wifi_model.c); page framework in apps/settings (pages.h, Display page
+moved to page_display.c); kit blocks and keyboard; 12 new fonts, 5 icon
+fonts regenerated.
+
+1. Host
+
+make -C tools/chefui test host host-test device, all green at the final tree:
+  test-copy 2362, test-plan 34, test-touch 71, test-buttons 47,
+  test-fbscreen 134, test-chefui 325, test-settings 213, test-sys 175,
+  test-app 405, test-netbus 72, test-wifi 212-213 (the count varies with
+  how often the test polls the fake's counters), host-test 14 captures,
+  test-settings-proc 20 SIGUSR1 captures.
+test-wifi: wifi.c against tests/fake_nm.py (python3 dbus-python + GLib) on a
+private dbus-daemon; 12 runs 6-way in parallel, 0 failures (ui_impl, and
+independently ui_review each round).
+make -C tools/chefui font-check: 31 fonts reproduce byte for byte.
+Reference comparison (host, masks 0-95:140-230 and 0-80:262-818), mean abs
+diff dark/light: P15 2.96/3.07, P16 1.37/1.32, P17 0.87/0.85, P18
+2.59/2.50; bands within 0-1 px vertically, 0-2 px horizontally except the
+intended differences listed in the guide (Sync texts and section left out,
+"On"/"Off" subtitle, signal in percent, P15 one line so 31 px lower).
+Sizes: chef-settings 2326840 bytes static aarch64 (slice 1: 1702456).
+
+Review rounds (ui_review):
+ r1: a join refused as busy tore down the running join; state changes
+     before the method reply were dropped (an activation that completes
+     before NM answers stayed BUSY); failed-profile Delete was
+     fire-and-forget by object path; P18 was not bound to the connection
+     it was opened for (Forget could delete a replacement); the Internet
+     step was fixed at build.
+     Fixed: join_begin refuses without touching the running join; a join
+     is the returned ActiveConnection, followed by its StateChanged plus
+     one Get of its State (device FAILED reasons recorded before the
+     reply); profiles get our own UUID and are deleted by UUID with
+     confirmation and retries; P18 keeps the profile UUID, closes when the
+     connection goes or changes, Forget names that UUID; Internet step
+     shown/hidden live.
+ r2: getrandom could block before the pool is ready; a full delete queue
+     evicted a pending delete; Delete went to the well-known name after a
+     lookup, so an NM restart in between could delete another profile at a
+     reused path.
+     Fixed: getrandom(GRND_NONBLOCK) else /dev/urandom; delete entries are
+     reserved before a new profile exists, a full queue refuses (-ENOSPC);
+     Delete goes to the lookup reply's unique sender, any Delete error
+     relooks up, owner changes invalidate attempts in flight.
+ r3: no findings (source and host acceptance).
+
+2. Live, RAM image 35995473b9405af4a208c7815bdfc79b3b522ec55100dbcdd4394038291299a2
+   with chef-settings 4498223cfe490010ecf3ca1d562c3711b3a9f10059927526d5e8d9590af063db
+   pushed over USB SSH (the image's own binary predates the review fixes)
+
+L1 Wi-Fi page on real state (--page wifi from the one-shot args file, run
+   only --sleep 0): the connected profile (Id chef-storage-wifi) shown as
+   its SSID, "Connected · 5 GHz" (no internet claim: no connectivity
+   check), two networks in range grouped by SSID with WPA2/WPA3 and WPA2,
+   band, lock and signal icons; NM's list agreed (l1.txt, l1-p16.ppm).
+L2 idle on P16 while it scans every 20 s, 60 s: 3 ticks (0.05 % CPU),
+   121 voluntary switches (2/s), 2 threads, 20 fds (l2-idle-p16.txt).
+L3 P18 on real state: Joined and IP address steps (no Internet step),
+   75 % · strong, 5 GHz · channel 153, WPA2/WPA3 Personal, IPv4 and gateway
+   (l3-p18.ppm); idle 60 s: 2 ticks, 74 voluntary switches (1.2/s: NM's
+   own property changes, coalesced) (l3-idle-p18.txt).
+L4 nmcli radio wifi off while P16 is shown: P15 empty state ("Wi-Fi is
+   off"), switch off, status bar wifi-off; on: reconnected after 7 s and
+   the list back (l4.txt, l4/run/l4-off.ppm, l4-on.ppm).
+L5 auto-sleep (run-only --sleep 30) turned the screen off on the Wi-Fi
+   page; the next 60 s: 0 ticks, 6 voluntary switches: no scans and no NM
+   matches while the screen is off (l5-screen-off.txt).
+L6 device captures of the design state for P15, P16, P17 (typed
+   "ridefast2"), P18 and the hidden network page: byte for byte the host
+   captures (l6-compare.txt, l6-device-captures.tgz).
+Respawn: every args-file run above was a kill and an init respawn; the app
+came back each time (l1, l3, l6 kmsg).
+
+3. Not verified live / deferred
+
+- Guided join checks deferred by ui_coord to the batched guided acceptance
+  at the end of slice 2: joining a test hotspot with a wrong then the right
+  passphrase on the phone's keyboard (expect "Wrong password. Try again."
+  and the failed profile deleted, then the Connected card), and Forget
+  (two taps) of that profile. Any fix that run needs becomes a follow-up
+  commit. Covered meanwhile by test-wifi (fake NM) and test-app.
+- The passphrase never left the phone in this run (no join was made live).
