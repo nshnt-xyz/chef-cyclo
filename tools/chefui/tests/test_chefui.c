@@ -914,6 +914,77 @@ static void test_failed_init_claim_release(void)
 	}
 }
 
+/* chefui_snapshot(): logical size and orientation for every rotation,
+ * pending changes rendered first, -EAGAIN while the screen is off. */
+static bool ppm_pixel(const char *path, int *w, int *h, int x, int y, uint8_t rgb[3])
+{
+	FILE *f = fopen(path, "rb");
+	int maxv;
+	bool ok;
+
+	if (!f)
+		return false;
+	ok = fscanf(f, "P6 %d %d %d", w, h, &maxv) == 3 && maxv == 255 && fgetc(f) == '\n' &&
+	     x < *w && y < *h && fseek(f, (long)(((long)y * *w + x) * 3), SEEK_CUR) == 0 &&
+	     fread(rgb, 1, 3, f) == 3;
+	fclose(f);
+	return ok;
+}
+
+static int child_snapshot(void *arg)
+{
+	int rotation = *(int *)arg, w, h, before = g_failures;
+	struct chefui_config cfg = { .app_name = "snap-test", .rotation = rotation };
+	char path[64];
+	uint8_t px[3];
+	lv_obj_t *mark;
+
+	snprintf(path, sizeof(path), "/tmp/chefui-snap-%d.ppm", (int)getpid());
+	use_paths();
+	CHECK(chefui_init(&cfg) != NULL);
+	lv_obj_set_style_bg_color(lv_screen_active(), lv_color_hex(0x0000ff), 0);
+	mark = lv_obj_create(lv_screen_active());
+	lv_obj_remove_style_all(mark);
+	lv_obj_set_style_bg_opa(mark, LV_OPA_COVER, 0);
+	lv_obj_set_style_bg_color(mark, lv_color_hex(0x10ff20), 0);
+	lv_obj_set_size(mark, 8, 8);
+	lv_obj_set_pos(mark, 0, 0);
+	CHECK(chefui_snapshot(path) == 0);
+	CHECK(ppm_pixel(path, &w, &h, 0, 0, px));
+	CHECK(w == (rotation % 180 ? H : W) && h == (rotation % 180 ? W : H));
+	CHECK(px[0] == 0x10 && px[1] == 0xff && px[2] == 0x20);	/* logical top-left */
+	CHECK(ppm_pixel(path, &w, &h, w - 1, h - 1, px));
+	CHECK(px[0] == 0 && px[1] == 0 && px[2] == 0xff);
+	/* a change not yet rendered is in the snapshot */
+	lv_obj_set_pos(mark, w - 8, h - 8);
+	CHECK(chefui_snapshot(path) == 0);
+	CHECK(ppm_pixel(path, &w, &h, w - 1, h - 1, px) && px[1] == 0xff && px[2] == 0x20);
+	CHECK(ppm_pixel(path, &w, &h, 0, 0, px) && px[2] == 0xff && px[1] == 0);
+	CHECK(chefui_screen_set(false) == 0);
+	CHECK(chefui_snapshot(path) == -EAGAIN);
+	CHECK(chefui_screen_set(true) == 0);
+	CHECK(chefui_snapshot(path) == 0);
+	CHECK(chefui_snapshot("/nonexistent-dir/x.ppm") == -ENOENT);
+	unlink(path);
+	report("snap=%d", g_failures - before);
+	chefui_quit(0);
+	chefui_run();
+	return g_failures != before;
+}
+
+static void test_snapshot(void)
+{
+	for (int rotation = 0; rotation < 360; rotation += 90) {
+		int fifo = fixture();
+		struct child c = spawn(child_snapshot, &rotation, fifo);
+		char out[128];
+
+		CHECK(finish(&c, out, sizeof(out)) == 0);
+		CHECK(strcmp(out, "snap=0") == 0);
+		close(fifo);
+	}
+}
+
 static void test_safe_api(void)
 {
 	for (int rotation = 0; rotation < 360; rotation += 90) {
@@ -1216,6 +1287,7 @@ int main(int argc, char **argv)
 	test_screen_off_from_handlers();
 	test_gestures();
 	test_safe_api();
+	test_snapshot();
 	test_failed_init_claim_release();
 	test_blocking_pan_pacing();
 	test_brightness_bursts();

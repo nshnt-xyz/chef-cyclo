@@ -1,0 +1,136 @@
+System UI slice 1, 2026-10-11: kit, status bar, hub (P01), Display (P02), boot
+
+Spec: docs/next-steps/system-ui-handoff.md. Guide: docs/features/system-ui.md.
+Roles: ui_impl (Claude) implemented, ui_review (Codex) reviewed, ui_coord
+coordinated and relayed the user's guided steps. Kernel #22 unchanged.
+Nothing flashed: RAM images only (fastboot boot); ordinary reboots return to
+the installed pair system_a e73c8c54 + boot_a 034db212.
+Raw evidence: ~/chef-cyclo-evidence/system-ui-live-20261011/ (private) and
+the design references ~/chef-cyclo-evidence/system-ui-r1-20261011/ (re-rendered
+1:1 at zoom 1, DPR 1 by ui_coord; old zoom-3 renders with 2 px rules kept in
+ref-png-zoom3-old/).
+
+1. Host
+
+make -C tools/chefui test host host-test device, all green at the final tree:
+  test-copy 2362, test-plan 34, test-touch 71, test-buttons 47,
+  test-fbscreen 134, test-chefui 325 (with test_snapshot, 4 rotations),
+  test-settings 213, test-sys 121, test-app 183, test-netbus 72,
+  host-test: test-demo-host per rotation, 4 chef-settings captures,
+  test-settings-proc (20 SIGUSR1 captures with the worker alive, SIGTERM 143).
+make -C tools/chefui font-check: 19 fonts reproduce byte for byte (also run
+independently by ui_review).
+Reliability of test-settings (the persistence worker): 80 runs 8-way and
+80 runs 16-way in parallel, 0 failures (ui_impl); 50 runs 8-way, 0 failures,
+59.03 s (ui_review, independent).
+ThreadSanitizer (manual build of test-settings): no reports.
+tools/tests test_ssh and test_chef_reboot (inittab checks) still pass.
+
+Review rounds (ui_review): request 1 (kit, fonts, sources, settings, app,
+snapshot, tests) took six rounds: persistence moved to a worker thread with
+immutable jobs and generations, 0700/0600 with a parent fsync on every save,
+late /data adoption, marker and settings reads O_NONBLOCK and size-checked,
+slider drawn 0..100 (was 12 px short), monotonic waits, hub free space on
+the worker, flush/reload quiesce, a deterministic test gate instead of pipe
+tokens, completion by generation instead of worker idleness. Request 2
+(boot, docs): the worker now starts with every signal blocked and SIGUSR1 is
+blocked before any thread exists (a SIGUSR1 could kill the app through the
+worker), the LGPL note scoped to what a distributor must ship, and the
+log-screen hold-off directory created at start.
+
+Reference comparison (tools/chefui/compare-ref.py, masks 0-95:140-230 for the
+design's temperature and 0-80:262-818 for the drawn notch), host captures:
+  P01 dark  mean abs diff 1.35/255   P01 light 1.41/255
+  P02 dark  1.78/255                 P02 light 7.48/255
+Every content band lines up within 0 to 1 px vertically and 0 px
+horizontally; flagged bands are intended differences only: Auto brightness
+switch off and disabled, theme Auto disabled, the active theme cell follows
+the real theme (P02 light shows Light active, the reference Dark), Display
+and About subtitles (real values), and bands holding only a rule (shift
+ambiguous). The 2 px rules of the first references were a zoom render
+artifact; the contract's 3 px is kept.
+
+Sizes: chef-settings 1702456 bytes static aarch64 (chefui-demo 900472).
+RAM image (live image 50cf09ac): out/boot-ram.img 36278272 ->
+36564992 bytes (+286720); LZMA ramdisk 23804764 -> 24090527 (+285763).
+
+2. Live, RAM image 50cf09ac8536e032dab6afddce171730bb36557b7f2e3535571652f2d4f397ac
+
+(An earlier image 5906a918 showed in A2 that a long subtitle wrapped at '-'
+and was clipped: Wi-Fi "chef-" for chef-storage-wifi. Fixed for every tile
+and hub row (one line, "..." at the end, test-app checks all), then 50cf09ac
+was built and used for everything below.)
+
+Unattended (ui_impl over USB telnet and Wi-Fi SSH):
+A1 boot: chef-settings up at 10.2 to 11.1 s of kernel time on every boot,
+   took /run/fb0.lock from fblog ("paused: screen borrowed"), claimed
+   power.short from buttond.
+A2 live hub (a2-live-hub2.ppm): battery 67 % with the bolt (USB CDP), time
+   in IST matching the host clock, Bluetooth On, GPS Off, Wi-Fi
+   "chef-stora...", Storage 53.5 GB free, About Linux 4.4.192-cyclo+.
+A3 device captures of the design state (one-shot /run/chef-settings/args,
+   four respawns, each exit code 0): versus the references the same numbers
+   as the host captures; device == host byte for byte for P02 dark and
+   light, and for P01 except the About line (uname differs).
+A4 changes without a restart (a4-states.png): nmcli radio wifi off ->
+   wifi-off muted, tile Off; on -> connected after 6 s; bluetoothctl power
+   off -> bluetooth-off muted, tile Off; on -> On; setsid gps-manager hold
+   map -> locate muted, tile Searching... (no fix indoors); release ->
+   OFF after the grace period, tile Off.
+A5 static hub idle, 120 s (a5-idle.txt): 0 utime/stime ticks (0.000 % CPU),
+   28 voluntary context switches (0.23 wakeups/s), 2 threads (chef-settings,
+   ui-store), 20 fds, none on /data.
+A6 kill -9 (a6-kill9.txt): fblog resumed 30 ms later, respawn took the
+   panel back 0.9 s after that.
+A7 auto-sleep 30 s from a prepared settings file (a7-autosleep.txt): screen
+   off and /run/fblog.off created 30.3 s after start.
+A8 kill -9 with the screen off (a8-respawn-dark.txt): fblog "present after
+   the borrow: staying dark", the respawn started dark ("screen off (flag
+   present)", fb0 not opened). A fresh boot cannot carry /run/fblog.off
+   (tmpfs); ui_coord chose this respawn variant for "starts dark".
+A9 ordinary reboot (setsid reboot, kmsg streamed): chef-state shutdown all
+   codes 0, /data globally read-only and fully unmounted; the installed
+   pair then read /data/v1/ui/settings with the same sha256. (The app's own
+   exit line is not captured: init's SIGTERM ends the telnet session at the
+   same moment.)
+Also seen: the default 1 min auto-sleep turned the screen off during A4 as
+designed, and a snapshot then returned EAGAIN.
+
+Guided (the user, through ui_coord, steps in guided-steps.txt; kmsg in
+guided-kmsg.txt and guided-kmsg2.txt):
+ 1 hub and status bar: 66 %, 11:19 IST (matches).
+ 2-9 passed with no issue reported: Display page contents, smooth
+   brightness drag with the backlight following, Light/Dark switch in
+   place, greyed Auto not taking taps, auto-sleep 30 s then Power woke on
+   the Display page, Power on Display = Back, Power on the hub = off and on,
+   every tile and row opening its placeholder and the < Back. kmsg shows
+   "screen off (314 ms)" for the auto-sleep, power.short handled without a
+   screen change for Back, and "power.short: screen off/on" on the hub.
+10 the user had ended on Dark at 20 % (not Light/70 % as the table
+   suggested). The app had written /data/v1/ui/settings itself at 05:49:40
+   UTC (directory 0700, file 0600, brightness 20, dark, sleep 30). After a
+   kill and respawn, and after a reboot into the same RAM image
+   (chef-reboot bootloader + fastboot boot), the user saw Dark and 20 %.
+11 screen off on the hub, kill -9 while dark: respawn started dark, the
+   panel stayed dark; Power brought the hub back (Dark, 20 %), not the log.
+12 USB unplugged about 15 s and replugged, followed over Wi-Fi SSH with a
+   capture every 2 s (g12/log, g12-zap.png): supply offline at 103.5 s and
+   the bolt gone in the first capture after; online at 119.8 s and the bolt
+   back in the first capture after; outline white at 66 %. The user saw
+   the same.
+13-14 USB out, long press (buzzes), release: clean power-off; Power on
+   booted the installed pair. Its boots.log seq 108 bootreason=
+   power_key_press pstore=0; the unplug row (05:54:35) is in
+   /data/v1/power/log.csv; e2fsck -p exit 0; the settings file unchanged.
+
+3. Not verified live / limits
+
+- No GPS fix indoors: the "3D fix · ±N m" path is covered by test-sys
+  (fake gpsd TPV) only.
+- A Bluetooth device connection (count > 0) was not exercised live;
+  covered by test-netbus.
+- The low-battery warn colour (<= 15 % unpowered) is covered by test-app
+  only.
+- After this run one log-only change was made: the args file and stop file
+  lines printed before chefui_init() now read "chef-settings: ..." instead
+  of "chefui[?]: ..." (main.c early_log); not on the phone.

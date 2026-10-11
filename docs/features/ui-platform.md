@@ -8,6 +8,8 @@ display access, touch, button claims, screen state, pacing and application
 handoff. Applications use the same source on both backends. The public contract
 is [chefui.h](../../tools/chefui/chefui.h); the demo is a verification tool and
 is installed as `/usr/bin/chefui-demo`, without automatic inittab startup.
+The first application on it is the [system UI](system-ui.md)
+(`chef-settings`), which starts at boot.
 
 ## Build and application loop
 
@@ -174,6 +176,20 @@ unlocked gap. Normal handoff removes the flag; dark handoff creates it. Failure
 restores the screen state and reconnects buttond. Claims drop during handoff
 until the peer claims, so a power press in that window uses buttond's default.
 The host uses ordinary exec and does not simulate a dark handoff across exec.
+
+## Snapshots
+
+`chefui_snapshot(path)` writes the current frame as a binary PPM (P6,
+8-bit RGB) at the logical (rotated) size, from the cached RAM copy LVGL
+renders into: the shadow on the phone, the DIRECT draw buffer on the PC.
+It never reads the write-combined fb mapping. Pending invalidations are
+rendered first (`lv_refr_now`), the file is written as `<path>.tmp` and
+renamed, and it returns 0 or -errno; `-EAGAIN` while the screen is off,
+because rendering is paused then and the buffer may be stale. A phone
+capture and a host capture of the same state therefore compare directly
+with the design references (`tools/chefui/compare-ref.py`, see the
+[system UI](system-ui.md#running-and-testing)). `test-chefui` checks size,
+orientation and pending changes for every rotation, and the off state.
 
 ## Pacing, diagnostics and verification
 

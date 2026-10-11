@@ -70,3 +70,31 @@ if [ ! -x "$MUSLTC/bin/aarch64-buildroot-linux-musl-gcc" ]; then
     rm -f /tmp/$$-musl-cc.tar.xz
 fi
 "$MUSLTC/bin/aarch64-buildroot-linux-musl-gcc" --version | head -1
+
+# --- static basu (sd-bus) for the system UI's D-Bus clients -----------------
+# Alpine's basu-static/basu-dev (LGPL-2.1-or-later, built on musl 1.2.6 like
+# the toolchain above) give the musl apps NetworkManager/BlueZ state without
+# a shared libsystemd; the API is sd-bus under <basu/sd-bus.h>. Pinned to
+# 0.2.1-r2 by sha256. Only libbasu.a and the headers are kept, under
+# toolchain/basu/{lib,include}. See docs/building.md (firmware and
+# distribution) for the LGPL relinking note.
+BASU=toolchain/basu
+BASU_VER=0.2.1-r2
+BASU_STATIC_SHA=1f6564b4e3597de1c8f4f4d9c2ec2ac32e919de75d15ddd9516b132491621ac7
+BASU_DEV_SHA=ac23f7cf051d1d832683cf8525c1dbb508152ae6d54c5138191296efec104546
+if [ ! -f "$BASU/lib/libbasu.a" ] || [ ! -f "$BASU/include/basu/sd-bus.h" ]; then
+    tmp=$(mktemp -d)
+    for p in "basu-static $BASU_STATIC_SHA" "basu-dev $BASU_DEV_SHA"; do
+        set -- $p
+        curl -fsSL -o "$tmp/$1.apk" "$ALPINE/community/aarch64/$1-$BASU_VER.apk"
+        echo "$2  $tmp/$1.apk" | sha256sum -c - >/dev/null || { echo "$1-$BASU_VER.apk: sha256 mismatch" >&2; rm -rf "$tmp"; exit 1; }
+        mkdir -p "$tmp/root"
+        tar -xzf "$tmp/$1.apk" -C "$tmp/root" 2>/dev/null
+    done
+    rm -rf "$BASU"
+    mkdir -p "$BASU/lib" "$BASU/include"
+    cp "$tmp/root/usr/lib/libbasu.a" "$BASU/lib/"
+    cp -r "$tmp/root/usr/include/basu" "$BASU/include/"
+    rm -rf "$tmp"
+fi
+ls "$BASU/lib/libbasu.a" "$BASU/include/basu/sd-bus.h"

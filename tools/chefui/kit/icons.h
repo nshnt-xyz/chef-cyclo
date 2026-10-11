@@ -1,0 +1,30 @@
+/*
+ * icons.h - Lucide (lucide-static@0.460.0) glyphs as UTF-8 strings for the
+ * chefkit_icon_N fonts. Codepoints from the package's font/info.json; each
+ * icon font only holds the glyphs fonts/gen-fonts.sh lists for its size.
+ */
+#ifndef CHEFKIT_ICONS_H
+#define CHEFKIT_ICONS_H
+
+#define KIT_IC_BLUETOOTH		"\xEE\x81\xA0"	/* U+E060 */
+#define KIT_IC_BLUETOOTH_CONNECTED	"\xEE\x86\xB8"	/* U+E1B8 */
+#define KIT_IC_BLUETOOTH_OFF		"\xEE\x86\xB9"	/* U+E1B9 */
+#define KIT_IC_CHEVRON_LEFT		"\xEE\x81\xB2"	/* U+E072 */
+#define KIT_IC_CHEVRON_RIGHT		"\xEE\x81\xB3"	/* U+E073 */
+#define KIT_IC_CLOCK			"\xEE\x82\x8B"	/* U+E08B */
+#define KIT_IC_HARD_DRIVE		"\xEE\x83\xB0"	/* U+E0F0 */
+#define KIT_IC_INFO			"\xEE\x83\xBE"	/* U+E0FE */
+#define KIT_IC_LOCATE			"\xEE\x87\x9A"	/* U+E1DA */
+#define KIT_IC_LOCATE_FIXED		"\xEE\x87\x9B"	/* U+E1DB */
+#define KIT_IC_LOCATE_OFF		"\xEE\x8A\x82"	/* U+E282 */
+#define KIT_IC_MOON			"\xEE\x84\xA2"	/* U+E122 */
+#define KIT_IC_SUN			"\xEE\x85\xBC"	/* U+E17C */
+#define KIT_IC_SUN_DIM			"\xEE\x8A\x99"	/* U+E299 */
+#define KIT_IC_SUN_MEDIUM		"\xEE\x8A\xB1"	/* U+E2B1 */
+#define KIT_IC_SUN_MOON			"\xEE\x8A\xB2"	/* U+E2B2 */
+#define KIT_IC_VIBRATE			"\xEE\x88\xA3"	/* U+E223 */
+#define KIT_IC_WIFI			"\xEE\x86\xAE"	/* U+E1AE */
+#define KIT_IC_WIFI_OFF			"\xEE\x86\xAF"	/* U+E1AF */
+#define KIT_IC_ZAP			"\xEE\x86\xB4"	/* U+E1B4 */
+
+#endif /* CHEFKIT_ICONS_H */

@@ -367,6 +367,13 @@ echo "built $ROOT/usr/bin/buttond"
 make -C tools/chefui -j"$(nproc)" device >/dev/null
 install -m 755 tools/chefui/build/device/chefui-demo "$ROOT/usr/bin/chefui-demo"
 echo "built $ROOT/usr/bin/chefui-demo"
+# The system UI app (tools/chefui/apps/settings, docs/features/system-ui.md):
+# status bar, settings hub and Display page on chefui, with NetworkManager
+# and BlueZ state over static basu (scripts/setup-toolchain.sh fetches it to
+# toolchain/basu). Started from inittab (respawn); owns the panel, fblog
+# shows the log screen whenever it is not running.
+install -m 755 tools/chefui/build/device/chef-settings "$ROOT/usr/bin/chef-settings"
+echo "built $ROOT/usr/bin/chef-settings"
 
 # A/B slot marker (tools/abslot.c, docs/features/boot.md):
 # `fastboot flash boot_a` leaves boot_a unsuccessful with 7 retries and abl

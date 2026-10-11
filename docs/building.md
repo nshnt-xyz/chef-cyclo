@@ -10,7 +10,7 @@ Use a Linux host with the kernel and `third_party/lvgl` submodules checked out (
 
 Every image carries [SSH](features/ssh.md) public keys from the gitignored `secrets/ssh/authorized_keys`: run `scripts/ssh-setup.sh` once per host (it creates `~/.ssh/chef-cyclo_ed25519` and that file). `mkinitramfs.sh` refuses a missing, empty or malformed file; `SSH=0` builds an image without SSH.
 
-`scripts/setup-toolchain.sh` fetches AOSP GCC 4.9 for the kernel and freestanding `btprobe`, a Bootlin musl aarch64 cross compiler for libc-based helpers, AOSP boot-image tools, and Alpine bootstrap assets into gitignored `toolchain/`.
+`scripts/setup-toolchain.sh` fetches AOSP GCC 4.9 for the kernel and freestanding `btprobe`, a Bootlin musl aarch64 cross compiler for libc-based helpers, AOSP boot-image tools, Alpine bootstrap assets and Alpine's static basu (sd-bus, for the [system UI](features/system-ui.md)) into gitignored `toolchain/`. The host build of the system UI uses libsystemd's sd-bus when `pkg-config libsystemd` finds it (`libsystemd-dev`) and otherwise builds without Wi-Fi and Bluetooth state; its D-Bus test also needs `dbus-daemon`. Regenerating the UI fonts (`tools/chefui/kit/fonts/gen-fonts.sh`) needs python3 fontTools and `npx`; the generated fonts are committed.
 
 ## Baseline image
 
@@ -98,6 +98,8 @@ After boot, connect through [USB networking](features/usb-networking.md). The ba
 ## Firmware and distribution
 
 Images contain stock firmware and device-specific persist/EFS seed material. Before distributing a repository or image, audit which blobs and device data it contains; extract required blobs from the recipient's own stock backup at build time. The existing build already uses local stock backups. Raw GPS trace archives are local evidence, not public documentation.
+
+`chef-settings` is statically linked with basu 0.2.1 (Alpine `basu-static` 0.2.1-r2, LGPL-2.1-or-later). Nothing is distributed in this project today. Whoever distributes an image or the binary must meet [LGPL-2.1](https://spdx.org/licenses/LGPL-2.1.html) section 6 for that static link: ship (or offer in writing, per 6(c)) the complete corresponding basu source as built, meaning the 0.2.1 release plus Alpine's APKBUILD and patches for 0.2.1-r2, together with the licence text and notices, and the material that lets a user relink the app against a modified basu (this project's source with `make -C tools/chefui device BASU=DIR` qualifies, or the app's object files). This project's source alone is not enough. Linking basu dynamically is the alternative. The UI fonts are Barlow (SIL OFL 1.1) and Lucide (ISC); their licences are in `tools/chefui/kit/fonts/src/`.
 
 ## Phase 2 storage image
 

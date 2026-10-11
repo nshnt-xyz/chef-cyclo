@@ -1,0 +1,9 @@
+# The round-1 design's reference values (Screens.dc.html): for host runs,
+# tests and the reference comparisons (chef-settings --fake-state FILE).
+time 14:16
+zone IST
+batt 78 unpowered
+gps running 3 3
+wifi connected HomeNet
+bt connected 2
+storage 18200000000

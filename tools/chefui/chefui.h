@@ -136,6 +136,16 @@ lv_indev_t *chefui_pointer(void);
  */
 int chefui_handoff_exec(const char *path, char *const argv[], bool dark);
 
+/*
+ * Write the current frame as a binary PPM (P6, 8-bit RGB) at the logical
+ * (rotated) size, from the cached RAM copy LVGL renders into: the shadow
+ * on the phone, the DIRECT draw buffer on the PC. Never reads the
+ * write-combined fb mapping. Pending invalidations are rendered first.
+ * Written to "<path>.tmp" and renamed. -EAGAIN while the screen is off
+ * (rendering is paused, the buffer may be stale); otherwise 0 or -errno.
+ */
+int chefui_snapshot(const char *path);
+
 /* Lifecycle note to /dev/kmsg as "chefui[<app>]: ..." (and stderr). */
 void chefui_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 

@@ -51,6 +51,15 @@
 # ours, else in /run/power (1 MiB), and the 44/42 C charge throttle on
 # system_temp_level.
 ::respawn:/bin/sh -c 'if /usr/bin/chef-state ours; then exec /usr/bin/powerd -l /data/v1/power -L 4194304; else exec /usr/bin/powerd; fi'
+# The system UI (chef-settings: status bar, settings hub, Display page). It
+# takes the panel from fblog through /run/fb0.lock, claims power.short from
+# buttond (Back on a page, screen off on the hub) and picks up
+# NetworkManager, BlueZ, gps-manager and /data whenever they appear. A boot
+# with /run/fblog.off present stays dark. When it dies or is stopped, fblog
+# shows the log screen until respawn takes the panel back; a failed start
+# waits 5 s first. Settings: /data/v1/ui/settings (or /run/ui when /data is
+# not ours). See docs/features/system-ui.md.
+::respawn:/usr/bin/chef-settings
 # A/B slot: mark boot_a successful once this boot has lasted 30 s, as
 # Android's boot_control HAL did, so abl stops counting retries down (it
 # would mark the slot unbootable after 7 boots). A build that dies earlier

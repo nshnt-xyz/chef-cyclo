@@ -569,3 +569,77 @@ int chefui_run(void)
 	cu_buttons_close(&G.buttons);
 	return G.quit_code;
 }
+
+/* ------------------------------------------------------------ snapshot */
+
+int chefui_snapshot(const char *path)
+{
+	char tmp[512];
+	lv_draw_buf_t *buf;
+	uint8_t *row = NULL;
+	int32_t w, h, x, y;
+	uint32_t cf;
+	FILE *f;
+	int r = 0;
+
+	if (!G.inited)
+		return -ENODEV;
+	if (!chefui_screen_is_on())
+		return -EAGAIN;
+	if (snprintf(tmp, sizeof(tmp), "%s.tmp", path) >= (int)sizeof(tmp))
+		return -ENAMETOOLONG;
+	lv_refr_now(G.disp);
+	buf = lv_display_get_buf_active(G.disp);
+	w = lv_display_get_horizontal_resolution(G.disp);
+	h = lv_display_get_vertical_resolution(G.disp);
+	if (!buf || !buf->data || buf->header.w < (uint32_t)w || buf->header.h < (uint32_t)h)
+		return -EIO;
+	cf = buf->header.cf;
+	if (cf != LV_COLOR_FORMAT_XRGB8888 && cf != LV_COLOR_FORMAT_ARGB8888 &&
+	    cf != LV_COLOR_FORMAT_RGB888 && cf != LV_COLOR_FORMAT_RGB565)
+		return -ENOTSUP;
+	row = malloc((size_t)w * 3);
+	if (!row)
+		return -ENOMEM;
+	f = fopen(tmp, "we");
+	if (!f) {
+		r = -errno;
+		free(row);
+		return r;
+	}
+	fprintf(f, "P6\n%d %d\n255\n", (int)w, (int)h);
+	for (y = 0; y < h; y++) {
+		const uint8_t *p = buf->data + (size_t)y * buf->header.stride;
+
+		for (x = 0; x < w; x++) {
+			uint8_t *o = row + 3 * x;
+
+			if (cf == LV_COLOR_FORMAT_RGB565) {
+				uint16_t v = (uint16_t)(p[2 * x] | p[2 * x + 1] << 8);
+
+				o[0] = (uint8_t)((v >> 11 & 0x1f) * 255 / 31);
+				o[1] = (uint8_t)((v >> 5 & 0x3f) * 255 / 63);
+				o[2] = (uint8_t)((v & 0x1f) * 255 / 31);
+			} else {
+				int bpp = cf == LV_COLOR_FORMAT_RGB888 ? 3 : 4;
+
+				/* LVGL stores B, G, R(, X) */
+				o[0] = p[bpp * x + 2];
+				o[1] = p[bpp * x + 1];
+				o[2] = p[bpp * x];
+			}
+		}
+		if (fwrite(row, 3, (size_t)w, f) != (size_t)w) {
+			r = -EIO;
+			break;
+		}
+	}
+	free(row);
+	if (fclose(f) && !r)
+		r = -errno;
+	if (!r && rename(tmp, path))
+		r = -errno;
+	if (r)
+		unlink(tmp);
+	return r;
+}

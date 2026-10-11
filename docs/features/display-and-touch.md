@@ -43,7 +43,7 @@ To wake it, remove the flag only. Do not signal after removal: that can terminat
 rm /run/fblog.off
 ```
 
-A short power-button press performs that toggle; while a chefui application runs, it claims the press and toggles the screen itself.
+A short power-button press performs that toggle; while a chefui application runs, it claims the press and toggles the screen itself. The [system UI](system-ui.md) starts at boot and owns the panel; fblog shows the log screen whenever it is not running (see that guide for holding it off to read the log).
 
 Edit `fblog` arguments in the applicable `etc/inittab`: `-b` brightness (default 96), `-s` glyph scale (default 2, 59×68 cells), `-k` maximum kernel log level, or `-a` all kernel messages.
 

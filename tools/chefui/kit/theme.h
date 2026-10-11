@@ -1,0 +1,71 @@
+/*
+ * theme.h - chefkit design tokens (round-1 system UI design, see
+ * docs/next-steps/ui-and-ride-app.md "System UI design") and the shared
+ * LVGL styles every kit widget takes its colours from.
+ *
+ * Widgets never set a colour on an object directly: they add the shared
+ * styles below. kit_theme_set() rewrites the colours in those styles and
+ * reports the change, so a theme switch restyles every existing object in
+ * place without rebuilding a screen.
+ */
+#ifndef CHEFKIT_THEME_H
+#define CHEFKIT_THEME_H
+
+#include <stdint.h>
+
+#include "lvgl.h"
+
+enum kit_theme { KIT_THEME_DARK, KIT_THEME_LIGHT };
+
+struct kit_palette {
+	uint32_t bg, surf, fg, mut, line, line2, acc, acct, onacc, warn;
+};
+extern const struct kit_palette kit_palette_dark, kit_palette_light;
+
+/* Sizes in device pixels (1080x2246 portrait). */
+#define KIT_STATUS_H		96	/* status bar = the calibrated safe top */
+#define KIT_HEADER_H		192	/* page header, plus its 3 px rule */
+#define KIT_BACK_W		168	/* back target in the header */
+#define KIT_PAGE_PAD		60	/* page side padding */
+#define KIT_LINE		3	/* rules and borders */
+#define KIT_TARGET_MIN		192	/* smallest touch target (about 12 mm) */
+#define KIT_ROW_H		216	/* list rows, plus their 3 px rule */
+#define KIT_MASTER_H		240	/* master toggle rows */
+#define KIT_SWITCH_W		204
+#define KIT_SWITCH_H		108
+#define KIT_RADIUS		36	/* cards, buttons, segmented controls */
+#define KIT_RADIUS_KEY		24
+#define KIT_TILE_H		330
+#define KIT_GAP_TILES		24
+
+/* Ink: the text/icon colour roles. */
+enum kit_ink { KIT_INK_FG, KIT_INK_MUT, KIT_INK_ACCT, KIT_INK_ONACC, KIT_INK_WARN, KIT_INK_N };
+
+/* Custom object states the kit uses besides CHECKED and DISABLED. */
+#define KIT_STATE_OFF	LV_STATE_USER_1		/* tile/subsystem off: line2, muted */
+#define KIT_STATE_WARN	LV_STATE_USER_2		/* battery low */
+
+struct kit_styles {
+	lv_style_t ink[KIT_INK_N];	/* text_color */
+	lv_style_t screen;		/* bg colour, opaque */
+	lv_style_t rule_bottom;		/* 3 px line under rows and headers */
+	lv_style_t rule_top_bottom;
+	lv_style_t tile, tile_off;	/* acc border / line2 border (KIT_STATE_OFF) */
+	lv_style_t tile_icon, tile_icon_off;
+	lv_style_t dot;			/* the tile's "on" dot */
+	lv_style_t seg;			/* segmented control frame */
+	lv_style_t seg_cell, seg_cell_on, seg_cell_disabled;
+	lv_style_t track, track_fill, track_knob;	/* brightness slider */
+	lv_style_t sw_on, sw_off, knob_on, knob_off;	/* switch */
+	lv_style_t batt, batt_warn, batt_fill, batt_fill_warn;
+};
+extern struct kit_styles kit_st;
+
+/* Initialise the styles (once, after lv_init) with a theme. */
+void kit_theme_init(enum kit_theme theme);
+/* Switch theme: rewrite the shared styles and refresh every object. */
+void kit_theme_set(enum kit_theme theme);
+enum kit_theme kit_theme_get(void);
+const struct kit_palette *kit_palette(void);
+
+#endif /* CHEFKIT_THEME_H */
