@@ -218,3 +218,8 @@ M2 review round 2 (ui_review) and round 3 fixes, 2026-10-13
  Host: make -C tools/chefui test (test-sys 255, test-app 528, test-wifi
  212), make -C tools test (test_gps-manager.sh 57, test-gps-manager 200,
  test_chef_state.py 110), all green.
+ r3 (ui_review, 2026-10-13): approved, no findings; independently re-ran
+ the full tools and chefui suites, six more test-sys runs and the
+ descendant repro. Committed as d0fbf5b (not pushed, not installed).
+ Deferred to the final guided batch: a real fix near a window (P13/P14
+ with live satellites). M3 (BLE sensors) is on hold for a new session.
