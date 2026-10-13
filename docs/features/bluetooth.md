@@ -105,3 +105,122 @@ The 4.4 kernel speaks mgmt 1.10, while BlueZ 5.86 expects newer: advertisement m
 - **The vendor tree's `BT_INFO`/`BT_ERR` printed pointers**: a blanket `%p`→`%pK` sed had turned `%pV` into `%pKV` in `net/bluetooth/lib.c`.
 
 See the [2026-09-15 build-log entries](../build-log.md) for firmware details, measured timings, and the earlier line-discipline double-free fix. Remaining sensor integration and idle-power work is in [connectivity and sensors](../next-steps/connectivity-and-sensors.md).
+
+
+## BLE sensors
+
+`blesensd` is the resident owner of Heart Rate (0x180D/0x2A37), Cycling
+Power (0x1818/0x2A63) and Cycling Speed and Cadence (0x1816/0x2A5B).
+Inittab respawns it. Settings and future ride clients share its Unix socket,
+`/run/blesensd.sock`; they never own separate notification sessions.
+One device has one saved record and connection, even with several services;
+the [Bluetooth pages](system-ui.md#bluetooth-pages) show one row per kind.
+
+Discovery uses `Transport=le` and the three sensor service UUIDs, only while
+at least one client asks for `scan on`. Pairing is bounded at 20 seconds:
+connect, resolve, subscribe, bond if authentication is required (also when
+Connect fails for authentication before services resolve), trust and
+save. The daemon registers its own NoInputNoOutput agent. It requests the
+default-agent role only during an active pairing attempt, since BlueZ may
+request security during service resolution before StartNotify. On completion
+or cancellation it unregisters, restoring the previous default agent, then
+registers normally for the next request. Unregistration is confirmed and
+retried before normal registration or a subsequent pairing can continue.
+Its agent keeps rejecting unrelated devices even during a cleanup retry. It answers only bluetoothd's unique bus name and
+only for the current pairing device; service authorization also accepts
+saved sensors. Delayed replies carry the pairing attempt or saved sensor
+identity plus its connection epoch, so a cancelled attempt, disconnected
+link or reused record slot cannot consume another attempt's reply.
+
+**Reconnect policy.** BlueZ does not automatically reconnect these GATT
+sensor profiles. `blesensd` calls Connect with backoff from 5 seconds to
+30 seconds, only while any client holds `hold on`, or during a default
+300-second window after daemon start, adapter power-on, bluetoothd appearing,
+pairing or a link drop. At expiry the daemon cancels any outstanding Connect through Disconnect,
+so the pending BlueZ procedure cannot keep scanning beyond the window.
+Outside that window, absent sensors stay `waiting`
+and no Connect attempt runs. A hold resumes attempts at once; leaving a
+page or closing its connection releases the hold. Established connections
+and notifications remain alive when a hold ends. `-r SECONDS` changes the
+window, `-w MM` changes the wheel circumference (default 2105 mm).
+
+StartNotify is requested once per connection epoch regardless of BlueZ's
+global Notifying property, which can belong to another client. Only Value
+changes on our established sessions count; cached properties and ReadValue
+measurements never look live. A link or object loss clears every kind and
+its revolution baseline. Five seconds without a measurement produces null;
+a new watcher receives only fresh values. Optional cadence/speed is null as
+soon as its flag is absent; its baseline resets then and after a stale gap,
+so two fresh samples are required again. Repeated valid stopped counters
+remain fresh and produce zero after the stop interval. HR accepts 8/16-bit measurements;
+power is signed, optional fields must be complete, and CSC handles event
+and revolution rollover. Battery comes from BlueZ Battery1, or one 0x2A19
+read per connection plus an owned notification session when notify is
+offered. Invalid battery packets are ignored; disconnect/object loss resets
+the fallback value and session, which is acquired again on reconnect. RSSI is the last advertisement, marked as last seen
+when not live.
+
+```sh
+blesensd status
+blesensd list
+blesensd watch                      # snapshot then JSON event lines
+blesensd scan                       # scan and watch until interrupted
+blesensd pair AA:BB:CC:DD:EE:FF       # waits for done or failed
+blesensd cancel AA:BB:CC:DD:EE:FF
+blesensd forget AA:BB:CC:DD:EE:FF     # waits for confirmed removal
+```
+
+The socket takes one command per line: `status`, `list`, `watch`,
+`scan on|off`, `hold on|off`, `pair ADDR`, `cancel ADDR`, `forget ADDR`.
+Every output line is a JSON object (protocol in `tools/blesensd/blesensd.c`).
+`ok` acknowledges acceptance; `pair` reports steps/outcomes and `forgotten`
+confirms removal. `sensor` carries identity, kinds, state, battery and RSSI;
+`value` carries HR bpm, power W/cadence rpm or CSC speed km/h/cadence rpm,
+with null for missing values. Scan and hold belong to each client connection.
+
+Records use `chef-state blesens-load` and `blesens-save` under
+`/data/v1/blesens/sensors` (directory 0700, file 0600, sealed version
+`chef-blesens 1`, at most eight records). Each line is
+`sensor ADDR hr,power,csc DATE|- -|forget NAME`. Without owned storage,
+`/run/chef-state-blesens` is the fallback. Forget first durably marks its
+record `forget`, then removes the BlueZ device and only after confirmation
+saves the record deletion before reporting `forgotten`. Both saves must
+succeed; failed saves retry, leaving the pending removal visible to watchers.
+Pending Forget survives either daemon restarting;
+errors retry. Storage children have bounded lifetimes and separate process
+groups, killed as a group on timeout, leader exit or daemon exit.
+
+### PC sensor emulator and verification
+
+```sh
+scripts/ble-sensor-emu.py --kinds hr,power,csc --name CHEF-SENSOR
+make -C tools/blesensd test
+python3 tools/tests/test_chef_state.py -k blesens
+```
+
+For actual bond-persistence checks, add `--bond --central PHONE_ADDR`.
+The emulator supplies a temporary NoInputNoOutput default agent that accepts
+only BlueZ requests about that phone; it restores Pairable and unregisters
+at exit, returning the previous default agent. This uses BlueZ
+[encrypt-notify](https://github.com/bluez/bluez/blob/master/src/gatt-database.c)
+permissions on the measurement CCC; the ordinary mode needs no bond.
+
+The emulator registers a BlueZ GATT application and LE advertisement on the
+PC adapter, changing all measurements at 1 Hz and re-advertising after a
+central disconnects. It runs as the user with python3 dbus-python and GLib.
+The advertisement sets Discoverable on its LE instance; with the PC adapter
+not globally discoverable, BlueZ marks that advertisement BR/EDR unsupported.
+Keep classic Discoverable off (`bluetoothctl discoverable off`), so a saved
+LE bond reconnects over LE after reboot. For this dual-mode PC peer, the
+classic bond must be removed on both sides
+before LE testing (user approved for the test peer), otherwise BlueZ can
+choose BR/EDR. Real sensors are normally LE-only. Do not remove unrelated
+bonds. Stop the emulator by its recorded PID, not a broad process pattern.
+
+Host tests use a fake bluetoothd on a private D-Bus, never the system bus:
+notification ownership, async identity, all-kind resets, confirmed Forget,
+scoped agent, fresh watches, framing, bounded reconnect and storage child
+lifecycle. Live evidence and provenance are recorded in the
+[M3 log](../../logs/system-ui-slice2-2026-10-11.txt).
+Real sensor validation, wheel circumference UI, classic PC re-pair and
+USB-out idle-current measurements remain next steps.

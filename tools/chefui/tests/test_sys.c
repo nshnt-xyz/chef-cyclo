@@ -30,6 +30,7 @@
 #include "gpsview.h"
 #include "sysstate.h"
 #include "wifi.h"
+#include "blesens.h"
 
 static char tmp[256];
 static unsigned changes;
@@ -614,7 +615,7 @@ static void test_fake(void)
 	changes = 0;
 	CHECK(sys_fake_load(st) == 0);
 	CHECK(changes == (SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE |
-			  SYS_WIFI_VIEW | SYS_GPS_VIEW));
+			  SYS_WIFI_VIEW | SYS_GPS_VIEW | SYS_BLE));
 	CHECK(!strcmp(sys_state.clock.hhmm, "14:16") && sys_state.batt.capacity == 78);
 	CHECK(sys_state.gps.state == SYS_GPS_RUNNING && sys_state.gps.mode == 3);
 	CHECK(sys_wifi_connected(&sys_state) && !strcmp(sys_state.wifi.ssid, "HomeNet"));
@@ -776,6 +777,116 @@ static void test_wifi_model(void)
 	CHECK(!memcmp(b, "\0\0\0\0\0\0\0", 7));
 }
 
+
+/* ------------------------------------------------------------ BLE sensors */
+#define BA "AA:BB:CC:DD:EE:01"
+#define BB "AA:BB:CC:DD:EE:02"
+static const char BLE_SENSOR[] = "{\"type\":\"sensor\",\"addr\":\"" BA "\",\"kinds\":\"hr,power,csc\","
+	"\"name\":\"Combo\",\"state\":\"connected\",\"battery\":80,\"rssi\":-58,\"rssi_live\":false}";
+static const char BLE_VALUE[] = "{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":321}";
+
+static void test_ble_parser(void)
+{
+	struct ble_view v = {0}, keep;
+	struct ble_row rows[24];
+	const char *bad[] = {
+		"{\"type\":\"adapter\",\"powered\":true}junk",
+		"{\"type\":\"adapter\",\"powered\":true,}",
+		"{\"type\":\"found\",\"addr\":\"" BB "\",\"name\":\"\\uXX00\"}",
+		"{\"type\":\"found\",\"addr\":\"" BB "\",\"name\":\"\\u01\"}",
+		"{\"type\":\"found\",\"addr\":\"" BB "\",\"name\":\"a\nb\"}",
+		"{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":NaN}",
+		"{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":1e999}",
+		"{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":01}",
+		"{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":1.}",
+		"{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":0x1}",
+		"{\"type\":\"adapter\",\"type\":\"found\"}", "{", "[]", "", "{}junk",
+	};
+	CHECK(ble_apply_line(&v, BLE_SENSOR, 100));
+	CHECK(v.n == 1 && v.s[0].kinds == 7 && v.s[0].battery == 80 && !v.s[0].rssi_live);
+	CHECK(ble_apply_line(&v, BLE_VALUE, 100));
+	CHECK(v.s[0].val[BLE_HR].has && v.s[0].val[BLE_HR].v == 321);
+	CHECK(ble_apply_line(&v, "{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"power\",\"value\":-120,\"cadence\":90}", 100));
+	CHECK(v.s[0].val[BLE_POWER].v == -120 && v.s[0].val[BLE_POWER].cadence == 90);
+	CHECK(ble_rows(&v, rows, 24) == 3 && rows[0].kind == BLE_HR && rows[1].kind == BLE_POWER && rows[2].kind == BLE_CSC);
+	CHECK(ble_rows_connected(&v) == 3);
+	keep = v;
+	for (size_t i = 0; i < sizeof(bad)/sizeof(bad[0]); i++) {
+		CHECK(!ble_apply_line(&v, bad[i], 100));
+		CHECK(!memcmp(&v, &keep, sizeof(v)));
+	}
+	CHECK(!ble_apply_line(&v, "{\"type\":\"mystery\"}", 100));
+	CHECK(!ble_apply_line(&v, "{\"type\":\"value\",\"addr\":\"bad\",\"kind\":\"hr\",\"value\":1}", 100));
+	CHECK(ble_apply_line(&v, "{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":null}", 100));
+	CHECK(!v.s[0].val[BLE_HR].has);
+	CHECK(ble_apply_line(&v, "{\"type\":\"sensor\",\"addr\":\"" BA "\",\"kinds\":\"hr,power,csc\",\"state\":\"connecting\",\"battery\":\"bad\",\"rssi\":1e99}", 100));
+	CHECK(!v.s[0].val[BLE_POWER].has && !v.s[0].val[BLE_POWER].has_cadence && v.s[0].battery == -1 && !v.s[0].has_rssi);
+	CHECK(!ble_apply_line(&v, BLE_VALUE, 100)); /* delayed value without live link */
+	CHECK(ble_apply_line(&v, "{\"type\":\"found\",\"addr\":\"" BB "\",\"name\":\"A\\\"B\\\\C\\/D\\n\\u0045\\u00e9\",\"kinds\":\"csc\"}", 100));
+	CHECK(!strcmp(v.f[0].name, "A\"B\\C/DE?"));
+	v.pair.st = BLE_PAIR_RUNNING;
+	snprintf(v.pair.addr, sizeof(v.pair.addr), "%s", BA);
+	CHECK(!ble_apply_line(&v, "{\"type\":\"pair\",\"addr\":\"" BB "\",\"state\":\"done\"}", 100));
+	CHECK(ble_apply_line(&v, "{\"type\":\"pair\",\"addr\":\"" BA "\",\"state\":\"resolving\"}", 100));
+	CHECK(ble_apply_line(&v, "{\"type\":\"pair\",\"addr\":\"" BA "\",\"state\":\"failed\",\"reason\":\"timed out\"}", 100));
+	CHECK(v.pair.st == BLE_PAIR_FAILED && !strcmp(v.pair.reason, "timed out"));
+	CHECK(!ble_apply_line(&v, "{\"type\":\"pair\",\"addr\":\"" BA "\",\"state\":\"done\"}", 100));
+	CHECK(ble_apply_line(&v, "{\"type\":\"ok\",\"cmd\":\"watch\"}", 100));
+	CHECK(v.known && !v.n && !v.n_found);
+}
+
+static bool ble_known(void *arg)
+{
+	return ble_view.known == *(bool *)arg;
+}
+
+static void test_ble_connection(void)
+{
+	char sock[300];
+	struct acc a = { .lfd = -1, .cfd = -1 };
+	bool known = true;
+	struct ble_found f = { .addr = BA, .name = "Combo", .kinds = 7 };
+
+	snprintf(sock, sizeof(sock), "%s/ble.sock", tmp);
+	sys_ble_want(true, true);
+	sys_ble_start(sock);
+	fakeloop_run_for(100);
+	CHECK(!ble_view.known && sys_ble_pair(&f) == -ENOTCONN);
+	a.lfd = listen_unix(sock);
+	CHECK(fakeloop_run_until(accepted, &a, 3000));
+	CHECK(mgr_wait(&a, "watch\n", 1000));
+	/* ack field order and whitespace are JSON, not a magic prefix */
+	say(a.cfd, "{ \"cmd\": \"watch\", \"type\": \"ok\" }\n");
+	CHECK(mgr_wait(&a, "scan on\n", 1000) && strstr(a.in, "hold on\n"));
+	CHECK(fakeloop_run_until(ble_known, &known, 1000));
+	say(a.cfd, BLE_SENSOR);
+	say(a.cfd, "\n");
+	say(a.cfd, BLE_VALUE);
+	say(a.cfd, "\n");
+	fakeloop_run_for(50);
+	CHECK(ble_view.n == 1 && ble_view.s[0].val[BLE_HR].has);
+	CHECK(sys_ble_pair(&f) == 0 && mgr_wait(&a, "pair " BA "\n", 1000));
+	close(a.cfd); close(a.lfd); unlink(sock);
+	a.cfd = -1; a.n = 0; a.in[0] = 0;
+	known = false;
+	CHECK(fakeloop_run_until(ble_known, &known, 1000));
+	CHECK(!ble_view.n && !ble_view.n_found && !ble_view.powered && ble_view.pair.st == BLE_PAIR_FAILED);
+	/* failed retries back off, and a new daemon gets wants again */
+	fakeloop_run_for(1100);
+	a.lfd = listen_unix(sock);
+	fakeloop_run_for(200);
+	CHECK(!accepted(&a));
+	CHECK(fakeloop_run_until(accepted, &a, 4000));
+	CHECK(mgr_wait(&a, "watch\n", 1000));
+	say(a.cfd, "{\"type\":\"ok\",\"cmd\":\"watch\"}\n");
+	CHECK(mgr_wait(&a, "scan on\n", 1000) && strstr(a.in, "hold on\n"));
+	sys_ble_want(false, true); /* scan implies hold */
+	CHECK(mgr_wait(&a, "scan off\n", 1000) && strstr(a.in, "hold off\n"));
+	sys_ble_stop();
+	CHECK(fakeloop_watched() == 0);
+	close(a.cfd); close(a.lfd); unlink(sock);
+}
+
 int main(void)
 {
 	char cmd[300];
@@ -794,6 +905,8 @@ int main(void)
 	test_clock();
 	test_fake();
 	test_wifi_model();
+	test_ble_parser();
+	test_ble_connection();
 	snprintf(cmd, sizeof(cmd), "rm -rf '%s'", tmp);
 	if (system(cmd))
 		fprintf(stderr, "cleanup of %s failed\n", tmp);

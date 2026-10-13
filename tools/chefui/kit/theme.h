@@ -76,6 +76,11 @@ struct kit_styles {
 	lv_style_t sat_on, sat_off;	/* satellite pill: in use (acc), visible */
 	lv_style_t bar_on, bar_off;	/* signal bar: in use, visible */
 	lv_style_t swatch_on, swatch_off;	/* legend squares */
+	/* Bluetooth pages */
+	lv_style_t pill;		/* acc frame, radius 60 (Pair) */
+	lv_style_t scrim;		/* black at 60 % over the screen (a modal) */
+	lv_style_t modal;		/* bg, line2 frame, radius 48 */
+	lv_style_t progress, progress_fill;	/* line2 frame, radius 12; acc fill */
 };
 extern struct kit_styles kit_st;
 

@@ -31,7 +31,14 @@ struct page {
 };
 
 extern const struct page_ops page_display_ops, page_wifi_ops, page_wifi_password_ops,
-	page_wifi_hidden_ops, page_wifi_details_ops, page_gps_ops, page_gps_sats_ops;
+	page_wifi_hidden_ops, page_wifi_details_ops, page_gps_ops, page_gps_sats_ops, page_bt_ops,
+	page_bt_sensor_ops;
+
+/* P10's argument: the sensor (address) and which of its kinds. */
+struct page_bt_sensor_arg {
+	char addr[18];
+	int kind;		/* enum ble_kind */
+};
 
 /* Shared helpers (app.c). */
 void page_help_text(lv_obj_t *parent, const char *s);

@@ -9,9 +9,9 @@ Wi-Fi (P15 to P18), GPS (P11 to P14), Bluetooth sensors (P07 to P10),
 Sound and haptics (P03), Time and date (P04), Storage (P05), About (P06),
 and the ALS-driven Auto brightness and theme Auto on P02.
 
-Roles as before: `ui_impl` (Claude) implements, `ui_review` (Codex)
+Roles as before: `ui_impl` (Codex from M3) implements, `ui_review` (Codex)
 reviews, `ui_coord` coordinates and talks to the user. Report with
-`herdr agent prompt ui_coord "..."`. No em dashes anywhere. Work in the
+`herdr agent prompt ui_coord "[From: ui_impl] ..."`. No em dashes anywhere. Work in the
 milestones below, each reviewed before the next; one commit per
 milestone after explicit reviewer approval; do not push.
 
@@ -156,8 +156,12 @@ lessons: `~/chef-cyclo-evidence/system-ui-live-20261011/`,
   16-bit event times, stale values (show the design's dash after a
   timeout), disconnect and reconnect.
 - "My sensors" = devices the daemon has paired/trusted that expose one
-  of these services; reconnect automatically while BT is on (LE
-  transport). Scan only while the Bluetooth page is visible (LE filter,
+  of these services; reconnect with LE transport and backoff 5 s doubling to 30 s only
+  while a client holds, or for a default 300 s window after daemon start,
+  adapter power-on, bluetoothd appearing, pairing or link drop. Otherwise
+  stay waiting with no Connect attempts and cancel outstanding Connect
+  procedures at expiry. Keep established connections.
+  One device record can contain several kinds; P08 shows one row per kind. Scan only while the Bluetooth page is visible (LE filter,
   service UUIDs). Pair (P09 modal, 20 s, Cancel): connect, resolve
   services, `Pair()` when the device needs bonding (NoInputNoOutput
   agent), mark trusted, store a small record (type, name, paired date)

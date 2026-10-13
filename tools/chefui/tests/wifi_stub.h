@@ -15,6 +15,9 @@ struct wifi_stub {
 	size_t last_psk_len;
 	char psk_seen[WIFI_PSK_MAX + 1];
 	char forget_uuid[WIFI_UUID_LEN + 1];
+	/* the Bluetooth switch (netbus) */
+	int bt_power_calls;
+	bool bt_power_last;
 };
 
 extern struct wifi_stub wifi_stub;

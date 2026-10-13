@@ -1,0 +1,3 @@
+# Read after design.state and bt.state for P09: pairing the first device
+# found, 9 s into the 20 s (the design bar is at 45 %).
+blepair C0:FF:EE:77:A1:04 9

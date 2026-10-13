@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "blesens.h"
 #include "icons.h"
 #include "text.h"
 
@@ -19,7 +20,13 @@ void text_bt(const struct sys_state *s, char *buf, size_t n)
 		snprintf(buf, n, "No adapter");
 	else if (!s->bt.powered)
 		snprintf(buf, n, "Off");
-	else if (s->bt.connected > 0)
+	else if (ble_view.known && ble_view.n > 0) {
+		struct ble_row r[BLE_SENSORS_MAX * BLE_KINDS];
+		int rows = ble_rows(&ble_view, r, BLE_SENSORS_MAX * BLE_KINDS);
+
+		/* the sensors (blesensd), as P08 counts them */
+		snprintf(buf, n, "%d of %d connected", ble_rows_connected(&ble_view), rows);
+	} else if (s->bt.connected > 0)
 		snprintf(buf, n, "%d connected", s->bt.connected);
 	else
 		snprintf(buf, n, "On");

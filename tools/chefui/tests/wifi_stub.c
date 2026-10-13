@@ -78,3 +78,10 @@ void sys_wifi_join_ack(void)
 	if (wifi_view.join.st != WIFI_JOIN_BUSY)
 		wifi_view.join.st = WIFI_JOIN_IDLE;
 }
+
+int sys_bt_set_powered(bool on)
+{
+	wifi_stub.bt_power_calls++;
+	wifi_stub.bt_power_last = on;
+	return wifi_stub.result;
+}

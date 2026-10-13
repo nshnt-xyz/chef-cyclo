@@ -14,7 +14,8 @@
  * --page         open this page at start: hub, display, wifi, wifi-password
  *                (for the first network listed), wifi-hidden, wifi-details
  *                (on real state these two open once NetworkManager has
- *                given the network or the connection), gps, gps-sats
+ *                given the network or the connection), gps, gps-sats, bt,
+ *                bt-sensor (the first sensor row, once blesensd has listed it)
  * --keys         with --fake-state only: type TEXT on the page's keyboard
  * --theme        this theme for this run (not saved)
  * --brightness   this brightness for this run (not saved)
@@ -48,7 +49,9 @@
 #include <unistd.h>
 
 #include "app.h"
+#include "blesens.h"
 #include "chefui.h"
+#include "pages.h"
 #include "settings.h"
 #include "sys.h"
 #include "wifi.h"
@@ -81,7 +84,7 @@ static int64_t now_ms(void)
 static int usage(void)
 {
 	fprintf(stderr, "usage: chef-settings [--fake-state FILE]... [--page hub|display|wifi|"
-			"wifi-password|wifi-hidden|wifi-details|gps|gps-sats] [--theme dark|light] [--brightness PCT] "
+			"wifi-password|wifi-hidden|wifi-details|gps|gps-sats|bt|bt-sensor] [--theme dark|light] [--brightness PCT] "
 			"[--sleep 30|60|300|0] "
 			"[--snapshot PATH [--snapshot-after MS]] [--data DIR] [--run DIR] "
 			"[--keys TEXT]\n");
@@ -97,7 +100,7 @@ static int page_kind(const char *v)
 		{ "hub", APP_PAGE_HUB }, { "display", APP_PAGE_DISPLAY }, { "wifi", APP_PAGE_WIFI },
 		{ "wifi-password", APP_PAGE_WIFI_PASSWORD }, { "wifi-hidden", APP_PAGE_WIFI_HIDDEN },
 		{ "wifi-details", APP_PAGE_WIFI_DETAILS }, { "gps", APP_PAGE_GPS },
-		{ "gps-sats", APP_PAGE_GPS_SATS },
+		{ "gps-sats", APP_PAGE_GPS_SATS }, { "bt", APP_PAGE_BT }, { "bt-sensor", APP_PAGE_BT_SENSOR },
 	};
 
 	for (unsigned i = 0; i < sizeof(pages) / sizeof(pages[0]); i++)
@@ -132,6 +135,14 @@ static void open_start_page(const char *v)
 		break;
 	case APP_PAGE_GPS:
 		app_open(APP_PAGE_GPS, "GPS");
+		break;
+	case APP_PAGE_BT_SENSOR:
+		app_open(APP_PAGE_BT, "Bluetooth");
+		pending_page = APP_PAGE_BT_SENSOR;
+		open_pending();
+		break;
+	case APP_PAGE_BT:
+		app_open(APP_PAGE_BT, "Bluetooth");
 		break;
 	default:
 		break;
@@ -266,6 +277,19 @@ static int pending_page = -1;
 
 static void open_pending(void)
 {
+	struct ble_row r;
+
+	if (pending_page == APP_PAGE_BT_SENSOR && app_top() == APP_PAGE_BT) {
+		struct page_bt_sensor_arg a;
+
+		if (ble_rows(&ble_view, &r, 1) < 1)
+			return;
+		snprintf(a.addr, sizeof(a.addr), "%s", ble_view.s[r.sensor].addr);
+		a.kind = r.kind;
+		app_open_arg(APP_PAGE_BT_SENSOR, ble_kind_title(r.kind), &a);
+		pending_page = -1;
+		return;
+	}
 	if (pending_page < 0 || app_top() != APP_PAGE_WIFI)
 		return;
 	if (pending_page == APP_PAGE_WIFI_DETAILS && wifi_view.cur.valid)
@@ -281,7 +305,7 @@ static void on_state(unsigned what, void *user)
 {
 	(void)user;
 	app_on_state(what);
-	if (what & SYS_WIFI_VIEW)
+	if (what & (SYS_WIFI_VIEW | SYS_BLE))
 		open_pending();
 }
 
@@ -397,6 +421,7 @@ int main(int argc, char **argv)
 		sys_clock_start(set.tz);
 		sys_battery_start(NULL, -1);
 		sys_gps_start(NULL, 0);
+		sys_ble_start(NULL);
 		sys_netbus_start();
 		sys_wifi_init();
 	}

@@ -17,6 +17,7 @@ LV_FONT_DECLARE(chefkit_b400_40)
 LV_FONT_DECLARE(chefkit_b400_42)
 LV_FONT_DECLARE(chefkit_b400_46)	/* ASCII */
 LV_FONT_DECLARE(chefkit_b400_48)
+LV_FONT_DECLARE(chefkit_b400_56)	/* " /Wbhkmpr" only (units) */
 LV_FONT_DECLARE(chefkit_b400_72)	/* printable ASCII and U+2022 only */
 LV_FONT_DECLARE(chefkit_b500_24)	/* ASCII */
 LV_FONT_DECLARE(chefkit_b500_32)	/* ASCII */
@@ -31,13 +32,16 @@ LV_FONT_DECLARE(chefkit_bc600_32)	/* digits and '-' only */
 LV_FONT_DECLARE(chefkit_bc600_40)
 LV_FONT_DECLARE(chefkit_bc600_44)	/* digits, ':' and '-' only */
 LV_FONT_DECLARE(chefkit_bc600_48)	/* digits and '/' only */
+LV_FONT_DECLARE(chefkit_bc600_52)	/* "Pair" only */
 LV_FONT_DECLARE(chefkit_bc600_60)	/* ASCII */
 LV_FONT_DECLARE(chefkit_bc600_68)	/* digits, ",-.", NSEW, degree, en dash */
 LV_FONT_DECLARE(chefkit_bc600_76)	/* digits, "-./ms", plus-minus, en dash */
 LV_FONT_DECLARE(chefkit_bc600_72)	/* digits, '%' and '-' only */
 LV_FONT_DECLARE(chefkit_bc600_80)	/* ASCII */
+LV_FONT_DECLARE(chefkit_bc600_88)	/* digits, "-.", en dash */
 LV_FONT_DECLARE(chefkit_bc600_96)	/* ASCII titles */
 LV_FONT_DECLARE(chefkit_bc600_150)	/* GPS status figures (gen-fonts.sh) */
+LV_FONT_DECLARE(chefkit_bc600_300)	/* digits, "-.", en dash */
 LV_FONT_DECLARE(chefkit_icon_24)
 LV_FONT_DECLARE(chefkit_icon_36)
 LV_FONT_DECLARE(chefkit_icon_44)
@@ -48,6 +52,7 @@ LV_FONT_DECLARE(chefkit_icon_72)
 LV_FONT_DECLARE(chefkit_icon_80)
 LV_FONT_DECLARE(chefkit_icon_84)
 LV_FONT_DECLARE(chefkit_icon_96)
+LV_FONT_DECLARE(chefkit_icon_160)
 LV_FONT_DECLARE(chefkit_icon_200)
 
 #endif /* CHEFKIT_FONTS_H */

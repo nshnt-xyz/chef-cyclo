@@ -486,6 +486,9 @@ static int read_props(sd_bus_message *m, const char *want_key, int *out)
 	return sd_bus_message_exit_container(m);
 }
 
+/* The first adapter's object path, for the Bluetooth switch. */
+static char bt_adapter[64];
+
 /* GetManagedObjects: a{oa{sa{sv}}} */
 static int parse_objects(sd_bus_message *m, bool *adapter, bool *powered, int *connected)
 {
@@ -509,6 +512,8 @@ static int parse_objects(sd_bus_message *m, bool *adapter, bool *powered, int *c
 			if (iface && !strcmp(iface, BLUEZ ".Adapter1")) {
 				if ((r = read_props(m, "Powered", &v)) < 0)
 					return r;
+				if (!*adapter)
+					snprintf(bt_adapter, sizeof(bt_adapter), "%s", path);
 				*adapter = true;
 				*powered = *powered || v;
 			} else if (iface && !strcmp(iface, BLUEZ ".Device1")) {
@@ -539,6 +544,7 @@ static int bz_objects_reply(sd_bus_message *m, void *ud, sd_bus_error *e)
 	if (!current(&N.bz, ud))
 		return 0;
 	N.bz.inflight = false;
+	bt_adapter[0] = 0;
 	if (sd_bus_message_is_method_error(m, NULL)) {
 		publish_bt(false, false, false, 0);	/* bluetoothd not on the bus */
 	} else if (parse_objects(m, &adapter, &powered, &connected) < 0) {
@@ -722,6 +728,32 @@ static void bus_open(void)
 	N.down_logged = false;
 	N.backoff_ms = BACKOFF_MIN_MS;
 	rearm();
+}
+
+static int bt_set_reply(sd_bus_message *m, void *ud, sd_bus_error *e)
+{
+	(void)ud;
+	(void)e;
+	if (sd_bus_message_is_method_error(m, NULL))
+		chefui_log("netbus: Bluetooth Powered refused: %s", sd_bus_message_get_error(m)->name);
+	return 0;
+}
+
+int sys_bt_set_powered(bool on)
+{
+	sd_bus_message *m = NULL;
+	int r;
+
+	if (!bt_adapter[0] || !sys_state.bt.known)
+		return -ENOTCONN;
+	r = netbus_new_call(&m, BLUEZ, bt_adapter, PROPS, "Set");
+	if (r >= 0)
+		r = sd_bus_message_append(m, "ssv", BLUEZ ".Adapter1", "Powered", "b", (int)on);
+	if (r >= 0)
+		r = netbus_send(m, NULL, bt_set_reply, NULL, 0);
+	sd_bus_message_unref(m);
+	netbus_kick();
+	return r;
 }
 
 int sys_netbus_start(void)

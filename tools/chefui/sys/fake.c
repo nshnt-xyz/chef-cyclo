@@ -26,8 +26,16 @@
  *   gpsfix MODE EPH ALT SPEED LAT LON   TPV (metres, m/s, degrees)
  *   gpsdop HDOP PDOP                    SKY
  *   gpssat G05 AZ EL SNR USED           one satellite (G R E C J S I), USED 0|1
- *   gpslease SECONDS [FIRST_FIX_S]      the page's lease began SECONDS ago Several files may
- * be given (--fake-state twice): later lines win.
+ *   gpslease SECONDS [FIRST_FIX_S]      the page's lease began SECONDS ago
+ *
+ * The Bluetooth pages' view (blesens.h): blesensd's own lines, and a
+ * pairing of a found device that began SECONDS ago (or failed):
+ *
+ *   ble {"type":"sensor","addr":...}     one blesensd line (watch protocol)
+ *   blepair ADDR SECONDS                 pairing it, SECONDS into the 20
+ *   blepair ADDR failed REASON           that pairing failed
+ *
+ * Several files may be given (--fake-state twice): later lines win.
  *
  * The design reference values are tools/chefui/apps/settings/design.state.
  */
@@ -40,6 +48,7 @@
 #include "chefui.h"
 #include "sys.h"
 #include "sysstate.h"
+#include "blesens.h"
 #include "gpsview.h"
 #include "wifi.h"
 
@@ -225,12 +234,47 @@ static int gps_field(struct gps_view *v, const char *key, char **t, int n)
 	return 0;
 }
 
+/* Bluetooth lines: a blesensd line, or a pairing of a found device. */
+static int ble_field(struct ble_view *v, const char *key, char *rest)
+{
+	char *save = NULL, *addr, *a;
+	int i;
+
+	if (!rest)
+		return -1;
+	if (!strcmp(key, "ble")) {
+		ble_apply_line(v, rest + strspn(rest, " \t"), fake_mono_ms());
+		return 0;
+	}
+	addr = strtok_r(rest, " \t", &save);
+	a = strtok_r(NULL, " \t", &save);
+	for (i = 0; addr && a && i < v->n_found; i++)
+		if (!strcmp(v->f[i].addr, addr))
+			break;
+	if (!addr || !a || i == v->n_found)
+		return -1;
+	memset(&v->pair, 0, sizeof(v->pair));
+	snprintf(v->pair.addr, sizeof(v->pair.addr), "%s", addr);
+	snprintf(v->pair.name, sizeof(v->pair.name), "%s", v->f[i].name);
+	v->pair.kinds = v->f[i].kinds;
+	snprintf(v->pair.step, sizeof(v->pair.step), "connecting");
+	if (!strcmp(a, "failed")) {
+		v->pair.st = BLE_PAIR_FAILED;
+		snprintf(v->pair.reason, sizeof(v->pair.reason), "%s", save && *save ? save : "timed out");
+	} else {
+		v->pair.st = BLE_PAIR_RUNNING;
+		v->pair.started_ms = fake_mono_ms() - (int64_t)(atof(a) * 1000);
+	}
+	return 0;
+}
+
 int sys_fake_load(const char *path)
 {
 	struct sys_state s = sys_state;
 	struct wifi_view v = wifi_view;
 	struct gps_view g = gps_view;
-	char line[256];
+	struct ble_view bv = ble_view;
+	char line[512];
 	int n = 0;
 	FILE *f = fopen(path, "re");
 
@@ -265,6 +309,14 @@ int sys_fake_load(const char *path)
 			}
 			continue;
 		}
+		if (!strcmp(key, "ble") || !strcmp(key, "blepair")) {
+			if (ble_field(&bv, key, save)) {
+				chefui_log("fake state %s:%d: bad line", path, n);
+				fclose(f);
+				return -EINVAL;
+			}
+			continue;
+		}
 		if (!strcmp(key, "wifiscan")) {
 			a = strtok_r(NULL, " \t", &save);
 			v.scanning = a && atoi(a);
@@ -283,7 +335,8 @@ int sys_fake_load(const char *path)
 	sys_state = s;
 	wifi_view = v;
 	gps_view = g;
+	ble_view = bv;
 	sys_changed(SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE | SYS_WIFI_VIEW |
-		    SYS_GPS_VIEW);
+		    SYS_GPS_VIEW | SYS_BLE);
 	return 0;
 }

@@ -44,6 +44,8 @@ int kit_font_px(const lv_font_t *f)
 		{ &chefkit_b500_64, 64 }, { &chefkit_bc600_32, 32 }, { &chefkit_bc600_40, 40 },
 		{ &chefkit_bc600_44, 44 }, { &chefkit_bc600_60, 60 }, { &chefkit_bc600_72, 72 },
 		{ &chefkit_bc600_80, 80 }, { &chefkit_bc600_96, 96 },
+		{ &chefkit_b400_56, 56 }, { &chefkit_bc600_52, 52 }, { &chefkit_bc600_88, 88 },
+		{ &chefkit_bc600_300, 300 },
 	};
 
 	for (unsigned i = 0; i < sizeof(map) / sizeof(map[0]); i++)

@@ -3,10 +3,10 @@
 [Feature guides](README.md) · [UI platform](ui-platform.md) · [Display and touch](display-and-touch.md) · [Buttons](buttons-and-power-off.md) · [UI plan](../next-steps/ui-and-ride-app.md) · [Slice 1 handoff](../next-steps/system-ui-handoff.md)
 
 `chef-settings` is the phone's system UI: a status bar, the settings hub,
-the Display page, the Wi-Fi pages and the GPS pages, built on the [UI platform](ui-platform.md) from the
+the Display page, the Wi-Fi, GPS and Bluetooth sensor pages, built on the [UI platform](ui-platform.md) from the
 round-1 system design ([design contract](../next-steps/ui-and-ride-app.md#system-ui-design)).
 Slice 2 ([spec](../next-steps/system-ui-2-handoff.md)) adds the remaining
-pages milestone by milestone: Wi-Fi, then GPS.
+pages milestone by milestone: Wi-Fi, GPS and Bluetooth sensors.
 It starts at boot and owns the panel; `fblog` shows the log screen whenever
 it is not running. Portrait only. Live-verified on a RAM image on 2026-10-11
 ([evidence](../../logs/system-ui-slice1-2026-10-11.txt)); not installed yet. Source: `tools/chefui/apps/settings/`
@@ -41,7 +41,7 @@ Storage and About. Subtitle sources:
 
 | Row or tile | Subtitle | Source |
 |---|---|---|
-| Bluetooth | `2 connected`, `On`, `Off`, `No adapter`, `Unavailable` | BlueZ |
+| Bluetooth | `N of M connected` from sensor kinds when available, else `2 connected`, `On`, `Off`, `No adapter`, `Unavailable` | BlueZ |
 | GPS | `3D fix · ±3 m`, `Searching…`, `On`, `Off`, `Failed`, `Unavailable` | gps-manager (`Off` = the switch off), gpsd TPV `mode`/`eph` while `RUNNING` |
 | Wi-Fi | the connection name, `Connecting…`, `Not connected`, `Off`, `No device`, `Unavailable` | NetworkManager |
 | Display | theme and brightness, `Dark · 70%` | settings |
@@ -50,8 +50,8 @@ Storage and About. Subtitle sources:
 | Storage | `18.2 GB free`, `RAM only` | `statvfs("/data")` on hub entry when `/data` is ours |
 | About | `Linux 4.4.192-…` | `uname` release |
 
-The Wi-Fi and GPS tiles open their pages and the Display row the Display page;
-the other tiles and rows open a placeholder page (header, Back, "Coming in
+The Bluetooth, Wi-Fi and GPS tiles open their pages and the Display row the Display page;
+the other rows open a placeholder page (header, Back, "Coming in
 a later update.") until their milestone.
 
 **Display (P02)**: brightness slider (5 to 100 %, drawn on a 0 to 100 track,
@@ -191,6 +191,37 @@ gpsd has no SKY and the page shows 0 satellites until it sees the sky.
 Left out by decision: the power mode (Precise / Balanced / Saver) until a
 mode is measured to save power.
 
+## Bluetooth pages
+
+**Bluetooth (P07/P08)**: the master switch asks BlueZ for adapter Powered
+and stays at the confirmed property value until BlueZ signals a change.
+An asynchronously refused Set without a signal leaves it at that value.
+Off, unavailable or no adapter shows the empty
+state. On, My sensors shows one row per kind, even if one device exposes
+HR, power and CSC together. Each row carries name, connection state and
+live value (bpm, W, km/h or cadence-only rpm); missing values show an en
+dash. The subtitle and hub count kinds, not physical devices. Available
+lists LE sensor advertisements, signal strength and Pair.
+
+**Pairing (P09)**: a modal blocks the page below, names the sensor, shows
+a 20-second progress bar and wake instructions. Cancel stops our attempt;
+a failure shows an explanation and Close; success returns to the list.
+The progress timer runs only while the page is visible with the screen on.
+
+**Sensor detail (P10)**: bound to address and kind, with a live card,
+status, name, advertisement RSSI (marked last seen when not live), battery,
+service and paired date; power and CSC also show cadence. Forget takes two
+taps within four seconds and asks the daemon to remove that device and all
+its kinds. A missing device or kind closes the detail and disarms Forget,
+so list reordering never changes the target.
+
+The app always watches blesensd for the hub count. A visible Bluetooth page
+with the screen on holds reconnects; only the list with Bluetooth on asks
+for scan. Screen-off and leaving release both; established sensor links
+stay connected. Daemon loss clears the view and fails our pairing, and a
+reconnect re-sends the page's hold and scan wants. See the
+[daemon and bounded reconnect policy](bluetooth.md#ble-sensors).
+
 ## Buttons and screen
 
 | Input | Action |
@@ -295,6 +326,9 @@ All on the chefui loop, nonblocking, none polling while idle:
   ignored), `DeviceAdded/Removed` and `InterfacesAdded/Removed`, coalesced
   over 100 ms. A lost bus is closed (not flushed) and reopened with backoff
   1 s doubling to 10 s.
+- **BLE sensors** (`sys/blesens.c`): a nonblocking watch connection to
+  `/run/blesensd.sock`, retrying from 1 to 8 seconds when absent; structured
+  JSON updates for records, values, advertisements and our pairing.
 - **Storage**: the ownership check and `statvfs` on hub entry, run on the
   persistence worker below (never on the UI thread).
 - **Wi-Fi pages** (`sys/wifi.c`, the pure parts in `sys/wifi_model.c`):
@@ -323,7 +357,7 @@ files, read in order, so `wifi-off.state` after it gives P15), `--page
 hub|display|wifi|wifi-password|wifi-hidden|wifi-details` (the password page
 for the first listed network), `--keys TEXT` (with fake state only: typed on
 the open entry page's keyboard, for captures; a real passphrase never comes
-from arguments), `--page gps|gps-sats`, `--theme dark|light`, `--brightness PCT` and `--sleep
+from arguments), `--page gps|gps-sats|bt|bt-sensor` (sensor detail uses the first listed kind), `--theme dark|light`, `--brightness PCT` and `--sleep
 30|60|300|0` (this run only, not saved), `--snapshot PATH [--snapshot-after MS]` (write the frame as PPM and
 exit), `--data DIR --run DIR` (settings roots). On the phone a root-owned
 `/run/chef-settings/args` (options, one per line) is read once at start and
@@ -359,9 +393,18 @@ replaces it during the confirmation), the Internet step following the check
 and the two-tap Forget. `make -C tools/chefui
 font-check` regenerates the fonts and compares them byte for byte.
 
-**Reference comparison.** `host-test` writes 22 captures (hub, display,
+Bluetooth fake state uses `ble JSON_OBJECT` lines matching daemon output,
+and `blepair ADDR SECONDS` or `blepair ADDR failed REASON`; fixtures are
+`bt.state`, `bt-off.state`, `bt-pairing.state`. `test-app` drives those pages
+against a fake daemon socket, including visibility, screen state, pairing
+outcomes, combo rows, null values and address/kind identity through Forget.
+`test-sys` tests malformed JSON, escapes, foreign pair events, daemon loss,
+reconnect backoff and wants re-sent after reconnect.
+
+**Reference comparison.** `host-test` writes 30 captures (hub, display,
 wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden,
-gps-off, gps-searching, gps-locked, gps-sats; dark and light) to
+gps-off, gps-searching, gps-locked, gps-sats, bt-off, bt, bt-pairing,
+bt-sensor; dark and light) to
 `tools/chefui/build/host/captures/`. The GPS ones read
 `apps/settings/gps-{off,searching,locked}.state` after `design.state`
 (the locked one carries the design's fake position). Compare against the design renders
@@ -386,6 +429,12 @@ row moves up), the P12 card border is solid (LVGL draws no dashes), the
 satellite labels use Barlow Medium for the design's 700 and 600 weights,
 P13's Speed key reads "Speed km/h", and its Satellites row counts 12 in use
 where the design's text says 13 (its own list has 12).
+
+Bluetooth: en dash for no value; found CSC subtitle "Speed / cadence"
+instead of "Cadence"; Pair pill about 6 px narrower from kerning; power/CSC
+detail adds cadence; non-live RSSI says "(last seen)"; empty lists have help
+lines. P09 keeps the actual list under its scrim, whereas the reference
+uses a simplified background.
 
 ## Fonts and icons
 

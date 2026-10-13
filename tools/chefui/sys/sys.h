@@ -38,6 +38,9 @@ int sys_gps_parse_tpv(const char *line, int *mode, double *eph);
  * build without it. Reconnects when the bus or a service comes back. */
 int sys_netbus_start(void);
 void sys_netbus_stop(void);
+/* The Bluetooth adapter's Powered (the Bluetooth switch); -ENOTCONN
+ * without BlueZ or an adapter. */
+int sys_bt_set_powered(bool on);
 
 /* Storage: free bytes of /data when it is ours, read asynchronously on the
  * settings worker (needs ui_store_load() first); call on hub entry. */

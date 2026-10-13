@@ -151,11 +151,11 @@ class ChefState(unittest.TestCase):
         (p / "proc/uptime").write_text("31.03 100.00\n")
         (p / "chronyc.out").write_text(SYNCED)
 
-    def call(self, *args, timeout=20, **env):
+    def call(self, *args, timeout=20, input=None, **env):
         (self.p / "trace").write_text("")
         (self.p / "kmsg").write_text("")
         r = subprocess.run([*self.shell, str(self.script), *args], env={**self.env, **env}, text=True,
-                           capture_output=True, timeout=timeout)
+                           capture_output=True, timeout=timeout, input=input if input is not None else "")
         self.trace = (self.p / "trace").read_text()
         self.kmsg = (self.p / "kmsg").read_text()
         for line in self.trace.splitlines():
@@ -650,6 +650,75 @@ class ChefState(unittest.TestCase):
         self.assertIn("gps: cannot create", self.kmsg)
         self.assertEqual((self.data / "v1/gps").read_text(), "not a directory\n")
         self.assertEqual(self.call("gps-load").stdout, "enabled 1\n")
+
+    # ------------------------------------------------------------ BLE sensors
+
+    BS1 = "sensor AA:BB:CC:00:00:01 hr 2026-10-13 - CHEF HR\n"
+    BS2 = "sensor AA:BB:CC:00:00:03 hr,power,csc - forget Combo meter * $(x)\n"
+
+    def test_blesens_records(self):
+        f = self.data / "v1/blesens/sensors"
+        # nothing saved: no records, silently
+        r = self.call("blesens-load")
+        self.assertEqual((r.returncode, r.stdout, self.kmsg), (0, "", ""))
+        r = self.call("blesens-save", input=self.BS1 + self.BS2)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("flock", self.trace)	# under the blesens lock
+        self.assertEqual(f.read_text(), seal("chef-blesens 1\n" + self.BS1 + self.BS2))
+        self.assertEqual(f.parent.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.call("blesens-load").stdout, self.BS1 + self.BS2)
+        # no sensors left: an empty list, saved as such
+        self.assertEqual(self.call("blesens-save", input="").returncode, 0)
+        self.assertEqual(f.read_text(), seal("chef-blesens 1\n"))
+        self.assertEqual(self.call("blesens-load").stdout, "")
+        self.assertEqual(sorted(x.name for x in f.parent.iterdir()), ["sensors"])  # no temp left
+        self.call("blesens-save", input=self.BS1)
+        # anything but valid records is refused and changes nothing
+        for bad in ["sensor aa:bb:cc:00:00:01 hr - - x\n", "sensor AA:BB:CC:00:00:01 gps - - x\n",
+                    "sensor AA:BB:CC:00:00:01 hr 13-10-2026 - x\n", "sensor AA:BB:CC:00:00:01 hr - maybe x\n",
+                    "sensor AA:BB:CC:00:00:01 hr - - \n", "sensor AA:BB:CC:00:00:01 hr - - " + "n" * 64 + "\n",
+                    "sensor AA:BB:CC:00:00:01 hr - - tab\there\n", "garbage\n", self.BS1 * 9,
+                    self.BS1 + "x" * 3000]:
+            r = self.call("blesens-save", input=bad)
+            self.assertEqual(r.returncode, 1, bad)
+            self.assertIn("refusing to save invalid records", self.kmsg)
+        self.assertEqual(self.call("blesens-load").stdout, self.BS1)
+        # a torn, edited or foreign file is ignored with a line: no records
+        for text in ["chef-blesens 1\n" + self.BS1, seal("chef-blesens 2\n" + self.BS1),
+                     seal("chef-blesens 1\nsensor XX hr - - x\n"), seal("chef-blesens 1\n" + self.BS1 * 9),
+                     seal("chef-blesens 1\n" + self.BS1)[:-5] + "0000\n"]:
+            f.write_text(text)
+            r = self.call("blesens-load")
+            self.assertEqual((r.returncode, r.stdout), (0, ""), text)
+            self.assertIn("blesens: ignoring", self.kmsg)
+        # /data not ours: the same file on /run, /data untouched
+        f.unlink()
+        for env in self.ram_only_cases():
+            r = self.call("blesens-save", input=self.BS1, **env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("sensors kept on /run", self.kmsg)
+            self.assertEqual(self.call("blesens-load", **env).stdout, self.BS1)
+            self.assertFalse(f.exists())
+            (self.p / "run/chef-state-blesens").unlink()
+
+    def test_blesens_save_syncs_and_fails_cleanly(self):
+        v1 = str(self.data / "v1")
+        r = self.call("blesens-save", input=self.BS1)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        syncs = [l.split(" ", 1)[1] for l in self.trace.splitlines() if l.startswith("sync ")]
+        self.assertEqual(syncs[0], v1, self.trace)
+        self.assertIn(str(self.data / "v1/blesens"), syncs[1:])
+        r = self.call("blesens-save", input="", SYNC_FAIL=v1)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("blesens: cannot sync", self.kmsg)
+        self.assertEqual(self.call("blesens-load").stdout, self.BS1)	# not replaced
+        (self.data / "v1/blesens/sensors").unlink()
+        (self.data / "v1/blesens").rmdir()
+        (self.data / "v1/blesens").write_text("not a directory\n")
+        r = self.call("blesens-save", input=self.BS1)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("blesens: cannot create", self.kmsg)
+        self.assertEqual(self.call("blesens-load").stdout, "")
 
     def test_mag_write_rate_and_final_save(self):
         reg = self.p / "sensors/sns.reg"

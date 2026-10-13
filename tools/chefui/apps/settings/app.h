@@ -27,6 +27,8 @@ enum app_page {
 	APP_PAGE_WIFI_DETAILS,		/* P18 */
 	APP_PAGE_GPS,			/* P11 off, P12 searching, P13 locked */
 	APP_PAGE_GPS_SATS,		/* P14 */
+	APP_PAGE_BT,			/* P07 off, P08 sensors, P09 pairing (modal) */
+	APP_PAGE_BT_SENSOR,		/* P10: arg a struct page_bt_sensor_arg */
 	APP_PAGE_PLACEHOLDER,
 };
 

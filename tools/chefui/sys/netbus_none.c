@@ -19,6 +19,12 @@ void sys_netbus_stop(void)
 {
 }
 
+int sys_bt_set_powered(bool on)
+{
+	(void)on;
+	return -ENOTCONN;
+}
+
 /* No NetworkManager client either: the Wi-Fi pages show fake state only. */
 void sys_wifi_init(void)
 {

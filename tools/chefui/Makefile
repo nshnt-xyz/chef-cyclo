@@ -58,14 +58,14 @@ HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
 FONT_SRCS := $(sort $(wildcard kit/fonts/chefkit_*.c))
 KIT_SRCS := kit/theme.c kit/widgets.c kit/blocks.c kit/keyboard.c $(FONT_SRCS)
 SYS_SRCS := sys/sysstate.c sys/settings.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c \
-	sys/storage.c sys/fake.c sys/wifi_model.c sys/gpsview.c
+	sys/storage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c
 # the system bus clients (sd-bus): basu on the phone, libsystemd on a PC
 NETBUS_SRCS := sys/netbus.c sys/wifi.c
 APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_wifi.c \
-	apps/settings/page_gps.c \
+	apps/settings/page_gps.c apps/settings/page_bt.c \
 	apps/settings/policy.c apps/settings/text.c
 KIT_HDRS := kit/theme.h kit/widgets.h kit/fonts.h kit/icons.h sys/sysstate.h sys/sys.h \
-	sys/settings.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h apps/settings/app.h \
+	sys/settings.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/blesens.h apps/settings/app.h \
 	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h
 HDRS += $(KIT_HDRS)
 ifneq ($(SDBUS_LIBS),)
@@ -278,7 +278,8 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 			{ echo "chef-settings capture $$p $$t failed" >&2; exit 1; }; \
 	done; done
 	@# the Wi-Fi pages: P15 (off), P16, P17 (typed "ridefast2"), P18, hidden network;
-	@# the GPS pages: P11 (off), P12 (searching), P13 (locked, a fake position), P14
+	@# the GPS pages: P11 (off), P12 (searching), P13 (locked, a fake position), P14;
+	@# the Bluetooth pages: P07 (off), P08, P09 (pairing), P10 (heart rate)
 	@for t in dark light; do \
 		cap() { n=$$1; shift; SDL_VIDEODRIVER=offscreen $(B)/host/chef-settings \
 			--fake-state apps/settings/design.state --theme $$t --brightness 70 \
@@ -291,7 +292,12 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 		cap gps-off --fake-state apps/settings/gps-off.state --page gps && \
 		cap gps-searching --fake-state apps/settings/gps-searching.state --page gps && \
 		cap gps-locked --fake-state apps/settings/gps-locked.state --page gps && \
-		cap gps-sats --fake-state apps/settings/gps-locked.state --page gps-sats || exit; \
+		cap gps-sats --fake-state apps/settings/gps-locked.state --page gps-sats && \
+		cap bt-off --fake-state apps/settings/bt-off.state --page bt && \
+		cap bt --fake-state apps/settings/bt.state --page bt && \
+		cap bt-pairing --fake-state apps/settings/bt.state --fake-state apps/settings/bt-pairing.state \
+			--page bt && \
+		cap bt-sensor --fake-state apps/settings/bt.state --page bt-sensor || exit; \
 	done
-	@echo "chef-settings: 22 captures in $(B)/host/captures"
+	@echo "chef-settings: 30 captures in $(B)/host/captures"
 	@tests/test_settings_proc.sh $(B)/host/chef-settings apps/settings/design.state

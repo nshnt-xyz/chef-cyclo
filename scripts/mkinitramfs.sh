@@ -343,6 +343,20 @@ echo "built $ROOT/usr/bin/nmea-broker"
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/gps-manager" tools/gps-manager.c
 echo "built $ROOT/usr/bin/gps-manager"
 
+# BLE sensor daemon (tools/blesensd/, docs/features/bluetooth.md "BLE
+# sensors"): the one owner of heart rate, cycling power and speed/cadence
+# sensors (pairing, reconnection, notifications) behind /run/blesensd.sock,
+# records through chef-state blesens-load/-save. BlueZ over static basu
+# (scripts/setup-toolchain.sh fetches it to toolchain/basu). Started from
+# inittab (respawn).
+for f in tools/blesensd/blesensd.c tools/blesensd/blesens.c tools/blesensd/blesens.h; do
+    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
+done
+[ -f toolchain/basu/lib/libbasu.a ] || { echo "basu not found at toolchain/basu: run scripts/setup-toolchain.sh" >&2; exit 1; }
+"$MUSLCC" -std=gnu11 -Wall -Wextra -O2 -static -DCHEF_BASU -I toolchain/basu/include -o "$ROOT/usr/bin/blesensd" \
+    tools/blesensd/blesensd.c tools/blesensd/blesens.c toolchain/basu/lib/libbasu.a -lm
+echo "built $ROOT/usr/bin/blesensd"
+
 # Side-button gesture daemon (tools/buttond.c): grabs the qpnp_pon and
 # gpio-keys evdev nodes, publishes short/double/long/chord gestures on
 # /run/buttond.sock to whoever claims them, and by default toggles the panel

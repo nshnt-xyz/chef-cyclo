@@ -44,6 +44,7 @@ static struct {
 	uint32_t state;
 	char active[64], id[64];
 	int powered;
+	bool refuse_power;
 	int conn[3];			/* dev_AA, dev_BB, dev_CC */
 	bool cc_added;
 	unsigned objects_calls, gets, autostart_violations;
@@ -136,9 +137,24 @@ static int get_rssi(sd_bus *b, const char *path, const char *iface, const char *
 	return sd_bus_message_append(reply, "n", -60);
 }
 
+static int set_powered(sd_bus *bus, const char *path, const char *iface, const char *prop,
+                       sd_bus_message *value, void *ud, sd_bus_error *error)
+{
+	int on;
+	(void)prop; (void)ud;
+	check_autostart(sd_bus_get_current_message(bus));
+	if (F.refuse_power)
+		return sd_bus_error_set(error, "org.bluez.Error.NotAuthorized", "refused without signal");
+	if (sd_bus_message_read(value, "b", &on) < 0)
+		return -EINVAL;
+	F.powered = on;
+	sd_bus_emit_properties_changed(bus, path, iface, "Powered", NULL);
+	return 1;
+}
+
 static const sd_bus_vtable adapter_vt[] = {
 	SD_BUS_VTABLE_START(0),
-	SD_BUS_PROPERTY("Powered", "b", get_b, 0, SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
+	SD_BUS_WRITABLE_PROPERTY("Powered", "b", get_b, set_powered, 0, SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE),
 	SD_BUS_VTABLE_END
 };
 
@@ -164,7 +180,9 @@ static void fake_cmd(char *c, int out)
 	char a[64] = "", b[64] = "";
 	int v = 0;
 
-	if (sscanf(c, "wireless %d", &v) == 1) {
+	if (sscanf(c, "refuse-power %d", &v) == 1) {
+		F.refuse_power = v;
+	} else if (sscanf(c, "wireless %d", &v) == 1) {
 		F.wireless = v;
 		sd_bus_emit_properties_changed(F.bus, NM_PATH, NM, "WirelessEnabled", NULL);
 	} else if (sscanf(c, "dev %d", &v) == 1) {
@@ -415,6 +433,24 @@ int main(void)
 	WAIT_WIFI("111 100 HomeNet", 4000);
 	WAIT_BT("111 1", 2000);
 	CHECK(fakeloop_log_count("connected") >= 1);
+
+	/* Async refusal emits no property signal; authoritative state stays off. */
+	fake("powered 0");
+	WAIT_BT("110 0", 1000);
+	fake("refuse-power 1");
+	counts(&o1, &g1, &v1); /* pipe round trip ensures refusal mode is active */
+	CHECK(sys_bt_set_powered(true) >= 0);
+	fakeloop_run_for(300);
+	CHECK(fakeloop_log_count("Powered refused") == 1);
+	CHECK(sys_state.bt.known && !sys_state.bt.powered);
+	fake("refuse-power 0");
+	counts(&o1, &g1, &v1);
+	CHECK(sys_bt_set_powered(true) >= 0);
+	WAIT_BT("111 1", 1000);
+	CHECK(sys_bt_set_powered(false) >= 0);
+	WAIT_BT("110 0", 1000);
+	CHECK(sys_bt_set_powered(true) >= 0);
+	WAIT_BT("111 1", 1000);
 
 	/* property changes by signal */
 	fake("wireless 0");

@@ -18,6 +18,9 @@
 #   chef-state gps-load      gps-manager: print "enabled 0|1" (the GPS
 #                            switch; 1 when nothing valid is saved)
 #   chef-state gps-save 0|1  gps-manager: save the GPS switch
+#   chef-state blesens-load  blesensd: print the saved BLE sensor records
+#                            (nothing when none or invalid)
+#   chef-state blesens-save  blesensd: save the records on stdin
 #   chef-state shutdown      inittab, before chef-storage shutdown: last
 #                            offset save, stop chronyd (it writes its drift
 #                            file on exit), powerd (it flushes its pending
@@ -52,6 +55,9 @@ CRASH=$DATA/v1/crash
 MAG_FILE=$DATA/v1/sensors/mag-group-2980
 GPS_FILE=$DATA/v1/gps/enabled
 GPS_RUN_FILE=$RUN/chef-state-gps-enabled	# when /data is not ours (lost at reboot)
+BLESENS_FILE=$DATA/v1/blesens/sensors
+BLESENS_RUN_FILE=$RUN/chef-state-blesens	# when /data is not ours (lost at reboot)
+BLESENS_MAX=8
 MAG_GROUP=2980
 MAG_BIAS_ITEM=3903		# 3903..3905: x y z, int32 LE, Q16 gauss
 MAG_BIAS_MAX=131072		# 2 G
@@ -599,6 +605,69 @@ gps_save() {
 	locked gps gps_save_locked "$1"
 }
 
+# ---------------------------------------------------------------- BLE sensors
+
+# blesensd's sensor records: /data/v1/blesens/sensors when /data is ours,
+# else a file on /run with the same format. "chef-blesens 1", then one line
+# per sensor, sealed:
+#   sensor ADDR KINDS DATE FLAG NAME
+# ADDR upper-case hex, KINDS hr/power/csc comma-separated, DATE YYYY-MM-DD
+# or -, FLAG - or forget (a removal blesensd has not confirmed yet), NAME
+# 1 to 63 printable ASCII characters. At most 8 lines.
+blesens_file() {
+	if ours; then echo "$BLESENS_FILE"; else echo "$BLESENS_RUN_FILE"; fi
+}
+
+# Records (possibly none) on stdin: 0 if every line is one.
+blesens_valid() {
+	! LC_ALL=C grep -vxE 'sensor ([0-9A-F]{2}:){5}[0-9A-F]{2} (hr|power|csc)(,(hr|power|csc)){0,2} (-|[0-9]{4}-[0-9]{2}-[0-9]{2}) (-|forget) [ -~]{1,63}' >/dev/null
+}
+
+blesens_load() {
+	f=$(blesens_file)
+	body=$(unseal "$f" 2>"$RUN/chef-state-blesens.err"); rc=$?
+	why=$(cat "$RUN/chef-state-blesens.err" 2>/dev/null); rm -f "$RUN/chef-state-blesens.err"
+	if [ "$rc" = 0 ]; then
+		head=$(printf '%s\n' "$body" | head -n 1)
+		recs=$(printf '%s\n' "$body" | sed '1d')
+		n=$(printf '%s' "$recs" | grep -c '^' )
+		if [ "$head" = "chef-blesens 1" ] && [ "$n" -le "$BLESENS_MAX" ] &&
+		   printf '%s' "$recs" | blesens_valid; then
+			[ -z "$recs" ] || printf '%s\n' "$recs"
+			return 0
+		fi
+		why="unknown format or version"
+	fi
+	[ "$rc" = 2 ] || log "blesens: ignoring $f: $why"
+	return 0
+}
+
+blesens_save_locked() {
+	f=$(blesens_file)
+	rm -f "$f".tmp.*
+	if [ "$f" = "$BLESENS_FILE" ]; then
+		d=${f%/*}
+		mkdir -p "$d" && chmod 700 "$d" || { log "blesens: cannot create $d"; return 1; }
+		sync "${d%/*}" || { log "blesens: cannot sync ${d%/*}"; return 1; }
+	fi
+	if [ -z "$1" ]; then
+		printf 'chef-blesens 1\n'
+	else
+		printf 'chef-blesens 1\n%s\n' "$1"
+	fi | seal | put "$f" || { log "blesens: writing $f failed"; return 1; }
+	[ "$f" = "$BLESENS_FILE" ] || log "blesens: /data is not ours; sensors kept on /run until reboot"
+}
+
+blesens_save() {
+	recs=$(head -c 2049)
+	n=$(printf '%s' "$recs" | grep -c '^')
+	if [ "${#recs}" -gt 2048 ] || [ "$n" -gt "$BLESENS_MAX" ] || ! printf '%s' "$recs" | blesens_valid; then
+		log "blesens: refusing to save invalid records"
+		return 1
+	fi
+	locked blesens blesens_save_locked "$recs"
+}
+
 # ---------------------------------------------------------------- shutdown
 
 # Snapshot a PID's state and start time. Strip through the last closing
@@ -760,6 +829,8 @@ mag-save) cd / && mag_save;;
 mag-restore) [ "$#" = 2 ] || { log "usage: chef-state mag-restore FILE"; exit 1; }; cd / && mag_restore "$2";;
 gps-load) cd / && gps_load;;
 gps-save) cd / && gps_save "${2:-}";;
+blesens-load) cd / && blesens_load;;
+blesens-save) cd / && blesens_save;;
 shutdown) do_shutdown; exit 0;;
-*) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|gps-load|gps-save 0|1|shutdown}"; exit 1;;
+*) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|gps-load|gps-save 0|1|blesens-load|blesens-save|shutdown}"; exit 1;;
 esac

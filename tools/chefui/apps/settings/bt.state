@@ -1,0 +1,13 @@
+# Read after design.state for P08 to P10: the design's sensors (heart
+# rate and power connected, speed / cadence looking) and devices found
+# while scanning. blesensd's own watch lines (sys/fake.c "ble").
+ble {"type":"ok","cmd":"watch"}
+ble {"type":"adapter","present":true,"powered":true,"scanning":true}
+ble {"type":"sensor","addr":"C0:FF:EE:44:17:01","kinds":"hr","name":"HRM 4417","state":"connected","battery":80,"rssi":-58,"rssi_live":true,"paired":"2026-09-02"}
+ble {"type":"sensor","addr":"C0:FF:EE:22:10:02","kinds":"power","name":"Crank PM 2210","state":"connected","battery":64,"rssi":-66,"rssi_live":true,"paired":"2026-09-02"}
+ble {"type":"sensor","addr":"C0:FF:EE:09:12:03","kinds":"csc","name":"SC 0912","state":"connecting","battery":null,"rssi":null,"rssi_live":false,"paired":"2026-09-05"}
+ble {"type":"value","addr":"C0:FF:EE:44:17:01","kind":"hr","value":142}
+ble {"type":"value","addr":"C0:FF:EE:22:10:02","kind":"power","value":245,"cadence":88}
+ble {"type":"found","addr":"C0:FF:EE:77:A1:04","kinds":"hr","name":"HR Band 77A1","rssi":-58}
+ble {"type":"found","addr":"C0:FF:EE:5C:02:05","kinds":"power","name":"PWR 5C02","rssi":-72}
+ble {"type":"found","addr":"C0:FF:EE:11:80:06","kinds":"csc","name":"CAD 1180","rssi":-86}

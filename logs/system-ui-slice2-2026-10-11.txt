@@ -1,7 +1,7 @@
 System UI slice 2, 2026-10-11: the remaining settings pages
 
 Spec: docs/next-steps/system-ui-2-handoff.md. Guide: docs/features/system-ui.md.
-Roles: ui_impl (Claude) implements, ui_review (Codex) reviews, ui_coord
+Roles: ui_impl (Claude through M2, Codex from M3) implements, ui_review (Codex) reviews, ui_coord
 coordinates and relays guided steps to the user. Kernel #22 unchanged.
 Nothing flashed: RAM images only (fastboot boot); ordinary reboots return to
 the installed pair. Raw evidence (private): ~/chef-cyclo-evidence/system-ui2-*.
@@ -223,3 +223,244 @@ M2 review round 2 (ui_review) and round 3 fixes, 2026-10-13
  descendant repro. Committed as d0fbf5b (not pushed, not installed).
  Deferred to the final guided batch: a real fix near a window (P13/P14
  with live satellites). M3 (BLE sensors) is on hold for a new session.
+
+M3 Bluetooth sensors (P07 to P10), 2026-10-13
+============================================
+
+Implementation and live evidence prepared by ui_impl (Codex) after the
+handoff. Review is pending; M3 is not approved or committed at this point.
+Nothing pushed or installed. Raw evidence:
+~/chef-cyclo-evidence/system-ui2-m3-20261013/final/.
+Earlier d1 evidence used a manual daemon before the hold policy and is not
+final acceptance evidence.
+
+Delivered: tools/blesensd/, the resident owner of HR, cycling power and
+CSC, battery and RSSI, chef-state sealed sensor records, inittab respawn,
+PC GATT emulator, the nonblocking UI watch client, P07 off, P08 list,
+P09 pairing and P10 detail, fake states, fonts and kit styles. One device
+has one record with several kinds; P08 and the hub count one row per kind.
+
+Reconnect: 5 s doubling to 30 s only while any client holds, or during a
+default 300 s window after daemon start, adapter power-on, bluetoothd
+appearing, pairing or link loss. Otherwise waiting with no new Connect
+requests; expiry also cancels an outstanding BlueZ connection procedure.
+Existing links and notifications stay alive without a hold. P08 holds and
+scans while seen with the screen on; P10 holds without scanning; leaving
+or screen-off releases them. A crash releases them with the socket.
+
+1. Host and build
+
+make -C tools/blesensd test: 48 parser checks and 23 daemon tests, including
+an explicit fragmented-JSON CLI fixture. Final repeated runs are listed in
+final/daemon-final-repeats.txt, with per-run logs.
+make -C tools/chefui test: test-sys 334, test-app 621, test-netbus 72,
+test-wifi 213, others unchanged and green. ASan/UBSan enabled for UI tests.
+make -C tools test: full tools suite green (tools-test.log).
+python3 tools/tests/test_chef_state.py: 114 tests, bash and ash, green;
+-k blesens: four tests green. font-check: 44 fonts reproduce byte for byte.
+make -C tools/chefui device host, then host-test: green, 30 captures and
+20 SIGUSR1 process captures. chef-settings 2753000 bytes static aarch64;
+blesensd 782088 bytes static against basu.
+
+Image: complete scripts/mkinitramfs.sh build in image-build-v7.log,
+followed by repack-final.sh (rebuild only the daemon after the agent
+cleanup fix, scan the staged tree for keys, use mkinitramfs's exact newc/
+LZMA pipeline and scripts/mkboot.sh). Kernel #22 unchanged. Final hashes:
+ boot-m3.img 3b9dd10b3044f2d6afa378b56c1857cf819bd50098376db7f901339946034b52
+ blesensd ca3ac10d258888a28edf624cc69915585525fefde8cc8ee54eb9855232cca5d2
+ chef-settings 3a27e75cd76c0d163688bda78c23100278140a6490a2153600c1e8b216057bc1
+ chef-state 96c9c33cb1b2a9d41a85a539a51a9acd50587069cccdc84ea433833158fb57ec
+The running final image's binaries match those hashes.
+
+2. Each early finding and its regression
+
+- Own notification sessions, not global Notifying: StartNotify once per
+  connection epoch even when another client is already notifying. Only
+  changes on our established sessions count. Explicit other-client test
+  proves two sessions for each kind, plus reconnect session counts.
+- Delayed callbacks: every pending call carries pair-attempt identity or
+  sensor sid plus connection epoch, cancelled and checked before use.
+  Tests cancel A, pair B while A's Connect answers late, and forget A then
+  reuse its slot for B before A's delayed reconnect answers.
+- Reset every kind: link, characteristic/device object and BlueZ losses
+  reset all values and revolution baselines. Combo disconnect and explicit
+  object-loss tests observe null for every kind; first sample after a
+  reconnect has no cadence baseline.
+- Durable Forget: persist the flag before BlueZ removal, wait for confirmed
+  removal, then persist the record deletion before reporting forgotten.
+  Failed saves retry. A blocked first save proves no RemoveDevice occurs;
+  a failed/blocked final save proves no completion event occurs. Restart
+  tests keep and complete pending Forget across BlueZ/daemon loss.
+- HR16 and signed power: pure parsers plus daemon notifications test HR8/
+  HR16, signed negative watts, power crank cadence, CSC rollovers, speed
+  and cadence. The app shows signed power and each combo kind.
+- CLI framing: fragmented JSON in seven-byte chunks, quoted names, list
+  terminator and exact output; normal status/list/pair/forget outcomes.
+- Scoped pairing agent and registration: only bluetoothd's unique sender,
+  only the active device (service authorization also for saved sensors).
+  It is default only during pairing, unregisters with confirmation/retries
+  and re-registers normally; no default role at idle. Tests foreign bus
+  callers and other devices, failed registration, failed unregistration,
+  Cancel and immediate re-pair. A new attempt waits for cleanup/registration.
+- Live freshness: cached Value and measurement ReadValue never count;
+  notifications expire to null at five seconds. Tests stale cached values,
+  stale timeout, disconnect, BT off/on and BlueZ restart.
+- Storage child lifecycle: own process groups, killed at the load/save
+  bound, leader exit and daemon exit. Tests hanging loaders/savers and
+  descendants, newest save after a timeout and exit-save completion.
+- Fresh watch values: a new watcher receives fresh power/CSC immediately,
+  and no stale values are retained after source/connection loss.
+- Malformed optional fields: HR energy/RR and CP balance, torque, wheel,
+  crank, extremes and energy lengths validated; truncated fields rejected.
+  UI JSON rejects malformed escapes/numbers/trailing data/duplicate fields,
+  handles nulls and unknown types, and bounds RSSI before integer casts.
+
+Additional live fixes: BlueZ can request security while connecting or
+resolving, before StartNotify. The active attempt temporarily becomes
+BlueZ's default agent and authentication errors during Connect use Pair
+through that scoped agent. Tests cover that path and restoration of the
+previous default role. The PC's NoInputNoOutput bluetoothctl agent still
+needed an unanswered authorization prompt; --bond --central PHONE_ADDR
+now gives the emulator its own agent, scoped to that phone and BlueZ.
+The discoverable LE advertisement instance, with classic Discoverable off,
+sets BR/EDR unsupported. Without it, an earlier dual-mode bond made BlueZ
+choose BR/EDR after reboot; that rejected trial is not acceptance evidence.
+
+3. Captures and live
+
+Reference comparison: dark/light mean absolute diff (0 to 255), masks
+0-95:140-230 and 0-80:262-818:
+ P07 0.62/0.63; P08 2.26/2.18; P09 3.42/3.74; P10 0.86/0.83.
+Intended differences: en dash for no value; found CSC subtitle Speed /
+cadence; Pair pill about 6 px narrower from kerning; P10 cadence row for
+power/CSC and last-seen RSSI; help for empty lists; P09 keeps the real list
+under its scrim rather than the reference's simplified background.
+Final-image device captures: seven byte-identical to host; P09 light
+only differs in the timed progress fill (17 x 18 px bbox, mean 0.0145/255).
+Files: host-captures/, device-captures.tgz, device-vs-host.txt, comparison/.
+
+LE pairing against encrypted combo emulation completed within 20 s;
+changing HR/power/CSC values at 1 Hz, battery, an encrypted LE connection
+and LE long-term key sections were observed. The final RAM boot preserved
+the exact sealed sensor-file and bond-key fingerprints, reconnected over
+encrypted LE, and re-subscribed after kill -9/init respawn. Final binary
+hashes, PIDs, live values and kmsg are in final-init-persistence-values.txt;
+preboot fingerprints in bond-preboot-le.txt; boot-final.log identifies the
+exact RAM image. No key bytes were printed into the acceptance summary.
+
+Final bounded policy: link loss at uptime 58.10 s, waiting at 358.90 s
+and pause log at 358.99 s. Status at 366.56 and 431.56: held=false,
+reconnecting=false, scanning=false. Opening P08 at 465.51 s resumed scan
+and hold; status at 469.06 showed connecting, held=true, scanning=true.
+Leaving for the hub released them at 536.10 s. The 75 s binary HCI capture
+(hold-release.btsnoop) contains only scan-disable at +3.198 s and its
+completion at +3.225 s, then no further HCI traffic (status samples at
+540.71 and 605.71 remain waiting, with no hold/scan/reconnect window).
+Restarting the emulator and opening P08 restored encrypted LE and fresh
+HR/power/CSC values (hold-reconnect-values.txt).
+
+Final BT off/on: powered=false, state off and all three value streams
+null, then powered=true and encrypted LE reconnected with fresh values.
+Forget reported completion with the sealed record empty and the phone's
+test bond absent; the detail closed to the list. Final re-pair through the
+CLI completed in 11.30 s, kept CHEF-SENSOR and all three kinds, re-created
+the bond and streamed fresh values (bt-cycle-status/watch and
+final-pair-values.txt). Tests of UI taps, Cancel and failure use the host
+fake, since no guided touch step was requested here.
+
+Live values at 1 Hz, 60.01 s samples: P08 19 ticks (0.317% CPU), 272
+voluntary switches (4.53/s); P10 23 ticks (0.383% CPU), 184 voluntary
+switches (3.07/s), two threads each. With the emulator process paused and the link still encrypted/connected,
+values stale: P08 and P10 each used one tick in 60 s (about 0.02% CPU);
+30 and 14 voluntary switches (0.50/s and 0.23/s), respectively. The
+emulator was resumed afterwards; the phone is on the hub with the sensor
+connected, no hold and no scan.
+Evidence: live-evidence.tgz, idle-summary.txt, quiet-evidence.tgz,
+hold-release-evidence.tgz and the driver scripts in final/.
+
+4. Deferred and next steps
+
+USB-out idle current (connected, quiet absent and retrying) goes in the
+final guided slice 2 batch, with Wi-Fi join/wrong-password/Forget and a real
+GPS window fix. No user step requested during M3 implementation. Real BLE
+sensor validation, wheel circumference UI and the classic PC re-pair remain
+in docs/next-steps/connectivity-and-sensors.md.
+
+Review cleanup: removed trailing EOF blank lines from five new sensor fonts
+and normalized those outputs in gen-fonts.sh. Older generated files retain
+their existing format. All 44 fonts reproduce byte-for-byte; evidence
+final/font-eof-check.log. Staged diff whitespace check is clean. This is
+source whitespace only and does not alter font data or accepted binaries.
+
+M3 independent review round 1 fixes (approval pending)
+
+Reviewer identified three correctness defects, independently reproduced.
+Optional CP cadence and CSC components now clear to null when their flags
+are absent, resetting their rate baseline. After a true stale gap, the next
+valid packet establishes a new baseline. Valid repeated stopped counters
+remain fresh and eventually give zero. test_optional_rates_disappear_and_rebase
+covers power-only, wheel-only, crank-only, fresh watches, stale rebasing and
+stopped counters.
+
+The no-Battery1 0x2A19 fallback now acquires its own notification session
+when offered as well as reading once per connection. Valid single-byte
+percentages update the sensor; malformed values are ignored. Session and
+value reset with connection/object loss, and callback identity is still sid
+plus epoch. Battery1 remains preferred. Tests cover read/notify, reconnect,
+daemon restart, foreign ownership/object loss and no fallback for Battery1.
+
+The P07/P08 switch returns immediately to authoritative Powered while Set
+is pending. PropertiesChanged confirms off/on. The real netbus fake refuses
+an asynchronous Set without any property signal, proving state stays off;
+app checks prove the switch remains consistent after time passes and then
+follows confirmed off/on.
+
+Round 1 host results: daemon 48 parser checks and 25 tests, six concurrent
+full repeats all green. UI sys 334, app 630 and netbus 87 pass, full UI
+suite green. Host/device build and 30 captures/20 SIGUSR1 captures pass.
+Evidence: ~/chef-cyclo-evidence/system-ui2-m3-20261013/r1/
+with daemon-test.log, daemon-repeat-1.log through -6.log, daemon-repeats.txt,
+ui-test.log, ui-build.log, host-test.log, image-build.log and mkboot.log.
+Full RAM image rebuild includes these fixes; no install or push. Hashes:
+60215a0aab84afcb105635b921285059cf722e9fedfdea380660149d547cadb2  /home/nishant/chef-cyclo-evidence/system-ui2-m3-20261013/r1/boot-m3-r1.img
+d95eb8bd6d1aa0da2a402deded6f944d857378821b377ac3b9a8e8721eb06b86  out/initramfs-root/usr/bin/blesensd
+41606111681f98d1a166abd1bcea917b52d0ac2e286c0c7ae700afbe993e326e  out/initramfs-root/usr/bin/chef-settings
+96c9c33cb1b2a9d41a85a539a51a9acd50587069cccdc84ea433833158fb57ec  out/initramfs-root/usr/bin/chef-state
+
+Revised-image live checks: running hashes match r1/hashes.txt; unchanged
+sealed sensor-file and bond-key fingerprints across reboot; daemon PID
+922 killed and init respawned PID 1610 (r1/init-persistence.txt). Seven
+new device captures equal host bytes, P09 light differs only in the same
+progress fill bbox (498,1802,515,1820), mean 0.01446522/255.
+
+Emulator status correction: the user reported stopping it, but recorded
+background PID 519415 remained running through the initial revised-image
+persistence/respawn checks. On discovering this, ui_impl sent SIGTERM to
+that exact PID and confirmed it exited. It was never restarted. Evidence
+r1/emulator-stopped.txt. Prior final/ live measurement, hold-policy, radio
+and CPU evidence remains from the pre-review binary, explicitly historical;
+r1/ supplies revised source regressions and image/hash/persistence/captures.
+
+M3 FINAL REVIEW OUTCOME: APPROVED by ui_review, 2026-10-13
+
+Explicit approval for the single M3 milestone commit; no remaining findings.
+Reviewed staged patch SHA256:
+eb3bd05816d127c5b10552184f109c9e34a8624d8d63f35fd3262304af5809e4
+(based on HEAD 901043f, before this approval-only documentation update).
+Full approval copied to local evidence r1/approval.md from
+/tmp/chef-m3-review-r1/approval.md.
+
+Independent re-review passed 48 parser checks, 25 daemon tests and six
+concurrent full repeats; original component freshness and battery failure
+probes now pass. Full chefui sys334/app630/netbus87/wifi212, builds,
+30 captures and 20 SIGUSR1 checks pass; staged diff check clean. Source
+manifest matches, freshly compiled daemon matches d95eb8bd..., settings
+41606111... matches build and running phone. Revised image 60215a0a...
+verified, reboot record/bond fingerprints and init respawn inspected,
+seven revised device captures exact, only P09-light timed fill differs.
+Original radio/CPU evidence retains its explicitly historical provenance.
+Emulator PID absence and no restart independently verified.
+
+No push or install. Guided USB-out idle current, Wi-Fi join/failed join/
+Forget and GPS window checks remain the agreed final slice 2 batch.
+Real sensors and wheel circumference UI remain documented follow-ups.

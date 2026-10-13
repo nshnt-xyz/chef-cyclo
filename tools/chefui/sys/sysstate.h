@@ -22,6 +22,7 @@ enum {
 	SYS_STORAGE = 1 << 5,
 	SYS_WIFI_VIEW = 1 << 6,		/* wifi_view (wifi.h): the Wi-Fi pages */
 	SYS_GPS_VIEW = 1 << 7,		/* gps_view (gpsview.h): the GPS pages */
+	SYS_BLE = 1 << 8,		/* ble_view (blesens.h): BLE sensors */
 };
 
 /* gps-manager states (docs/features/gps.md) plus "no manager". */

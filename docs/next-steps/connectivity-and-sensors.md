@@ -6,7 +6,19 @@ Remaining integration and validation work, reviewed 2026-10-11. Linked feature g
 
 ## BLE sensors
 
-Pair/connect real HR, speed/cadence, and power sensors through BlueZ and verify GATT notifications. Scanning and IBS sleep are already verified; see [Bluetooth](../features/bluetooth.md). Pairing keys already persist on [writable storage](../features/storage.md); verify real-device reconnect across reboots and compare BT asleep/off current with the power measurements.
+The BLE daemon and P07 to P10 settings pages are implemented and verified
+with PC emulation; see the [protocol, reconnect policy and test loop](../features/bluetooth.md#ble-sensors).
+Remaining:
+
+- Validate HR16, power and CSC against real sensors, including encrypted
+  sensors, multi-service devices and their reboot/reconnect behavior.
+- Add wheel-circumference selection to the UI (the daemon accepts `-w MM`,
+  default 2105 mm), before making speed and distance part of a ride.
+- Compare USB-out idle current with a connected HR sensor, a quiet absent
+  sensor and active bounded retries. This is in the final guided slice 2
+  batch; CPU measurements alone do not establish battery cost.
+- Re-pair the PC as a classic peer for HID/PAN/A2DP after the LE emulator
+  tests, which remove only the test peer's previous classic bond.
 
 ## Standard Bluetooth tooling
 

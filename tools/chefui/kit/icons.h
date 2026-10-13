@@ -18,8 +18,11 @@
 #define KIT_IC_DELETE			"\xEE\x82\xB2"	/* U+E0B2 */
 #define KIT_IC_EYE			"\xEE\x82\xBE"	/* U+E0BE */
 #define KIT_IC_EYE_OFF			"\xEE\x82\xBF"	/* U+E0BF */
+#define KIT_IC_GAUGE			"\xEE\x86\xBF"	/* U+E1BF */
 #define KIT_IC_HARD_DRIVE		"\xEE\x83\xB0"	/* U+E0F0 */
+#define KIT_IC_HEART_PULSE		"\xEE\x8D\xB2"	/* U+E372 */
 #define KIT_IC_INFO			"\xEE\x83\xBE"	/* U+E0FE */
+#define KIT_IC_LOADER			"\xEE\x84\x8D"	/* U+E10D */
 #define KIT_IC_LOCATE			"\xEE\x87\x9A"	/* U+E1DA */
 #define KIT_IC_LOCATE_FIXED		"\xEE\x87\x9B"	/* U+E1DB */
 #define KIT_IC_LOCATE_OFF		"\xEE\x8A\x82"	/* U+E282 */

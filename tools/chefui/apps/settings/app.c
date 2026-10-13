@@ -190,6 +190,8 @@ static const struct page_ops *ops_for(enum app_page kind)
 	case APP_PAGE_WIFI_DETAILS: return &page_wifi_details_ops;
 	case APP_PAGE_GPS: return &page_gps_ops;
 	case APP_PAGE_GPS_SATS: return &page_gps_sats_ops;
+	case APP_PAGE_BT: return &page_bt_ops;
+	case APP_PAGE_BT_SENSOR: return &page_bt_sensor_ops;
 	default: return &placeholder_ops;
 	}
 }
@@ -291,7 +293,7 @@ static void tile_clicked(lv_event_t *e)
 	const char *title = lv_event_get_user_data(e);
 
 	app_open(!strcmp(title, "Wi-Fi") ? APP_PAGE_WIFI : !strcmp(title, "GPS") ? APP_PAGE_GPS
-		 : APP_PAGE_PLACEHOLDER, title);
+		 : !strcmp(title, "Bluetooth") ? APP_PAGE_BT : APP_PAGE_PLACEHOLDER, title);
 }
 
 static void row_clicked(lv_event_t *e)
@@ -308,7 +310,7 @@ static void hub_tiles_refresh(unsigned what)
 	char b[96];
 
 	status_from_state(s, &st);
-	if (what & SYS_BT) {
+	if (what & (SYS_BT | SYS_BLE)) {
 		text_bt(s, b, sizeof(b));
 		kit_tile_set(&app.tiles[0], tile_bt_on(s), glyph_bt(st.bt), b);
 	}

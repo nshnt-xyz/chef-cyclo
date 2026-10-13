@@ -7,6 +7,10 @@
  */
 #define _GNU_SOURCE
 #include <math.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -27,6 +31,7 @@
 #include "wifi_stub.h"
 #include "gpsview.h"
 #include "pages.h"
+#include "blesens.h"
 
 /* ---------------------------------------------------- fake platform */
 
@@ -531,9 +536,9 @@ static void test_app(lv_obj_t *scr)
 	CHECK(!strcmp(lv_label_get_text(app.row_display.sub), "Dark \xC2\xB7 70%"));
 	CHECK(!app_back());
 
-	/* placeholders from tiles and rows; the back target pops */
+	/* tiles and rows open their pages; the back target pops */
 	click(app.tiles[0].obj);
-	CHECK(app_depth() == 1 && app_top() == APP_PAGE_PLACEHOLDER);
+	CHECK(app_depth() == 1 && app_top() == APP_PAGE_BT);
 	CHECK(app_back());
 	advance(20);
 	click(app.row_about.obj);
@@ -847,7 +852,7 @@ static void gps_state_set(enum sys_gps st, int enabled)
 }
 
 /* Is the GPS page's 1 s tick (its timer, found by user data) running? */
-static bool gps_ticking(void *page_priv)
+static bool page_ticking(void *page_priv)
 {
 	for (lv_timer_t *t = lv_timer_get_next(NULL); t; t = lv_timer_get_next(t))
 		if (lv_timer_get_user_data(t) == page_priv)
@@ -908,7 +913,7 @@ static void test_gps_pages(lv_obj_t *scr)
 	/* it ticks only while the page is seen: not with the screen off, not
 	 * after a state update or a capture then, not under the satellites */
 	gp = app_top_page()->priv;
-	CHECK(gps_ticking(gp));
+	CHECK(page_ticking(gp));
 	{
 		struct gps_view keep = gps_view;
 
@@ -917,13 +922,13 @@ static void test_gps_pages(lv_obj_t *scr)
 		CHECK(gps_view.n_sats == 0 && gps_view.lease_ms == 0);
 		gps_view = keep;		/* as the fake manager would refill it */
 	}
-	CHECK(!gps_ticking(gp));
+	CHECK(!page_ticking(gp));
 	gps_state_set(SYS_GPS_SEARCHING, 1);
 	app_snapshot_guard(true);
 	app_snapshot_guard(false);
-	CHECK(!gps_ticking(gp));
+	CHECK(!page_ticking(gp));
 	pf_set(true);
-	CHECK(gps_ticking(gp));
+	CHECK(page_ticking(gp));
 	gps_state_set(SYS_GPS_FAILED, 1);
 	CHECK(shown_text("Failed") && shown_text("On \xC2\xB7 failed"));
 
@@ -959,9 +964,9 @@ static void test_gps_pages(lv_obj_t *scr)
 	      sys_gps_watching());
 	CHECK(shown_text("GLONASS") && shown_text("/1") && shown_text("dB-Hz"));
 	CHECK(shown_text("44") && shown_text("R08"));	/* a bar for every satellite */
-	CHECK(!gps_ticking(gp));			/* the GPS page under it */
+	CHECK(!page_ticking(gp));			/* the GPS page under it */
 	gps_state_set(SYS_GPS_SEARCHING, 1);
-	CHECK(!gps_ticking(gp));
+	CHECK(!page_ticking(gp));
 	gps_state_set(SYS_GPS_RUNNING, 1);
 	/* fewer satellites, then more again: every bar comes back */
 	gps_view.n_sats = 1;
@@ -985,6 +990,191 @@ static void test_gps_pages(lv_obj_t *scr)
 	CHECK(!sys_gps_watching() && lv_obj_get_child_count(app.content) == 1);
 }
 
+
+/* ------------------------------------------------------------- Bluetooth */
+#define BA "AA:BB:CC:DD:EE:01"
+#define BB "AA:BB:CC:DD:EE:02"
+static int ble_peer;
+
+static void ble_line(const char *line)
+{
+	CHECK(write(ble_peer, line, strlen(line)) == (ssize_t)strlen(line));
+	CHECK(write(ble_peer, "\n", 1) == 1);
+	advance(20);
+	app_on_state(SYS_BLE);
+}
+
+static void ble_commands(const char *want)
+{
+	char b[512];
+	ssize_t n = recv(ble_peer, b, sizeof(b) - 1, MSG_DONTWAIT);
+
+	if (n < 0) n = 0;
+	b[n] = 0;
+	CHECK(!strcmp(b, want));
+}
+
+static void ble_wants(bool hold, bool scan)
+{
+	bool h, s;
+
+	sys_ble_wants(&h, &s);
+	CHECK(h == hold && s == scan);
+}
+
+static void bt_changed(unsigned what, void *user)
+{
+	(void)user;
+	app_on_state(what);
+}
+
+static void test_bt_pages(void)
+{
+	char path[] = "/tmp/chef-bt-app.XXXXXX";
+	struct sockaddr_un sa = { .sun_family = AF_UNIX };
+	int lfd, tmpfd = mkstemp(path);
+
+	CHECK(tmpfd >= 0);
+	close(tmpfd); unlink(path);
+	lfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	snprintf(sa.sun_path, sizeof(sa.sun_path), "%s", path);
+	CHECK(bind(lfd, (struct sockaddr *)&sa, sizeof(sa)) == 0 && listen(lfd, 1) == 0);
+	sys_on_change(bt_changed, NULL);
+	sys_ble_start(path);
+	advance(20);
+	ble_peer = accept4(lfd, NULL, NULL, SOCK_CLOEXEC | SOCK_NONBLOCK);
+	CHECK(ble_peer >= 0);
+	ble_commands("watch\n");
+	ble_line("{\"type\":\"ok\",\"cmd\":\"watch\"}");
+	sys_state.bt.known = sys_state.bt.adapter = true;
+	sys_state.bt.powered = false;
+	app_on_state(SYS_BT);
+	click(app.tiles[0].obj);
+	CHECK(app_top() == APP_PAGE_BT && shown_text("Sensors are disconnected"));
+	ble_wants(true, false);
+	ble_commands("hold on\n");
+	{
+		lv_obj_t *master = lv_obj_get_child(app_top_page()->kp.body, 0);
+		lv_obj_t *sw = lv_obj_get_child(master, -1);
+		wifi_stub.result = 0; /* queued, later refused with no Powered signal */
+		click(sw);
+		CHECK(wifi_stub.bt_power_calls == 1 && wifi_stub.bt_power_last);
+		CHECK(!kit_switch_get(sw));
+		advance(1000); /* no confirmation: never show the requested state */
+		CHECK(!kit_switch_get(sw));
+		CHECK(shown_text("Sensors are disconnected"));
+	}
+	sys_state.bt.powered = true;
+	app_on_state(SYS_BT);
+	{
+		lv_obj_t *sw = lv_obj_get_child(lv_obj_get_child(app_top_page()->kp.body, 0), -1);
+		CHECK(kit_switch_get(sw));
+		ble_commands("scan on\n");
+		click(sw);
+		CHECK(!wifi_stub.bt_power_last && kit_switch_get(sw));
+		sys_state.bt.powered = false; /* confirmed off */
+		app_on_state(SYS_BT);
+		ble_commands("scan off\n");
+		CHECK(!kit_switch_get(sw));
+		click(sw);
+		CHECK(wifi_stub.bt_power_last && !kit_switch_get(sw));
+		sys_state.bt.powered = true; /* confirmed on */
+		app_on_state(SYS_BT);
+		CHECK(kit_switch_get(sw));
+	}
+	ble_wants(true, true);
+	ble_commands("scan on\n");
+	CHECK(shown_text("No sensors yet. Pair one below.") && shown_text("Wake a sensor nearby to find it."));
+	ble_line("{\"type\":\"sensor\",\"addr\":\"" BA "\",\"name\":\"Combo\",\"kinds\":\"hr,power,csc\",\"state\":\"connected\",\"battery\":80,\"rssi\":-58,\"rssi_live\":false,\"paired\":\"2026-09-02\"}");
+	ble_line("{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":321}");
+	ble_line("{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"power\",\"value\":-120,\"cadence\":90}");
+	ble_line("{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"csc\",\"speed\":27.5,\"cadence\":80}");
+	CHECK(shown_text("Heart rate") && shown_text("Power") && shown_text("Speed / cadence"));
+	CHECK(shown_text("321") && shown_text("-120") && shown_text("27.5"));
+	CHECK(shown_text("On \xC2\xB7 3 of 3 sensors connected"));
+	CHECK(!strcmp(lv_label_get_text(app.tiles[0].sub), "3 of 3 connected"));
+	pf_set(false);
+	ble_wants(false, false);
+	ble_commands("hold off\nscan off\n");
+	pf_set(true);
+	ble_commands("hold on\nscan on\n");
+
+	/* Pair, Cancel, late completion, timeout, failure and success. */
+	ble_line("{\"type\":\"found\",\"addr\":\"" BB "\",\"name\":\"New Sensor\",\"kinds\":\"hr\",\"rssi\":-60}");
+	CHECK(tap_text("Pair"));
+	ble_commands("pair " BB "\n");
+	CHECK(shown_text("PAIRING\xE2\x80\xA6") && shown_text("Cancel") && ble_view.pair.st == BLE_PAIR_RUNNING);
+	CHECK(page_ticking(app_top_page()->priv));
+	pf_set(false);
+	ble_commands("hold off\nscan off\n");
+	CHECK(!page_ticking(app_top_page()->priv));
+	ble_line("{\"type\":\"pair\",\"addr\":\"" BB "\",\"state\":\"resolving\"}");
+	CHECK(!page_ticking(app_top_page()->priv)); /* a state update cannot resume it */
+	pf_set(true);
+	ble_commands("hold on\nscan on\n");
+	CHECK(page_ticking(app_top_page()->priv));
+	CHECK(tap_text("Cancel"));
+	ble_commands("cancel " BB "\n");
+	CHECK(!shown_text("Cancel") && ble_view.pair.st == BLE_PAIR_NONE);
+	CHECK(!page_ticking(app_top_page()->priv));
+	ble_line("{\"type\":\"pair\",\"addr\":\"" BB "\",\"state\":\"done\"}");
+	CHECK(ble_view.pair.st == BLE_PAIR_NONE);
+	CHECK(tap_text("Pair"));
+	ble_commands("pair " BB "\n");
+	ble_line("{\"type\":\"pair\",\"addr\":\"" BB "\",\"state\":\"failed\",\"reason\":\"timed out\"}");
+	CHECK(shown_text("NOT PAIRED") && shown_text("The sensor did not answer. Wake it and try again."));
+	CHECK(tap_text("Close") && ble_view.pair.st == BLE_PAIR_NONE);
+	CHECK(tap_text("Pair"));
+	ble_commands("pair " BB "\n");
+	ble_line("{\"type\":\"pair\",\"addr\":\"" BB "\",\"state\":\"failed\",\"reason\":\"bond refused\"}");
+	CHECK(shown_text("Pairing did not finish. Wake the sensor and try again."));
+	CHECK(tap_text("Close") && tap_text("Pair"));
+	ble_commands("pair " BB "\n");
+	ble_line("{\"type\":\"pair\",\"addr\":\"" BB "\",\"state\":\"done\"}");
+	CHECK(!shown_text("Cancel") && ble_view.pair.st == BLE_PAIR_NONE);
+
+	/* Detail identity is addr+kind, independent of the list index. */
+	CHECK(tap_text("Power") && app_top() == APP_PAGE_BT_SENSOR);
+	ble_wants(true, false);
+	ble_commands("scan off\n");
+	CHECK(shown_text("BLE Cycling Power") && shown_text("90 rpm") && shown_text("-120"));
+	CHECK(shown_text("\xE2\x88\x92" "58 dBm \xC2\xB7 strong (last seen)") && shown_text("80%") && shown_text("2 Sep 2026"));
+	ble_line("{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"power\",\"value\":null,\"cadence\":null}");
+	CHECK(!shown_text("-120") && !shown_text("90 rpm") && shown_text("\xE2\x80\x93"));
+	CHECK(tap_text("Forget sensor"));
+	ble_commands("");
+	advance(4100);
+	CHECK(shown_text("Forget sensor"));
+	CHECK(tap_text("Forget sensor"));
+	/* Add another device and swap slots while confirmation is armed. */
+	ble_line("{\"type\":\"sensor\",\"addr\":\"" BB "\",\"name\":\"Other\",\"kinds\":\"power\",\"state\":\"connected\"}");
+	{
+		struct ble_sensor save = ble_view.s[0];
+		ble_view.s[0] = ble_view.s[1]; ble_view.s[1] = save;
+		app_on_state(SYS_BLE);
+	}
+	CHECK(shown_text("Combo") && !shown_text("Other"));
+	CHECK(tap_text("Tap again to forget"));
+	CHECK(app_top() == APP_PAGE_BT);
+	ble_commands("forget " BA "\nscan on\n");
+	advance(20);
+	/* Forget notification from another client closes the right detail. */
+	CHECK(tap_text("Heart rate"));
+	ble_commands("scan off\n");
+	ble_line("{\"type\":\"forgotten\",\"addr\":\"" BA "\"}");
+	CHECK(app_top() == APP_PAGE_BT && !shown_text("Heart rate"));
+	ble_commands("scan on\n");
+	advance(20);
+	CHECK(app_back());
+	ble_wants(false, false);
+	ble_commands("hold off\nscan off\n");
+	advance(20);
+	CHECK(lv_obj_get_child_count(app.content) == 1);
+	sys_ble_stop();
+	sys_on_change(NULL, NULL);
+	close(ble_peer); close(lfd); unlink(path);
+}
+
 int main(void)
 {
 	lv_obj_t *scr;
@@ -1001,5 +1191,6 @@ int main(void)
 	test_app(scr);
 	test_wifi_pages(scr);
 	test_gps_pages(scr);
+	test_bt_pages();
 	return check_report("test-app");
 }
