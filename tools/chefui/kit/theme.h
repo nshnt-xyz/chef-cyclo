@@ -70,6 +70,12 @@ struct kit_styles {
 	lv_style_t kb;			/* keyboard: surf, line rule on top */
 	lv_style_t key, key_fn, key_join, key_pressed;
 	lv_style_t caret;		/* accent fill (text cursor) */
+	/* GPS pages */
+	lv_style_t ring, ring_in;	/* sky plot circles: line2, line */
+	lv_style_t hair;		/* line fill: sky plot axes, cell rules */
+	lv_style_t sat_on, sat_off;	/* satellite pill: in use (acc), visible */
+	lv_style_t bar_on, bar_off;	/* signal bar: in use, visible */
+	lv_style_t swatch_on, swatch_off;	/* legend squares */
 };
 extern struct kit_styles kit_st;
 

@@ -25,6 +25,8 @@ enum app_page {
 	APP_PAGE_WIFI_PASSWORD,		/* P17: arg a struct wifi_net */
 	APP_PAGE_WIFI_HIDDEN,		/* name, security and password */
 	APP_PAGE_WIFI_DETAILS,		/* P18 */
+	APP_PAGE_GPS,			/* P11 off, P12 searching, P13 locked */
+	APP_PAGE_GPS_SATS,		/* P14 */
 	APP_PAGE_PLACEHOLDER,
 };
 

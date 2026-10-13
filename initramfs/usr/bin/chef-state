@@ -15,6 +15,9 @@
 #   chef-state mag-save      sensors-up: group 2980 from the /run registry copy
 #   chef-state mag-restore F sensors-up: overlay the saved group 2980 onto F,
 #                            a fresh registry copy from persist
+#   chef-state gps-load      gps-manager: print "enabled 0|1" (the GPS
+#                            switch; 1 when nothing valid is saved)
+#   chef-state gps-save 0|1  gps-manager: save the GPS switch
 #   chef-state shutdown      inittab, before chef-storage shutdown: last
 #                            offset save, stop chronyd (it writes its drift
 #                            file on exit), powerd (it flushes its pending
@@ -47,6 +50,8 @@ MARKER=chef-cyclo-data-v1
 TIME_FILE=$DATA/v1/time/rtc-offset
 CRASH=$DATA/v1/crash
 MAG_FILE=$DATA/v1/sensors/mag-group-2980
+GPS_FILE=$DATA/v1/gps/enabled
+GPS_RUN_FILE=$RUN/chef-state-gps-enabled	# when /data is not ours (lost at reboot)
 MAG_GROUP=2980
 MAG_BIAS_ITEM=3903		# 3903..3905: x y z, int32 LE, Q16 gauss
 MAG_BIAS_MAX=131072		# 2 G
@@ -550,6 +555,50 @@ mag_restore() {
 	log "mag: seeded group $MAG_GROUP bias $(gauss $BIAS) gauss into $target"
 }
 
+# ---------------------------------------------------------------- GPS switch
+
+# The GPS switch gps-manager serves: /data/v1/gps/enabled when /data is
+# ours, else a file on /run with the same format. "chef-gps 1" and
+# "enabled 0|1", sealed. Missing or invalid (logged): enabled.
+gps_file() {
+	if ours; then echo "$GPS_FILE"; else echo "$GPS_RUN_FILE"; fi
+}
+
+gps_load() {
+	f=$(gps_file)
+	body=$(unseal "$f" 2>"$RUN/chef-state-gps.err"); rc=$?
+	why=$(cat "$RUN/chef-state-gps.err" 2>/dev/null); rm -f "$RUN/chef-state-gps.err"
+	if [ "$rc" = 0 ]; then
+		# shellcheck disable=SC2086
+		set -- $body
+		if [ "$#" = 4 ] && [ "$1 $2 $3" = "chef-gps 1 enabled" ]; then
+			case "$4" in 0|1) echo "enabled $4"; return 0;; esac
+		fi
+		why="unknown format or version"
+	fi
+	[ "$rc" = 2 ] || log "gps: ignoring $f: $why"
+	echo "enabled 1"
+}
+
+gps_save_locked() {
+	f=$(gps_file)
+	rm -f "$f".tmp.*
+	if [ "$f" = "$GPS_FILE" ]; then
+		d=${f%/*}
+		mkdir -p "$d" && chmod 700 "$d" || { log "gps: cannot create $d"; return 1; }
+		# the directory's own entry in /data/v1: synced on every save, in
+		# case an earlier save's sync failed
+		sync "${d%/*}" || { log "gps: cannot sync ${d%/*}"; return 1; }
+	fi
+	printf 'chef-gps 1\nenabled %s\n' "$1" | seal | put "$f" || { log "gps: writing $f failed"; return 1; }
+	[ "$f" = "$GPS_FILE" ] || log "gps: /data is not ours; switch kept on /run until reboot"
+}
+
+gps_save() {
+	case "${1:-}" in 0|1) ;; *) log "usage: chef-state gps-save 0|1"; return 1;; esac
+	locked gps gps_save_locked "$1"
+}
+
 # ---------------------------------------------------------------- shutdown
 
 # Snapshot a PID's state and start time. Strip through the last closing
@@ -709,6 +758,8 @@ timekeeper) timekeeper;;
 time-save) time_save;;
 mag-save) cd / && mag_save;;
 mag-restore) [ "$#" = 2 ] || { log "usage: chef-state mag-restore FILE"; exit 1; }; cd / && mag_restore "$2";;
+gps-load) cd / && gps_load;;
+gps-save) cd / && gps_save "${2:-}";;
 shutdown) do_shutdown; exit 0;;
-*) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|shutdown}"; exit 1;;
+*) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|gps-load|gps-save 0|1|shutdown}"; exit 1;;
 esac

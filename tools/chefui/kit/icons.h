@@ -27,6 +27,7 @@
 #define KIT_IC_MOON			"\xEE\x84\xA2"	/* U+E122 */
 #define KIT_IC_PLUS			"\xEE\x85\x81"	/* U+E141 */
 #define KIT_IC_REFRESH_CW		"\xEE\x85\x89"	/* U+E149 */
+#define KIT_IC_SATELLITE		"\xEE\x91\x8C"	/* U+E44C */
 #define KIT_IC_SUN			"\xEE\x85\xBC"	/* U+E17C */
 #define KIT_IC_SUN_DIM			"\xEE\x8A\x99"	/* U+E299 */
 #define KIT_IC_SUN_MEDIUM		"\xEE\x8A\xB1"	/* U+E2B1 */

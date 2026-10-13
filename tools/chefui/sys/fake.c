@@ -6,7 +6,8 @@
  *   time 14:16              status bar clock (frozen)
  *   zone IST
  *   batt 78 unpowered       capacity, then powered|unpowered; or "batt unknown"
- *   gps running 3 3         unavailable|off|failed|searching|running [mode [eph m]]
+ *   gps running 3 3         unavailable|off|failed|searching|running|disabled
+ *                           [mode [eph m]]
  *   wifi connected HomeNet  unknown|off|on|connecting|connected SSID
  *   bt connected 2          unknown|none|off|on|connected N
  *   storage 18200000000     free bytes on an owned /data; or "storage ram"
@@ -18,12 +19,20 @@
  *                           the connection: CONN unknown|none|portal|limited|full
  *   wifiscan 1              the scanning indicator
  *
- * SEC: open wep wpa wpa2 wpa3 wpa2/wpa3 owe enterprise. Several files may
+ * SEC: open wep wpa wpa2 wpa3 wpa2/wpa3 owe enterprise.
+ *
+ * The GPS pages' view (gpsview.h; fake positions only):
+ *
+ *   gpsfix MODE EPH ALT SPEED LAT LON   TPV (metres, m/s, degrees)
+ *   gpsdop HDOP PDOP                    SKY
+ *   gpssat G05 AZ EL SNR USED           one satellite (G R E C J S I), USED 0|1
+ *   gpslease SECONDS [FIRST_FIX_S]      the page's lease began SECONDS ago Several files may
  * be given (--fake-state twice): later lines win.
  *
  * The design reference values are tools/chefui/apps/settings/design.state.
  */
 #include <errno.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +40,7 @@
 #include "chefui.h"
 #include "sys.h"
 #include "sysstate.h"
+#include "gpsview.h"
 #include "wifi.h"
 
 static int sec_from(const char *s)
@@ -125,14 +135,16 @@ static int field(struct sys_state *s, char *key, char *a, char *b, char *c)
 		if (s->batt.capacity < 0 || s->batt.capacity > 100)
 			return -1;
 	} else if (!strcmp(key, "gps") && a) {
-		static const char *const names[] = { "unavailable", "off", "failed", "searching", "running" };
+		static const char *const names[] = { "unavailable", "off", "failed", "searching", "running",
+			"disabled" };
 		unsigned i;
 
-		for (i = 0; i < 5 && strcmp(a, names[i]); i++)
+		for (i = 0; i < 6 && strcmp(a, names[i]); i++)
 			;
-		if (i == 5)
+		if (i == 6)
 			return -1;
 		s->gps.state = (enum sys_gps)i;
+		s->gps.enabled = i == SYS_GPS_UNAVAILABLE ? -1 : i != SYS_GPS_DISABLED;
 		s->gps.mode = b ? atoi(b) : 0;
 		s->gps.eph = c ? atof(c) : -1;
 	} else if (!strcmp(key, "wifi") && a) {
@@ -167,10 +179,57 @@ static int field(struct sys_state *s, char *key, char *a, char *b, char *c)
 	return 0;
 }
 
+static int64_t fake_mono_ms(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* GPS view lines (tokens after the key in t[0..n)). */
+static int gps_field(struct gps_view *v, const char *key, char **t, int n)
+{
+	if (!strcmp(key, "gpsfix") && n == 6) {
+		v->mode = atoi(t[0]);
+		v->eph = atof(t[1]);
+		v->alt = atof(t[2]);
+		v->speed = atof(t[3]);
+		v->lat = atof(t[4]);
+		v->lon = atof(t[5]);
+	} else if (!strcmp(key, "gpsdop") && n == 2) {
+		v->sky = true;
+		v->hdop = atof(t[0]);
+		v->pdop = atof(t[1]);
+	} else if (!strcmp(key, "gpssat") && n == 5 && strlen(t[0]) >= 2 && v->n_sats < GPS_SATS_MAX) {
+		static const char letters[] = "GSECxJRI";	/* by gnssid */
+		struct gps_sat *s = &v->sats[v->n_sats];
+		const char *l = strchr(letters, t[0][0]);
+
+		if (!l || *l == 'x')
+			return -1;
+		s->gnss = (int)(l - letters);
+		s->svid = atoi(t[0] + 1);
+		s->az = atof(t[1]);
+		s->el = atof(t[2]);
+		s->ss = atof(t[3]);
+		s->used = atoi(t[4]) != 0;
+		v->sky = true;
+		v->n_sats++;
+	} else if (!strcmp(key, "gpslease") && (n == 1 || n == 2)) {
+		v->lease_ms = fake_mono_ms() - (int64_t)(atof(t[0]) * 1000);
+		v->first_fix_ms = n == 2 ? v->lease_ms + (int64_t)(atof(t[1]) * 1000) : 0;
+	} else {
+		return -1;
+	}
+	return 0;
+}
+
 int sys_fake_load(const char *path)
 {
 	struct sys_state s = sys_state;
 	struct wifi_view v = wifi_view;
+	struct gps_view g = gps_view;
 	char line[256];
 	int n = 0;
 	FILE *f = fopen(path, "re");
@@ -187,6 +246,19 @@ int sys_fake_load(const char *path)
 			continue;
 		if (!strcmp(key, "wifinet") || !strcmp(key, "wifiactive")) {
 			if (wifi_field(&v, key, save)) {
+				chefui_log("fake state %s:%d: bad line", path, n);
+				fclose(f);
+				return -EINVAL;
+			}
+			continue;
+		}
+		if (!strncmp(key, "gps", 3) && strcmp(key, "gps")) {
+			char *t[8];
+			int nt = 0;
+
+			while (nt < 8 && (t[nt] = strtok_r(NULL, " \t", &save)))
+				nt++;
+			if (gps_field(&g, key, t, nt)) {
 				chefui_log("fake state %s:%d: bad line", path, n);
 				fclose(f);
 				return -EINVAL;
@@ -210,6 +282,8 @@ int sys_fake_load(const char *path)
 	fclose(f);
 	sys_state = s;
 	wifi_view = v;
-	sys_changed(SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE | SYS_WIFI_VIEW);
+	gps_view = g;
+	sys_changed(SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE | SYS_WIFI_VIEW |
+		    SYS_GPS_VIEW);
 	return 0;
 }

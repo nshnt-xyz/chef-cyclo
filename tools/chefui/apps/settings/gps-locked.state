@@ -1,0 +1,23 @@
+# Read after design.state for P13 and P14: a 3D fix (a fake position, the
+# design's), first fix 28 s into the lease, the design's 17 satellites
+gps running 3 3
+gpslease 95 28
+gpsfix 3 3 41 0 52.52081 13.40945
+gpsdop 0.8 1.4
+gpssat G05 40 62 44 1
+gpssat G13 110 35 39 1
+gpssat G15 200 70 46 1
+gpssat G18 290 22 31 1
+gpssat G23 330 48 41 1
+gpssat G29 160 12 22 0
+gpssat R07 70 18 28 1
+gpssat R08 250 55 37 1
+gpssat R22 15 30 34 0
+gpssat R23 310 8 17 0
+gpssat E04 130 58 42 1
+gpssat E11 225 28 33 1
+gpssat E19 350 75 45 1
+gpssat E36 95 10 19 0
+gpssat C06 180 40 36 1
+gpssat C11 270 65 40 1
+gpssat C22 55 5 14 0

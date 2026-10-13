@@ -291,9 +291,6 @@ void kit_steps_create(struct kit_steps *st, lv_obj_t *parent, int margin_top, in
 	lv_obj_set_size(st->obj, lv_pct(100), LV_SIZE_CONTENT);
 	lv_obj_add_style(st->obj, &kit_st.frame, 0);
 	lv_obj_set_flex_flow(st->obj, LV_FLEX_FLOW_ROW);
-	lv_obj_set_overflow_visible(st->obj, true);
-	lv_obj_add_event_cb(st->obj, frame_ext, LV_EVENT_REFR_EXT_DRAW_SIZE, NULL);
-	lv_obj_refresh_ext_draw_size(st->obj);
 	for (int i = 0; i < st->n; i++) {
 		/* padding 40 0; column, centred, gap 16; inset 3 px line left */
 		lv_obj_t *c = kit_box(st->obj);
@@ -309,12 +306,20 @@ void kit_steps_create(struct kit_steps *st, lv_obj_t *parent, int margin_top, in
 		st->icon[i] = kit_icon(c, &chefkit_icon_72, 72, KIT_INK_MUT, KIT_IC_CIRCLE);
 		st->label[i] = kit_text(c, &chefkit_b500_42, 0, KIT_INK_FG, labels[i]);
 	}
+	kit_corner_marks(st->obj);
+}
+
+void kit_corner_marks(lv_obj_t *frame)
+{
+	lv_obj_set_overflow_visible(frame, true);
+	lv_obj_add_event_cb(frame, frame_ext, LV_EVENT_REFR_EXT_DRAW_SIZE, NULL);
+	lv_obj_refresh_ext_draw_size(frame);
 	/* CSS top/left -18 of the padding box: LVGL aligns inside the border
 	 * too */
-	corner_mark(st->obj, LV_ALIGN_TOP_LEFT, -18, -18);
-	corner_mark(st->obj, LV_ALIGN_TOP_RIGHT, 18, -18);
-	corner_mark(st->obj, LV_ALIGN_BOTTOM_LEFT, -18, 18);
-	corner_mark(st->obj, LV_ALIGN_BOTTOM_RIGHT, 18, 18);
+	corner_mark(frame, LV_ALIGN_TOP_LEFT, -18, -18);
+	corner_mark(frame, LV_ALIGN_TOP_RIGHT, 18, -18);
+	corner_mark(frame, LV_ALIGN_BOTTOM_LEFT, -18, 18);
+	corner_mark(frame, LV_ALIGN_BOTTOM_RIGHT, 18, 18);
 }
 
 void kit_steps_set(struct kit_steps *st, int i, bool done)

@@ -4,7 +4,7 @@
 #include "sysstate.h"
 
 struct sys_state sys_state = {
-	.gps = { .state = SYS_GPS_UNAVAILABLE, .eph = -1 },
+	.gps = { .state = SYS_GPS_UNAVAILABLE, .enabled = -1, .eph = -1 },
 };
 
 static sys_change_cb change_cb;

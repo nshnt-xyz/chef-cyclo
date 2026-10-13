@@ -34,6 +34,9 @@ void kit_set_ink(lv_obj_t *label, enum kit_ink ink)
 int kit_font_px(const lv_font_t *f)
 {
 	static const struct { const lv_font_t *f; int px; } map[] = {
+		{ &chefkit_b400_26, 26 }, { &chefkit_b400_36, 36 }, { &chefkit_b500_24, 24 },
+		{ &chefkit_b500_32, 32 }, { &chefkit_bc600_48, 48 }, { &chefkit_bc600_68, 68 },
+		{ &chefkit_bc600_76, 76 }, { &chefkit_bc600_150, 150 },
 		{ &chefkit_b400_38, 38 }, { &chefkit_b400_40, 40 }, { &chefkit_b400_42, 42 },
 		{ &chefkit_b400_46, 46 }, { &chefkit_b400_48, 48 }, { &chefkit_b400_72, 72 },
 		{ &chefkit_b500_42, 42 }, { &chefkit_b500_48, 48 }, { &chefkit_b500_52, 52 },

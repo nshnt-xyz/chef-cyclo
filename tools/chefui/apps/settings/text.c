@@ -31,7 +31,8 @@ void text_gps(const struct sys_state *s, char *buf, size_t n)
 
 	switch (s->gps.state) {
 	case SYS_GPS_UNAVAILABLE: snprintf(buf, n, "Unavailable"); return;
-	case SYS_GPS_OFF: snprintf(buf, n, "Off"); return;
+	case SYS_GPS_DISABLED: snprintf(buf, n, "Off"); return;
+	case SYS_GPS_OFF: snprintf(buf, n, "On"); return;
 	case SYS_GPS_FAILED: snprintf(buf, n, "Failed"); return;
 	case SYS_GPS_SEARCHING: snprintf(buf, n, "Searching" ELLIPSIS); return;
 	case SYS_GPS_RUNNING: break;
@@ -91,9 +92,11 @@ bool tile_bt_on(const struct sys_state *s)
 	return s->bt.known && s->bt.adapter && s->bt.powered;
 }
 
+/* On = the switch is on and the manager is there (idle, searching,
+ * failed or running). */
 bool tile_gps_on(const struct sys_state *s)
 {
-	return s->gps.state == SYS_GPS_SEARCHING || s->gps.state == SYS_GPS_RUNNING;
+	return s->gps.state != SYS_GPS_UNAVAILABLE && s->gps.state != SYS_GPS_DISABLED;
 }
 
 bool tile_wifi_on(const struct sys_state *s)
@@ -104,8 +107,10 @@ bool tile_wifi_on(const struct sys_state *s)
 void status_from_state(const struct sys_state *s, struct kit_status *out)
 {
 	memset(out, 0, sizeof(*out));
-	out->gps = s->gps.state == SYS_GPS_RUNNING ? KIT_GPS_FIX
-		: s->gps.state == SYS_GPS_SEARCHING ? KIT_GPS_SEARCH : KIT_GPS_OFF;
+	/* locate-off only when switched off (or no manager); on, idle or
+	 * searching: locate, muted; a fix: locate-fixed */
+	out->gps = s->gps.state == SYS_GPS_RUNNING ? KIT_GPS_FIX : tile_gps_on(s) ? KIT_GPS_SEARCH
+		: KIT_GPS_OFF;
 	out->bt = !tile_bt_on(s) ? KIT_BT_OFF : s->bt.connected > 0 ? KIT_BT_CONNECTED : KIT_BT_ON;
 	out->wifi = sys_wifi_connected(s) ? KIT_WIFI_CONNECTED : sys_wifi_on(s) ? KIT_WIFI_ON
 		: KIT_WIFI_OFF;

@@ -3,10 +3,10 @@
 [Feature guides](README.md) · [UI platform](ui-platform.md) · [Display and touch](display-and-touch.md) · [Buttons](buttons-and-power-off.md) · [UI plan](../next-steps/ui-and-ride-app.md) · [Slice 1 handoff](../next-steps/system-ui-handoff.md)
 
 `chef-settings` is the phone's system UI: a status bar, the settings hub,
-the Display page and the Wi-Fi pages, built on the [UI platform](ui-platform.md) from the
+the Display page, the Wi-Fi pages and the GPS pages, built on the [UI platform](ui-platform.md) from the
 round-1 system design ([design contract](../next-steps/ui-and-ride-app.md#system-ui-design)).
 Slice 2 ([spec](../next-steps/system-ui-2-handoff.md)) adds the remaining
-pages milestone by milestone; Wi-Fi is the first.
+pages milestone by milestone: Wi-Fi, then GPS.
 It starts at boot and owns the panel; `fblog` shows the log screen whenever
 it is not running. Portrait only. Live-verified on a RAM image on 2026-10-11
 ([evidence](../../logs/system-ui-slice1-2026-10-11.txt)); not installed yet. Source: `tools/chefui/apps/settings/`
@@ -20,8 +20,8 @@ it is not running. Portrait only. Live-verified on a RAM image on 2026-10-11
 | Left ear (36 px icons) | Meaning |
 |---|---|
 | `locate-fixed` | gps-manager `RUNNING` (a fix) |
-| `locate`, muted | `STARTING` or `ACQUIRING` (searching) |
-| `locate-off`, muted | `OFF`, `STOPPING`, `FAILED` or no manager |
+| `locate`, muted | the GPS switch on: `OFF`, `STARTING`, `ACQUIRING`, `STOPPING` or `FAILED` |
+| `locate-off`, muted | the switch off (`DISABLED`) or no manager |
 | `bluetooth-connected` | adapter powered with at least one connected device |
 | `bluetooth`, muted | powered, nothing connected |
 | `bluetooth-off`, muted | off, no adapter or no BlueZ |
@@ -42,7 +42,7 @@ Storage and About. Subtitle sources:
 | Row or tile | Subtitle | Source |
 |---|---|---|
 | Bluetooth | `2 connected`, `On`, `Off`, `No adapter`, `Unavailable` | BlueZ |
-| GPS | `3D fix · ±3 m`, `Searching…`, `Off`, `Failed`, `Unavailable` | gps-manager, gpsd TPV `mode`/`eph` while `RUNNING` |
+| GPS | `3D fix · ±3 m`, `Searching…`, `On`, `Off`, `Failed`, `Unavailable` | gps-manager (`Off` = the switch off), gpsd TPV `mode`/`eph` while `RUNNING` |
 | Wi-Fi | the connection name, `Connecting…`, `Not connected`, `Off`, `No device`, `Unavailable` | NetworkManager |
 | Display | theme and brightness, `Dark · 70%` | settings |
 | Sound and haptics | `Haptics on` | static placeholder (buttond's buzz is the only haptic) |
@@ -50,7 +50,7 @@ Storage and About. Subtitle sources:
 | Storage | `18.2 GB free`, `RAM only` | `statvfs("/data")` on hub entry when `/data` is ours |
 | About | `Linux 4.4.192-…` | `uname` release |
 
-The Wi-Fi tile opens the Wi-Fi pages and the Display row the Display page;
+The Wi-Fi and GPS tiles open their pages and the Display row the Display page;
 the other tiles and rows open a placeholder page (header, Back, "Coming in
 a later update.") until their milestone.
 
@@ -153,6 +153,44 @@ Left out by decision (see the [handoff](../next-steps/system-ui-2-handoff.md)):
 the design's Sync texts and section (no upload backend), the signal in
 dBm (NM gives a percent), and "internet OK" without a connectivity check.
 
+## GPS pages
+
+**GPS (P11, P12, P13)**: the master switch is gps-manager's
+[switch](gps.md#use-gnss-gps-manager) (`enable`/`disable` on the app's
+watch connection; the manager saves it). Off (P11): the empty state, "No
+position" and "Rides record without a track or map." On, the page holds a
+`map` lease while it is seen with the screen on, and shows:
+
+- **Searching (P12)** until a fix: STATUS "No fix" ("Failed" in `FAILED`,
+  "Starting" before the lease is in), SEARCHING the time since the page's
+  lease (m:ss, ticking once a second only while seen), "N satellites
+  visible, M in use", and the sky plot (720 px, rings at 30 and 60
+  degrees of elevation, north up) with a pill per satellite gpsd places,
+  `G05` style (G GPS, R GLONASS, E Galileo, C BeiDou, J QZSS, S SBAS,
+  I NavIC).
+- **Locked (P13)** while `RUNNING` with a TPV mode 2 or 3: FIX 2D/3D (accent),
+  ACCURACY `±eph m`, then Satellites used/visible, First fix (seconds from
+  the page's lease to its first fix, "–" if the fix was there before),
+  Altitude (MSL), HDOP, PDOP, Speed in km/h, and Position (5 decimals,
+  N/S E/W). The Satellites row ("12 in use · 4 systems") opens P14.
+- **Satellites (P14)**: the sky plot (840 px, N E S W), the legend, used/
+  visible per system (GPS, GLONASS, Galileo, BeiDou), and one signal bar
+  per satellite (SNR / 50 dB-Hz x 300 px, accent when in use), sorted by
+  system; with more than 24 satellites the numbers above and the labels
+  under the bars are left out so the bars still fit.
+
+The view (TPV and SKY, `sys/gpsview.c`) is read from gpsd only while a GPS
+page is seen; leaving the pages or the screen going off releases the lease
+(the manager's 30 s grace keeps a short trip cheap) and forgets the view,
+position included. It is also forgotten when gps-manager or gpsd goes away
+or GNSS stops, so nothing stale is shown before fresh reports arrive. The
+elapsed time ticks only while the page is seen. The position is never logged or written: a capture
+(`SIGUSR1`) shows "–" in its place. Indoors the modem sends no GSV, so
+gpsd has no SKY and the page shows 0 satellites until it sees the sky.
+
+Left out by decision: the power mode (Precise / Balanced / Saver) until a
+mode is measured to save power.
+
 ## Buttons and screen
 
 | Input | Action |
@@ -239,10 +277,14 @@ All on the chefui loop, nonblocking, none polling while idle:
 - **Clock**: a `CLOCK_REALTIME` timerfd armed for the next minute with
   `TFD_TIMER_CANCEL_ON_SET`, so a clock step (chrony's first step after the
   1970 boot clock, the chef-state restore) redraws at once.
-- **GPS**: a `watch` connection to `/run/gps-manager.sock` (never a lease:
-  opening the settings keeps nothing powered), reconnected with backoff
-  1 s doubling to 8 s; gpsd `127.0.0.1:2947` `?WATCH` JSON only while
-  `RUNNING`, for TPV `mode` and `eph`.
+- **GPS**: a `watch` connection to `/run/gps-manager.sock`, reconnected
+  with backoff 1 s doubling to 8 s. It carries no lease, except one `map`
+  lease while a GPS page is seen (sent after the `enabled` line, again
+  after a reconnect or when the switch comes back on; `err disabled` means
+  none is held; `release map` when the page goes; a crash releases it with
+  the connection); the switch goes out on it too. gpsd
+  `127.0.0.1:2947` `?WATCH` JSON while `RUNNING` for TPV `mode` and `eph`,
+  and while a GPS page is seen also in `ACQUIRING`, for its TPV and SKY.
 - **Wi-Fi and Bluetooth**: the system bus through sd-bus (static basu on the
   phone, libsystemd on a PC), asynchronous calls and matches only, every
   call with `NO_AUTO_START` so a query never starts a service through D-Bus
@@ -281,7 +323,7 @@ files, read in order, so `wifi-off.state` after it gives P15), `--page
 hub|display|wifi|wifi-password|wifi-hidden|wifi-details` (the password page
 for the first listed network), `--keys TEXT` (with fake state only: typed on
 the open entry page's keyboard, for captures; a real passphrase never comes
-from arguments), `--theme dark|light`, `--brightness PCT` and `--sleep
+from arguments), `--page gps|gps-sats`, `--theme dark|light`, `--brightness PCT` and `--sleep
 30|60|300|0` (this run only, not saved), `--snapshot PATH [--snapshot-after MS]` (write the frame as PPM and
 exit), `--data DIR --run DIR` (settings roots). On the phone a root-owned
 `/run/chef-settings/args` (options, one per line) is read once at start and
@@ -295,7 +337,8 @@ and marker impostors, syscall order, the worker with blocked storage, late
 fixtures and uevents), `test-app` (fonts, theme restyle, status bar, tiles,
 subtitles, page stack, power policy, auto-sleep), `test-netbus` (a fake
 NetworkManager and BlueZ on a private dbus-daemon; skipped without
-libsystemd and dbus-daemon), `test-wifi` (`sys/wifi.c` against
+libsystemd and dbus-daemon; `test-sys` also has the GPS page's lease, switch
+and view against a fake gps-manager and gpsd, and the gpsd TPV/SKY parsers), `test-wifi` (`sys/wifi.c` against
 `tests/fake_nm.py`, a fake NetworkManager in python3 dbus-python and GLib on
 a private dbus-daemon: the view, scans, joins new/saved/open/hidden with the
 passphrase NM received, a refused passphrase deleting its profile, a saved
@@ -316,9 +359,12 @@ replaces it during the confirmation), the Internet step following the check
 and the two-tap Forget. `make -C tools/chefui
 font-check` regenerates the fonts and compares them byte for byte.
 
-**Reference comparison.** `host-test` writes 14 captures (hub, display,
-wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden;
-dark and light) to `tools/chefui/build/host/captures/`. Compare against the design renders
+**Reference comparison.** `host-test` writes 22 captures (hub, display,
+wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden,
+gps-off, gps-searching, gps-locked, gps-sats; dark and light) to
+`tools/chefui/build/host/captures/`. The GPS ones read
+`apps/settings/gps-{off,searching,locked}.state` after `design.state`
+(the locked one carries the design's fake position). Compare against the design renders
 (`~/chef-cyclo-evidence/system-ui-r1-20261011/ref-png/`, 1:1 with 3 px rules):
 
 ```sh
@@ -333,7 +379,13 @@ Wi-Fi: the master subtitle is the state ("On", "Off") instead of the Sync
 line, P15 has one neutral line instead of the Sync text (so the empty state
 sits 31 px lower), OpenRide's subtitle is "Open · 2.4 GHz" instead of
 "sign-in may be needed", P18's signal is "82% · strong" instead of dBm and
-it has no Sync section. The hidden-network page has no reference.
+it has no Sync section. The hidden-network page has no reference. GPS:
+P11 has one line instead of the wheel-sensor text (the group sits lower),
+the power mode row (P12) and section (P13) are left out (P13's Satellites
+row moves up), the P12 card border is solid (LVGL draws no dashes), the
+satellite labels use Barlow Medium for the design's 700 and 600 weights,
+P13's Speed key reads "Speed km/h", and its Satellites row counts 12 in use
+where the design's text says 13 (its own list has 12).
 
 ## Fonts and icons
 

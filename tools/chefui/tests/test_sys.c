@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,7 @@
 #include "linebuf.h"
 #include "settings.h"
 #include "sys.h"
+#include "gpsview.h"
 #include "sysstate.h"
 #include "wifi.h"
 
@@ -86,6 +88,7 @@ static void test_parsers(void)
 	CHECK(sys_gps_parse_state("state STARTING x", &st) == 0 && st == SYS_GPS_SEARCHING);
 	CHECK(sys_gps_parse_state("state ACQUIRING", &st) == 0 && st == SYS_GPS_SEARCHING);
 	CHECK(sys_gps_parse_state("state RUNNING fix", &st) == 0 && st == SYS_GPS_RUNNING);
+	CHECK(sys_gps_parse_state("state DISABLED disabled", &st) == 0 && st == SYS_GPS_DISABLED);
 	CHECK(sys_gps_parse_state("state RUNNINGX y", &st) == -1);
 	CHECK(sys_gps_parse_state("state RUN", &st) == -1);
 	CHECK(sys_gps_parse_state("ok watch", &st) == -1);
@@ -259,6 +262,215 @@ static void test_gps(void)
 	close(gpsd.lfd);
 }
 
+/* gpsd 3.27-shaped reports */
+static const char SKY[] = "{\"class\":\"SKY\",\"device\":\"udp://127.0.0.1:20175\",\"hdop\":0.8,"
+	"\"pdop\":1.4,\"nSat\":3,\"uSat\":2,\"satellites\":[{\"PRN\":5,\"el\":62.0,\"az\":40.0,"
+	"\"ss\":44.0,\"used\":true,\"gnssid\":0,\"svid\":5},{\"PRN\":72,\"el\":55.0,\"az\":250.0,"
+	"\"ss\":37.0,\"used\":true,\"gnssid\":6,\"svid\":8},{\"PRN\":306,\"el\":10.0,\"az\":95.0,"
+	"\"ss\":0.0,\"used\":false,\"gnssid\":2,\"svid\":36}]}";
+static const char TPV3[] = "{\"class\":\"TPV\",\"device\":\"x\",\"mode\":3,\"time\":\"2026-10-11\","
+	"\"lat\":-33.8569,\"lon\":151.2153,\"altHAE\":64.2,\"altMSL\":41.5,\"eph\":3.1,"
+	"\"speed\":1.5,\"track\":10.0}";
+
+static void test_gps_view_parsers(void)
+{
+	struct gps_view v;
+	int used[4], seen[4];
+	char b[8];
+
+	memset(&v, 0, sizeof(v));
+	CHECK(gps_parse_sky_view(SKY, &v) == 0 && v.sky && v.n_sats == 3);
+	CHECK(fabs(v.hdop - 0.8) < 1e-9 && fabs(v.pdop - 1.4) < 1e-9);
+	CHECK(v.sats[0].gnss == GNSS_GPS && v.sats[0].svid == 5 && v.sats[0].used &&
+	      v.sats[0].az == 40 && v.sats[0].el == 62 && v.sats[0].ss == 44);
+	CHECK(v.sats[1].gnss == GNSS_GLONASS && v.sats[1].svid == 8);
+	CHECK(v.sats[2].gnss == GNSS_GALILEO && !v.sats[2].used && v.sats[2].ss == 0);
+	CHECK(gps_sats_used(&v) == 2);
+	gps_sat_label(&v.sats[1], b, sizeof(b));
+	CHECK(!strcmp(b, "R08"));
+	gps_sat_label(&v.sats[2], b, sizeof(b));
+	CHECK(!strcmp(b, "E36"));
+	gps_constellations(&v, used, seen);
+	CHECK(used[0] == 1 && seen[0] == 1 && used[1] == 1 && seen[2] == 1 && used[2] == 0 && seen[3] == 0);
+	/* a SKY without satellites; junk; not a SKY */
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"hdop\":2.5}", &v) == 0 && v.n_sats == 0 &&
+	      fabs(v.hdop - 2.5) < 1e-9 && isnan(v.pdop));
+	CHECK(gps_parse_sky_view("{\"class\":\"TPV\"}", &v) == -1);
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"satellites\":[{\"PRN\":", &v) == 0 && v.n_sats == 0);
+	CHECK(gps_parse_tpv_view(TPV3, &v) == 0 && v.mode == 3);
+	CHECK(fabs(v.lat + 33.8569) < 1e-9 && fabs(v.lon - 151.2153) < 1e-9);
+	CHECK(fabs(v.alt - 41.5) < 1e-9 && fabs(v.eph - 3.1) < 1e-9 && fabs(v.speed - 1.5) < 1e-9);
+	/* no fix: nothing about a position is kept */
+	CHECK(gps_parse_tpv_view("{\"class\":\"TPV\",\"mode\":1,\"lat\":1.0,\"lon\":2.0}", &v) == 0 &&
+	      v.mode == 1 && isnan(v.lat) && isnan(v.lon) && isnan(v.alt));
+	CHECK(gps_parse_tpv_view("{\"class\":\"TPV\",\"mode\":3,\"lat\":95,\"lon\":200}", &v) == 0 &&
+	      isnan(v.lat) && isnan(v.lon));
+}
+
+/* wait until the manager side has received text t */
+static bool mgr_wait(struct acc *a, const char *t, int ms)
+{
+	for (int i = 0; i < ms / 10; i++) {
+		server_poll(a);
+		if (strstr(a->in, t))
+			return true;
+		fakeloop_run_for(10);
+	}
+	return false;
+}
+
+static bool view_sats(void *arg)
+{
+	return gps_view.n_sats == *(int *)arg;
+}
+
+static bool view_fix(void *arg)
+{
+	(void)arg;
+	return gps_view.mode == 3 && !isnan(gps_view.lat) && gps_view.first_fix_ms > 0;
+}
+
+static bool view_empty(void *arg)
+{
+	(void)arg;
+	return gps_view.mode == 0 && gps_view.n_sats == 0 && !gps_view.sky && isnan(gps_view.lat);
+}
+
+static bool enabled_is(void *arg)
+{
+	return sys_state.gps.enabled == *(int *)arg;
+}
+
+static void test_gps_page(void)
+{
+	char sock[300];
+	struct acc mgr = { .lfd = -1, .cfd = -1 }, gpsd = { .lfd = -1, .cfd = -1 };
+	enum sys_gps want;
+	int port, n, en;
+	int64_t first;
+
+	snprintf(sock, sizeof(sock), "%s/gps-manager2.sock", tmp);
+	gpsd.lfd = listen_tcp(&port);
+	mgr.lfd = listen_unix(sock);
+	sys_gps_start(sock, port);
+	CHECK(fakeloop_run_until(accepted, &mgr, 3000));
+	CHECK(mgr_wait(&mgr, "watch\n", 1000));
+	say(mgr.cfd, "ok watch\nenabled 1\nstate OFF idle\n");
+	en = 1;
+	CHECK(fakeloop_run_until(enabled_is, &en, 1000));
+	want = SYS_GPS_OFF;
+	CHECK(fakeloop_run_until(gps_is, &want, 1000));
+
+	/* the page is seen: one map lease on the watch connection */
+	mgr.n = 0;
+	mgr.in[0] = 0;
+	sys_gps_watch(true);
+	CHECK(mgr_wait(&mgr, "lease map\n", 1000) && gps_view.lease_ms > 0);
+	/* searching: gpsd already, for the sky */
+	say(mgr.cfd, "ok lease map 1\nstate ACQUIRING CID 1, no fix\n");
+	CHECK(fakeloop_run_until(accepted, &gpsd, 3000));
+	CHECK(mgr_wait(&gpsd, "?WATCH", 1000));
+	say(gpsd.cfd, SKY);
+	say(gpsd.cfd, "\n{\"class\":\"TPV\",\"mode\":1}\n");
+	n = 3;
+	CHECK(fakeloop_run_until(view_sats, &n, 1000) && gps_view.mode == 1 && !gps_view.first_fix_ms);
+	/* a fix: first fix time in this lease */
+	say(mgr.cfd, "state RUNNING CID 1, fix\n");
+	say(gpsd.cfd, TPV3);
+	say(gpsd.cfd, "\n");
+	CHECK(fakeloop_run_until(view_fix, NULL, 1000));
+	CHECK(gps_view.first_fix_ms >= gps_view.lease_ms);
+
+	/* gpsd goes away: nothing stale stays on the page until it is back,
+	 * but this lease's first fix keeps its time */
+	first = gps_view.first_fix_ms;
+	close(gpsd.cfd);
+	gpsd.cfd = -1;
+	gpsd.n = 0;
+	CHECK(fakeloop_run_until(view_empty, NULL, 1000));
+	CHECK(gps_view.lease_ms > 0 && gps_view.first_fix_ms == first);	/* still leased */
+	CHECK(fakeloop_run_until(accepted, &gpsd, 4000));
+	CHECK(mgr_wait(&gpsd, "?WATCH", 1000));
+	say(gpsd.cfd, SKY);
+	say(gpsd.cfd, "\n");
+	say(gpsd.cfd, TPV3);
+	say(gpsd.cfd, "\n");
+	CHECK(fakeloop_run_until(view_fix, NULL, 1000));
+	CHECK(gps_view.first_fix_ms == first);	/* not the reconnect's fix */
+
+	/* switched off: the manager tears down (DISABLED); gpsd closed,
+	 * nothing kept; the switch goes out on the same connection */
+	mgr.n = 0;
+	mgr.in[0] = 0;
+	CHECK(sys_gps_set_enabled(false) == 0);
+	CHECK(mgr_wait(&mgr, "disable\n", 1000));
+	say(mgr.cfd, "ok enabled 0\nenabled 0\nstate STOPPING released\nstate DISABLED disabled\n");
+	want = SYS_GPS_DISABLED;
+	CHECK(fakeloop_run_until(gps_is, &want, 1000) && sys_state.gps.enabled == 0);
+	CHECK(fakeloop_run_until(peer_closed, &gpsd, 1000));
+	close(gpsd.cfd);
+	gpsd.cfd = -1;
+	gpsd.n = 0;
+	CHECK(gps_view.n_sats == 0 && isnan(gps_view.lat) && gps_view.mode == 0);
+	/* the manager restarts while off: the lease is refused, and taken
+	 * again once the switch is back on */
+	close(mgr.cfd);
+	mgr.cfd = -1;
+	mgr.n = 0;
+	mgr.in[0] = 0;
+	CHECK(fakeloop_run_until(accepted, &mgr, 4000));
+	CHECK(mgr_wait(&mgr, "watch\n", 1000));
+	say(mgr.cfd, "ok watch\nenabled 0\nstate DISABLED disabled\n");
+	fakeloop_run_for(200);
+	server_poll(&mgr);
+	CHECK(!strstr(mgr.in, "lease"));		/* off: not even asked */
+	say(mgr.cfd, "enabled 1\nstate OFF idle\n");
+	CHECK(mgr_wait(&mgr, "lease map\n", 1000));
+	say(mgr.cfd, "err disabled\n");	/* a race with another disable */
+	fakeloop_run_for(100);
+	mgr.n = 0;
+	mgr.in[0] = 0;
+	say(mgr.cfd, "enabled 0\nenabled 1\n");
+	CHECK(mgr_wait(&mgr, "lease map\n", 1000));	/* asked again */
+
+	/* the manager goes while a fix is shown: forgotten at once */
+	say(mgr.cfd, "state RUNNING CID 1, fix\n");
+	CHECK(fakeloop_run_until(accepted, &gpsd, 4000));
+	CHECK(mgr_wait(&gpsd, "?WATCH", 1000));
+	say(gpsd.cfd, TPV3);
+	say(gpsd.cfd, "\n");
+	CHECK(fakeloop_run_until(view_fix, NULL, 1000));
+	close(mgr.cfd);
+	mgr.cfd = -1;
+	want = SYS_GPS_UNAVAILABLE;
+	CHECK(fakeloop_run_until(gps_is, &want, 1000));
+	CHECK(gps_view.mode == 0 && isnan(gps_view.lat) && gps_view.n_sats == 0 && gps_view.lease_ms == 0 &&
+	      gps_view.first_fix_ms == 0);		/* the lease ended with the connection */
+	close(gpsd.cfd);
+	gpsd.cfd = -1;
+	gpsd.n = 0;
+	mgr.n = 0;
+	mgr.in[0] = 0;
+	CHECK(fakeloop_run_until(accepted, &mgr, 4000));
+	CHECK(mgr_wait(&mgr, "watch\n", 1000));
+	say(mgr.cfd, "ok watch\nenabled 1\nstate OFF idle\n");
+	CHECK(mgr_wait(&mgr, "lease map\n", 1000));	/* the page still wants it */
+
+	/* the page goes: release, the view forgotten */
+	mgr.n = 0;
+	mgr.in[0] = 0;
+	sys_gps_watch(false);
+	CHECK(mgr_wait(&mgr, "release map\n", 1000));
+	CHECK(gps_view.lease_ms == 0 && gps_view.n_sats == 0 && isnan(gps_view.lat));
+
+	sys_gps_stop();
+	CHECK(fakeloop_watched() == 0);
+	CHECK(sys_gps_set_enabled(true) == -ENOTCONN);
+	close(mgr.cfd);
+	close(mgr.lfd);
+	close(gpsd.lfd);
+}
+
 /* ------------------------------------------------------------ battery */
 
 static void put(const char *dev, const char *attr, const char *val)
@@ -402,7 +614,7 @@ static void test_fake(void)
 	changes = 0;
 	CHECK(sys_fake_load(st) == 0);
 	CHECK(changes == (SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE |
-			  SYS_WIFI_VIEW));
+			  SYS_WIFI_VIEW | SYS_GPS_VIEW));
 	CHECK(!strcmp(sys_state.clock.hhmm, "14:16") && sys_state.batt.capacity == 78);
 	CHECK(sys_state.gps.state == SYS_GPS_RUNNING && sys_state.gps.mode == 3);
 	CHECK(sys_wifi_connected(&sys_state) && !strcmp(sys_state.wifi.ssid, "HomeNet"));
@@ -576,6 +788,8 @@ int main(void)
 	test_linebuf();
 	test_parsers();
 	test_gps();
+	test_gps_view_parsers();
+	test_gps_page();
 	test_battery();
 	test_clock();
 	test_fake();

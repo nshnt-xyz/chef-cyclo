@@ -58,13 +58,14 @@ HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
 FONT_SRCS := $(sort $(wildcard kit/fonts/chefkit_*.c))
 KIT_SRCS := kit/theme.c kit/widgets.c kit/blocks.c kit/keyboard.c $(FONT_SRCS)
 SYS_SRCS := sys/sysstate.c sys/settings.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c \
-	sys/storage.c sys/fake.c sys/wifi_model.c
+	sys/storage.c sys/fake.c sys/wifi_model.c sys/gpsview.c
 # the system bus clients (sd-bus): basu on the phone, libsystemd on a PC
 NETBUS_SRCS := sys/netbus.c sys/wifi.c
 APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_wifi.c \
+	apps/settings/page_gps.c \
 	apps/settings/policy.c apps/settings/text.c
 KIT_HDRS := kit/theme.h kit/widgets.h kit/fonts.h kit/icons.h sys/sysstate.h sys/sys.h \
-	sys/settings.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h apps/settings/app.h \
+	sys/settings.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h apps/settings/app.h \
 	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h
 HDRS += $(KIT_HDRS)
 ifneq ($(SDBUS_LIBS),)
@@ -276,7 +277,8 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 			--data $(B)/host/captures/nodata --run $(B)/host/captures/run 2>/dev/null || \
 			{ echo "chef-settings capture $$p $$t failed" >&2; exit 1; }; \
 	done; done
-	@# the Wi-Fi pages: P15 (off), P16, P17 (typed "ridefast2"), P18, hidden network
+	@# the Wi-Fi pages: P15 (off), P16, P17 (typed "ridefast2"), P18, hidden network;
+	@# the GPS pages: P11 (off), P12 (searching), P13 (locked, a fake position), P14
 	@for t in dark light; do \
 		cap() { n=$$1; shift; SDL_VIDEODRIVER=offscreen $(B)/host/chef-settings \
 			--fake-state apps/settings/design.state --theme $$t --brightness 70 \
@@ -285,7 +287,11 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 			{ echo "chef-settings capture $$n $$t failed" >&2; return 1; }; }; \
 		cap wifi-off --fake-state apps/settings/wifi-off.state --page wifi && \
 		cap wifi --page wifi && cap wifi-password --page wifi-password --keys ridefast2 && \
-		cap wifi-details --page wifi-details && cap wifi-hidden --page wifi-hidden || exit; \
+		cap wifi-details --page wifi-details && cap wifi-hidden --page wifi-hidden && \
+		cap gps-off --fake-state apps/settings/gps-off.state --page gps && \
+		cap gps-searching --fake-state apps/settings/gps-searching.state --page gps && \
+		cap gps-locked --fake-state apps/settings/gps-locked.state --page gps && \
+		cap gps-sats --fake-state apps/settings/gps-locked.state --page gps-sats || exit; \
 	done
-	@echo "chef-settings: 14 captures in $(B)/host/captures"
+	@echo "chef-settings: 22 captures in $(B)/host/captures"
 	@tests/test_settings_proc.sh $(B)/host/chef-settings apps/settings/design.state

@@ -72,6 +72,10 @@ pidof) case "$1" in
     sensors-up) echo "${SENSORS_PID:-}";;
     esac
     exit 0;;
+sync)
+    # SYNC_FAIL: the path whose sync fails
+    [ -z "${SYNC_FAIL:-}" ] || [ "$1" != "$SYNC_FAIL" ] || exit 1
+    exec "$REAL_SYNC" "$@";;
 flock)
     # BusyBox 1.37 flock: [-sxun] FD only, no -w/--timeout (util-linux has them)
     case " $* " in *" -w"*|*" --timeout"*|*" -E"*) echo "flock: invalid option" >&2; exit 1;; esac
@@ -123,7 +127,8 @@ class ChefState(unittest.TestCase):
         stub = p / "bin/stub"
         stub.write_text(STUB)
         stub.chmod(0o755)
-        names = ["mountpoint", "mount", "umount", "chronyc", "rtc-edge", "pidof", "timeout", "dd", "flock"]
+        names = ["mountpoint", "mount", "umount", "chronyc", "rtc-edge", "pidof", "timeout", "dd", "flock",
+                 "sync"]
         for n in names:
             (p / "bin" / n).symlink_to(stub)
         (p / "bin/powerd").write_text(f'#!/bin/sh\necho "powerd $*" >> "$TRACE"\nexec {POWERD} "$@"\n')
@@ -141,7 +146,8 @@ class ChefState(unittest.TestCase):
                     "CHEF_STATE_MAP": str(p / "map"), "CHEF_STATE_PROC": str(p / "proc"),
                     "CHRONYC_OUT": str(p / "chronyc.out"), "EDGE_OUT": str(p / "edge.out"),
                     "REAL_DD": subprocess.run(["sh", "-c", "command -v dd"], capture_output=True, text=True).stdout.strip(),
-                    "REAL_FLOCK": subprocess.run(["sh", "-c", "command -v flock"], capture_output=True, text=True).stdout.strip()}
+                    "REAL_FLOCK": subprocess.run(["sh", "-c", "command -v flock"], capture_output=True, text=True).stdout.strip(),
+                    "REAL_SYNC": subprocess.run(["sh", "-c", "command -v sync"], capture_output=True, text=True).stdout.strip()}
         (p / "proc/uptime").write_text("31.03 100.00\n")
         (p / "chronyc.out").write_text(SYNCED)
 
@@ -582,6 +588,68 @@ class ChefState(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(target.read_bytes(), reg)
         self.assertIn("seeded group 2980 bias 1.0000 -0.5000 0.0153 gauss", self.kmsg)
+
+    # ------------------------------------------------------------ GPS switch
+
+    def test_gps_switch(self):
+        f = self.data / "v1/gps/enabled"
+        # nothing saved: enabled, silently
+        r = self.call("gps-load")
+        self.assertEqual((r.returncode, r.stdout, self.kmsg), (0, "enabled 1\n", ""))
+        r = self.call("gps-save", "0")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(f.read_text(), seal("chef-gps 1\nenabled 0\n"))
+        self.assertEqual(f.parent.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(self.call("gps-load").stdout, "enabled 0\n")
+        self.call("gps-save", "1")
+        self.assertEqual(self.call("gps-load").stdout, "enabled 1\n")
+        self.assertEqual(sorted(x.name for x in f.parent.iterdir()), ["enabled"])  # no temp left
+        # bad arguments change nothing
+        for bad in ([], ["2"], ["on"]):
+            self.assertEqual(self.call("gps-save", *bad).returncode, 1)
+        self.assertEqual(self.call("gps-load").stdout, "enabled 1\n")
+        # a torn, edited or foreign file is ignored with a line: enabled
+        for text in ["chef-gps 1\nenabled 0\n", seal("chef-gps 2\nenabled 0\n"),
+                     seal("chef-gps 1\nenabled 7\n"), seal("chef-gps 1\nenabled 0\nextra 1\n"),
+                     seal("chef-gps 1\nenabled 0\n")[:-5] + "0000\n"]:
+            f.write_text(text)
+            r = self.call("gps-load")
+            self.assertEqual(r.stdout, "enabled 1\n", text)
+            self.assertIn("gps: ignoring", self.kmsg)
+        # /data not ours: the same file on /run, /data untouched
+        f.unlink()
+        for env in self.ram_only_cases():
+            r = self.call("gps-save", "0", **env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("switch kept on /run", self.kmsg)
+            self.assertEqual(self.call("gps-load", **env).stdout, "enabled 0\n")
+            self.assertFalse(f.exists())
+            (self.p / "run/chef-state-gps-enabled").unlink()
+        self.call("gps-save", "1")
+        self.assertIn("flock", self.trace)	# under the gps lock
+
+    def test_gps_save_syncs_the_new_directory(self):
+        v1 = str(self.data / "v1")
+        d = str(self.data / "v1/gps")
+        r = self.call("gps-save", "0")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        syncs = [l.split(" ", 1)[1] for l in self.trace.splitlines() if l.startswith("sync ")]
+        # /data/v1 (the new gps entry) before the file and the gps directory
+        self.assertEqual(syncs[0], v1, self.trace)
+        self.assertIn(d, syncs[1:])
+        # every save syncs it again; a failure there fails the save
+        r = self.call("gps-save", "1", SYNC_FAIL=v1)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("gps: cannot sync", self.kmsg)
+        self.assertEqual(self.call("gps-load").stdout, "enabled 0\n")	# not replaced
+
+    def test_gps_save_failure(self):
+        (self.data / "v1/gps").write_text("not a directory\n")
+        r = self.call("gps-save", "0")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("gps: cannot create", self.kmsg)
+        self.assertEqual((self.data / "v1/gps").read_text(), "not a directory\n")
+        self.assertEqual(self.call("gps-load").stdout, "enabled 1\n")
 
     def test_mag_write_rate_and_final_save(self):
         reg = self.p / "sensors/sns.reg"

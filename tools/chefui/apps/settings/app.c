@@ -188,6 +188,8 @@ static const struct page_ops *ops_for(enum app_page kind)
 	case APP_PAGE_WIFI_PASSWORD: return &page_wifi_password_ops;
 	case APP_PAGE_WIFI_HIDDEN: return &page_wifi_hidden_ops;
 	case APP_PAGE_WIFI_DETAILS: return &page_wifi_details_ops;
+	case APP_PAGE_GPS: return &page_gps_ops;
+	case APP_PAGE_GPS_SATS: return &page_gps_sats_ops;
 	default: return &placeholder_ops;
 	}
 }
@@ -288,7 +290,8 @@ static void tile_clicked(lv_event_t *e)
 {
 	const char *title = lv_event_get_user_data(e);
 
-	app_open(strcmp(title, "Wi-Fi") ? APP_PAGE_PLACEHOLDER : APP_PAGE_WIFI, title);
+	app_open(!strcmp(title, "Wi-Fi") ? APP_PAGE_WIFI : !strcmp(title, "GPS") ? APP_PAGE_GPS
+		 : APP_PAGE_PLACEHOLDER, title);
 }
 
 static void row_clicked(lv_event_t *e)

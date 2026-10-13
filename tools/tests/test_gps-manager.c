@@ -132,10 +132,16 @@ static void f_changed(void *ctx, const struct gm *m)
 	g_changes++;
 }
 
+static void f_persist(void *ctx, bool on)
+{
+	(void)ctx;
+	tr("persist:%d|", on);
+}
+
 static const struct gm_ops f_ops = {
 	.ctx = NULL, .log = f_log, .owner = f_owner, .bridge = f_bridge, .run_step = f_run_step,
 	.spawn_gpsd = f_spawn_gpsd, .spawn_pipeline = f_spawn_pipeline, .signal = f_signal,
-	.save = f_save, .rotate = f_rotate, .changed = f_changed,
+	.save = f_save, .rotate = f_rotate, .changed = f_changed, .persist = f_persist,
 };
 
 static void reset(struct gm *m)
@@ -742,7 +748,7 @@ static void test_server(void)
 	recv_all(pb[1], buf, sizeof(buf));
 	CHECK(strstr(buf, "err unknown lease kind bogus\n") && strstr(buf, "err no ride lease on this connection\n"));
 	CHECK(strstr(buf, "err retry only applies in FAILED\n") && strstr(buf, "err unknown command frobnicate\n"));
-	CHECK(strstr(buf, "ok status state=STARTING leases=map:2,ride:2 clients=2") != NULL);
+	CHECK(strstr(buf, "ok status state=STARTING enabled=1 leases=map:2,ride:2 clients=2") != NULL);
 	CHECK(m.leases == 4);
 
 	/* connection death releases its leases */
@@ -759,7 +765,7 @@ static void test_server(void)
 	send_line(pw[1], "watch\n");
 	gm_client_input(&s, w);
 	recv_all(pw[1], buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok watch\nstate STARTING waiting for the modem owner\n") == 0);
+	CHECK(strcmp(buf, "ok watch\nenabled 1\nstate STARTING waiting for the modem owner\n") == 0);
 	gm_set(&m, ST_FAILED, "x");
 	gm_server_broadcast(&s);
 	recv_all(pw[1], buf, sizeof(buf));
@@ -791,6 +797,140 @@ static void test_server(void)
 	close(pb[1]);
 	close(pw[1]);
 	gm_client_input(&s, b);
+}
+
+/* ---- the GPS switch ---- */
+
+static void test_switch(void)
+{
+	struct gm m;
+	struct gm_server s;
+	struct gm_client *a, *w;
+	int pa[2], pw[2];
+	char buf[1024];
+	int64_t t;
+
+	reset(&m);
+	g_now = 1000;
+	gm_server_init(&s, &m, t_now);
+	socketpair(AF_UNIX, SOCK_STREAM, 0, pa);
+	socketpair(AF_UNIX, SOCK_STREAM, 0, pw);
+	a = gm_server_add(&s, pa[0]);
+	w = gm_server_add(&s, pw[0]);
+	send_line(pw[1], "watch\n");
+	gm_client_input(&s, w);
+	recv_all(pw[1], buf, sizeof(buf));
+	CHECK(strcmp(buf, "ok watch\nenabled 1\nstate OFF idle\n") == 0);
+
+	/* disabled with nothing leased: DISABLED at once, saved, watchers told */
+	send_line(pa[1], "disable\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	CHECK(strcmp(buf, "ok enabled 0\n") == 0);
+	CHECK(m.state == ST_DISABLED && !m.enabled && strstr(g_trace, "persist:0|"));
+	gm_server_broadcast(&s);	/* the shell's changed op does this */
+	recv_all(pw[1], buf, sizeof(buf));
+	CHECK(strcmp(buf, "enabled 0\nstate DISABLED disabled\n") == 0);
+	/* a new lease is refused; status says so */
+	send_line(pa[1], "lease map\nstatus\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	CHECK(strstr(buf, "err disabled\n") && strstr(buf, "state=DISABLED enabled=0 leases=map:0"));
+	CHECK(m.leases == 0 && m.phase == PH_IDLE);
+	/* enabled again: OFF, nothing starts without a lease */
+	g_trace[0] = '\0';
+	send_line(pa[1], "enable\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	CHECK(strcmp(buf, "ok enabled 1\n") == 0 && m.state == ST_OFF && strcmp(g_trace, "persist:1|") == 0);
+	gm_server_broadcast(&s);
+	recv_all(pw[1], buf, sizeof(buf));
+	CHECK(strcmp(buf, "enabled 1\nstate OFF idle\n") == 0);
+
+	/* leased and up, then disabled: torn down at once (no grace), the
+	 * lease held but parked; enabled again it comes back */
+	send_line(pa[1], "lease map\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	CHECK(m.state == ST_STARTING);
+	gm_tick(&m, g_now);
+	gm_step_done(&m, g_now + 100, 0, ALLOC_OUT);
+	gm_step_done(&m, g_now + 200, 0, "");
+	gm_step_done(&m, g_now + 300, 0, "");
+	CHECK(m.phase == PH_UP);
+	g_trace[0] = '\0';
+	send_line(pa[1], "disable\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	CHECK(m.state == ST_STOPPING && m.grace_at == 0 && strstr(g_trace, "sig:follower:2|"));
+	finish_teardown(&m, g_now + 400);
+	CHECK(m.state == ST_DISABLED && held_nothing(&m) && m.leases == 0);
+	send_line(pa[1], "status\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	CHECK(strstr(buf, "state=DISABLED enabled=0 leases=map:1") != NULL);	/* held */
+	g_now += 60000;
+	gm_tick(&m, g_now);
+	CHECK(m.state == ST_DISABLED && m.phase == PH_IDLE);	/* nothing retries */
+	/* released while disabled, then enabled: stays OFF */
+	send_line(pa[1], "release map\nenable\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	CHECK(m.state == ST_OFF && m.leases == 0);
+	/* held across disable/enable: bring-up again */
+	send_line(pa[1], "lease ride\ndisable\nenable\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	gm_tick(&m, g_now);
+	finish_teardown(&m, g_now);	/* the STARTING bring-up had nothing up */
+	CHECK(m.leases == 1 && (m.state == ST_STARTING || m.phase == PH_OWNER || m.phase == PH_ALLOC));
+
+	/* disabled while FAILED (parked): DISABLED, streak reset */
+	reset(&m);
+	g_now = 0;
+	gm_server_init(&s, &m, t_now);
+	a = gm_server_add(&s, pa[0]);
+	t = bring_up(&m, 0);
+	m.leases = 1;
+	a->leases[LK_MAP] = 1;
+	m.streak = 3;
+	gm_fail(&m, t, false, "test");
+	finish_teardown(&m, t + 100);
+	CHECK(m.state == ST_FAILED);
+	gm_server_set_enabled(&s, false, true);
+	CHECK(m.state == ST_DISABLED && m.streak == 0 && m.retry_at == 0);
+	gm_tick(&m, t + 60000);
+	CHECK(m.state == ST_DISABLED && m.phase == PH_IDLE);
+	gm_server_set_enabled(&s, true, true);
+	CHECK(m.state == ST_STARTING);	/* the held lease */
+
+	/* the saved switch not read yet: leases held, nothing starts; read as
+	 * off: DISABLED without saving it again; read as on: up */
+	reset(&m);
+	g_now = 0;
+	gm_server_init(&s, &m, t_now);
+	a = gm_server_add(&s, pa[0]);
+	m.loaded = false;
+	g_trace[0] = '\0';
+	send_line(pa[1], "lease map\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	CHECK(strcmp(buf, "ok lease map 1\n") == 0 && m.leases == 0 && m.state == ST_OFF);
+	gm_tick(&m, 10000);
+	CHECK(m.phase == PH_IDLE && g_trace[0] == '\0');
+	gm_server_set_enabled(&s, false, false);
+	CHECK(m.state == ST_DISABLED && m.loaded && g_trace[0] == '\0');	/* not persisted */
+	reset(&m);
+	gm_server_init(&s, &m, t_now);
+	a = gm_server_add(&s, pa[0]);
+	m.loaded = false;
+	send_line(pa[1], "lease map\n");
+	gm_client_input(&s, a);
+	recv_all(pa[1], buf, sizeof(buf));
+	gm_server_set_enabled(&s, true, false);
+	CHECK(m.state == ST_STARTING && m.leases == 1 && !strstr(g_trace, "persist"));
+	close(pa[1]);
+	close(pw[1]);
 }
 
 /* ---- state file and /proc ---- */
@@ -909,6 +1049,7 @@ int main(void)
 	test_review_fixes();
 	test_parsers();
 	test_server();
+	test_switch();
 	test_record_and_proc();
 	printf("test-gps-manager: %d/%d checks passed\n", g_tests - g_failures, g_tests);
 	return g_failures ? 1 : 0;

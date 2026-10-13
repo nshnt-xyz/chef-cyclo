@@ -6,7 +6,9 @@
  * auto-sleep, and Display page settings.
  */
 #define _GNU_SOURCE
+#include <math.h>
 #include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,6 +25,7 @@
 #include "widgets.h"
 #include "wifi.h"
 #include "wifi_stub.h"
+#include "gpsview.h"
 #include "pages.h"
 
 /* ---------------------------------------------------- fake platform */
@@ -88,7 +91,9 @@ static uint32_t border(lv_obj_t *o)
 
 static void test_fonts(void)
 {
-	const lv_font_t *text[] = { &chefkit_b400_38, &chefkit_b400_40, &chefkit_b400_42,
+	const lv_font_t *text[] = { &chefkit_b400_26, &chefkit_b400_36, &chefkit_b500_24,
+		&chefkit_b500_32, &chefkit_bc600_48, &chefkit_bc600_68, &chefkit_bc600_76,
+		&chefkit_bc600_150, &chefkit_b400_38, &chefkit_b400_40, &chefkit_b400_42,
 		&chefkit_b400_46, &chefkit_b400_48, &chefkit_b400_72, &chefkit_b500_42,
 		&chefkit_b500_48, &chefkit_b500_52, &chefkit_b500_54, &chefkit_b500_56,
 		&chefkit_b500_60, &chefkit_b500_64, &chefkit_bc600_32, &chefkit_bc600_40,
@@ -104,10 +109,11 @@ static void test_fonts(void)
 		{ &chefkit_icon_64, { KIT_IC_CHEVRON_RIGHT, KIT_IC_ARROW_BIG_UP, KIT_IC_DELETE } },
 		{ &chefkit_icon_72, { KIT_IC_SUN, KIT_IC_SUN_MEDIUM, KIT_IC_VIBRATE, KIT_IC_CLOCK,
 			KIT_IC_HARD_DRIVE, KIT_IC_INFO, KIT_IC_WIFI_HIGH, KIT_IC_WIFI_LOW, KIT_IC_WIFI_ZERO,
-			KIT_IC_PLUS, KIT_IC_CIRCLE_CHECK, KIT_IC_CIRCLE, KIT_IC_EYE, KIT_IC_EYE_OFF } },
+			KIT_IC_PLUS, KIT_IC_CIRCLE_CHECK, KIT_IC_CIRCLE, KIT_IC_EYE, KIT_IC_EYE_OFF,
+			KIT_IC_SATELLITE } },
 		{ &chefkit_icon_80, { KIT_IC_WIFI } },
 		{ &chefkit_icon_84, { KIT_IC_CHEVRON_LEFT, KIT_IC_X } },
-		{ &chefkit_icon_200, { KIT_IC_WIFI_OFF } },
+		{ &chefkit_icon_200, { KIT_IC_WIFI_OFF, KIT_IC_LOCATE_OFF } },
 		{ &chefkit_icon_96, { KIT_IC_LOCATE, KIT_IC_LOCATE_FIXED, KIT_IC_LOCATE_OFF, KIT_IC_BLUETOOTH,
 			KIT_IC_BLUETOOTH_CONNECTED, KIT_IC_BLUETOOTH_OFF, KIT_IC_WIFI, KIT_IC_WIFI_OFF } },
 	};
@@ -134,6 +140,18 @@ static void test_fonts(void)
 		CHECK(lv_font_get_glyph_dsc(&chefkit_b500_64, &g, c, 0) &&
 		      lv_font_get_glyph_dsc(&chefkit_b400_72, &g, c, 0));
 	CHECK(lv_font_get_glyph_dsc(&chefkit_b400_48, &g, 0x2013, 0));	/* – (no value) */
+	/* the GPS figures: every character the pages write in these fonts */
+	for (const char *c = "No fixStartingFailed3D2D:.-\xC2\xB1 m0123456789"; *c; c++)
+		if ((unsigned char)*c < 0x80)
+			CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_150, &g, (uint32_t)(unsigned char)*c, 0));
+	CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_150, &g, 0xB1, 0) &&
+	      lv_font_get_glyph_dsc(&chefkit_bc600_150, &g, 0x2013, 0));
+	for (const char *c = "0123456789 ./-ms"; *c; c++)
+		CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_76, &g, (uint32_t)*c, 0));
+	for (const char *c = "0123456789 .NSEW"; *c; c++)
+		CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_68, &g, (uint32_t)*c, 0));
+	CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_68, &g, 0xB0, 0) &&
+	      lv_font_get_glyph_dsc(&chefkit_bc600_68, &g, 0x2013, 0));
 	for (unsigned i = 0; i < sizeof(icons) / sizeof(icons[0]); i++)
 		for (int k = 0; k < 16 && icons[i].glyphs[k]; k++) {
 			const uint8_t *u = (const uint8_t *)icons[i].glyphs[k];
@@ -258,7 +276,7 @@ static void test_text(void)
 	CHECK(!strcmp(b, "Searching\xE2\x80\xA6") && tile_gps_on(&s));
 	s.gps.state = SYS_GPS_FAILED;
 	text_gps(&s, b, sizeof(b));
-	CHECK(!strcmp(b, "Failed") && !tile_gps_on(&s));
+	CHECK(!strcmp(b, "Failed") && tile_gps_on(&s));		/* switched on */
 
 	text_wifi(&s, b, sizeof(b));
 	CHECK(!strcmp(b, "Unavailable"));
@@ -301,7 +319,14 @@ static void test_text(void)
 	s.batt.powered = true;
 	status_from_state(&s, &st);
 	CHECK(st.batt == 10 && st.powered && st.wifi == KIT_WIFI_CONNECTED && st.bt == KIT_BT_CONNECTED);
-	CHECK(st.gps == KIT_GPS_OFF && !strcmp(st.time, "14:16"));
+	CHECK(st.gps == KIT_GPS_SEARCH && !strcmp(st.time, "14:16"));	/* on, failed: muted */
+	s.gps.state = SYS_GPS_DISABLED;
+	status_from_state(&s, &st);
+	text_gps(&s, b, sizeof(b));
+	CHECK(st.gps == KIT_GPS_OFF && !strcmp(b, "Off") && !tile_gps_on(&s));
+	s.gps.state = SYS_GPS_UNAVAILABLE;
+	status_from_state(&s, &st);
+	CHECK(st.gps == KIT_GPS_OFF && !tile_gps_on(&s));
 	s.batt.known = false;
 	status_from_state(&s, &st);
 	CHECK(st.batt == -1 && !st.powered);
@@ -507,7 +532,7 @@ static void test_app(lv_obj_t *scr)
 	CHECK(!app_back());
 
 	/* placeholders from tiles and rows; the back target pops */
-	click(app.tiles[1].obj);
+	click(app.tiles[0].obj);
 	CHECK(app_depth() == 1 && app_top() == APP_PAGE_PLACEHOLDER);
 	CHECK(app_back());
 	advance(20);
@@ -799,6 +824,167 @@ static void test_wifi_pages(lv_obj_t *scr)
 	CHECK(!wifi_stub.watch && lv_obj_get_child_count(app.content) == 1);
 }
 
+/* ------------------------------------------------------------- GPS pages */
+
+static int64_t mono_now(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static void sat(int gnss, int svid, double az, double el, double ss, bool used)
+{
+	gps_view.sats[gps_view.n_sats++] = (struct gps_sat){ gnss, svid, az, el, ss, used };
+}
+
+static void gps_state_set(enum sys_gps st, int enabled)
+{
+	sys_state.gps.state = st;
+	sys_state.gps.enabled = enabled;
+	app_on_state(SYS_GPS | SYS_GPS_VIEW);
+}
+
+/* Is the GPS page's 1 s tick (its timer, found by user data) running? */
+static bool gps_ticking(void *page_priv)
+{
+	for (lv_timer_t *t = lv_timer_get_next(NULL); t; t = lv_timer_get_next(t))
+		if (lv_timer_get_user_data(t) == page_priv)
+			return !lv_timer_get_paused(t);
+	return false;
+}
+
+static void test_gps_pages(lv_obj_t *scr)
+{
+	void *gp;
+
+	(void)scr;
+	memset(&gps_view, 0, sizeof(gps_view));
+	gps_view.eph = gps_view.alt = gps_view.speed = gps_view.lat = gps_view.lon = NAN;
+	gps_view.hdop = gps_view.pdop = NAN;
+	sys_state.gps.state = SYS_GPS_DISABLED;
+	sys_state.gps.enabled = 0;
+	app_on_state(SYS_GPS);
+	CHECK(!strcmp(lv_label_get_text(app.tiles[1].sub), "Off"));
+	CHECK(!strcmp(lv_label_get_text(app.sb.gps), KIT_IC_LOCATE_OFF));
+	gps_state_set(SYS_GPS_OFF, 1);
+	CHECK(!strcmp(lv_label_get_text(app.tiles[1].sub), "On"));
+	CHECK(!strcmp(lv_label_get_text(app.sb.gps), KIT_IC_LOCATE));	/* on, idle: locate muted */
+	CHECK(colour(app.sb.gps) == kit_palette_dark.mut);
+
+	/* the tile opens the page; seen with the screen on: the lease */
+	CHECK(app_depth() == 0 && !sys_gps_watching());
+	click(app.tiles[1].obj);
+	CHECK(app_top() == APP_PAGE_GPS && sys_gps_watching());
+	pf_set(false);
+	CHECK(!sys_gps_watching());
+	pf_set(true);
+	CHECK(sys_gps_watching());
+
+	/* off: the empty state; the switch asks the manager (not connected
+	 * here: it springs back) */
+	gps_state_set(SYS_GPS_DISABLED, 0);
+	CHECK(shown_text("No position") && shown_text("Off") && !shown_text("STATUS"));
+	{
+		lv_obj_t *master = lv_obj_get_child(app_top_page()->kp.body, 0);
+		lv_obj_t *sw = lv_obj_get_child(master, -1);
+
+		click(sw);
+		CHECK(!kit_switch_get(sw));
+	}
+
+	/* searching: elapsed since the lease, satellites in view */
+	gps_view.lease_ms = mono_now() - 24500;
+	sat(GNSS_GPS, 5, 40, 62, 44, false);
+	sat(GNSS_GALILEO, 4, 130, 58, 42, false);
+	sat(GNSS_BEIDOU, 11, 270, 65, 40, false);
+	sat(GNSS_GLONASS, 8, -1, -1, 0, false);		/* not placed yet */
+	gps_state_set(SYS_GPS_SEARCHING, 1);
+	CHECK(shown_text("On \xC2\xB7 searching") && shown_text("No fix") && shown_text("0:24"));
+	CHECK(shown_text("4 satellites visible, 0 in use. Stay still with a clear view of the sky."));
+	CHECK(shown_text("G05") && shown_text("E04") && shown_text("C11") && !shown_text("R08"));
+	advance(1000);					/* the 1 s tick */
+	/* it ticks only while the page is seen: not with the screen off, not
+	 * after a state update or a capture then, not under the satellites */
+	gp = app_top_page()->priv;
+	CHECK(gps_ticking(gp));
+	{
+		struct gps_view keep = gps_view;
+
+		pf_set(false);
+		/* the screen off forgets the view (the lease went) */
+		CHECK(gps_view.n_sats == 0 && gps_view.lease_ms == 0);
+		gps_view = keep;		/* as the fake manager would refill it */
+	}
+	CHECK(!gps_ticking(gp));
+	gps_state_set(SYS_GPS_SEARCHING, 1);
+	app_snapshot_guard(true);
+	app_snapshot_guard(false);
+	CHECK(!gps_ticking(gp));
+	pf_set(true);
+	CHECK(gps_ticking(gp));
+	gps_state_set(SYS_GPS_FAILED, 1);
+	CHECK(shown_text("Failed") && shown_text("On \xC2\xB7 failed"));
+
+	/* locked */
+	gps_view.mode = 3;
+	gps_view.eph = 2.6;
+	gps_view.alt = 41.4;
+	gps_view.speed = 5.0;
+	gps_view.lat = -33.85690;
+	gps_view.lon = 151.21530;
+	gps_view.hdop = 0.8;
+	gps_view.pdop = 1.4;
+	gps_view.first_fix_ms = gps_view.lease_ms + 28000;
+	gps_view.sats[0].used = gps_view.sats[1].used = true;
+	gps_state_set(SYS_GPS_RUNNING, 1);
+	CHECK(shown_text("On \xC2\xB7 locked") && shown_text("3D") && shown_text("\xC2\xB1" "3 m"));
+	CHECK(shown_text("2/4") && shown_text("28 s") && shown_text("41 m") && shown_text("0.8") &&
+	      shown_text("1.4") && shown_text("18.0"));
+	CHECK(shown_text("33.85690\xC2\xB0 S  151.21530\xC2\xB0 E"));
+	CHECK(shown_text("2 in use \xC2\xB7 4 systems") && !shown_text("No fix"));
+	/* a capture never holds the position */
+	app_snapshot_guard(true);
+	CHECK(!shown_text("33.85690\xC2\xB0 S  151.21530\xC2\xB0 E"));
+	app_snapshot_guard(false);
+	CHECK(shown_text("33.85690\xC2\xB0 S  151.21530\xC2\xB0 E"));
+	gps_view.mode = 2;
+	app_on_state(SYS_GPS_VIEW);
+	CHECK(shown_text("2D"));
+	gps_view.mode = 3;
+
+	/* the satellites page: same lease, counts per system, one bar each */
+	CHECK(tap_text("2 in use \xC2\xB7 4 systems") && app_top() == APP_PAGE_GPS_SATS &&
+	      sys_gps_watching());
+	CHECK(shown_text("GLONASS") && shown_text("/1") && shown_text("dB-Hz"));
+	CHECK(shown_text("44") && shown_text("R08"));	/* a bar for every satellite */
+	CHECK(!gps_ticking(gp));			/* the GPS page under it */
+	gps_state_set(SYS_GPS_SEARCHING, 1);
+	CHECK(!gps_ticking(gp));
+	gps_state_set(SYS_GPS_RUNNING, 1);
+	/* fewer satellites, then more again: every bar comes back */
+	gps_view.n_sats = 1;
+	app_on_state(SYS_GPS_VIEW);
+	CHECK(shown_text("44") && !shown_text("42") && !shown_text("R08"));
+	gps_view.n_sats = 4;
+	app_on_state(SYS_GPS_VIEW);
+	CHECK(shown_text("44") && shown_text("42") && shown_text("40") && shown_text("R08"));
+	CHECK(app_back() && app_top() == APP_PAGE_GPS && sys_gps_watching());
+	advance(20);
+
+	/* leaving: released, nothing kept */
+	CHECK(app_back() && app_depth() == 0);
+	CHECK(!sys_gps_watching() && gps_view.n_sats == 0 && isnan(gps_view.lat) && gps_view.lease_ms == 0);
+	advance(20);
+	for (int i = 0; i < 10; i++) {
+		click(app.tiles[1].obj);
+		app_back();
+		advance(20);
+	}
+	CHECK(!sys_gps_watching() && lv_obj_get_child_count(app.content) == 1);
+}
+
 int main(void)
 {
 	lv_obj_t *scr;
@@ -814,5 +1000,6 @@ int main(void)
 	test_policy();
 	test_app(scr);
 	test_wifi_pages(scr);
+	test_gps_pages(scr);
 	return check_report("test-app");
 }

@@ -1,0 +1,10 @@
+# Read after design.state for P12: searching for 24 s, six satellites in
+# view, none in use (the design's acquisition subset)
+gps searching
+gpslease 24
+gpssat G05 40 62 44 0
+gpssat G15 200 70 46 0
+gpssat R08 250 55 37 0
+gpssat E04 130 58 42 0
+gpssat E19 350 75 45 0
+gpssat C11 270 65 40 0

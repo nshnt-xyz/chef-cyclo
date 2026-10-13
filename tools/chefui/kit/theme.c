@@ -44,7 +44,8 @@ static void shapes(void)
 		&s->batt, &s->batt_warn, &s->batt_fill, &s->batt_fill_warn,
 		&s->card, &s->outline, &s->frame, &s->cell_rule, &s->mark, &s->field,
 		&s->field_idle, &s->kb, &s->key, &s->key_fn, &s->key_join, &s->key_pressed,
-		&s->caret,
+		&s->caret, &s->ring, &s->ring_in, &s->hair, &s->sat_on, &s->sat_off, &s->bar_on,
+		&s->bar_off, &s->swatch_on, &s->swatch_off,
 	};
 
 	for (unsigned i = 0; i < sizeof(all) / sizeof(all[0]); i++)
@@ -111,6 +112,26 @@ static void shapes(void)
 	lv_style_set_border_width(&s->key, KIT_LINE);	/* inset 3 px line */
 	lv_style_set_bg_opa(&s->key_pressed, LV_OPA_COVER);
 	lv_style_set_bg_opa(&s->caret, LV_OPA_COVER);
+	lv_style_set_radius(&s->ring, LV_RADIUS_CIRCLE);
+	lv_style_set_border_width(&s->ring, KIT_LINE);
+	lv_style_set_radius(&s->ring_in, LV_RADIUS_CIRCLE);
+	lv_style_set_border_width(&s->ring_in, KIT_LINE);
+	lv_style_set_bg_opa(&s->hair, LV_OPA_COVER);
+	lv_style_set_radius(&s->sat_on, 28);
+	lv_style_set_bg_opa(&s->sat_on, LV_OPA_COVER);
+	lv_style_set_border_width(&s->sat_on, KIT_LINE);
+	lv_style_set_radius(&s->sat_off, 28);
+	lv_style_set_bg_opa(&s->sat_off, LV_OPA_COVER);
+	lv_style_set_border_width(&s->sat_off, KIT_LINE);
+	lv_style_set_radius(&s->bar_on, 12);
+	lv_style_set_bg_opa(&s->bar_on, LV_OPA_COVER);
+	lv_style_set_border_width(&s->bar_on, KIT_LINE);
+	lv_style_set_radius(&s->bar_off, 12);
+	lv_style_set_border_width(&s->bar_off, KIT_LINE);
+	lv_style_set_radius(&s->swatch_on, 10);
+	lv_style_set_bg_opa(&s->swatch_on, LV_OPA_COVER);
+	lv_style_set_radius(&s->swatch_off, 10);
+	lv_style_set_border_width(&s->swatch_off, KIT_LINE);
 }
 
 /* Colours: rewritten on every theme change. */
@@ -167,6 +188,20 @@ static void colours(const struct kit_palette *p)
 	lv_style_set_text_color(&s->key_join, lv_color_hex(p->onacc));
 	lv_style_set_bg_color(&s->key_pressed, lv_color_hex(p->line2));
 	lv_style_set_bg_color(&s->caret, lv_color_hex(p->acct));
+	lv_style_set_border_color(&s->ring, lv_color_hex(p->line2));
+	lv_style_set_border_color(&s->ring_in, lv_color_hex(p->line));
+	lv_style_set_bg_color(&s->hair, lv_color_hex(p->line));
+	lv_style_set_bg_color(&s->sat_on, lv_color_hex(p->acc));
+	lv_style_set_border_color(&s->sat_on, lv_color_hex(p->acc));
+	lv_style_set_text_color(&s->sat_on, lv_color_hex(p->onacc));
+	lv_style_set_bg_color(&s->sat_off, lv_color_hex(p->bg));
+	lv_style_set_border_color(&s->sat_off, lv_color_hex(p->line2));
+	lv_style_set_text_color(&s->sat_off, lv_color_hex(p->mut));
+	lv_style_set_bg_color(&s->bar_on, lv_color_hex(p->acc));
+	lv_style_set_border_color(&s->bar_on, lv_color_hex(p->acc));
+	lv_style_set_border_color(&s->bar_off, lv_color_hex(p->line2));
+	lv_style_set_bg_color(&s->swatch_on, lv_color_hex(p->acc));
+	lv_style_set_border_color(&s->swatch_off, lv_color_hex(p->line2));
 }
 
 void kit_theme_init(enum kit_theme theme)

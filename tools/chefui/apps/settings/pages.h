@@ -31,7 +31,7 @@ struct page {
 };
 
 extern const struct page_ops page_display_ops, page_wifi_ops, page_wifi_password_ops,
-	page_wifi_hidden_ops, page_wifi_details_ops;
+	page_wifi_hidden_ops, page_wifi_details_ops, page_gps_ops, page_gps_sats_ops;
 
 /* Shared helpers (app.c). */
 void page_help_text(lv_obj_t *parent, const char *s);

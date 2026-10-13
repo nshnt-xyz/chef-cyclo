@@ -14,7 +14,7 @@
  * --page         open this page at start: hub, display, wifi, wifi-password
  *                (for the first network listed), wifi-hidden, wifi-details
  *                (on real state these two open once NetworkManager has
- *                given the network or the connection)
+ *                given the network or the connection), gps, gps-sats
  * --keys         with --fake-state only: type TEXT on the page's keyboard
  * --theme        this theme for this run (not saved)
  * --brightness   this brightness for this run (not saved)
@@ -81,7 +81,7 @@ static int64_t now_ms(void)
 static int usage(void)
 {
 	fprintf(stderr, "usage: chef-settings [--fake-state FILE]... [--page hub|display|wifi|"
-			"wifi-password|wifi-hidden|wifi-details] [--theme dark|light] [--brightness PCT] "
+			"wifi-password|wifi-hidden|wifi-details|gps|gps-sats] [--theme dark|light] [--brightness PCT] "
 			"[--sleep 30|60|300|0] "
 			"[--snapshot PATH [--snapshot-after MS]] [--data DIR] [--run DIR] "
 			"[--keys TEXT]\n");
@@ -96,7 +96,8 @@ static int page_kind(const char *v)
 	static const struct { const char *name; enum app_page kind; } pages[] = {
 		{ "hub", APP_PAGE_HUB }, { "display", APP_PAGE_DISPLAY }, { "wifi", APP_PAGE_WIFI },
 		{ "wifi-password", APP_PAGE_WIFI_PASSWORD }, { "wifi-hidden", APP_PAGE_WIFI_HIDDEN },
-		{ "wifi-details", APP_PAGE_WIFI_DETAILS },
+		{ "wifi-details", APP_PAGE_WIFI_DETAILS }, { "gps", APP_PAGE_GPS },
+		{ "gps-sats", APP_PAGE_GPS_SATS },
 	};
 
 	for (unsigned i = 0; i < sizeof(pages) / sizeof(pages[0]); i++)
@@ -124,6 +125,13 @@ static void open_start_page(const char *v)
 		break;
 	case APP_PAGE_WIFI:
 		app_open(APP_PAGE_WIFI, "Wi-Fi");
+		break;
+	case APP_PAGE_GPS_SATS:
+		app_open(APP_PAGE_GPS, "GPS");
+		app_open(APP_PAGE_GPS_SATS, "Satellites");
+		break;
+	case APP_PAGE_GPS:
+		app_open(APP_PAGE_GPS, "GPS");
 		break;
 	default:
 		break;

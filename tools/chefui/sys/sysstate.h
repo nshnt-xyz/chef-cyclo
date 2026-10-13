@@ -21,15 +21,17 @@ enum {
 	SYS_BT = 1 << 4,
 	SYS_STORAGE = 1 << 5,
 	SYS_WIFI_VIEW = 1 << 6,		/* wifi_view (wifi.h): the Wi-Fi pages */
+	SYS_GPS_VIEW = 1 << 7,		/* gps_view (gpsview.h): the GPS pages */
 };
 
 /* gps-manager states (docs/features/gps.md) plus "no manager". */
 enum sys_gps {
 	SYS_GPS_UNAVAILABLE,	/* socket not reachable */
-	SYS_GPS_OFF,		/* OFF, STOPPING */
+	SYS_GPS_OFF,		/* OFF, STOPPING: on, idle */
 	SYS_GPS_FAILED,
 	SYS_GPS_SEARCHING,	/* STARTING, ACQUIRING */
 	SYS_GPS_RUNNING,
+	SYS_GPS_DISABLED,	/* the switch is off */
 };
 
 struct sys_state {
@@ -44,6 +46,7 @@ struct sys_state {
 	} clock;
 	struct {
 		enum sys_gps state;
+		int enabled;		/* gps-manager's switch: -1 unknown, 0, 1 */
 		int mode;		/* gpsd TPV mode: 0 unknown, 1 none, 2 2D, 3 3D */
 		double eph;		/* metres; < 0 unknown */
 	} gps;

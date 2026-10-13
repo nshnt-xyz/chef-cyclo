@@ -1,17 +1,25 @@
 /*
- * gps.c - GPS state for the status bar and hub tile.
+ * gps.c - GPS state for the status bar and hub tile, and the GPS pages.
  *
  * gps-manager (docs/features/gps.md): a `watch` connection on
- * /run/gps-manager.sock, never a lease (the settings app must not keep
- * the modem up). OFF/STOPPING = off, FAILED = failed, STARTING/ACQUIRING =
- * searching, RUNNING = fix. Reconnected with backoff (1 s doubling to 8 s)
- * when the manager is not there or goes away.
+ * /run/gps-manager.sock. DISABLED = the switch is off, OFF/STOPPING = on
+ * and idle, FAILED = failed, STARTING/ACQUIRING = searching, RUNNING =
+ * fix; "enabled 0|1" lines carry the switch. Reconnected with backoff (1 s
+ * doubling to 8 s) when the manager is not there or goes away.
  *
- * gpsd (127.0.0.1:2947) only while RUNNING: ?WATCH JSON, TPV mode and eph
- * for "3D fix · ±3 m". Disconnected when the manager leaves RUNNING.
+ * No lease, except while the GPS page asks (sys_gps_watch): then the same
+ * connection holds one "map" lease (sent again after a reconnect or when
+ * the switch comes back on; "err disabled" means none is held), released
+ * when the page lets go. A lease lives on its connection, so a crash of
+ * the app releases it too.
+ *
+ * gpsd (127.0.0.1:2947): ?WATCH JSON while RUNNING for TPV mode and eph
+ * ("3D fix · ±3 m"), and while the page watches also during ACQUIRING,
+ * for the page's TPV and SKY (gps_view, gpsview.h). Disconnected when
+ * neither applies.
  *
  * Both sockets are nonblocking (connect included) and read at most a few
- * buffers per wakeup.
+ * buffers per wakeup. Nothing here logs a position.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -25,7 +33,11 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#include <math.h>
+#include <time.h>
+
 #include "chefui.h"
+#include "gpsview.h"
 #include "linebuf.h"
 #include "sys.h"
 #include "sysstate.h"
@@ -53,7 +65,18 @@ static struct {
 	int port;
 	bool running;		/* started (not stopped) */
 	struct conn mgr, gpsd;
+	bool watch;		/* the GPS page wants a lease and the view */
+	bool lease_sent;	/* "lease map" sent on this connection, not refused */
+	bool watching;		/* "watch" answered on this connection */
 } G;
+
+static int64_t mono_ms(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
 
 /* ------------------------------------------------------------- parsers */
 
@@ -61,6 +84,7 @@ int sys_gps_parse_state(const char *line, enum sys_gps *out)
 {
 	static const struct { const char *name; enum sys_gps s; } map[] = {
 		{ "OFF", SYS_GPS_OFF }, { "STOPPING", SYS_GPS_OFF }, { "FAILED", SYS_GPS_FAILED },
+		{ "DISABLED", SYS_GPS_DISABLED },
 		{ "STARTING", SYS_GPS_SEARCHING }, { "ACQUIRING", SYS_GPS_SEARCHING },
 		{ "RUNNING", SYS_GPS_RUNNING },
 	};
@@ -185,18 +209,55 @@ static void gps_set(enum sys_gps st, int mode, double eph)
 	}
 }
 
+/* Forget the reports (position included). The lease's own times stay
+ * while it is held: the first fix of this lease does not move when gpsd
+ * reconnects; whoever ends the lease resets them (lease_end). */
+static void view_clear(void)
+{
+	int64_t lease = gps_view.lease_ms, first = gps_view.first_fix_ms;
+
+	memset(&gps_view, 0, sizeof(gps_view));
+	gps_view.eph = gps_view.alt = gps_view.speed = gps_view.lat = gps_view.lon = NAN;
+	gps_view.hdop = gps_view.pdop = NAN;
+	gps_view.lease_ms = G.watch ? lease : 0;
+	gps_view.first_fix_ms = G.watch ? first : 0;
+}
+
+static void lease_end(void)
+{
+	gps_view.lease_ms = 0;
+	gps_view.first_fix_ms = 0;
+}
+
 static void gpsd_line(char *line, void *user)
 {
 	int mode;
 	double eph;
 
 	(void)user;
+	if (G.watch && !gps_parse_tpv_view(line, &gps_view)) {
+		if (gps_view.mode >= 2 && !gps_view.first_fix_ms && gps_view.lease_ms)
+			gps_view.first_fix_ms = mono_ms();
+		sys_changed(SYS_GPS_VIEW);
+	} else if (G.watch && !gps_parse_sky_view(line, &gps_view)) {
+		sys_changed(SYS_GPS_VIEW);
+	}
 	if (!sys_gps_parse_tpv(line, &mode, &eph)) {
 		/* eph rounded to a metre so small wobbles do not redraw */
 		if (eph >= 0)
 			eph = (double)(long)(eph + 0.5);
 		gps_set(sys_state.gps.state, mode, eph);
 		G.gpsd.backoff_ms = BACKOFF_MIN_MS;
+	}
+}
+
+/* gpsd went (or never came): retry, and show nothing stale meanwhile */
+static void gpsd_lost(void)
+{
+	conn_retry_later(&G.gpsd);
+	if (gps_view.sky || gps_view.mode) {
+		view_clear();
+		sys_changed(SYS_GPS_VIEW);
 	}
 }
 
@@ -211,19 +272,26 @@ static void gpsd_io(int fd, short revents, void *user)
 
 		if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &l) || err ||
 		    (revents & (POLLERR | POLLHUP))) {
-			conn_retry_later(c);
+			gpsd_lost();
 			return;
 		}
 		c->connecting = false;
 		if (!send_str(fd, "?WATCH={\"enable\":true,\"json\":true};\n")) {
-			conn_retry_later(c);
+			gpsd_lost();
 			return;
 		}
 		chefui_watch_fd(fd, POLLIN, gpsd_io, NULL);
 		return;
 	}
 	if (!conn_read(c, gpsd_line))
-		conn_retry_later(c);
+		gpsd_lost();
+}
+
+/* gpsd while RUNNING (status), and while the page watches ACQUIRING too */
+static bool gpsd_wanted(void)
+{
+	return sys_state.gps.state == SYS_GPS_RUNNING ||
+	       (G.watch && sys_state.gps.state == SYS_GPS_SEARCHING);
 }
 
 static void gpsd_start(void)
@@ -232,12 +300,12 @@ static void gpsd_start(void)
 	struct conn *c = &G.gpsd;
 	int fd;
 
-	if (c->fd >= 0 || sys_state.gps.state != SYS_GPS_RUNNING)
+	if (c->fd >= 0 || !gpsd_wanted())
 		return;
 	sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 	if (fd < 0) {
-		conn_retry_later(c);
+		gpsd_lost();
 		return;
 	}
 	c->fd = fd;
@@ -246,7 +314,7 @@ static void gpsd_start(void)
 	} else if (errno == EINPROGRESS) {
 		c->connecting = true;
 	} else {
-		conn_retry_later(c);
+		gpsd_lost();
 		return;
 	}
 	chefui_watch_fd(fd, POLLOUT, gpsd_io, NULL);
@@ -254,28 +322,83 @@ static void gpsd_start(void)
 
 /* ------------------------------------------------------- gps-manager */
 
+/* The page's lease on the watch connection: held while wanted. */
+static void lease_sync(void)
+{
+	struct conn *c = &G.mgr;
+
+	if (c->fd < 0 || c->connecting || !G.watching)
+		return;
+	if (G.watch && !G.lease_sent && sys_state.gps.enabled != 0) {
+		if (send_str(c->fd, "lease map\n")) {
+			G.lease_sent = true;
+			gps_view.lease_ms = mono_ms();
+			gps_view.first_fix_ms = 0;
+			sys_changed(SYS_GPS_VIEW);
+		}
+	} else if (!G.watch && G.lease_sent) {
+		if (send_str(c->fd, "release map\n"))
+			G.lease_sent = false;
+	}
+}
+
+static void enabled_set(int on)
+{
+	if (sys_state.gps.enabled != on) {
+		sys_state.gps.enabled = on;
+		sys_changed(SYS_GPS);
+	}
+}
+
 static void mgr_line(char *line, void *user)
 {
 	enum sys_gps st;
 
 	(void)user;
-	if (!strncmp(line, "ok watch", 8))
+	if (!strncmp(line, "ok watch", 8)) {
+		/* the lease waits for the switch line that follows */
 		G.mgr.backoff_ms = BACKOFF_MIN_MS;
+		G.watching = true;
+	}
+	if (!strcmp(line, "err disabled")) {
+		G.lease_sent = false;	/* refused: none held */
+		return;
+	}
+	if (!strcmp(line, "enabled 0") || !strcmp(line, "enabled 1")) {
+		enabled_set(line[8] == '1');
+		lease_sync();		/* on again: lease again if it was refused */
+		return;
+	}
 	if (sys_gps_parse_state(line, &st))
 		return;		/* ok/err replies, unknown states, junk */
+	if (st == SYS_GPS_DISABLED)
+		enabled_set(0);
+	lease_sync();		/* a manager without switch lines */
 	if (st == SYS_GPS_RUNNING) {
 		gps_set(st, sys_state.gps.state == SYS_GPS_RUNNING ? sys_state.gps.mode : 0,
 			sys_state.gps.state == SYS_GPS_RUNNING ? sys_state.gps.eph : -1);
+	} else {
+		gps_set(st, 0, -1);
+	}
+	if (gpsd_wanted()) {
 		gpsd_start();
 	} else {
 		conn_cancel(&G.gpsd);
-		gps_set(st, 0, -1);
+		if (G.watch && (gps_view.sky || gps_view.mode)) {
+			view_clear();	/* no GNSS: nothing to show */
+			sys_changed(SYS_GPS_VIEW);
+		}
 	}
 }
 
 static void mgr_lost(void)
 {
 	conn_cancel(&G.gpsd);
+	G.lease_sent = G.watching = false;	/* the lease went with the connection */
+	view_clear();				/* no manager: nothing to show */
+	lease_end();
+	sys_changed(SYS_GPS_VIEW);
+	enabled_set(-1);
 	gps_set(SYS_GPS_UNAVAILABLE, 0, -1);
 	conn_retry_later(&G.mgr);
 }
@@ -340,6 +463,8 @@ int sys_gps_start(const char *sock, int gpsd_port)
 	G.gpsd = (struct conn){ .name = "gpsd", .fd = -1, .backoff_ms = BACKOFF_MIN_MS,
 				.max_ms = GPSD_BACKOFF_MAX_MS, .start = gpsd_start };
 	G.running = true;
+	sys_state.gps.enabled = -1;
+	view_clear();
 	mgr_start();
 	return 0;
 }
@@ -349,4 +474,39 @@ void sys_gps_stop(void)
 	G.running = false;
 	conn_cancel(&G.gpsd);
 	conn_cancel(&G.mgr);
+	G.lease_sent = G.watching = false;
+	view_clear();
+	lease_end();
+	sys_changed(SYS_GPS_VIEW);
+}
+
+void sys_gps_watch(bool watch)
+{
+	if (watch == G.watch)
+		return;
+	G.watch = watch;
+	if (!watch) {
+		view_clear();		/* positions are not kept off the page */
+		lease_end();
+		sys_changed(SYS_GPS_VIEW);
+	}
+	lease_sync();
+	if (gpsd_wanted())
+		gpsd_start();
+	else if (sys_state.gps.state != SYS_GPS_RUNNING)
+		conn_cancel(&G.gpsd);
+}
+
+bool sys_gps_watching(void)
+{
+	return G.watch;
+}
+
+int sys_gps_set_enabled(bool on)
+{
+	struct conn *c = &G.mgr;
+
+	if (!G.running || c->fd < 0 || c->connecting || !G.watching)
+		return -ENOTCONN;
+	return send_str(c->fd, on ? "enable\n" : "disable\n") ? 0 : -EIO;
 }

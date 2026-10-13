@@ -97,3 +97,124 @@ came back each time (l1, l3, l6 kmsg).
   (two taps) of that profile. Any fix that run needs becomes a follow-up
   commit. Covered meanwhile by test-wifi (fake NM) and test-app.
 - The passphrase never left the phone in this run (no join was made live).
+
+
+M2 GPS pages (P11 to P14) and the gps-manager switch
+====================================================
+
+Delivered: gps-manager enable/disable (DISABLED state, new leases refused,
+held leases parked and resumed, no grace when switched off, "enabled N"
+watch lines and enabled= in status), saved through new chef-state
+gps-load/gps-save (child processes; /data/v1/gps/enabled, /run fallback);
+the UI's GPS source holds a map lease only while a GPS page is seen and
+reads gpsd TPV/SKY into gps_view; pages P11 (off), P12 (searching), P13
+(locked), P14 (satellites); status bar: locate-off only when switched off.
+
+1. Host
+
+make -C tools/chefui test: test-sys 233 (lease, switch and view against a
+fake gps-manager and gpsd; TPV/SKY parsers), test-app 519 (GPS pages:
+visibility and lease, off/searching/failed/locked, the position masked in
+captures, satellites page, leaving forgets the view; new fonts), other
+suites unchanged and green (test-wifi 213).
+make -C tools test: test-gps-manager 200 (switch: DISABLED, err disabled,
+held leases, no grace, FAILED/parked, the switch not yet read),
+test_gps-manager.sh 47 (binary with a stub chef-state: disable while
+leased, saved, read back after kill -9, refused leases, a hanging
+gps-load bounded at 5 s), test_chef_state.py 108 (gps-load/gps-save in
+bash and busybox ash: default, saved values, torn/foreign files ignored
+with a line, /run fallback, a failing save), all other tools suites OK.
+font-check: 39 fonts reproduce byte for byte.
+Reference comparison (host, same masks), dark/light: P11 3.24/3.33, P12
+1.67/1.69, P13 7.53/6.42, P14 1.18/1.18. Flagged bands only where the
+power mode was left out (P12 bottom row, P13 section, so its Satellites
+row moves up) and P11's shorter text; the rest within 0-2 px.
+chef-settings 2523448 bytes (M1: 2326840).
+
+2. Live, RAM image 50baba0d441c68310a645aab1d2c13ee0ab406d94a660c4eea0ad3f42dd52465
+   (chef-settings 36f4bf28, chef-state 7a1ec0e6), final gps-manager
+   639bdc1d pushed for g6 (the image's ffd4f2f8 differs only in a log line)
+   Evidence: ~/chef-cyclo-evidence/system-ui2-m2-live-20261011/
+
+G1 switch round trip with a lease held from the shell (hold ride):
+   ACQUIRING; disable: DISABLED with leases=ride:1 held, /data/v1/gps/enabled
+   written (sealed, "enabled 0", dir 0700); a new lease "err disabled";
+   kill -9 of the manager: respawn read back DISABLED; enable: OFF, file
+   "enabled 1" (g1.txt).
+G2/G6 held lease parked and resumed: hold map ACQUIRING, disable ->
+   DISABLED (leases map:1), enable -> ACQUIRING again with no new lease
+   ("switched off: stopping now" on the final binary, g6.txt).
+G3 page lease: --page gps: leases=map:1 while seen; auto-sleep 30 s turned
+   the screen off and the lease went (map:0, grace on); OFF 30 s later
+   (g3.txt, g3/run/g3-p12.ppm: P12 "No fix", 0:08, 0 satellites).
+G4 indoors after 75 s still no satellites: the modem sends GGA/GSA/RMC/VTG
+   but no GSV, so gpsd has no SKY (types only recorded, no positions).
+   P12 idle while acquiring, 60 s: 8 ticks (0.13 % CPU), 4.2 wakeups/s (the
+   1 s elapsed tick and gpsd's TPV each second) (g4-idle-p12.txt).
+G5 device captures of P11, P13 (fake position) and P14 from the state
+   files: byte for byte the host captures (g5-compare.txt).
+
+3. Not verified live
+
+- A real fix (P13, P14 with satellites) needs the sky: offered to ui_coord
+  for the batched guided run (a window), with the position kept out of
+  any capture (the page masks it).
+
+M2 review round 1 (ui_review, six findings) and round 2 fixes, 2026-10-13
+ 1. P14 bars: a column hidden when the satellite count shrank was never
+    shown again (the grandparent was unhidden). Fixed; test-app 4 -> 1 -> 4.
+ 2. The P12 1 s tick resumed on any state update or capture, also with the
+    screen off or under P14. Now only while the page is seen; test-app
+    checks the timer (screen off, state update, capture, under P14).
+ 3. gps-manager: a client enable/disable during a hung gps-load cancelled
+    the loader's 5 s bound. The bound now applies regardless; shell test.
+ 4. sys/gps.c kept the last fix after gps-manager went away. The view is
+    now cleared on manager loss, stop and gpsd loss; test-sys covers a fix
+    then gpsd loss, and a fix then manager loss.
+ 5. gps-manager's orderly exit did not wait for the switch save (the saver
+    died with it). Now it drains the newest value for up to 3 s (logged if
+    not), and a save hung for 10 s is killed so a newer one runs; shell
+    tests: slow save + SIGTERM, hung save.
+ 6. chef-state created /data/v1/gps without syncing /data/v1. It now syncs
+    the parent on every save and fails the save if that fails;
+    test_chef_state: sync order and failure.
+Host after the fixes: make -C tools/chefui test (test-sys 254, test-app
+528, others unchanged), make -C tools test (test-gps-manager 200,
+test_gps-manager.sh 53, test_chef_state.py 110), font-check 39, 22 host
+captures unchanged.
+Live refresh, RAM image 4004258187f0dcc97ae3c8931acfb1f1601d87067683bcabd3f922675ebb381f
+(chef-settings c164f03d, gps-manager 69a48192, chef-state a6fa9c5e;
+evidence ~/chef-cyclo-evidence/system-ui2-m2r2-live-20261013/):
+ R1 switch with a held ride lease: DISABLED with the lease held, file
+    "enabled 0" (gps/ 0700), enable resumed ACQUIRING without a new lease;
+    disable + kill -9: read back DISABLED; enable + immediate SIGTERM: the
+    manager waited for the save ("enabled 1" on disk) and exited.
+ R2 page lease: map:1 while the GPS page was seen; released at the moment
+    the screen went off (115.54 s), OFF after the grace (the screen went
+    off 50 s after start rather than the configured 30 s, most likely a
+    touch on the phone; the lease follows the screen either way).
+ R3 device captures P11, P13, P14 byte-identical to host again.
+
+M2 review round 2 (ui_review) and round 3 fixes, 2026-10-13
+ - Findings 1, 2, 4, 6 confirmed fixed. Remaining: a timed-out or
+   exit-killed gps-save/gps-load killed only its leader; a descendant (as
+   chef-state's locked() subshell) kept the lock. gps-manager now gives
+   every child its own process group (also set from the parent) and kills
+   the group at the save/load bound and at exit. Shell regressions: a save
+   whose descendant holds the lock (killed at 10 s, the newer value then
+   saved), the same at SIGTERM (bounded exit, no descendant left, saving
+   works after), a loader with a descendant (killed at 5 s).
+ - The first-fix time of a still-held lease was reset by a gpsd reconnect
+   (the next fix replaced it). view_clear now keeps the lease's own times;
+   lease_end() resets them when the lease ends (manager loss, stop,
+   leaving the page) or is taken again. test-sys checks it across a gpsd
+   reconnect and the reset on manager loss.
+ - The r2 page-lease samples were mislabelled (the screen went off later
+   than the labels assumed). Redone with samples taken after the screen
+   actually went off (r4-page-lease.txt, chef-settings c5362d11 and
+   gps-manager dd8905ec pushed onto image 40042581): map:1 while seen;
+   screen off at +30.3 s with the lease released in the same millisecond
+   (map:0, grace on); OFF 30.8 s later.
+ Host: make -C tools/chefui test (test-sys 255, test-app 528, test-wifi
+ 212), make -C tools test (test_gps-manager.sh 57, test-gps-manager 200,
+ test_chef_state.py 110), all green.

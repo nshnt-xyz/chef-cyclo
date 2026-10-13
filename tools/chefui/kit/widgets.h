@@ -226,6 +226,10 @@ void kit_steps_set(struct kit_steps *st, int i, bool done);
 /* Hide or show step i (the rest share the width). */
 void kit_steps_show(struct kit_steps *st, int i, bool show);
 
+/* The design's corner marks (36 px crosses at -18 of the padding box)
+ * on a framed object, drawn outside it. */
+void kit_corner_marks(lv_obj_t *frame);
+
 /* Outline button: 192 px, line2 frame, 60 px icon and condensed label. */
 lv_obj_t *kit_button_create(lv_obj_t *parent, const char *glyph, const char *text,
 			    lv_event_cb_t cb, void *user);

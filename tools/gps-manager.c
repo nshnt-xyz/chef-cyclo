@@ -14,9 +14,20 @@
  *                           status
  *                           watch                      (stream state changes)
  *                           retry                      (only in FAILED)
+ *                           enable | disable           (the GPS switch)
  *   gps-manager -> client   ok lease map 1 | err ...
- *                           ok status state=RUNNING leases=map:1,ride:0 ...
+ *                           ok status state=RUNNING enabled=1 leases=map:1,ride:0 ...
+ *                           ok enabled 0
  *                           state RUNNING <detail>     (watchers)
+ *                           enabled 0                  (watchers)
+ *
+ * The switch: disabled, a new lease gets "err disabled"; leases already
+ * held stay on their connections but no longer count, GNSS is torn down at
+ * once (no grace) and the idle state reads DISABLED; enabling counts them
+ * again. The switch persists through `chef-state gps-save 0|1` (a child,
+ * so storage never blocks this loop) and is read back at start with
+ * `chef-state gps-load` (bounded; enabled when nothing valid is saved).
+ * Until that answer arrives leases are accepted and held, not acted on.
  *
  * A lease lives on its connection, so a client that dies releases it. The
  * first lease starts the bring-up; when the last lease goes (in STARTING,
@@ -91,9 +102,11 @@
  * and lease again.
  *
  * Usage: gps-manager [-S SOCK] [-d DIR] [-q QMUX_SOCK] [-o OWNER_LOCK]
- *                    [-b BINDIR] [-g GRACE_S] [-v]               daemon
- *        gps-manager [-S SOCK] status | watch | retry | hold KIND...
+ *                    [-b BINDIR] [-s STATE_CMD] [-g GRACE_S] [-v]   daemon
+ *        gps-manager [-S SOCK] status | watch | retry | enable | disable |
+ *                    hold KIND...
  *   -b  run qmicli, gpsd and nmea-broker from BINDIR (tests); default PATH
+ *   -s  the chef-state command for the switch (default chef-state; tests)
  * Logs: kmsg "gps-manager:" lines (transitions, not polls); the children's
  * output in DIR (default /run/gps-manager): steps.log, gpsd.log, follow.log
  * and broker.log, each rotated to .1 at a bring-up so the run that failed is
@@ -145,6 +158,9 @@
 #define GM_TERM_TO_KILL_MS 3000
 #define GM_GPSD_KILL_MS    5000
 #define GM_TICK_MS         1000
+#define GM_LOAD_TIMEOUT_MS 5000	/* chef-state gps-load; then: enabled */
+#define GM_SAVE_TIMEOUT_MS 10000	/* chef-state gps-save; then killed */
+#define GM_SAVE_DRAIN_MS   3000	/* at exit: the last switch change */
 
 #define GM_MAX_CLIENTS 16
 #define GM_LINE_MAX    128
@@ -156,9 +172,9 @@ static const int gm_backoff_s[] = { 2, 2, 4, 8, 16 };
 
 /* ------------------------------------------------------------------ core */
 
-enum gm_state { ST_OFF, ST_STARTING, ST_ACQUIRING, ST_RUNNING, ST_STOPPING, ST_FAILED };
+enum gm_state { ST_OFF, ST_STARTING, ST_ACQUIRING, ST_RUNNING, ST_STOPPING, ST_FAILED, ST_DISABLED };
 static const char *const gm_state_names[] = {
-	"OFF", "STARTING", "ACQUIRING", "RUNNING", "STOPPING", "FAILED",
+	"OFF", "STARTING", "ACQUIRING", "RUNNING", "STOPPING", "FAILED", "DISABLED",
 };
 
 /* Owned processes; CH_STEP is the one qmicli setup/teardown step in flight. */
@@ -201,6 +217,7 @@ struct gm_ops {
 	void (*save)(void *ctx, const struct gm *m);	/* CID/owner/stale changed */
 	void (*rotate)(void *ctx);	/* a bring-up starts: keep the previous logs */
 	void (*changed)(void *ctx, const struct gm *m);	/* state/detail changed */
+	void (*persist)(void *ctx, bool enabled);	/* the switch was changed */
 };
 
 struct gm {
@@ -214,7 +231,9 @@ struct gm {
 	int64_t phase_at;	/* start of the current phase (timeouts, escalation) */
 	int escalation;		/* signals sent so far in a stop phase */
 	bool step_killed;
-	int leases;		/* total over all clients and kinds */
+	int leases;		/* total over all clients and kinds (0 while disabled) */
+	bool enabled;		/* the GPS switch */
+	bool loaded;		/* the saved switch has been read (or set since) */
 	int cid;		/* -1: none allocated */
 	struct gm_owner cid_owner;	/* the owner that served cid */
 	int stale_cid;		/* a previous instance's CID, -1: none */
@@ -260,6 +279,10 @@ static void gm_set(struct gm *m, enum gm_state st, const char *fmt, ...)
 	va_start(ap, fmt);
 	vsnprintf(d, sizeof(d), fmt, ap);
 	va_end(ap);
+	if (st == ST_OFF && !m->enabled) {
+		st = ST_DISABLED;	/* idle with the switch off */
+		snprintf(d, sizeof(d), "disabled");
+	}
 	if (st == m->state && strcmp(d, m->detail) == 0)
 		return;
 	/* ACQUIRING <-> RUNNING is a hint that can flap every ~10 s at a
@@ -286,6 +309,7 @@ static void gm_init(struct gm *m, const struct gm_ops *ops)
 	m->cid = -1;
 	m->stale_cid = -1;
 	m->state = ST_OFF;
+	m->enabled = m->loaded = true;
 	snprintf(m->detail, sizeof(m->detail), "idle");
 }
 
@@ -710,6 +734,12 @@ static void gm_set_leases(struct gm *m, int64_t now, int n)
 	case PH_NMEA:
 	case PH_START:
 	case PH_UP:
+		if (!m->enabled) {
+			/* switched off: no grace */
+			gm_log(m, "switched off: stopping now");
+			gm_teardown(m, now);
+			break;
+		}
 		m->grace_at = now + m->grace_ms;
 		gm_log(m, "last lease released: stopping in %d s unless leased again", m->grace_ms / 1000);
 		break;
@@ -893,9 +923,10 @@ static void gm_server_init(struct gm_server *s, struct gm *m, int64_t (*now)(voi
 		s->clients[i].fd = -1;
 }
 
+/* Held leases count only while the switch is on (and has been read). */
 static void gm_server_sync(struct gm_server *s)
 {
-	int n = gm_server_count(s, -1);
+	int n = s->m->enabled && s->m->loaded ? gm_server_count(s, -1) : 0;
 
 	if (n != s->m->leases)
 		gm_set_leases(s->m, s->now(), n);
@@ -969,8 +1000,8 @@ static void gm_status_line(const struct gm_server *s, char *buf, size_t len)
 		watchers += s->clients[i].watch;
 	}
 	snprintf(buf, len,
-		 "ok status state=%s leases=map:%d,ride:%d clients=%d watchers=%d cid=%d phase=%s nmea=%lu bringups=%lu failures=%lu streak=%d leaked=%lu grace=%s detail=%s\n",
-		 gm_state_names[m->state], gm_server_count(s, LK_MAP), gm_server_count(s, LK_RIDE),
+		 "ok status state=%s enabled=%d leases=map:%d,ride:%d clients=%d watchers=%d cid=%d phase=%s nmea=%lu bringups=%lu failures=%lu streak=%d leaked=%lu grace=%s detail=%s\n",
+		 gm_state_names[m->state], m->enabled, gm_server_count(s, LK_MAP), gm_server_count(s, LK_RIDE),
 		 clients, watchers, m->cid, gm_phase_names[m->phase], m->nmea_lines, m->bringups,
 		 m->failures, m->streak, m->leaked, m->grace_at ? "on" : "off", m->detail);
 }
@@ -990,6 +1021,55 @@ static void gm_server_broadcast(struct gm_server *s)
 	}
 }
 
+/* "enabled N" to every watcher. */
+static void gm_server_broadcast_enabled(struct gm_server *s)
+{
+	char buf[16];
+	int i;
+
+	snprintf(buf, sizeof(buf), "enabled %d\n", s->m->enabled);
+	for (i = 0; i < GM_MAX_CLIENTS; i++) {
+		struct gm_client *c = &s->clients[i];
+
+		if (c->fd >= 0 && c->watch && gm_send(c->fd, buf))
+			gm_server_drop(s, c);
+	}
+}
+
+/*
+ * The switch, from a client (persist: saved) or the saved value read at
+ * start. Off: held leases stop counting and GNSS goes down at once, the
+ * grace skipped; idle then reads DISABLED. On: they count again.
+ */
+static void gm_server_set_enabled(struct gm_server *s, bool on, bool persist)
+{
+	struct gm *m = s->m;
+	int64_t now = s->now();
+	bool was = m->enabled;
+
+	m->loaded = true;
+	m->enabled = on;
+	if (was != on) {
+		gm_log(m, "GPS %s", on ? "enabled" : "disabled");
+		gm_server_broadcast_enabled(s);	/* before the state it causes */
+	}
+	if (!on) {
+		gm_server_sync(s);	/* held leases stop counting: down at once */
+		if (m->grace_at)
+			gm_teardown(m, now);	/* already in its grace: no waiting either */
+		if (m->phase == PH_IDLE && m->state == ST_OFF)
+			gm_set(m, ST_OFF, "idle");	/* reads DISABLED */
+	} else {
+		if (m->state == ST_DISABLED)
+			gm_set(m, ST_OFF, "idle");
+		else if (m->phase == PH_IDLE && m->state == ST_OFF && strcmp(m->detail, "idle"))
+			gm_set(m, ST_OFF, "idle");	/* was waiting for the saved switch */
+		gm_server_sync(s);
+	}
+	if (persist && m->ops.persist)
+		m->ops.persist(m->ops.ctx, on);
+}
+
 static void gm_handle_line(struct gm_server *s, struct gm_client *c, char *line)
 {
 	char *cmd, *arg, *save = NULL;
@@ -1005,6 +1085,10 @@ static void gm_handle_line(struct gm_server *s, struct gm_client *c, char *line)
 			gm_reply(s, c, "err unknown lease kind %s\n", arg ? arg : "");
 			return;
 		}
+		if (cmd[0] == 'l' && s->m->loaded && !s->m->enabled) {
+			gm_reply(s, c, "err disabled\n");
+			return;
+		}
 		if (cmd[0] == 'l') {
 			c->leases[k]++;
 		} else if (c->leases[k] > 0) {
@@ -1018,7 +1102,14 @@ static void gm_handle_line(struct gm_server *s, struct gm_client *c, char *line)
 			gm_server_sync(s);
 	} else if (strcmp(cmd, "watch") == 0) {
 		c->watch = true;
-		gm_reply(s, c, "ok watch\nstate %s %s\n", gm_state_names[s->m->state], s->m->detail);
+		gm_reply(s, c, "ok watch\nenabled %d\nstate %s %s\n", s->m->enabled,
+			 gm_state_names[s->m->state], s->m->detail);
+	} else if (strcmp(cmd, "enable") == 0 || strcmp(cmd, "disable") == 0) {
+		bool on = cmd[0] == 'e';
+
+		gm_reply(s, c, "ok enabled %d\n", on);
+		if (c->fd >= 0)
+			gm_server_set_enabled(s, on, true);
 	} else if (strcmp(cmd, "status") == 0) {
 		char buf[512];
 
@@ -1301,6 +1392,18 @@ struct shell {
 	int nmea_fd;		/* broker tee, -1 when closed */
 	char nmea_in[512];
 	size_t nmea_len;
+	/* the switch: chef-state gps-load at start, gps-save on a change */
+	const char *state_cmd;
+	pid_t load_pid;
+	int load_fd;		/* its stdout, -1 when closed */
+	bool load_exited;
+	int64_t load_until;
+	char load_out[64];
+	size_t load_len;
+	pid_t save_pid;
+	int64_t save_until;
+	bool save_pending;	/* changed again while a save ran */
+	bool save_value;
 };
 
 static void shell_save(struct shell *sh)
@@ -1420,6 +1523,7 @@ static pid_t spawn(const char *path, char *const argv[], int in, int out, int er
 		execvp(path, argv);
 		_exit(127);
 	}
+	setpgid(pid, pid);	/* also from here: no window before the child's own */
 	return pid;
 }
 
@@ -1565,6 +1669,120 @@ static void op_changed(void *ctx, const struct gm *m)
 	gm_server_broadcast(&sh->srv);
 }
 
+/* Save the switch with chef-state in a child; one at a time, the last
+ * value wins. A failure is logged by chef-state itself. */
+static void shell_save_switch(struct shell *sh)
+{
+	char *argv[] = { (char *)sh->state_cmd, "gps-save", sh->save_value ? "1" : "0", NULL };
+	pid_t pid;
+
+	if (sh->save_pid > 0) {
+		sh->save_pending = true;
+		return;
+	}
+	sh->save_pending = false;
+	pid = spawn(sh->state_cmd, argv, -1, -1, -1);
+	if (pid < 0) {
+		notef("cannot run %s gps-save: %s; the switch is not saved", sh->state_cmd, strerror(-pid));
+	} else {
+		sh->save_pid = pid;
+		sh->save_until = now_ms() + GM_SAVE_TIMEOUT_MS;
+	}
+}
+
+/* A save that hangs (storage stuck) is killed after its bound, so a later
+ * change still gets its turn; reaped as any child. */
+static void shell_save_check(struct shell *sh)
+{
+	if (sh->save_pid > 0 && sh->save_until && now_ms() >= sh->save_until) {
+		notef("%s gps-save still running after %d s: killed; the switch may not be saved",
+		      sh->state_cmd, GM_SAVE_TIMEOUT_MS / 1000);
+		kill(-sh->save_pid, SIGKILL);	/* its group: a lock holder dies too */
+		sh->save_until = 0;
+	}
+}
+
+static void op_persist(void *ctx, bool on)
+{
+	struct shell *sh = ctx;
+
+	sh->save_value = on;
+	shell_save_switch(sh);
+}
+
+/* The saved switch, read once at start (bounded). */
+static void shell_load_start(struct shell *sh)
+{
+	char *argv[] = { (char *)sh->state_cmd, "gps-load", NULL };
+	int p[2];
+	pid_t pid;
+
+	sh->load_fd = -1;
+	if (pipe2(p, O_CLOEXEC) < 0) {
+		notef("pipe: %s; GPS switch taken as enabled", strerror(errno));
+		gm_server_set_enabled(&sh->srv, true, false);
+		return;
+	}
+	pid = spawn(sh->state_cmd, argv, -1, p[1], -1);
+	close(p[1]);
+	if (pid < 0) {
+		close(p[0]);
+		notef("cannot run %s gps-load: %s; GPS switch taken as enabled", sh->state_cmd, strerror(-pid));
+		gm_server_set_enabled(&sh->srv, true, false);
+		return;
+	}
+	fcntl(p[0], F_SETFL, O_NONBLOCK);
+	sh->load_pid = pid;
+	sh->load_fd = p[0];
+	sh->load_until = now_ms() + GM_LOAD_TIMEOUT_MS;
+	sh->m.loaded = false;
+	gm_set(&sh->m, ST_OFF, "reading the GPS switch");
+}
+
+/* Done once the loader exited and its pipe is at EOF (or it timed out). */
+static void shell_load_check(struct shell *sh, bool timed_out)
+{
+	bool on = true;
+
+	if (!timed_out && (!sh->load_exited || sh->load_fd >= 0))
+		return;
+	sh->load_until = 0;
+	if (sh->load_fd >= 0) {
+		close(sh->load_fd);
+		sh->load_fd = -1;
+	}
+	sh->load_exited = false;
+	if (timed_out)
+		notef("%s gps-load gave no answer in %d s: GPS switch taken as enabled", sh->state_cmd,
+		      GM_LOAD_TIMEOUT_MS / 1000);
+	else if (strcmp(sh->load_out, "enabled 0\n") == 0)
+		on = false;
+	else if (strcmp(sh->load_out, "enabled 1\n") != 0)
+		notef("%s gps-load: unexpected answer; GPS switch taken as enabled", sh->state_cmd);
+	if (!sh->m.loaded)	/* a client's enable/disable since start wins */
+		gm_server_set_enabled(&sh->srv, on, false);
+}
+
+static void shell_load_read(struct shell *sh)
+{
+	char buf[64];
+	ssize_t n = read(sh->load_fd, buf, sizeof(buf));
+
+	if (n < 0 && (errno == EAGAIN || errno == EINTR))
+		return;
+	if (n <= 0) {
+		close(sh->load_fd);
+		sh->load_fd = -1;
+		shell_load_check(sh, false);
+		return;
+	}
+	if (sh->load_len + (size_t)n < sizeof(sh->load_out)) {
+		memcpy(sh->load_out + sh->load_len, buf, (size_t)n);
+		sh->load_len += (size_t)n;
+		sh->load_out[sh->load_len] = '\0';
+	}
+}
+
 /* A step is finished once it has exited and its output pipe is at EOF. */
 static void shell_step_check(struct shell *sh)
 {
@@ -1637,6 +1855,20 @@ static void shell_reap(struct shell *sh)
 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
 		int rc = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
 
+		if (pid == sh->save_pid) {
+			sh->save_pid = 0;
+			if (rc)
+				notef("%s gps-save exited %d: the switch may not be saved", sh->state_cmd, rc);
+			if (sh->save_pending)
+				shell_save_switch(sh);
+			continue;
+		}
+		if (pid == sh->load_pid) {
+			sh->load_pid = 0;
+			sh->load_exited = true;
+			shell_load_check(sh, false);
+			continue;
+		}
 		for (c = 0; c < CH_COUNT; c++)
 			if (sh->pid[c] == pid)
 				break;
@@ -1775,15 +2007,18 @@ static void on_chld(int sig)
 static void usage(void)
 {
 	fprintf(stderr,
-		"usage: gps-manager [-S SOCK] [-d DIR] [-q QMUX_SOCK] [-o OWNER_LOCK] [-b BINDIR] [-g GRACE_S] [-v]\n"
-		"       gps-manager [-S SOCK] status | watch | retry | hold KIND...   (KIND: map, ride)\n");
+		"usage: gps-manager [-S SOCK] [-d DIR] [-q QMUX_SOCK] [-o OWNER_LOCK] [-b BINDIR] [-s STATE_CMD]\n"
+		"                   [-g GRACE_S] [-v]\n"
+		"       gps-manager [-S SOCK] status | watch | retry | enable | disable | hold KIND...\n"
+		"                                                                    (KIND: map, ride)\n");
 }
 
 static int client_main(const char *sock_path, int argc, char **argv)
 {
 	int fd;
 	char buf[512];
-	bool once = strcmp(argv[0], "status") == 0 || strcmp(argv[0], "retry") == 0;
+	bool once = strcmp(argv[0], "status") == 0 || strcmp(argv[0], "retry") == 0 ||
+		    strcmp(argv[0], "enable") == 0 || strcmp(argv[0], "disable") == 0;
 	int i;
 
 	if (!once && strcmp(argv[0], "watch") != 0 && strcmp(argv[0], "hold") != 0) {
@@ -1839,9 +2074,9 @@ static int64_t srv_now(void)
 /* One poll round: signals, children, step output, NMEA, clients, tick. */
 static void shell_round(struct shell *sh, int lfd)
 {
-	struct pollfd pfd[4 + GM_MAX_CLIENTS];
+	struct pollfd pfd[5 + GM_MAX_CLIENTS];
 	struct gm_client *cmap[GM_MAX_CLIENTS];
-	int n = 0, nclients = 0, i, ilisten = -1, istep = -1, inmea = -1, iclients;
+	int n = 0, nclients = 0, i, ilisten = -1, istep = -1, inmea = -1, iload = -1, iclients;
 
 	pfd[n++] = (struct pollfd){ .fd = g_sigpipe[0], .events = POLLIN };
 	if (lfd >= 0) {
@@ -1855,6 +2090,10 @@ static void shell_round(struct shell *sh, int lfd)
 	if (sh->nmea_fd >= 0) {
 		inmea = n;
 		pfd[n++] = (struct pollfd){ .fd = sh->nmea_fd, .events = POLLIN };
+	}
+	if (sh->load_fd >= 0) {
+		iload = n;
+		pfd[n++] = (struct pollfd){ .fd = sh->load_fd, .events = POLLIN };
 	}
 	iclients = n;
 	for (i = 0; i < GM_MAX_CLIENTS; i++) {
@@ -1875,7 +2114,16 @@ static void shell_round(struct shell *sh, int lfd)
 		shell_nmea_read(sh);
 	if (istep >= 0 && sh->step_fd >= 0 && (pfd[istep].revents & (POLLIN | POLLHUP | POLLERR)))
 		shell_step_read(sh);
+	if (iload >= 0 && sh->load_fd >= 0 && (pfd[iload].revents & (POLLIN | POLLHUP | POLLERR)))
+		shell_load_read(sh);
 	shell_reap(sh);
+	/* bounded even when a client set the switch first: the loader goes */
+	if (sh->load_until && now_ms() >= sh->load_until) {
+		if (sh->load_pid > 0)
+			kill(-sh->load_pid, SIGKILL);	/* its group; reaped as any child */
+		shell_load_check(sh, true);
+	}
+	shell_save_check(sh);
 	if (ilisten >= 0 && (pfd[ilisten].revents & POLLIN)) {
 		int cfd = accept4(lfd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
 
@@ -1898,6 +2146,7 @@ int main(int argc, char **argv)
 		.ctx = sh, .log = op_log, .owner = op_owner, .bridge = op_bridge,
 		.run_step = op_run_step, .spawn_gpsd = op_spawn_gpsd, .spawn_pipeline = op_spawn_pipeline,
 		.signal = op_signal, .save = op_save, .rotate = op_rotate, .changed = op_changed,
+		.persist = op_persist,
 	};
 	struct sigaction sa;
 	char path[256];
@@ -1908,13 +2157,15 @@ int main(int argc, char **argv)
 	sh->paths.proc = "/proc";
 	sh->paths.owner_lock = GM_OWNER_LOCK;
 	sh->paths.qmux_sock = GM_QMUX_SOCK;
-	while ((opt = getopt(argc, argv, "S:d:q:o:b:g:v")) != -1) {
+	sh->state_cmd = "chef-state";
+	while ((opt = getopt(argc, argv, "S:d:q:o:b:s:g:v")) != -1) {
 		switch (opt) {
 		case 'S': sock_path = optarg; break;
 		case 'd': sh->dir = optarg; break;
 		case 'q': sh->paths.qmux_sock = optarg; break;
 		case 'o': sh->paths.owner_lock = optarg; break;
 		case 'b': bindir = optarg; break;
+		case 's': sh->state_cmd = optarg; break;
 		case 'g': grace_s = atoi(optarg); break;
 		case 'v': g_verbose = true; break;
 		default: usage(); return 64;
@@ -1944,7 +2195,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	sh->step_fd = sh->nmea_fd = -1;
+	sh->step_fd = sh->nmea_fd = sh->load_fd = -1;
 	gm_init(&sh->m, &ops);
 	sh->m.qmicli = "qmicli";
 	sh->m.qmux_sock = sh->paths.qmux_sock;
@@ -1967,6 +2218,7 @@ int main(int argc, char **argv)
 
 	shell_cleanup_previous(sh);
 	shell_save(sh);
+	shell_load_start(sh);
 
 	lfd = sock_listen(sock_path);
 	if (lfd < 0) {
@@ -1998,6 +2250,25 @@ int main(int argc, char **argv)
 		while (sh->m.phase != PH_IDLE && now_ms() < until)
 			shell_round(sh, -1);
 	}
+	/* the last switch change is saved before we go (bounded): a saver
+	 * killed by our exit would leave the old value on disk */
+	{
+		int64_t until = now_ms() + GM_SAVE_DRAIN_MS;
+
+		while ((sh->save_pid > 0 || sh->save_pending) && now_ms() < until) {
+			if (sh->save_pid <= 0)
+				shell_save_switch(sh);
+			if (sh->save_pid > 0)
+				shell_round(sh, -1);
+		}
+		if (sh->save_pid > 0 || sh->save_pending) {
+			notef("exiting with the GPS switch save unfinished: the saved value may be stale");
+			if (sh->save_pid > 0)
+				kill(-sh->save_pid, SIGKILL);
+		}
+	}
+	if (sh->load_pid > 0)
+		kill(-sh->load_pid, SIGKILL);
 	if (sh->m.phase == PH_IDLE && sh->m.stale_cid < 0 && sh->m.cid < 0) {
 		snprintf(path, sizeof(path), "%s/state", sh->dir);
 		unlink(path);
