@@ -2,7 +2,7 @@
 
 [Next-steps index](README.md) · [Current features](../features/README.md)
 
-Remaining integration and validation work, reviewed 2026-10-11. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
+Remaining integration and validation work, updated 2026-10-13 through system UI slice 2 M3. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
 
 ## Button integration
 
@@ -42,12 +42,13 @@ Pulling the design: in Claude Code, `DesignSync` `list_files`/`get_file` on the 
 
 Slice 1 (2026-10-11, [handoff](system-ui-handoff.md), [guide](../features/system-ui.md)) built the foundation: the token/theme kit with runtime switching, the generated Barlow and Lucide fonts, `chefui_snapshot()` and `tools/chefui/compare-ref.py` against 1:1 reference renders (kept outside git in `~/chef-cyclo-evidence/system-ui-r1-20261011/ref-png/`), the live status bar, the hub (P01), the Display page (P02), the settings file and start at boot.
 
+Slice 2 M1 to M3 added Wi-Fi (P15 to P18) on NetworkManager, GPS (P11 to P14) on gps-manager and gpsd, and Bluetooth sensors (P07 to P10) through blesensd. Their hub tiles open the implemented pages. Host tests, reference comparisons and RAM-image checks are recorded in the [slice 2 log](../../logs/system-ui-slice2-2026-10-11.txt). Guided Wi-Fi join, wrong-password and Forget checks, a GPS fix near a window, and USB-out BLE idle-current measurements remain in the final guided batch.
+
 Remaining translation work, each page backed by the existing interfaces and compared the same way:
 
-1. Wi-Fi (P15 to P18) on NetworkManager, Bluetooth (P07 to P10) on BlueZ, GPS (P11 to P14) on gps-manager and gpsd; the hub tiles open placeholders until then.
-2. Sound and haptics (P03), Time and date (P04, including a zone picker for the `tz` setting), Storage (P05), About (P06).
-3. ALS-driven Auto brightness and theme Auto, once `sensord` starts at boot ([sensor integration](#sensor-integration)); both are shown disabled today.
-4. Landscape, after a design pass that respects the notch on the short edge.
+1. Sound and haptics (P03), Time and date (P04, showing the fixed `tz` setting), Storage (P05), About (P06). The time zone picker and manual time setting are deferred to the [GPS and time plan](gps-and-time.md), as specified in the [slice 2 handoff](system-ui-2-handoff.md).
+2. ALS-driven Auto brightness and theme Auto, once `sensord` starts at boot ([sensor integration](#sensor-integration)); both are shown disabled today.
+3. Landscape, after a design pass that respects the notch on the short edge.
 
 Decided 2026-10-11 (implemented in slice 1 unless noted):
 
@@ -60,7 +61,7 @@ Decided 2026-10-11 (implemented in slice 1 unless noted):
 
 ## Bike-computer application
 
-Inputs: gpsd ([GPS manager](../features/gps.md#use-gnss-gps-manager), [client integration](gps-and-time.md#client-integration)) for position/speed/track/altitude, BLE sensors through BlueZ ([BLE sensors](connectivity-and-sensors.md#ble-sensors): HR strap, speed/cadence, power), battery (`power_supply/battery`), side buttons ([button integration](ui-and-ride-app.md#button-integration)), touch ([UI stack](ui-and-ride-app.md#ui-stack)). Outputs: the panel through the chosen [UI stack](#ui-stack), vibrator/speaker ([audio](connectivity-and-sensors.md#audio)) for alerts.
+Inputs: gpsd ([GPS manager](../features/gps.md#use-gnss-gps-manager), [client integration](gps-and-time.md#client-integration)) for position/speed/track/altitude, BLE sensors through [blesensd](../features/bluetooth.md#ble-sensors) ([remaining validation](connectivity-and-sensors.md#ble-sensors): HR strap, speed/cadence, power), battery (`power_supply/battery`), side buttons ([button integration](ui-and-ride-app.md#button-integration)), touch ([UI stack](ui-and-ride-app.md#ui-stack)). Outputs: the panel through the chosen [UI stack](#ui-stack), vibrator/speaker ([audio](connectivity-and-sensors.md#audio)) for alerts.
 
 Core: ride recording (GPX/FIT to [persistent storage](../features/storage.md)), live data pages (speed, distance, time, HR, cadence, climb), lap/auto-pause, route following later. Housekeeping: screen on/off, GPS leases and idle power, clean shutdown, upload over Wi-Fi ([Wi-Fi](connectivity-and-sensors.md#wi-fi)).
 

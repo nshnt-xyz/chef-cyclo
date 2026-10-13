@@ -2,7 +2,7 @@
 
 [Next-steps index](README.md) · [Current features](../features/README.md)
 
-Remaining integration and validation work, reviewed 2026-10-11. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
+Remaining integration and validation work, updated 2026-10-13 through system UI slice 2 M3. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
 
 ## BLE sensors
 
@@ -39,8 +39,14 @@ BT presence and zero modem crashes retained. Earlier55bb covers2.4GHz,
 standard APIs, strict USB unmanaged behavior and disconnect cleanup. Final5GHz reconnect/ping5/5/HTTPS200, native wpa_cli, GPS LOC noop and
 USB-only listeners passed, with no UDP123/323 listener.
 
-Remaining work: build a UI on native NM/libnm APIs; verify saved-profile reconnect with the application UI (profiles already
-persist on `/data`); measure the always-resident stack and
+The [Wi-Fi settings pages](../features/system-ui.md#wi-fi-pages) (P15 to P18)
+are implemented on NetworkManager's D-Bus API and accepted in slice 2 M1.
+Live scan, existing-profile reconnect, details, radio off/on and page lifecycle
+checks passed on a RAM image; see the [slice 2 log](../../logs/system-ui-slice2-2026-10-11.txt).
+Guided keyboard join with a wrong then correct passphrase and two-tap Forget
+remain in the final guided batch.
+
+Remaining work: complete those guided checks; measure the always-resident stack and
 associated/disabled current and assess demand-driven power management and long
 rides. Controlled overlapping DHCP leases remain untested live (host checks
 cover the hook). GPS/time architecture modernization is deferred: retain the
