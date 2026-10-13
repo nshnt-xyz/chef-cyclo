@@ -1,0 +1,98 @@
+GNSS RAM-shadow comparison, 2026-10-11
+
+Scope: compare fresh-boot idle activity with a GNSS lease that achieves a
+fix. Original EFS/persist partitions remain read-only; no shadow save or
+restore, assistance injection, firmware replacement or installation.
+Raw snapshots and the host capture/analysis scripts are retained locally
+at ~/chef-cyclo-evidence/gnss-shadow-20261011/. No positions were captured
+by the snapshot commands or included in this report.
+
+Method
+------
+Used the installed image over key-authenticated Wi-Fi SSH. Initial boot
+was already fresh with GPS OFF, NMEA=0 and bringups=0. Subsequently used
+two ordinary, orderly reboots of the installed image. Each snapshot
+records uptime, boot id, manager status, gps-up.log length and contents,
+and per-partition kernel block statistics. Sampling is about every 15 s;
+event times below are observation bounds, not exact event timestamps.
+The existing RMTFS binary flushes verbose output immediately.
+
+Installed helper hashes (same on fix and final idle boot):
+  rmtfs: 0a417d2feb730b7a9f2e42e58bac12c49ef13f1c8fe2aa6598dfa705cb01ac78
+  tftp-server: 0e03da84361fd88179d733220994d4e4db3b2366244c529303b3ae6b129c9e58
+  gps-up: 27c8f208cea3dfe04b0ef781b07dc4e569d27c17f1babd58a4d27c4adf3fa4fe
+RMTFS launch: rmtfs -P -r -S a -v.
+Caller 0 = /boot/modem_fs1 = modemst1.
+Caller 1 = /boot/modem_fs2 = modemst2.
+
+Results (seconds since each boot)
+--------------------------------
+Idle control 1, boot 5cdf255a-8d3c-48e9-ad14-66ee7c761420:
+  Initial snapshot at 49.40 s: OFF, no sessions, no shadow writes yet.
+  modemst1 write observed in (88.34, 104.11] s.
+  Endpoint 252.61 s: still OFF, NMEA=0, bringups=0; no other writes.
+  gps-up.log endpoint: 31119 bytes.
+
+Fix run, boot 2b8e0c93-9ff0-4dbd-9aab-fecd1281ad45:
+  Pre-lease endpoint 46.90 s: OFF, no shadow writes yet, log 31023 bytes.
+  Lease launched at 49.67 s with setsid timeout 180 gps-manager hold map.
+  modemst1 write observed in (96.71, 112.40] s.
+  First sampled RUNNING at 159.18 s; still ACQUIRING at 143.69 s.
+  RUNNING means the manager received a recent valid status-A RMC, not an
+  independent gpsd 3D-fix check. This bounds first fix about 94-110 s
+  after the lease command; it is not a persistence performance comparison.
+  modemst2 write observed in (190.57, 206.15] s, while lease held.
+  Lease gone and grace on at 237.51 s; OFF by 268.78 s.
+  Another modemst1 write observed in (268.78, 284.47] s, after OFF.
+  Endpoint 290.30 s: OFF, NMEA=1391, bringups=1, no leases, grace,
+  failures or manager-reported leaked clients; log 31311 bytes.
+
+Longer idle control, boot 9cacfda9-e28c-41d6-8b55-86d1e344d84c:
+  Observed from 19.78 through 316.30 s, always OFF, NMEA=0, bringups=0.
+  modemst1 write observed in (97.87, 113.43] s.
+  No modemst2 write or second modemst1 write over this longer window.
+  gps-up.log endpoint: 31119 bytes.
+
+All reported writes were successful RMTFS requests for sector 0, count
+4096 (2 MiB), i.e. a full modemst image. No new TFTP requests were appended
+after startup in any of these windows. The long idle capture also includes
+normal startup TFTP activity because it began earlier than the others.
+Every sampled physical write-sector counter stayed zero for modemst1,
+modemst2, fsc, fsg_a, fsg_b and persist across all three boots.
+
+Assistance / query caveats
+-------------------------
+Before the fix lease a separate LOC client queried predicted-orbits
+validity: 2026-10-04T11:00:00Z plus 168 hours (ends October 11 11:00 UTC,
+before this test). This is the modem's validity report, not independent
+validation of the data or evidence that all assistance was absent.
+An additional separate --loc-get-gnss-sv-info query during acquisition
+timed out. Neither query reused the manager's streaming CID. The fix run
+therefore differs from idle controls in both GNSS activity and these LOC
+queries; this is not strict attribution to GNSS alone.
+
+Interpretation / next step
+--------------------------
+The first full modemst1 write does not require a GNSS session: both idle
+controls reproduced it at similar boot ages. Two additional full-image
+writes occurred in the GNSS/query run and not in the longer idle control.
+The 2026-10-06 acquisition-only run also wrote modemst2 without a fix,
+so that write alone does not prove that a completed fix was saved.
+
+No payloads were captured. Whole-image transfers do not identify changed
+bytes or filenames, and cannot show whether the extra writes save orbit
+data, last position, modem housekeeping or other NV state. One fix run
+and two idle boots do not establish causality or repeatability. No
+cross-boot restoration or TTFF improvement has been tested.
+
+Keep original EFS/persist read-only. Next useful investigation is a
+repeat without auxiliary LOC queries, followed by bounded, opt-in export
+of RAM shadows to our own storage for content comparison / EFS analysis.
+Only after defining snapshot consistency, slot/source identity, recovery
+and missing-storage behavior should saved-shadow restore be evaluated
+with controlled assistance and signal conditions. Direct partition
+writes are not justified by this trace.
+
+Final device state: installed image, GPS OFF with zero sessions on the
+last idle boot; original partitions unchanged according to sampled block
+write counters. No persistent GNSS state implementation was added.

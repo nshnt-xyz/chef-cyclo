@@ -1,0 +1,121 @@
+Read-only modem EFS file comparison, 2026-10-11
+
+Outcome: specific logical files now identified. In the captured GPS
+namespaces, four almanac records and three existing GLONASS ephemeris
+records changed; two GLONASS ephemeris records appeared. No original
+partition writes, image replacement or restoration was performed.
+
+Evidence
+--------
+Private host directory: ~/chef-cyclo-evidence/gnss-efs-files-20261011/
+Contains idle-1/, idle-2/, fixed/, released/ with payloads and JSON
+manifests, comparison.json, diagnostic source/binary/test, client and
+capture scripts, manager/partition status and timed RMTFS traces. Payload
+filenames are hashes of EFS paths, mapped by each manifest. Directory
+permissions 0700 and file creation umask 077; no payloads are in git.
+A private copy is also archived under /data/v1/gnss-research/20261011-files/.
+
+Same installed boot as the earlier export experiments:
+  boot id: 9cacfda9-e28c-41d6-8b55-86d1e344d84c
+  idle-1: 2026-10-11T12:25:21Z to 12:25:24Z
+  idle-2: 2026-10-11T12:26:11Z to 12:26:14Z
+  map lease: launched at uptime 2236 s, bounded to 180 s
+  ACQUIRING sampled at 2236.94 s; RUNNING by 2252.61 s
+  fixed: 12:27:32Z to 12:27:36Z; manager still RUNNING afterward
+  lease released/grace active by 2426.05 s; OFF by 2457.60 s
+  released: 12:30:41Z to 12:30:44Z; manager OFF afterward
+This is a warm session on an already-used modem boot, not a cold-start
+performance measurement. RUNNING indicates valid status-A RMC; no separate
+gpsd 3D-fix check was performed.
+
+Read-only access
+----------------
+/dev/diag exists with CONFIG_DIAG_CHAR=y. The modem's registration table
+contains EFS subsystem 19. A static temporary helper opens /dev/diag and
+routes MODEM diagnostic traffic to a userspace memory session using the
+exact kernel's packed 13-byte ioctl argument (mode=2, peripheral_mask=2,
+pd_mask=0, mode_param=0). DIAG_CON_MPSS is 0x0002, distinct from the APSS
+mask 0x0001; initial APSS-only attempts timed out before this was corrected.
+Each client's close restores diagnostic routing; final status confirms
+Logging Mode=0, MD session mode=0 and mask=0, matching initial state.
+
+The helper accepts only version, EFS HELLO, OPEN with flags=0/permissions=0,
+CLOSE, READ (at most 1024 bytes), OPENDIR, READDIR, CLOSEDIR and STAT.
+Write, create, delete, rename, NV-write and arbitrary DIAG commands are
+rejected. Requests use HDLC CRC framing; client responses require a valid
+CRC and matching subsystem/opcode. Directory/file/total-size limits and
+request deadlines bound collection. The helper has a 30-minute watchdog
+and was compiled with -Wall -Wextra -Werror. Native guard tests passed
+for disallowed opcodes, every tested nonzero open flag, oversized reads,
+oversized paths and wrong subsystem. No log-stream enable commands,
+assistance injection or EFS content writes were sent.
+
+Protocol references (implementation sources, not proof of this device's
+file encoding):
+  https://github.com/openpst/libopenpst/blob/master/include/qualcomm/dm_efs.h
+  https://github.com/grmrgecko/qcdm-efs2/blob/main/efs2.py
+  https://github.com/P1sec/QCSuper/blob/master/src/qcsuper/inputs/adb_bridge/adb_bridge.c
+Kernel source used for the device-specific routing/framing contract:
+  kernel/drivers/char/diag/diagchar_core.c
+  kernel/drivers/char/diag/diagchar.h
+
+Captured scope
+--------------
+Recursively read /GNSS, /cgps, /SUPL and /nv/item_files/gps.
+Each snapshot traversed 15 directories, with no read errors.
+Idle-1, idle-2 and fixed: 139 files, 138363 bytes each.
+Released: 141 files, 138619 bytes.
+No file changed, appeared or disappeared between the two idle snapshots.
+All 558 captured file payload hashes were verified against manifests.
+
+Actual file differences
+-----------------------
+All changed/new paths are under /GNSS/PE/.
+
+                         Record size    Changed bytes     First observed
+  AlmFile19                  64              34           fixed
+  AlmFile20                  64              36           released
+  AlmFile21                  64              36           released
+  AlmFile22                  64              33           released
+  GloEphFile11               128              38           released
+  GloEphFile21               128              38           released
+  GloEphFile22               128              40           released
+  GloEphFile02               128             new           released
+  GloEphFile10               128             new           released
+
+Seven existing records changed in 255 bytes altogether, and two new
+128-byte records appeared. Nine affected record payloads total 896 bytes.
+No files were removed. The fixed snapshot showed only AlmFile19 changed;
+the remaining updates were visible by the post-release snapshot. They
+could have occurred during the remainder of the active session, grace or
+shutdown; the endpoint comparison does not isolate the exact trigger.
+
+Names indicate GPS almanac and GLONASS ephemeris cache records. Almanacs
+provide coarse satellite orbit/status information for acquisition, while
+ephemerides support accurate satellite-position calculation. General
+reference: https://gssc.esa.int/navipedia/index.php/GPS_Navigation_Message
+Binary record fields and file-index-to-satellite-ID mapping were not
+decoded, so no individual orbital parameter or PRN/slot claim is made.
+
+Captured files that did not change include the four GPS/GLO/GAL/QZSS X3
+assistance files, GPS-specific NV settings, SUPL certificate files,
+/GNSS/SAML calibration files and /GNSS/ME receiver-estimate files.
+The rest of modem EFS was not compared. These observations do not rule
+out changes to filesystem metadata or other uncollected namespaces.
+
+Safety and implications
+-----------------------
+All six protected partition physical write counters stayed zero in the
+initial/final status and every timed sample: modemst1, modemst2, fsc,
+fsg_a, fsg_b, persist. All four live backing-partition SHA-256 hashes
+matched those recorded after the preceding RAM export. GPS finished OFF
+with no leases, CID, grace, failures or manager-reported leaked clients.
+Installed binaries/boot images were unchanged; the helper is only in /run.
+
+This establishes real, small GNSS-file updates behind the whole-image
+RMTFS shadow rewrites. It gives a concrete candidate namespace for future
+selective persistence, rather than assuming every NV change is GPS state.
+It does not establish an encrypted-image decoder, a safe restore format,
+cache validity rules, or a cross-boot TTFF improvement. Preserving these
+files may help acquisition; that still requires restore design and a
+controlled before/after test. Original partitions remain read-only.

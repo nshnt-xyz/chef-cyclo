@@ -1,0 +1,113 @@
+RMTFS shadow export, 2026-10-11
+
+Raw files, source, binary, manifests, hashes and comparison/verification
+scripts: ~/chef-cyclo-evidence/gnss-shadow-export-20261011/ (private,
+directory mode 0700; extracted images 0600). Raw images are not in git.
+Device copies: /data/v1/gnss-research/20261011-{idle-1,fixed,released,sources}/.
+Each completed directory has COMPLETE and manifest.txt. The sources set
+is a read-only copy of the live backing partitions, not a RAM snapshot.
+Each set contains 14684160 bytes of image data (14 MiB plus 4 KiB):
+  modem_fs1.img: modemst1, 2097152 bytes
+  modem_fs2.img: modemst2, 2097152 bytes
+  modem_fsg.img: active-slot fsg_a, 10485760 bytes
+  modem_fsc.img: fsc, 4096 bytes
+
+Diagnostic method
+-----------------
+No image rebuild, daemon replacement, reboot, restore or automatic
+persistence was needed. The installed RMTFS binary exactly matched the
+local non-PIE ELF with retained symbols, SHA-256:
+  0a417d2feb730b7a9f2e42e58bac12c49ef13f1c8fe2aa6598dfa705cb01ac78
+A one-off static AArch64 helper imported the matching storage.c private
+structures. Reviewed ELF symbols: rmtfds at 0x418970 (400 bytes),
+storage_read_only at 0x418960. These addresses are valid only for this ELF.
+
+The helper requires the expected executable path, a single thread and
+RAM-shadow mode. PTRACE_SEIZE/INTERRUPT briefly stops the daemon, then
+PTRACE_GETREGSET verifies x8=pselect6 and PC at the verified syscall/return
+boundary (0x40bddc or 0x40bde0). The single-threaded request loop is not
+updating shadow buffers at that boundary. /proc/PID/mem is opened O_RDONLY.
+Copies are bounded to 16 MiB per shadow and 64 MiB total, and only the
+four expected image names are accepted. RMTFS is detached/resumed before
+snapshot payloads are written to disk. New directories and exclusive
+0600 files prevent overwriting previous exports; COMPLETE is written
+last after file/manifest synchronization.
+
+The first attempt checked /proc/PID/syscall after interrupt; that reports
+-1 for the interrupted syscall, so it safely refused export, detached,
+and left an empty directory. The corrected helper verifies registers.
+The empty directory was removed. A deliberate existing-directory retry
+also refused before attaching, leaving TracerPid=0 and the daemon alive.
+No EXITKILL option is used; tracer termination releases the tracee. The
+copy phase has a 10-second watchdog. This is a diagnostic for the exact
+verified build, not a general production snapshot interface.
+
+Session and results
+-------------------
+Same installed boot as the last idle control in the preceding comparison:
+  boot id: 9cacfda9-e28c-41d6-8b55-86d1e344d84c
+  RMTFS pid: 1298, unchanged across exports
+  idle snapshot: uptime 825.234277311 s, before any GNSS session this boot
+  map lease command: uptime 860.41 s, bounded to 180 s
+  first sampled RUNNING: 938.78 s (ACQUIRING at 923.12 s)
+  fixed snapshot: 970.465063219 s, manager RUNNING before and after export
+  lease gone with grace active: 1049.27 s
+  OFF by 1080.92 s, NMEA=1559, no failures or manager-reported leaked clients
+  released snapshot: 1112.390516501 s, GPS OFF
+No auxiliary LOC queries, assistance injection or deletion were performed
+during this export session. RUNNING verifies recent valid status-A RMC;
+no independent gpsd 3D-fix check was performed.
+
+Byte comparisons against current live source / preceding snapshot:
+  idle versus live sources:
+    modem_fs1: 2088431 changed bytes, all 4096 sectors differ
+    modem_fs2, modem_fsg, modem_fsc: identical
+  fixed versus idle:
+    modem_fs2: 2088573 changed bytes, all 4096 sectors differ
+    modem_fs1, modem_fsg, modem_fsc: identical
+  released versus fixed:
+    modem_fs1: 2088351 changed bytes, all 4096 sectors differ
+    modem_fs2, modem_fsg, modem_fsc: identical
+The trace shows a modemst2 write in (938.78, 954.56] s and another
+modemst1 write in (1033.40, 1049.27] s. No new TFTP requests were appended.
+
+The live modemst1/2 backing partitions already differ from the September
+13 stock backups; fsg_a and fsc match those backups. Comparing only with
+old modemst backups would misattribute pre-existing differences to this
+session. Live-source copies establish the appropriate baseline.
+
+Verification and limits
+-----------------------
+All four original backing-partition SHA-256 hashes stayed unchanged from
+before the session to after release. Physical write-sector counters for
+modemst1, modemst2, fsc, fsg_a, fsg_b and persist stayed zero in every
+sample. All sixteen image hashes in the host's four extracted sets match
+their device copies. Every successful export left TracerPid=0; RMTFS
+continued serving the same boot, and GPS acquired a fix while using it.
+The helper compiled with -Wall -Wextra -Werror.
+
+Real RAM-content changes are now established, but changes spread across
+every sector do not identify particular GNSS files or explain the image
+encoding. No EFS decoder or filename attribution was attempted. These
+snapshots are evidence for further analysis, not an approved restore
+format; no cross-boot restore or GPS-startup benefit has been tested.
+The separate TFTP in-process RAM filesystem was not exported.
+
+Final state: GPS OFF with no leases/grace/failures/leaked clients, original
+partitions unchanged, support daemons resident. Images persist in our own
+/data and on the host. The temporary exporter remains under /run only;
+the installed system binaries and boot image were not changed.
+
+Offline format triage after export
+---------------------------------
+All eight modemst source/shadow images have byte entropy about
+7.9999 bits/byte and no readable occurrences of the tested GNSS/orbit
+terms. About 99.6 percent of bytes differ when an image is rewritten.
+This is consistent with an encrypted or otherwise encoded full-image
+representation, but does not prove encryption or identify the format.
+file(1)'s Sony PlayStation classification of modem_fs1 is a false magic
+match, not evidence of its real filesystem format. modem_fsg is recognized
+as an ext2 filesystem with label FSG and remains byte-identical.
+These raw byte differences cannot establish which logical settings,
+last-position data, orbital assistance or housekeeping fields changed.
+No claim that all logical contents changed follows from the byte counts.
