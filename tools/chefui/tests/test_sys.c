@@ -1094,6 +1094,68 @@ static void test_storage_usage_review(void)
 		CHECK(u.cat_state[i] == USAGE_CAT_EXACT);
 }
 
+static void fb_sleep_ms(long ms)
+{
+	struct timespec ts = { .tv_sec = ms / 1000, .tv_nsec = (ms % 1000) * 1000000 };
+
+	nanosleep(&ts, NULL);
+}
+
+/* poll until cond holds, at most 2 s */
+#define FB_WAIT(cond) ({ bool ok_ = false; \
+	for (int i_ = 0; i_ < 2000 && !(ok_ = (cond)); i_++) fb_sleep_ms(1); ok_; })
+
+/* A worker from an earlier start, held inside the sysfs open, can neither
+ * clear the new worker's busy flag nor write its stale record. Every wait is
+ * a poll on state, and the whole sequence stays inside the 100 ms expiry. */
+static void test_feedback_restart_isolation(void)
+{
+	char fa[400], fb_[400], buf[16] = { 0 };
+	int fda, fdb;
+	uint64_t gen0;
+	ssize_t n;
+
+	CHECK(FB_WAIT(sys_feedback_test_live_workers() == 0));
+	snprintf(fa, sizeof(fa), "%s/iso-a", tmp);
+	snprintf(fb_, sizeof(fb_), "%s/iso-b", tmp);
+	CHECK(mkfifo(fa, 0600) == 0);
+	CHECK(mkfifo(fb_, 0600) == 0);
+	unsigned opens0 = sys_feedback_test_opens();
+	CHECK(sys_feedback_start(fa, true) == 0);
+	CHECK(sys_feedback_request());
+	CHECK(FB_WAIT(sys_feedback_test_opens() == opens0 + 1)); /* old worker is in open(A) */
+	gen0 = sys_feedback_test_generation();
+	sys_feedback_stop();
+	CHECK(sys_feedback_start(fb_, true) == 0);
+	CHECK(sys_feedback_test_generation() > gen0);
+	sys_feedback_test_reset_rate();
+	CHECK(sys_feedback_request());
+	CHECK(FB_WAIT(sys_feedback_test_opens() == opens0 + 2)); /* new worker is in open(B) */
+	fda = open(fa, O_RDONLY | O_NONBLOCK | O_CLOEXEC);	/* release the old worker */
+	CHECK(fda >= 0);
+	CHECK(FB_WAIT(sys_feedback_test_live_workers() == 1));
+	CHECK(sys_feedback_test_busy());	/* its exit did not clear the new record's busy */
+	fdb = open(fb_, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+	CHECK(fdb >= 0);
+	n = 0;
+	for (int i = 0; i < 2000 && n < 3; i++) {
+		ssize_t r = read(fdb, buf + n, 3 - (size_t)n);
+
+		if (r > 0)
+			n += r;
+		else
+			fb_sleep_ms(1);
+	}
+	CHECK(n == 3 && !strcmp(buf, "10\n"));
+	CHECK(fda >= 0 && read(fda, buf, sizeof(buf)) == 0);	/* the old worker wrote nothing */
+	if (fda >= 0)
+		close(fda);
+	if (fdb >= 0)
+		close(fdb);
+	sys_feedback_stop();
+	CHECK(FB_WAIT(sys_feedback_test_live_workers() == 0));	/* worker state freed (LSan) */
+}
+
 static void test_feedback_worker(void)
 {
 	char path[400], fifo[400], target[400], buf[16] = { 0 };
@@ -1563,6 +1625,7 @@ int main(void)
 	test_storage_usage_adopts_newest();
 	test_storage_usage_review();
 	test_feedback_worker();
+	test_feedback_restart_isolation();
 	test_fake();
 	test_wifi_model();
 	test_ble_parser();

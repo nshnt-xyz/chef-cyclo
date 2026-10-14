@@ -44,9 +44,11 @@ struct walk {
 	bool stopped;		/* entries, inode keys or time ended the whole scan */
 	int64_t deadline_ns;
 	unsigned max_depth, max_entries, max_keys;
+#ifdef CHEFUI_TEST
 	uint64_t mismatch_ino;
 	void (*before_open)(const char *name, void *user);
 	void *user;
+#endif
 	int category;
 	uint64_t *sums[3];
 };
@@ -211,8 +213,10 @@ static bool scan_dir(struct walk *w, int dirfd, uint64_t expected_mount, unsigne
 			return false;
 		}
 		w->entries++;
+#ifdef CHEFUI_TEST
 		if (w->before_open)
 			w->before_open(de->d_name, w->user);
+#endif
 		pathfd = openat(dirfd, de->d_name, O_PATH | O_NOFOLLOW | O_CLOEXEC);
 		if (pathfd < 0 || fstat(pathfd, &st)) {
 			/* removed between readdir and open: gone, not unreadable */
@@ -342,9 +346,11 @@ static void usage_scan(const char *data, bool (*mountpoint)(const char *),
 	wp->max_depth = lim->max_depth;
 	wp->max_entries = lim->max_entries;
 	wp->max_keys = lim->max_keys;
+#ifdef CHEFUI_TEST
 	wp->mismatch_ino = lim->mismatch_ino;
 	wp->before_open = lim->before_open;
 	wp->user = lim->user;
+#endif
 	wp->deadline_ns = start + lim->budget_ns;
 	rootfd = open(data, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
 	if (rootfd < 0 || fstat(rootfd, &root_st) || !S_ISDIR(root_st.st_mode) ||

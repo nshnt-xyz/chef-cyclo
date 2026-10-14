@@ -33,10 +33,12 @@ void sys_storage_usage_scan(const char *data,
 struct sys_usage_limits {
 	unsigned max_depth, max_entries, max_keys;
 	int64_t budget_ns;
+#ifdef CHEFUI_TEST
 	uint64_t mismatch_ino; /* force this fixture inode onto another mount ID */
 	/* called with each entry's name before it is opened (a fixture removes it) */
 	void (*before_open)(const char *name, void *user);
 	void *user;
+#endif
 };
 #ifdef CHEFUI_TEST
 void sys_storage_usage_scan_limited(const char *data,
