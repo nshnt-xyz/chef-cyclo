@@ -29,6 +29,7 @@ enum {
 	SYS_BLE = 1 << 8,		/* ble_view (blesens.h): BLE sensors */
 	SYS_TIME_VIEW = 1 << 9,
 	SYS_DEVICE_INFO = 1 << 10,
+	SYS_ALS = 1 << 11,		/* als.available flipped */
 };
 
 /* gps-manager states (docs/features/gps.md) plus "no manager". */
@@ -94,6 +95,10 @@ struct sys_state {
 		double reference_epoch;
 	} timeview;
 	struct sys_device_info device;
+	struct {
+		bool available;		/* samples are arriving */
+		double lux;		/* last raw sample (tests and logs only) */
+	} als;
 };
 
 extern struct sys_state sys_state;

@@ -209,6 +209,13 @@ batch; a zone picker, real timezone data and manual time stay out of scope.
 
 ### M5 Ambient light: Auto brightness and theme Auto
 
+Status 2026-10-14: part 1 implemented and host-tested, partly live-verified on a RAM
+image with `sensors-up` started by hand ([log](../../logs/system-ui-slice2-2026-10-11.txt)).
+Open: the idle-current measurement and the boot decision, boot integration of
+`sensors-up` and its live checks, the guided light steps (wake, covered sensor, room,
+lamp or window, steady level), and ui_review's review. The illuminance stream is
+on-change only, so the client uses a status probe instead of a silence timeout.
+
 - First measure, then decide (bring the numbers to the coordinator, who
   asks the user): idle current with `sensord` running and no claims
   against not running, and with `illuminance` claimed at 5 Hz, using the

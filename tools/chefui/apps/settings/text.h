@@ -16,7 +16,8 @@
 void text_bt(const struct sys_state *s, char *buf, size_t n);
 void text_gps(const struct sys_state *s, char *buf, size_t n);
 void text_wifi(const struct sys_state *s, char *buf, size_t n);
-void text_display(const struct ui_settings *st, char *buf, size_t n);
+/* applied: the live Auto brightness percent, -1 when none yet */
+void text_display(const struct ui_settings *st, int applied, char *buf, size_t n);
 void text_time(const struct sys_state *s, bool clock_24h, char *buf, size_t n);
 void text_storage(const struct sys_state *s, char *buf, size_t n);
 

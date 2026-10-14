@@ -58,7 +58,7 @@ HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
 FONT_SRCS := $(sort $(wildcard kit/fonts/chefkit_*.c))
 KIT_SRCS := kit/theme.c kit/widgets.c kit/blocks.c kit/keyboard.c $(FONT_SRCS)
 SYS_SRCS := sys/sysstate.c sys/settings.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c \
-	 sys/storage.c sys/storage_usage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c sys/timeview.c sys/deviceinfo.c sys/feedback.c
+	 sys/storage.c sys/storage_usage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c sys/timeview.c sys/deviceinfo.c sys/feedback.c sys/als.c sys/alsclient.c
 # the system bus clients (sd-bus): basu on the phone, libsystemd on a PC
 NETBUS_SRCS := sys/netbus.c sys/wifi.c
 APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_wifi.c \
@@ -66,7 +66,7 @@ APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_
 	apps/settings/page_storage.c apps/settings/page_about.c \
 	apps/settings/policy.c apps/settings/text.c
 KIT_HDRS := kit/theme.h kit/widgets.h kit/fonts.h kit/icons.h sys/sysstate.h sys/sys.h \
-	sys/settings.h sys/storage_usage.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/blesens.h sys/timeview.h sys/deviceinfo.h sys/feedback.h apps/settings/app.h \
+	sys/settings.h sys/storage_usage.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/blesens.h sys/timeview.h sys/deviceinfo.h sys/feedback.h sys/als.h apps/settings/app.h \
 	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h
 HDRS += $(KIT_HDRS)
 ifneq ($(SDBUS_LIBS),)
@@ -170,6 +170,10 @@ $(T)/test-copy: tests/test_copy.c copy.c copy.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_copy.c copy.c
 
+$(T)/test-als: tests/test_als.c sys/als.c sys/als.h sys/settings.h tests/check.h
+	@mkdir -p $(T)
+	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_als.c sys/als.c -lm
+
 $(T)/test-plan: tests/test_plan.c plan.c plan.h copy.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_plan.c plan.c
@@ -213,6 +217,10 @@ $(T)/test-timeview: tests/test_timeview.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS)
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_timeview.c tests/fakeloop.c tests/wifi_stub.c \
 		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
 
+$(T)/test-alsclient: tests/test_alsclient.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
+	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_alsclient.c tests/fakeloop.c tests/wifi_stub.c \
+		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
+
 $(T)/test-app: tests/test_app.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_app.c tests/fakeloop.c tests/wifi_stub.c \
 		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
@@ -233,7 +241,7 @@ $(T)/test-wifi: tests/test_wifi.c $(FAKELOOP) $(SYSUI_OBJS) $(NETBUS_OBJS) $(T)/
 		-Wl,--wrap=getrandom
 
 TESTS := $(T)/test-copy $(T)/test-plan $(T)/test-touch $(T)/test-buttons $(T)/test-fbscreen $(T)/test-chefui \
-	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app
+	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app $(T)/test-als $(T)/test-alsclient
 ifneq ($(SDBUS_LIBS),)
 TESTS += $(T)/test-netbus $(T)/test-wifi
 endif
@@ -249,6 +257,8 @@ test: check-lvgl $(TESTS)
 	$(T)/test-sys
 	$(T)/test-timeview
 	$(T)/test-app
+	$(T)/test-als
+	$(T)/test-alsclient
 	@if [ -x $(T)/test-netbus ] && command -v dbus-daemon >/dev/null; then $(T)/test-netbus; \
 	else echo "test-netbus: skipped (needs libsystemd and dbus-daemon)"; fi
 	@if [ -x $(T)/test-wifi ] && command -v dbus-daemon >/dev/null && \
@@ -325,5 +335,25 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 		cap about-unknown --page about && \
 		cap hub-12h --fake-state apps/settings/time.state --clock 12 --page hub || exit; \
 	done
-	@echo "chef-settings: 52 captures in $(B)/host/captures"
+	@# M5: Display with Auto brightness on (sensor answering, and not answering
+	@# after 3 s), theme Auto selected, and the hub's "Auto · 45%" subtitle
+	@for t in dark light; do \
+		cap() { n=$$1; shift; SDL_VIDEODRIVER=offscreen $(B)/host/chef-settings \
+			--fake-state apps/settings/design.state --theme $$t --brightness 70 \
+			--snapshot $(B)/host/captures/$$n-$$t.ppm --data $(B)/host/captures/nodata \
+			--run $(B)/host/captures/run "$$@" 2>/dev/null || \
+			{ echo "chef-settings capture $$n $$t failed" >&2; return 1; }; }; \
+		cap display-auto --fake-state apps/settings/als-on.state --auto-brightness on --page display && \
+		cap display-auto-nosensor --fake-state apps/settings/als-none.state --auto-brightness on \
+			--page display --snapshot-after 3600 && \
+		cap hub-auto --fake-state apps/settings/als-on.state --auto-brightness on --brightness 45 \
+			--page hub || exit; \
+	done
+	@cap() { n=$$1; shift; SDL_VIDEODRIVER=offscreen $(B)/host/chef-settings \
+		--fake-state apps/settings/design.state --fake-state apps/settings/als-on.state --brightness 70 \
+		--snapshot $(B)/host/captures/$$n.ppm --data $(B)/host/captures/nodata \
+		--run $(B)/host/captures/run "$$@" 2>/dev/null || \
+		{ echo "chef-settings capture $$n failed" >&2; return 1; }; }; \
+		cap display-theme-auto --theme auto --page display || exit 1
+	@echo "chef-settings: 53 captures in $(B)/host/captures"
 	@tests/test_settings_proc.sh $(B)/host/chef-settings apps/settings/design.state

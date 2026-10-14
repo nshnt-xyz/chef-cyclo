@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <time.h>
 
+#include "als.h"
 #include "sysstate.h"
 #include "timeview.h"
 
@@ -48,6 +49,26 @@ void sys_gps_stop(void);
  * or -1), -1 for anything else. */
 int sys_gps_parse_state(const char *line, enum sys_gps *out);
 int sys_gps_parse_tpv(const char *line, int *mode, double *eph);
+
+/* Ambient light: an illuminance claim on sensord (default
+ * /run/sensord.sock) while wanted, fed through the pure logic in als.h.
+ * The callback gets every applied brightness change and theme transition.
+ * offset: the user's auto_offset, used for the next sample. */
+typedef void (*sys_als_cb)(const struct als_event *ev, void *user);
+int sys_als_start(const char *sock, const struct als_params *p);
+void sys_als_stop(void);
+void sys_als_want(bool want);
+bool sys_als_wanted(void);
+void sys_als_on_change(sys_als_cb cb, void *user);
+void sys_als_set_offset(int offset);
+bool sys_als_offset_for(int slider, int *offset);
+int sys_als_curve_now(void);
+void sys_als_set_applied(int pct);	/* -1: forget (re-apply at the next sample) */
+void sys_als_theme_reset(void);
+bool sys_als_theme_light(void);
+int sys_als_applied(void);
+/* Pure: one illuminance sample line -> lux. 0 or -1. */
+int sys_als_parse_sample(const char *line, double *lux);
 
 /* NetworkManager and BlueZ over the system bus (sd-bus); -ENOTSUP in a
  * build without it. Reconnects when the bus or a service comes back. */

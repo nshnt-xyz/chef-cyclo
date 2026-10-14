@@ -14,6 +14,7 @@
 #include <sys/utsname.h>
 
 #include "app.h"
+#include "chefui.h"
 #include "fonts.h"
 #include "icons.h"
 #include "pages.h"
@@ -27,6 +28,8 @@ struct app app;
 /* ------------------------------------------------------------ screen policy */
 
 static void sleep_timer_cb(lv_timer_t *t);
+static void als_want_sync(void);
+static void als_note_arm(void);
 static void notify_visible(struct page *p, bool visible);
 static int touch_count;
 static bool was_screen_on;
@@ -83,6 +86,8 @@ void app_on_screen(bool on)
 		policy_activity(&app.sleep, app.pf.now_ms());
 	sleep_rearm();
 	if (app.root)
+		als_want_sync();
+	if (app.root)
 		notify_visible(app.stack[app.depth], on);
 	if (woke && app.set.haptics)
 		sys_feedback_request();
@@ -117,12 +122,153 @@ static void hub_rows_refresh(void);
 static void hub_settings_refresh(void);
 static enum kit_theme effective_theme(enum ui_theme_mode m);
 
+/* ------------------------------------------------------------ ambient light */
+
+/* The light sensor is wanted while the screen is on and either Auto
+ * brightness or theme Auto is set (docs/features/system-ui.md). */
+static void als_want_sync(void)
+{
+	bool want = app.pf.screen_is_on() && (app.set.auto_brightness || app.set.theme == UI_THEME_AUTO);
+
+	if (want && !app.als_lost_since && !sys_state.als.available)
+		app.als_lost_since = app.pf.now_ms() ? app.pf.now_ms() : 1;
+	else if (!want)
+		app.als_lost_since = 0;
+	als_note_arm();
+	sys_als_want(want);
+}
+
+int app_shown_brightness(void)
+{
+	int applied = sys_als_applied();
+
+	return app.set.auto_brightness && applied >= 0 ? applied : app.set.brightness;
+}
+
+bool app_als_unavailable(void)
+{
+	return app.set.auto_brightness && app.als_lost_since && !sys_state.als.available &&
+	       app.pf.now_ms() - app.als_lost_since >= 3000;
+}
+
+static void als_live_refresh(void)
+{
+	for (int i = 1; i <= app.depth; i++)
+		if (app.stack[i]->ops->on_live)
+			app.stack[i]->ops->on_live(app.stack[i]);
+}
+
+/* The hub's Display subtitle follows the live level, at most once a second,
+ * with no periodic timer: a change inside the second arms a one-shot. */
+static void hub_sub_refresh(void)
+{
+	static char shown[64];
+	char b[64];
+
+	if (app.depth != 0 || !app.set.auto_brightness || !app.pf.screen_is_on())
+		return;
+	text_display(&app.set, sys_als_applied(), b, sizeof(b));
+	if (strcmp(b, shown)) {
+		snprintf(shown, sizeof(shown), "%s", b);
+		kit_row_set_sub(&app.row_display, b);
+	}
+	app.hub_last_ms = app.pf.now_ms();
+}
+
+static void hub_timer_cb(lv_timer_t *t)
+{
+	(void)t;
+	app.hub_timer = NULL;
+	hub_sub_refresh();
+}
+
+static void hub_sub_changed(void)
+{
+	int64_t wait = app.hub_last_ms + 1000 - app.pf.now_ms();
+
+	if (app.depth != 0 || !app.set.auto_brightness)
+		return;
+	if (wait <= 0) {
+		hub_sub_refresh();
+	} else if (!app.hub_timer) {
+		app.hub_timer = lv_timer_create(hub_timer_cb, (uint32_t)wait, NULL);
+		lv_timer_set_repeat_count(app.hub_timer, 1);
+	}
+}
+
+/* "Light sensor not available" is shown 3 s after the sensor went: one one-shot. */
+static void als_note_cb(lv_timer_t *t)
+{
+	(void)t;
+	app.als_note_timer = NULL;
+	als_live_refresh();
+}
+
+static void als_note_arm(void)
+{
+	if (app.als_note_timer) {
+		lv_timer_delete(app.als_note_timer);
+		app.als_note_timer = NULL;
+	}
+	if (app.als_lost_since && !sys_state.als.available) {
+		int64_t wait = app.als_lost_since + 3000 - app.pf.now_ms();
+
+		app.als_note_timer = lv_timer_create(als_note_cb, (uint32_t)(wait < 1 ? 1 : wait), NULL);
+		lv_timer_set_repeat_count(app.als_note_timer, 1);
+	}
+}
+
+static void als_changed(const struct als_event *ev, void *user)
+{
+	(void)user;
+	if (ev->theme_changed && app.set.theme == UI_THEME_AUTO) {
+		kit_theme_set(ev->light ? KIT_THEME_LIGHT : KIT_THEME_DARK);
+		chefui_log("theme auto -> %s (lux %.0f, held %.1f s)", ev->light ? "light" : "dark",
+			   ev->lux, (double)ev->held_ms / 1000.0);
+	}
+	if (ev->bright_changed && app.set.auto_brightness) {
+		app.pf.brightness_set(ui_brightness_level(ev->bright));
+		als_live_refresh();
+		hub_sub_changed();
+	}
+}
+
+void app_set_auto_brightness(bool enabled)
+{
+	if (enabled == app.set.auto_brightness)
+		return;
+	app.set.auto_brightness = enabled;
+	if (enabled) {
+		sys_als_set_offset(app.set.auto_offset);
+		sys_als_set_applied(-1);	/* applied at the first sample */
+	} else {
+		app.pf.brightness_set(ui_brightness_level(app.set.brightness));
+	}
+	als_want_sync();
+	hub_settings_refresh();
+	als_live_refresh();
+	settings_changed();
+}
+
 void app_set_brightness(int percent)
 {
+	int off;
+
 	if (percent < UI_BRIGHTNESS_MIN)
 		percent = UI_BRIGHTNESS_MIN;
 	if (percent > UI_BRIGHTNESS_MAX)
 		percent = UI_BRIGHTNESS_MAX;
+	if (app.set.auto_brightness && sys_als_offset_for(percent, &off)) {
+		/* a drag on Auto: an offset on the curve, the level applies now */
+		if (off != app.set.auto_offset) {
+			app.set.auto_offset = off;
+			sys_als_set_offset(off);
+			settings_changed();
+		}
+		sys_als_set_applied(percent);
+		app.pf.brightness_set(ui_brightness_level(percent));
+		return;
+	}
 	if (percent == app.set.brightness)
 		return;
 	app.set.brightness = percent;
@@ -133,7 +279,8 @@ void app_set_brightness(int percent)
 
 static enum kit_theme effective_theme(enum ui_theme_mode m)
 {
-	/* Auto needs the light sensor (not started at boot yet): dark */
+	if (m == UI_THEME_AUTO)
+		return sys_als_theme_light() ? KIT_THEME_LIGHT : KIT_THEME_DARK;
 	return m == UI_THEME_LIGHT ? KIT_THEME_LIGHT : KIT_THEME_DARK;
 }
 
@@ -142,7 +289,10 @@ void app_set_theme(enum ui_theme_mode mode)
 	if (mode == app.set.theme)
 		return;
 	app.set.theme = mode;
+	if (mode == UI_THEME_AUTO)
+		sys_als_theme_reset();		/* Dark until the sensor decides */
 	kit_theme_set(effective_theme(mode));
+	als_want_sync();
 	settings_changed();
 }
 
@@ -199,10 +349,17 @@ void app_set_clock_24h(bool enabled)
 /* Settings replaced from storage (a late /data): apply them live. */
 void app_apply_settings(const struct ui_settings *set)
 {
+	bool theme_auto_new = set->theme == UI_THEME_AUTO && app.set.theme != UI_THEME_AUTO;
+
 	app.set = *set;
 	sys_feedback_enabled(set->haptics);
+	sys_als_set_offset(set->auto_offset);
+	sys_als_set_applied(-1);
+	if (theme_auto_new)
+		sys_als_theme_reset();
 	app.pf.brightness_set(ui_brightness_level(set->brightness));
 	kit_theme_set(effective_theme(set->theme));
+	als_want_sync();
 	policy_set_sleep(&app.sleep, set->sleep_s * 1000, app.pf.now_ms());
 	sleep_rearm();
 	for (int i = 1; i <= app.depth; i++)
@@ -448,7 +605,7 @@ static void hub_settings_refresh(void)
 {
 	char b[64];
 
-	text_display(&app.set, b, sizeof(b));
+	text_display(&app.set, sys_als_applied(), b, sizeof(b));
 	kit_row_set_sub(&app.row_display, b);
 	text_sound(&app.set, b, sizeof(b));
 	kit_row_set_sub(&app.row_sound, b);
@@ -471,6 +628,12 @@ void app_on_state(unsigned what)
 	status_from_state(&sys_state, app.set.clock_24h, &st);
 	kit_statusbar_set(&app.sb, &st);
 	hub_tiles_refresh(what);
+	if (what & SYS_ALS) {
+		app.als_lost_since = sys_state.als.available || !app.pf.screen_is_on() ? 0
+			: (app.pf.now_ms() ? app.pf.now_ms() : 1);
+		als_note_arm();
+		als_live_refresh();
+	}
 	for (int i = 1; i <= app.depth; i++)
 		if (app.stack[i]->ops->on_state)
 			app.stack[i]->ops->on_state(app.stack[i], what);
@@ -539,7 +702,10 @@ void app_init(const struct app_platform *pf, const struct ui_settings *set, lv_o
 	kit_statusbar_set(&app.sb, &st);
 	hub_tiles_refresh(~0u);
 	hub_rows_refresh();
+	sys_als_on_change(als_changed, NULL);
+	sys_als_set_offset(set->auto_offset);
 	app.sleep_timer = lv_timer_create(sleep_timer_cb, 1000, NULL);
 	policy_set_sleep(&app.sleep, set->sleep_s * 1000, pf->now_ms());
 	sleep_rearm();
+	als_want_sync();
 }

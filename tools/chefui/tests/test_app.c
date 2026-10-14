@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #include <math.h>
 #include <errno.h>
+#include <poll.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -63,9 +64,12 @@ static int pf_set(bool on)
 	return 0;
 }
 
+static int level_calls;
+
 static int pf_bright(int level)
 {
 	last_level = level;
+	level_calls++;
 	return 0;
 }
 
@@ -309,8 +313,14 @@ static void test_text(void)
 
 	ui_settings_defaults(&u);
 	u.brightness = 70;
-	text_display(&u, b, sizeof(b));
+	text_display(&u, -1, b, sizeof(b));
 	CHECK(!strcmp(b, "Dark \xC2\xB7 70%"));
+	u.auto_brightness = true;
+	text_display(&u, 45, b, sizeof(b));
+	CHECK(!strcmp(b, "Auto \xC2\xB7 45%"));
+	text_display(&u, -1, b, sizeof(b));
+	CHECK(!strcmp(b, "Auto \xC2\xB7 70%"));
+	u.auto_brightness = false;
 	s.storage.known = true;
 	text_storage(&s, b, sizeof(b));
 	CHECK(!strcmp(b, "RAM only"));
@@ -390,6 +400,7 @@ static void test_app(lv_obj_t *scr)
 	memset(&sys_state, 0, sizeof(sys_state));
 	sys_state.storage.known = true;
 	app.fake_state = true;
+	CHECK(sys_als_applied() == -1);		/* before sys_als_start (fake runs): no level */
 	app_init(&pf, &set, scr, content);
 	CHECK(app_depth() == 0 && app_top() == APP_PAGE_HUB);
 	hub_obj = app.hub.obj;
@@ -448,8 +459,8 @@ static void test_app(lv_obj_t *scr)
 	CHECK(lv_obj_is_hidden(hub_obj));
 	d = app_display_page();
 	CHECK(d != NULL);
-	CHECK(lv_obj_is_disabled(d->auto_switch) && !kit_switch_get(d->auto_switch));
-	CHECK(lv_obj_is_disabled(d->theme.cell[2]));		/* Auto */
+	CHECK(!lv_obj_is_disabled(d->auto_switch) && !kit_switch_get(d->auto_switch));
+	CHECK(!lv_obj_is_disabled(d->theme.cell[2]));		/* Auto */
 	CHECK(d->theme.active == 0 && d->sleep.active == 0);	/* Dark, 30 s */
 	CHECK(!strcmp(lv_label_get_text(d->value), "40%"));
 
@@ -481,8 +492,10 @@ static void test_app(lv_obj_t *scr)
 	CHECK(bg(scr) == kit_palette_light.bg);
 	CHECK(bg(d->theme.cell[1]) == kit_palette_light.acc);
 	CHECK(colour(app.sb.time) == kit_palette_light.fg);
-	/* a disabled cell does not take a tap */
+	/* Auto takes a tap: Dark until the light sensor decides */
 	click(d->theme.cell[2]);
+	CHECK(d->theme.active == 2 && app.set.theme == UI_THEME_AUTO && kit_theme_get() == KIT_THEME_DARK);
+	click(d->theme.cell[1]);
 	CHECK(d->theme.active == 1 && app.set.theme == UI_THEME_LIGHT);
 	kit_seg_set_active(&d->theme, 0);
 	lv_obj_send_event(d->theme.obj, LV_EVENT_VALUE_CHANGED, NULL);
@@ -1891,6 +1904,347 @@ static void test_m4_storage_review(void)
 	advance(20);
 }
 
+/* ------------------------------------------------ M5: ambient light */
+
+static struct {
+	int lfd, cfd, accepts;
+	bool eof, drop, claimed;
+	int status_seen, status_answered;
+	char in[1024];
+	size_t n;
+} AS = { .lfd = -1, .cfd = -1 };
+
+static void als_say(const char *t)
+{
+	if (AS.cfd >= 0)
+		(void)!write(AS.cfd, t, strlen(t));
+}
+
+static void als_srv_io(void)
+{
+	struct pollfd p;
+	char buf[256];
+
+	if (AS.lfd >= 0 && AS.cfd < 0) {
+		int fd = accept4(AS.lfd, NULL, NULL, SOCK_CLOEXEC | SOCK_NONBLOCK);
+
+		if (fd >= 0) {
+			AS.accepts++;
+			if (AS.drop) {
+				close(fd);
+				return;
+			}
+			AS.cfd = fd;
+			AS.n = 0;
+			AS.in[0] = 0;
+			AS.eof = false;
+			AS.claimed = false;
+			AS.status_seen = AS.status_answered = 0;
+			als_say("{\"hello\":\"sensord\",\"proto\":1}\n");
+		}
+	}
+	if (AS.cfd >= 0) {
+		p = (struct pollfd){ AS.cfd, POLLIN, 0 };
+		if (poll(&p, 1, 0) > 0) {
+			ssize_t r = read(AS.cfd, buf, sizeof(buf));
+
+			if (r > 0 && AS.n + (size_t)r < sizeof(AS.in)) {
+				memcpy(AS.in + AS.n, buf, (size_t)r);
+				AS.n += (size_t)r;
+				AS.in[AS.n] = 0;
+				if (strstr(AS.in, "claim illuminance 5\n") && !AS.claimed) {
+					AS.claimed = true;
+					als_say("{\"ok\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}\n");
+				}
+				for (char *q = AS.in; (q = strstr(q, "status\n")); q += 7)
+					AS.status_seen++;
+				if (AS.status_seen > AS.status_answered) {
+					AS.status_answered = AS.status_seen;
+					als_say("{\"ok\":\"status\",\"smgr\":\"ready\"}\n");
+				}
+			} else if (r == 0) {
+				AS.eof = true;
+				close(AS.cfd);
+				AS.cfd = -1;
+			}
+		}
+	}
+}
+
+static void als_adv(int ms)
+{
+	for (int i = 0; i < ms; i += 10) {
+		advance(10);
+		als_srv_io();
+	}
+}
+
+/* steady lux for ms at 5 Hz */
+static void lux_feed(double lux, int ms)
+{
+	char line[160];
+
+	snprintf(line, sizeof(line), "{\"sensor\":\"illuminance\",\"t\":1,\"illuminance\":%g}\n", lux);
+	for (int i = 0; i < ms; i += 200) {
+		als_say(line);
+		als_adv(200);
+	}
+}
+
+static bool file_has(const char *path, const char *text)
+{
+	char buf[1024];
+	ssize_t n;
+	int fd = open(path, O_RDONLY | O_CLOEXEC);
+
+	if (fd < 0)
+		return false;
+	n = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (n <= 0)
+		return false;
+	buf[n] = 0;
+	return strstr(buf, text) != NULL;
+}
+
+static bool store_to_mount(const char *p)
+{
+	(void)p;
+	return true;
+}
+
+static bool saved_gen(void *arg)
+{
+	(void)arg;
+	return ui_store_persisted_gen() >= ui_store_wanted_gen();
+}
+
+static void m5_state(unsigned what, void *user)
+{
+	(void)user;
+	app_on_state(what);
+}
+
+static void test_m5_als(void)
+{
+	char dir[64], sock[100], p[200], runp[200], file[220];
+	struct sockaddr_un sa = { .sun_family = AF_UNIX };
+	struct ui_store_paths paths = { .mountpoint = store_to_mount, .exit_wait_ms = 300,
+					.probe_ms = 500, .load_wait_ms = 300 };
+	struct ui_settings s;
+	struct display_page *d;
+	int before, calls;
+
+	snprintf(dir, sizeof(dir), "/tmp/m5als.XXXXXX");
+	CHECK(mkdtemp(dir) != NULL);
+	snprintf(sock, sizeof(sock), "%s/s.sock", dir);
+	snprintf(p, sizeof(p), "%s/data", dir);
+	mkdir(p, 0755);
+	snprintf(p, sizeof(p), "%s/data/v1", dir);
+	mkdir(p, 0755);
+	snprintf(p, sizeof(p), "%s/data/chef-layout", dir);
+	{
+		int fd = open(p, O_WRONLY | O_CREAT, 0644);
+
+		CHECK(fd >= 0 && write(fd, "chef-cyclo-data-v1\n", 19) == 19);
+		close(fd);
+	}
+	snprintf(p, sizeof(p), "%s/data", dir);
+	snprintf(runp, sizeof(runp), "%s/run", dir);
+	mkdir(runp, 0755);
+	paths.data = p;
+	paths.run = runp;
+	snprintf(file, sizeof(file), "%s/data/v1/ui/settings", dir);
+	ui_store_set_paths(&paths);
+	ui_settings_defaults(&s);
+	CHECK(ui_store_load(&s) == 0);
+
+	/* the fake sensord */
+	snprintf(sa.sun_path, sizeof(sa.sun_path), "%s", sock);
+	AS.lfd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
+	CHECK(bind(AS.lfd, (struct sockaddr *)&sa, sizeof(sa)) == 0 && listen(AS.lfd, 4) == 0);
+	CHECK(sys_als_start(sock, NULL) == 0);
+	sys_on_change(m5_state, NULL);
+
+	/* clean start: defaults, never sleep, the hub */
+	ui_settings_defaults(&s);
+	s.sleep_s = 0;
+	while (app_back())
+		advance(20);
+	advance(50);
+	app.persist = false;
+	app_apply_settings(&s);
+	screen_on = true;
+	app.persist = true;
+	fakeloop_log_clear();
+
+	/* both off: no connection at all */
+	als_adv(5000);
+	CHECK(!sys_als_wanted() && AS.accepts == 0);
+
+	/* Auto brightness on: one claim, backlight stays manual until a sample */
+	before = last_level;
+	app_set_auto_brightness(true);
+	CHECK(sys_als_wanted() && app.set.auto_brightness);
+	als_adv(100);
+	CHECK(AS.accepts == 1 && !strncmp(AS.in, "claim illuminance 5\n", 20) && last_level == before);
+	CHECK(!strcmp(lv_label_get_text(app.row_display.sub), "Auto \xC2\xB7 40%"));
+	lux_feed(300, 1000);
+	CHECK(last_level == ui_brightness_level(30) && app_shown_brightness() == 30);
+	CHECK(app.set.brightness == 40);	/* the manual value is untouched */
+	als_adv(1100);
+	CHECK(!strcmp(lv_label_get_text(app.row_display.sub), "Auto \xC2\xB7 30%"));
+	/* brightening follows the light */
+	lux_feed(3000, 8000);
+	CHECK(app_shown_brightness() > 60 && last_level == ui_brightness_level(app_shown_brightness()));
+	lux_feed(300, 60000);
+	CHECK(abs(app_shown_brightness() - 30) <= 1);	/* inside the deadband */
+
+	/* the Display page shows the live level; a drag sets the offset and persists */
+	click(app.row_display.obj);
+	d = app_display_page();
+	CHECK(d && kit_switch_get(d->auto_switch) && d->slider.value == app_shown_brightness());
+	{
+		char t[8];
+
+		snprintf(t, sizeof(t), "%d%%", app_shown_brightness());
+		CHECK(!strcmp(lv_label_get_text(d->value), t));
+	}
+	CHECK(!strcmp(lv_label_get_text(d->auto_sub), "Follows the light sensor"));
+	kit_slider_set(&d->slider, 50);
+	lv_obj_send_event(d->slider.obj, LV_EVENT_VALUE_CHANGED, NULL);
+	CHECK(app.set.auto_offset == 20 && app.set.brightness == 40);
+	CHECK(last_level == ui_brightness_level(50));
+	calls = level_calls;
+	lux_feed(300, 3000);
+	CHECK(level_calls == calls && last_level == ui_brightness_level(50));	/* the curve plus offset */
+	{
+		long t0 = (long)time(NULL);
+
+		while (!saved_gen(NULL) && time(NULL) - t0 < 5) {
+			advance(50);
+			fakeloop_run_for(2);
+		}
+	}
+	CHECK(saved_gen(NULL));
+	CHECK(file_has(file, "auto_brightness 1\nauto_offset 20\n"));
+	/* a drag far off the curve clamps the offset */
+	kit_slider_set(&d->slider, 100);
+	lv_obj_send_event(d->slider.obj, LV_EVENT_VALUE_CHANGED, NULL);
+	CHECK(app.set.auto_offset == 50);
+	kit_slider_set(&d->slider, 50);
+	lv_obj_send_event(d->slider.obj, LV_EVENT_VALUE_CHANGED, NULL);
+	CHECK(app.set.auto_offset == 20);
+
+	/* a drag in progress is never overridden by the live level */
+	lv_obj_add_state(d->slider.track, LV_STATE_PRESSED);
+	kit_slider_set(&d->slider, 77);
+	lux_feed(3000, 3000);
+	CHECK(d->slider.value == 77);
+	lv_obj_remove_state(d->slider.track, LV_STATE_PRESSED);
+	lux_feed(3000, 1200);
+	CHECK(d->slider.value == app_shown_brightness());
+	lux_feed(300, 60000);
+
+	/* Auto off: the manual brightness at once, the offset kept, the claim gone */
+	kit_switch_set(d->auto_switch, false);
+	lv_obj_send_event(d->auto_switch, LV_EVENT_VALUE_CHANGED, NULL);
+	CHECK(!app.set.auto_brightness && last_level == ui_brightness_level(40) && app.set.auto_offset == 20);
+	CHECK(d->slider.value == 40 && !strcmp(lv_label_get_text(d->value), "40%"));
+	als_adv(200);
+	CHECK(AS.eof && !sys_als_wanted());
+	CHECK(!strcmp(lv_label_get_text(app.row_display.sub), "Dark \xC2\xB7 40%"));
+	/* and on again: the stored offset applies from the first sample */
+	kit_switch_set(d->auto_switch, true);
+	lv_obj_send_event(d->auto_switch, LV_EVENT_VALUE_CHANGED, NULL);
+	als_adv(100);
+	lux_feed(300, 600);
+	CHECK(app_shown_brightness() == 50 && last_level == ui_brightness_level(50));
+
+	/* Auto theme on top: still one claim, one connection */
+	AS.accepts = 0;
+	click(d->theme.cell[2]);
+	CHECK(app.set.theme == UI_THEME_AUTO && kit_theme_get() == KIT_THEME_DARK);
+	als_adv(200);
+	CHECK(AS.accepts == 0 && sys_als_wanted());
+	kit_switch_set(d->auto_switch, false);
+	lv_obj_send_event(d->auto_switch, LV_EVENT_VALUE_CHANGED, NULL);
+	als_adv(200);
+	CHECK(sys_als_wanted());	/* theme Auto alone keeps the claim */
+
+	/* theme Auto: 1500 lux holds Dark, 3000 lux for 5 s flips to Light, logged once */
+	click(d->theme.cell[0]);
+	click(d->theme.cell[2]);
+	als_adv(2000);
+	lux_feed(1500, 6000);
+	CHECK(kit_theme_get() == KIT_THEME_DARK && fakeloop_log_count("theme auto") == 0);
+	lux_feed(3000, 4600);
+	CHECK(kit_theme_get() == KIT_THEME_DARK);
+	lux_feed(3000, 800);
+	CHECK(kit_theme_get() == KIT_THEME_LIGHT);
+	CHECK(fakeloop_log_count("theme auto -> light (lux 3000, held 5.0 s)") == 1);
+	lux_feed(3000, 20000);
+	CHECK(fakeloop_log_count("theme auto") == 1);
+
+	/* screen off drops the claim; wake claims again and decides at once, no Dark flash */
+	AS.accepts = 0;
+	pf_set(false);
+	als_adv(300);
+	CHECK(AS.eof && !sys_als_wanted());
+	pf_set(true);
+	als_adv(200);
+	CHECK(sys_als_wanted() && AS.accepts == 1);
+	lux_feed(1500, 1200);
+	CHECK(kit_theme_get() == KIT_THEME_LIGHT);	/* in between: kept */
+	pf_set(false);
+	als_adv(300);
+	pf_set(true);
+	als_adv(200);
+	lux_feed(700, 1000);
+	CHECK(kit_theme_get() == KIT_THEME_DARK);	/* decided from the first 3 samples */
+	CHECK(fakeloop_log_count("theme auto -> dark (lux 700, held 0.0 s)") == 1);
+
+	/* Auto brightness again, then the sensor goes away: the note after 3 s, bounded retries */
+	kit_switch_set(d->auto_switch, true);
+	lv_obj_send_event(d->auto_switch, LV_EVENT_VALUE_CHANGED, NULL);
+	als_adv(200);
+	lux_feed(300, 1000);
+	CHECK(!strcmp(lv_label_get_text(d->auto_sub), "Follows the light sensor"));
+	AS.drop = true;
+	if (AS.cfd >= 0) {
+		close(AS.cfd);
+		AS.cfd = -1;
+	}
+	AS.accepts = 0;
+	als_adv(1500);
+	CHECK(!strcmp(lv_label_get_text(d->auto_sub), "Follows the light sensor"));	/* not yet 3 s */
+	als_adv(3000);
+	CHECK(app_als_unavailable() && !strcmp(lv_label_get_text(d->auto_sub), "Light sensor not available"));
+	als_adv(60000);
+	CHECK(AS.accepts >= 4 && AS.accepts <= 7);	/* the 1, 2, 4, 8, 16, 30 s schedule */
+	AS.drop = false;
+	for (int i = 0; i < 600 && !(AS.cfd >= 0 && AS.n > 0); i++)
+		als_adv(100);
+	CHECK(AS.cfd >= 0 && AS.n > 0);
+	lux_feed(300, 1000);
+	CHECK(!app_als_unavailable() && !strcmp(lv_label_get_text(d->auto_sub), "Follows the light sensor"));
+
+	/* clean up: all off, settings flushed */
+	app_set_theme(UI_THEME_DARK);
+	app_set_auto_brightness(false);
+	als_adv(200);
+	CHECK(!sys_als_wanted());
+	CHECK(ui_store_flush() >= 0);
+	app.persist = false;
+	sys_als_stop();
+	while (app_back())
+		advance(20);
+	advance(50);
+	if (AS.cfd >= 0)
+		close(AS.cfd);
+	close(AS.lfd);
+}
+
 int main(void)
 {
 	lv_obj_t *scr;
@@ -1913,5 +2267,6 @@ int main(void)
 	test_m4_haptics();
 	test_m4_back_pulse();
 	test_m4_storage_review();
+	test_m5_als();
 	return check_report("test-app");
 }

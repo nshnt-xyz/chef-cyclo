@@ -25,6 +25,7 @@
 
 #define MAGIC1 "chef-ui-settings 1"
 #define MAGIC2 "chef-ui-settings 2"
+#define MAGIC3 "chef-ui-settings 3"
 #define LAYOUT_MARKER "chef-cyclo-data-v1"
 
 void ui_settings_defaults(struct ui_settings *s)
@@ -39,6 +40,8 @@ void ui_settings_defaults(struct ui_settings *s)
 	s->alert_sounds = true;
 	s->quiet_paused = false;
 	s->clock_24h = true;
+	s->auto_brightness = false;
+	s->auto_offset = 0;
 }
 
 bool ui_tz_valid(const char *tz)
@@ -64,7 +67,8 @@ bool ui_settings_valid(const struct ui_settings *s)
 	return s->brightness >= UI_BRIGHTNESS_MIN && s->brightness <= UI_BRIGHTNESS_MAX &&
 	       (s->theme == UI_THEME_DARK || s->theme == UI_THEME_LIGHT || s->theme == UI_THEME_AUTO) &&
 	       sleep_valid(s->sleep_s) && ui_tz_valid(s->tz) &&
-	       s->alert_volume >= 0 && s->alert_volume <= 100;
+	       s->alert_volume >= 0 && s->alert_volume <= 100 &&
+	       s->auto_offset >= UI_AUTO_OFFSET_MIN && s->auto_offset <= UI_AUTO_OFFSET_MAX;
 }
 
 bool ui_settings_equal(const struct ui_settings *a, const struct ui_settings *b)
@@ -72,7 +76,8 @@ bool ui_settings_equal(const struct ui_settings *a, const struct ui_settings *b)
 	return a->brightness == b->brightness && a->theme == b->theme && a->sleep_s == b->sleep_s &&
 	       strcmp(a->tz, b->tz) == 0 && a->alert_volume == b->alert_volume &&
 	       a->haptics == b->haptics && a->alert_sounds == b->alert_sounds &&
-	       a->quiet_paused == b->quiet_paused && a->clock_24h == b->clock_24h;
+	       a->quiet_paused == b->quiet_paused && a->clock_24h == b->clock_24h &&
+	       a->auto_brightness == b->auto_brightness && a->auto_offset == b->auto_offset;
 }
 
 int ui_brightness_level(int percent)
@@ -102,6 +107,21 @@ static bool parse_uint(const char *s, int max, int *out)
 			return false;
 	}
 	*out = (int)v;
+	return true;
+}
+
+/* Canonical small signed decimal: optional "-", no "+", no leading zero, no "-0". */
+static bool parse_int(const char *s, int min, int max, int *out)
+{
+	bool neg = s[0] == '-';
+	int v;
+
+	if (!parse_uint(s + neg, neg ? -min : max, &v) || (neg && v == 0))
+		return false;
+	v = neg ? -v : v;
+	if (v < min || v > max)
+		return false;
+	*out = v;
 	return true;
 }
 
@@ -163,7 +183,8 @@ int ui_settings_parse(const char *buf, size_t len, struct ui_settings *out, cons
 		*why = "bad version";
 		return -1;
 	}
-	bool v2 = !strcmp(line, MAGIC2);
+	bool v3 = !strcmp(line, MAGIC3);
+	bool v2 = v3 || !strcmp(line, MAGIC2);
 	if (!v2 && strcmp(line, MAGIC1)) {
 		*why = "bad version";
 		return -1;
@@ -216,6 +237,21 @@ int ui_settings_parse(const char *buf, size_t len, struct ui_settings *out, cons
 			*flags[i] = value != 0;
 		}
 	}
+	if (v3) {
+		int value;
+
+		if (!next_line(&p, end, line, sizeof(line)) || strncmp(line, "auto_brightness ", 16) ||
+		    !parse_uint(line + 16, 1, &value)) {
+			*why = "bad auto_brightness line";
+			return -1;
+		}
+		s.auto_brightness = value != 0;
+		if (!next_line(&p, end, line, sizeof(line)) || strncmp(line, "auto_offset ", 12) ||
+		    !parse_int(line + 12, UI_AUTO_OFFSET_MIN, UI_AUTO_OFFSET_MAX, &s.auto_offset)) {
+			*why = "bad auto_offset line";
+			return -1;
+		}
+	}
 	if (p != end) {
 		*why = "extra lines";
 		return -1;
@@ -235,10 +271,12 @@ int ui_settings_format(const struct ui_settings *s, char *buf, size_t size)
 
 	if (!ui_settings_valid(s))
 		return -1;
-	n = snprintf(buf, size, MAGIC2 "\nbrightness %d\ntheme %s\nsleep %d\ntz %s\n"
-		     "alert_volume %d\nhaptics %d\nalert_sounds %d\nquiet_paused %d\nclock_24h %d\n",
+	n = snprintf(buf, size, MAGIC3 "\nbrightness %d\ntheme %s\nsleep %d\ntz %s\n"
+		     "alert_volume %d\nhaptics %d\nalert_sounds %d\nquiet_paused %d\nclock_24h %d\n"
+		     "auto_brightness %d\nauto_offset %d\n",
 		     s->brightness, theme_name(s->theme), s->sleep_s, s->tz, s->alert_volume,
-		     s->haptics, s->alert_sounds, s->quiet_paused, s->clock_24h);
+		     s->haptics, s->alert_sounds, s->quiet_paused, s->clock_24h,
+		     s->auto_brightness, s->auto_offset);
 	if (n < 0 || (size_t)n >= size)
 		return -1;
 	sha256_hex(buf, (size_t)n, hex);

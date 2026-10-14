@@ -19,6 +19,8 @@
  *                           only HH:MM
  *   timesync gps|network|restored|floor|none|unknown REF_EPOCH_OR_0
  *                           the Time page's source (a model, no subprocess)
+ *   als LUX|none            the light sensor: available with this reading, or
+ *                           not available (host fakes never connect to sensord)
  *   about KEY VALUE         the About page: name version commit builddate
  *                           dirty lvgl kernel resolution serial bluetooth wifi
  *                           uptime (seconds); VALUE is the rest of the line
@@ -226,6 +228,18 @@ static int field(struct sys_state *s, char *key, char *a, char *b, char *c, char
 		s->gps.enabled = i == SYS_GPS_UNAVAILABLE ? -1 : i != SYS_GPS_DISABLED;
 		s->gps.mode = b ? atoi(b) : 0;
 		s->gps.eph = c ? atof(c) : -1;
+	} else if (!strcmp(key, "als") && a) {
+		char *end;
+
+		if (!strcmp(a, "none")) {
+			s->als.available = false;
+			s->als.lux = 0;
+			return 0;
+		}
+		s->als.lux = strtod(a, &end);
+		if (*end || s->als.lux < 0)
+			return -1;
+		s->als.available = true;
 	} else if (!strcmp(key, "wifi") && a) {
 		memset(&s->wifi, 0, sizeof(s->wifi));
 		if (!strcmp(a, "unknown"))
@@ -481,6 +495,6 @@ int sys_fake_load(const char *path)
 	gps_view = g;
 	ble_view = bv;
 	sys_changed(SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE | SYS_WIFI_VIEW |
-		    SYS_GPS_VIEW | SYS_BLE | SYS_TIME_VIEW | SYS_DEVICE_INFO);
+		    SYS_GPS_VIEW | SYS_BLE | SYS_TIME_VIEW | SYS_DEVICE_INFO | SYS_ALS);
 	return 0;
 }

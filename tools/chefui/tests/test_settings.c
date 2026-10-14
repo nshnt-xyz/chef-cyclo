@@ -395,7 +395,7 @@ static void test_parse(void)
 	snprintf(a.tz, sizeof(a.tz), "UTC0");
 	n = ui_settings_format(&a, buf, sizeof(buf));
 	CHECK(n > 0);
-	CHECK(strstr(buf, "chef-ui-settings 2\nbrightness 73\ntheme light\nsleep 300\ntz UTC0\nalert_volume 60\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nsha256 ") == buf);
+	CHECK(strstr(buf, "chef-ui-settings 3\nbrightness 73\ntheme light\nsleep 300\ntz UTC0\nalert_volume 60\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset 0\nsha256 ") == buf);
 	CHECK(ui_settings_parse(buf, (size_t)n, &b, &why) == 0);
 	CHECK(ui_settings_equal(&a, &b));
 	a.theme = UI_THEME_AUTO;
@@ -419,7 +419,7 @@ static void test_parse(void)
 
 	/* correctly sealed but wrong content */
 	static const struct { const char *body, *why; } cases[] = {
-		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\n", "bad version" },
+		{ "chef-ui-settings 4\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\n", "bad version" },
 		{ "chef-ui-settings 1\nbrightness 4\ntheme dark\nsleep 60\ntz UTC0\n", "value out of range" },
 		{ "chef-ui-settings 1\nbrightness 101\ntheme dark\nsleep 60\ntz UTC0\n", "bad brightness line" },
 		{ "chef-ui-settings 1\nbrightness 050\ntheme dark\nsleep 60\ntz UTC0\n", "bad brightness line" },
@@ -434,6 +434,16 @@ static void test_parse(void)
 		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 101\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\n", "bad alert_volume line" },
 		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 2\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\n", "bad boolean line" },
 		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\n", "bad boolean line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 2\nauto_offset 0\n", "bad auto_brightness line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset 51\n", "bad auto_offset line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset -51\n", "bad auto_offset line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset x\n", "bad auto_offset line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset -0\n", "bad auto_offset line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset +5\n", "bad auto_offset line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_offset 0\nauto_brightness 0\n", "bad auto_brightness line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\n", "bad auto_offset line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\n", "bad auto_brightness line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset 0\nextra 1\n", "extra lines" },
 	};
 	for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
 		n = seal(cases[i].body, bad, sizeof(bad));
@@ -452,7 +462,8 @@ static void test_parse(void)
 		CHECK(!strcmp(b.tz, "UTC0") && b.alert_volume == 60 && b.haptics && b.alert_sounds &&
 		      !b.quiet_paused && b.clock_24h);
 		n = ui_settings_format(&b, buf, sizeof(buf));
-		CHECK(n > 0 && !strncmp(buf, "chef-ui-settings 2\n", 19));
+		CHECK(n > 0 && !strncmp(buf, "chef-ui-settings 3\n", 19));
+		CHECK(!b.auto_brightness && b.auto_offset == 0);
 	}
 	/* v2 accepts zero volume and all canonical boolean combinations. */
 	{
@@ -462,6 +473,34 @@ static void test_parse(void)
 
 		CHECK(ui_settings_parse(bad, (size_t)vn, &b, &why) == 0);
 		CHECK(b.alert_volume == 0 && !b.haptics && !b.alert_sounds && b.quiet_paused && !b.clock_24h);
+		CHECK(!b.auto_brightness && b.auto_offset == 0);
+		n = ui_settings_format(&b, buf, sizeof(buf));
+		CHECK(n > 0 && !strncmp(buf, "chef-ui-settings 3\n", 19));
+	}
+	/* v3 round trip with the extremes of the offset */
+	{
+		static const int offs[] = { -50, -1, 0, 7, 50 };
+
+		for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
+			ui_settings_defaults(&a);
+			a.auto_brightness = i & 1;
+			a.auto_offset = offs[i];
+			n = ui_settings_format(&a, buf, sizeof(buf));
+			CHECK(n > 0 && ui_settings_parse(buf, (size_t)n, &b, &why) == 0 &&
+			      ui_settings_equal(&a, &b) && b.auto_offset == offs[i] &&
+			      b.auto_brightness == (i & 1));
+		}
+		a.auto_offset = 51;
+		CHECK(!ui_settings_valid(&a) && ui_settings_format(&a, buf, sizeof(buf)) < 0);
+		a.auto_offset = -51;
+		CHECK(!ui_settings_valid(&a));
+		a.auto_offset = 0;
+		b = a;
+		b.auto_brightness = true;
+		CHECK(!ui_settings_equal(&a, &b));
+		b = a;
+		b.auto_offset = 1;
+		CHECK(!ui_settings_equal(&a, &b));
 	}
 	CHECK(ui_tz_valid("IST-5:30") && ui_tz_valid("<+0530>-5:30") && !ui_tz_valid("a b"));
 	CHECK(ui_brightness_level(100) == 255 && ui_brightness_level(5) == 13 &&

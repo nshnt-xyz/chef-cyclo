@@ -21,6 +21,7 @@ struct page_ops {
 	void (*on_visible)(struct page *p, bool visible);
 	void (*on_snapshot)(struct page *p, bool begin);
 	void (*on_settings)(struct page *p);		/* app.set replaced */
+	void (*on_live)(struct page *p);		/* Auto brightness level or sensor changed */
 };
 
 struct page {

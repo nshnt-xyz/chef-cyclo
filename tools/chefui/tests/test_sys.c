@@ -1249,7 +1249,7 @@ static void test_fake(void)
 	changes = 0;
 	CHECK(sys_fake_load(st) == 0);
 	CHECK(changes == (SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE |
-			  SYS_WIFI_VIEW | SYS_GPS_VIEW | SYS_BLE | SYS_TIME_VIEW | SYS_DEVICE_INFO));
+			  SYS_WIFI_VIEW | SYS_GPS_VIEW | SYS_BLE | SYS_TIME_VIEW | SYS_DEVICE_INFO | SYS_ALS));
 	CHECK(!strcmp(sys_state.clock.hhmm, "14:16") && sys_state.batt.capacity == 78);
 	CHECK(sys_state.gps.state == SYS_GPS_RUNNING && sys_state.gps.mode == 3);
 	CHECK(sys_wifi_connected(&sys_state) && !strcmp(sys_state.wifi.ssid, "HomeNet"));

@@ -4,6 +4,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "app.h"
 #include "fonts.h"
@@ -16,8 +17,9 @@ static void display_value_text(struct display_page *d)
 {
 	char b[8];
 
-	snprintf(b, sizeof(b), "%d%%", app.set.brightness);
-	lv_label_set_text(d->value, b);
+	snprintf(b, sizeof(b), "%d%%", app_shown_brightness());
+	if (strcmp(lv_label_get_text(d->value), b))
+		lv_label_set_text(d->value, b);
 }
 
 static void slider_changed(lv_event_t *e)
@@ -26,6 +28,31 @@ static void slider_changed(lv_event_t *e)
 
 	app_set_brightness(d->slider.value);
 	display_value_text(d);
+}
+
+static void auto_switch_changed(lv_event_t *e)
+{
+	struct display_page *d = lv_event_get_user_data(e);
+
+	app_set_auto_brightness(kit_switch_get(d->auto_switch));
+}
+
+/* The live level, the switch and the sensor note follow Auto brightness; a
+ * drag in progress is never overridden. */
+static void display_live(struct page *p)
+{
+	struct display_page *d = p->priv;
+
+	int shown = app_shown_brightness();
+	const char *note = app_als_unavailable() ? "Light sensor not available" : "Follows the light sensor";
+
+	if (!lv_obj_has_state(d->slider.track, LV_STATE_PRESSED) && d->slider.value != shown)
+		kit_slider_set(&d->slider, shown);
+	display_value_text(d);
+	if (kit_switch_get(d->auto_switch) != app.set.auto_brightness)
+		kit_switch_set(d->auto_switch, app.set.auto_brightness);
+	if (strcmp(lv_label_get_text(d->auto_sub), note))
+		lv_label_set_text(d->auto_sub, note);
 }
 
 static void theme_changed(lv_event_t *e)
@@ -90,17 +117,14 @@ static void build_display(struct page *p, const void *arg)
 	lv_obj_set_flex_grow(col, 1);
 	lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_style_pad_row(col, 6, 0);
-	/* Auto brightness waits for sensord at boot: shown, muted, no input */
-	kit_text(col, &chefkit_b500_56, 62, KIT_INK_MUT, "Auto brightness");
-	kit_text(col, &chefkit_b400_42, 0, KIT_INK_MUT, "Follows the light sensor");
+	d->auto_title = kit_text(col, &chefkit_b500_56, 62, KIT_INK_FG, "Auto brightness");
+	d->auto_sub = kit_text(col, &chefkit_b400_42, 0, KIT_INK_MUT, "Follows the light sensor");
 	d->auto_switch = kit_switch_create(row);
-	kit_switch_set(d->auto_switch, false);
-	lv_obj_set_disabled(d->auto_switch, true);
-	lv_obj_set_clickable(d->auto_switch, false);
+	kit_switch_set(d->auto_switch, app.set.auto_brightness);
+	lv_obj_add_event_cb(d->auto_switch, auto_switch_changed, LV_EVENT_VALUE_CHANGED, d);
 
 	kit_section(body, "THEME", 72, 28);
 	kit_seg_create(&d->theme, body, 3, theme_labels, theme_glyphs);
-	kit_seg_set_disabled(&d->theme, 2, true);	/* Auto: needs the light sensor */
 	kit_seg_set_active(&d->theme, app.set.theme == UI_THEME_LIGHT ? 1
 			   : app.set.theme == UI_THEME_AUTO ? 2 : 0);
 	lv_obj_add_event_cb(d->theme.obj, theme_changed, LV_EVENT_VALUE_CHANGED, d);
@@ -113,6 +137,7 @@ static void build_display(struct page *p, const void *arg)
 			kit_seg_set_active(&d->sleep, i);
 	lv_obj_add_event_cb(d->sleep.obj, sleep_changed, LV_EVENT_VALUE_CHANGED, d);
 	page_help_text(body, "Power button wakes the screen.");
+	display_live(p);
 }
 
 /* The settings were replaced from storage: show them. */
@@ -121,8 +146,7 @@ static void display_settings(struct page *p)
 	struct display_page *d = p->priv;
 	int i;
 
-	kit_slider_set(&d->slider, app.set.brightness);
-	display_value_text(d);
+	display_live(p);
 	kit_seg_set_active(&d->theme, app.set.theme == UI_THEME_LIGHT ? 1
 			   : app.set.theme == UI_THEME_AUTO ? 2 : 0);
 	for (i = 0; i < 4; i++)
@@ -139,6 +163,7 @@ const struct page_ops page_display_ops = {
 	.build = build_display,
 	.destroy = display_destroy,
 	.on_settings = display_settings,
+	.on_live = display_live,
 };
 
 struct display_page *app_display_page(void)

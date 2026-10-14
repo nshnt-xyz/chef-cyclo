@@ -67,6 +67,9 @@ struct app {
 	struct kit_row row_display, row_sound, row_time, row_storage, row_about;
 	char about[96];
 	bool fake_state;			/* do not refresh storage from disk */
+	int64_t als_lost_since;			/* ms the wanted light sensor went (or began) unavailable; 0 none */
+	lv_timer_t *hub_timer, *als_note_timer;	/* one-shots: hub subtitle rate limit, the 3 s sensor note */
+	int64_t hub_last_ms;
 };
 
 extern struct app app;
@@ -107,6 +110,12 @@ void app_set_haptics(bool enabled);
 void app_set_alert_sounds(bool enabled);
 void app_set_quiet_paused(bool enabled);
 void app_set_clock_24h(bool enabled);
+void app_set_auto_brightness(bool enabled);
+/* The percent the Display page and hub show: the live Auto brightness level
+ * when Auto is on and a level was applied, else the manual brightness. */
+int app_shown_brightness(void);
+/* Auto brightness is on but the light sensor has not answered for 3 s. */
+bool app_als_unavailable(void);
 /* Settings replaced from storage (late /data): applied live. */
 void app_apply_settings(const struct ui_settings *set);
 
@@ -115,7 +124,7 @@ struct display_page *app_display_page(void);
 struct display_page {
 	struct kit_slider slider;
 	lv_obj_t *value;
-	lv_obj_t *auto_switch;
+	lv_obj_t *auto_switch, *auto_title, *auto_sub;
 	struct kit_seg theme, sleep;
 };
 

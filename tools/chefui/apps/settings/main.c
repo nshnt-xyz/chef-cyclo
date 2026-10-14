@@ -4,10 +4,12 @@
  * shows the log screen whenever it is not running. See
  * docs/features/system-ui.md.
  *
- *   chef-settings [--fake-state FILE]... [--page PAGE] [--theme dark|light]
- *                 [--brightness PCT] [--sleep 30|60|300|0]
+ *   chef-settings [--fake-state FILE]... [--page PAGE] [--theme dark|light|auto]
+ *                 [--brightness PCT] [--auto-brightness on|off] [--sleep 30|60|300|0]
  *                 [--snapshot PATH [--snapshot-after MS]]
  *                 [--data DIR] [--run DIR] [--keys TEXT]
+ *                 [--sensord-sock PATH] [--als-light LUX] [--als-dark LUX]
+ *                 [--als-light-hold S] [--als-dark-hold S]
  *
  * --fake-state   fixed system state (sys/fake.c), no real sources; up to
  *                four files, read in order
@@ -18,12 +20,18 @@
  *                bt-sensor (the first sensor row, once blesensd has listed it),
  *                sound, time, storage, about
  * --keys         with --fake-state only: type TEXT on the page's keyboard
- * --theme        this theme for this run (not saved)
+ * --theme        this theme (dark, light or auto) for this run (not saved)
+ * --auto-brightness  Auto brightness on or off for this run (not saved)
  * --brightness   this brightness for this run (not saved)
  * --sleep        this auto-sleep (seconds, 0 = never) for this run (not saved)
  * --clock        12 or 24 hour time for this run (not saved)
  * --snapshot     write the frame as PPM after MS (default 500) and exit
  * --data/--run   settings roots instead of /data and /run (host runs)
+ * --sensord-sock the light sensor's socket (default /run/sensord.sock)
+ * --als-light/--als-dark   theme Auto thresholds in lux (defaults 2500 and
+ *                800; dark must be below light)
+ * --als-light-hold/--als-dark-hold   seconds the light/dark condition must
+ *                hold (1..600; defaults 5 and 20)
  *
  * Device captures: the running app writes /run/chef-settings/snapshot.ppm
  * (<--run DIR>/chef-settings/snapshot.ppm) on SIGUSR1. A root-owned /run/chef-settings/args (one option per line)
@@ -67,15 +75,18 @@
 #define FAKE_MAX 4
 
 struct opts {
-	const char *fake[FAKE_MAX], *page, *theme, *snapshot, *data, *run, *keys;
+	const char *fake[FAKE_MAX], *page, *theme, *snapshot, *data, *run, *keys, *sensord_sock;
+	struct als_params als;
 	int n_fake;
 	int snapshot_after;
 	int brightness;		/* 0 = from settings */
 	int sleep_s;		/* -1 = from settings */
 	int clock;		/* 12, 24; 0 = from settings */
+	int auto_brightness;	/* -1 = from settings, 0, 1 */
 };
 
-static struct opts O = { .snapshot_after = 500, .sleep_s = -1 };
+static struct opts O = { .snapshot_after = 500, .sleep_s = -1, .auto_brightness = -1 };
+static bool als_set;		/* an --als-* option was given */
 
 static int64_t now_ms(void)
 {
@@ -88,10 +99,11 @@ static int64_t now_ms(void)
 static int usage(void)
 {
 	fprintf(stderr, "usage: chef-settings [--fake-state FILE]... [--page hub|display|wifi|"
-			"wifi-password|wifi-hidden|wifi-details|gps|gps-sats|bt|bt-sensor|sound|time|storage|about] [--theme dark|light] [--brightness PCT] "
+			"wifi-password|wifi-hidden|wifi-details|gps|gps-sats|bt|bt-sensor|sound|time|storage|about] [--theme dark|light|auto] [--brightness PCT] [--auto-brightness on|off] "
 			"[--sleep 30|60|300|0] [--clock 12|24] "
 			"[--snapshot PATH [--snapshot-after MS]] [--data DIR] [--run DIR] "
-			"[--keys TEXT]\n");
+			"[--keys TEXT] [--sensord-sock PATH] [--als-light LUX] [--als-dark LUX] "
+			"[--als-light-hold S] [--als-dark-hold S]\n");
 	return 2;
 }
 
@@ -167,6 +179,34 @@ static void open_start_page(const char *v)
 	}
 }
 
+/* --als-*: a number the value must be entirely; applied over the defaults. */
+static bool als_option(const char *a, const char *v, struct opts *o)
+{
+	char *end;
+	double x;
+
+	if (strncmp(a, "--als-", 6))
+		return false;
+	x = strtod(v, &end);
+	if (end == v || *end || x < 0 || x > 1e7)
+		return false;
+	if (!als_set) {
+		als_params_default(&o->als);
+		als_set = true;
+	}
+	if (!strcmp(a, "--als-light"))
+		o->als.light_lux = x;
+	else if (!strcmp(a, "--als-dark"))
+		o->als.dark_lux = x;
+	else if (!strcmp(a, "--als-light-hold") && x == (int)x)
+		o->als.light_hold_s = (int)x;
+	else if (!strcmp(a, "--als-dark-hold") && x == (int)x)
+		o->als.dark_hold_s = (int)x;
+	else
+		return false;
+	return true;		/* validated as a whole after parsing */
+}
+
 static int parse(int argc, char **argv, struct opts *o)
 {
 	for (int i = 0; i < argc; i++) {
@@ -180,8 +220,11 @@ static int parse(int argc, char **argv, struct opts *o)
 			o->page = v;
 		else if (!strcmp(a, "--keys"))
 			o->keys = v;
-		else if (!strcmp(a, "--theme") && (!strcmp(v, "dark") || !strcmp(v, "light")))
+		else if (!strcmp(a, "--theme") && (!strcmp(v, "dark") || !strcmp(v, "light") ||
+						    !strcmp(v, "auto")))
 			o->theme = v;
+		else if (!strcmp(a, "--auto-brightness") && (!strcmp(v, "on") || !strcmp(v, "off")))
+			o->auto_brightness = !strcmp(v, "on");
 		else if (!strcmp(a, "--sleep") && (!strcmp(v, "30") || !strcmp(v, "60") ||
 						    !strcmp(v, "300") || !strcmp(v, "0")))
 			o->sleep_s = atoi(v);
@@ -198,10 +241,14 @@ static int parse(int argc, char **argv, struct opts *o)
 			o->data = v;
 		else if (!strcmp(a, "--run"))
 			o->run = v;
-		else
+		else if (!strcmp(a, "--sensord-sock"))
+			o->sensord_sock = v;
+		else if (!als_option(a, v, o))
 			return -1;
 		i++;
 	}
+	if (als_set && !als_params_valid(&o->als))
+		return -1;	/* dark must be below light; holds 1..600 s */
 	return 0;
 }
 
@@ -421,7 +468,10 @@ int main(int argc, char **argv)
 	if (r)
 		chefui_log("settings: no persistence worker (%s); defaults, not saved", strerror(-r));
 	if (O.theme)
-		set.theme = !strcmp(O.theme, "light") ? UI_THEME_LIGHT : UI_THEME_DARK;
+		set.theme = !strcmp(O.theme, "light") ? UI_THEME_LIGHT
+			: !strcmp(O.theme, "auto") ? UI_THEME_AUTO : UI_THEME_DARK;
+	if (O.auto_brightness >= 0)
+		set.auto_brightness = O.auto_brightness;
 	if (O.brightness)
 		set.brightness = O.brightness;
 	if (O.sleep_s >= 0)
@@ -446,6 +496,7 @@ int main(int argc, char **argv)
 		sys_clock_start(set.tz);
 		sys_battery_start(NULL, -1);
 		sys_gps_start(NULL, 0);
+		sys_als_start(O.sensord_sock, als_set ? &O.als : NULL);
 		sys_ble_start(NULL);
 		sys_netbus_start();
 		sys_wifi_init();
@@ -456,7 +507,8 @@ int main(int argc, char **argv)
 		chefui_log("haptics: no feedback worker (%s)", strerror(-r));
 	app_init(&pf, &set, chefui_root(), chefui_content_root());
 	/* captures and overrides change nothing on disk */
-	app.persist = !O.theme && !O.brightness && O.sleep_s < 0 && !O.clock && !O.snapshot;
+	app.persist = !O.theme && !O.brightness && O.sleep_s < 0 && !O.clock && !O.snapshot &&
+		      O.auto_brightness < 0;
 	if (O.page)
 		open_start_page(O.page);
 	/* typed text only into fake state: a real passphrase never comes

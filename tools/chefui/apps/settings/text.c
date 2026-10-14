@@ -71,12 +71,15 @@ void text_wifi(const struct sys_state *s, char *buf, size_t n)
 		snprintf(buf, n, "Not connected");
 }
 
-void text_display(const struct ui_settings *st, char *buf, size_t n)
+void text_display(const struct ui_settings *st, int applied, char *buf, size_t n)
 {
 	const char *t = st->theme == UI_THEME_LIGHT ? "Light" : st->theme == UI_THEME_AUTO ? "Auto"
 		: "Dark";
 
-	snprintf(buf, n, "%s" DOT "%d%%", t, st->brightness);
+	if (st->auto_brightness)
+		snprintf(buf, n, "Auto" DOT "%d%%", applied >= 0 ? applied : st->brightness);
+	else
+		snprintf(buf, n, "%s" DOT "%d%%", t, st->brightness);
 }
 
 /* hhmm stays the canonical 24-hour string (old fixtures set only it);

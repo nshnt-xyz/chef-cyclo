@@ -45,7 +45,7 @@ Storage and About. Subtitle sources:
 | Bluetooth | `N of M connected` from sensor kinds when available, else `2 connected`, `On`, `Off`, `No adapter`, `Unavailable` | BlueZ |
 | GPS | `3D fix · ±3 m`, `Searching…`, `On`, `Off`, `Failed`, `Unavailable` | gps-manager (`Off` = the switch off), gpsd TPV `mode`/`eph` while `RUNNING` |
 | Wi-Fi | the connection name, `Connecting…`, `Not connected`, `Off`, `No device`, `Unavailable` | NetworkManager |
-| Display | theme and brightness, `Dark · 70%` | settings |
+| Display | theme and brightness, `Dark · 70%`; with Auto brightness on `Auto · 45%` (the live level, refreshed at most once a second) | settings, light sensor |
 | Sound and haptics | `Haptics on` / `Haptics off` | the haptics preference |
 | Time and date | `14:16 · IST` or `2:16 pm · IST` | clock, the 12/24-hour preference and zone abbreviation |
 | Storage | `18.2 GB free`, `RAM only` | `statvfs("/data")` on hub entry when `/data` is ours |
@@ -55,9 +55,69 @@ The Bluetooth, Wi-Fi and GPS tiles and every row open their pages.
 
 **Display (P02)**: brightness slider (5 to 100 %, drawn on a 0 to 100 track,
 coalesced into the next frame), theme Dark or Light, and auto-sleep 30 s,
-1 min (default), 5 min or Never. Auto brightness and theme Auto are shown
-muted and do not take input: they need the light sensor, and `sensord` is
-not started at boot yet. A theme switch restyles every widget in place.
+1 min (default), 5 min or Never. Auto brightness (switch, "Follows the light
+sensor") and theme Auto work from the light sensor, see [Ambient light](#ambient-light-m5).
+With Auto brightness on, the slider and the percent show the live level and
+move with it (a drag in progress is never overridden); when the sensor has not
+answered for 3 s the line reads "Light sensor not available" (same place and
+ink). A theme switch restyles every widget in place.
+
+## Ambient light (M5)
+
+`sys/als.c` (pure logic, `test-als`) and `sys/alsclient.c` (the `sensord`
+client, `test-alsclient`) drive Auto brightness and theme Auto.
+
+**Claim rules.** The UI claims `illuminance` at 5 Hz on `/run/sensord.sock`
+(`--sensord-sock PATH`) only while the screen is on and Auto brightness or
+theme Auto is set; screen off or both settings off closes the connection (a
+claim lives on its connection, no `release` is sent) and cancels any retry. A
+missing or refusing socket, EOF, an `err` line (logged once per distinct text)
+or a hung sensord closes and retries with a backoff of 1 s doubling to 30 s,
+only while wanted; a ready status resets it. `{"ok":...}` and `{"dropped":N}`
+lines are accepted silently, malformed or negative samples are ignored. Fake
+runs never connect (`als LUX|none` in the fake state).
+
+**The stream is on-change only.** The DSP reports illuminance when it changes:
+at steady light the gaps between samples were up to 15.8 s at a 5 Hz claim
+(measured, [evidence](../../logs/system-ui-slice2-2026-10-11.txt)). Silence is
+therefore normal, never "sensor gone", and a sample is the light until the next
+one. Liveness is a `status` request on the same connection after the claim is
+acknowledged and then every 30 s (no reply within 5 s: close and reconnect).
+The sensor is *available* while the claim is acknowledged and the last status
+said `smgr` ready (sensord re-adds the report itself when the DSP restarts, so
+the connection and claim stay); "Light sensor not available" shows after 3 s
+without that. The pure logic is time-driven: `als_tick()` runs the theme holds
+and the brightness smoothing with the held lux at `als_next_deadline_ms()`,
+armed as one one-shot timer; at steady light there is no deadline and no
+timer.
+
+**Brightness.** Percent from lux on a piecewise linear curve in
+`log10(lux + 1)`: 0 lux 5 %, 1: 8, 10: 14, 50: 20, 300: 30, 1000: 45, 5000: 75,
+20000 and above 100 % (a starting point; a 250 to 320 lux room is about 30 %).
+The value is smoothed in the log domain with an exponential filter on real
+elapsed time (tau 1 s brightening, 5 s dimming, dt at most 1 s); the first
+sample of a (re)started stream sets the filter directly. Target is the curve
+plus the stored `auto_offset`, clamped to 5..100; the backlight changes only
+when the target is 2 points or more from the applied level, or when the
+floor or ceiling is reached exactly. The applied level is not saved. A slider
+drag while Auto is on sets `auto_offset = slider - curve` (clamped -50..50,
+saved through the normal debounced path) and applies the dragged level at
+once; with no lux known yet the drag sets the manual brightness instead.
+Turning Auto off applies the manual brightness at once and keeps the offset.
+
+**Theme Auto.** Light when the raw lux stays at or above 2500 for 5 s, Dark when
+it stays at or below 800 for 20 s; between the two nothing changes and both
+hold timers reset. The theme is Dark only before the first decision since
+start (or since Auto was chosen from another mode; with a held lux known it
+is decided at once). A stream restart (wake, reconnect) keeps the current
+theme; the first sample of the stream decides (at or above the light threshold:
+Light, at or below the dark threshold: Dark, between: unchanged). The holds
+complete by time with the last sample's lux: one 3000 lux sample then silence
+gives Light 5 s after it. One kmsg line per transition:
+`chef-settings: theme auto -> light (lux 3120, held 5.0 s)`. Brightness changes
+are not logged. Tunables (also through the one-shot args file):
+`--als-light LUX`, `--als-dark LUX` (dark below light), `--als-light-hold S`,
+`--als-dark-hold S` (1..600); an invalid value is a usage error.
 
 ## Device pages (M4)
 
@@ -343,7 +403,7 @@ reconnect re-sends the page's hold and scan wants. See the
 else `/run/ui/settings` with one kmsg line (lost at reboot):
 
 ```
-chef-ui-settings 2
+chef-ui-settings 3
 brightness 40
 theme dark
 sleep 60
@@ -353,6 +413,8 @@ haptics 1
 alert_sounds 1
 quiet_paused 0
 clock_24h 1
+auto_brightness 0
+auto_offset 0
 sha256 <hex of the lines above>
 ```
 
@@ -362,7 +424,10 @@ the five new preferences filled from defaults. They are not rewritten just
 for migration: the next actual setting change saves canonical version 2.
 **The migration is one-way:** images from before M4 (M1 to M3) parse only
 exact version 1, reject a version 2 file and fall back to defaults until a
-save rewrites version 1, which drops the M4 preferences. There is no zone
+save rewrites version 1, which drops the M4 preferences. M5 adds version 3
+(`auto_brightness 0|1`, `auto_offset` -50..50 percent points): v1 and v2 files
+load with the defaults for the new lines and the next save writes v3, one-way
+again (an older image rejects v3 and uses its defaults). There is no zone
 picker. The file follows
 the chef-state rules: checked version, layout, ranges and checksum, a bad
 file ignored with a kmsg line (defaults, replaced at the next save), never
@@ -483,7 +548,7 @@ files, read in order, so `wifi-off.state` after it gives P15), `--page
 hub|display|wifi|wifi-password|wifi-hidden|wifi-details` (the password page
 for the first listed network), `--keys TEXT` (with fake state only: typed on
 the open entry page's keyboard, for captures; a real passphrase never comes
-from arguments), `--page gps|gps-sats|bt|bt-sensor|sound|time|storage|about` (sensor detail uses the first listed kind), `--theme dark|light`, `--brightness PCT`, `--clock 12|24` and `--sleep
+from arguments), `--page gps|gps-sats|bt|bt-sensor|sound|time|storage|about` (sensor detail uses the first listed kind), `--theme dark|light|auto`, `--auto-brightness on|off`, `--brightness PCT`, `--clock 12|24` and `--sleep
 30|60|300|0` (this run only, not saved), `--snapshot PATH [--snapshot-after MS]` (write the frame as PPM and
 exit), `--data DIR --run DIR` (settings roots). On the phone a root-owned
 `/run/chef-settings/args` (options, one per line) is read once at start and
@@ -539,10 +604,10 @@ layer after `design.state` (the fake firmware 0.9.3 and serial exist only there)
 M4 tests: `test-app` (fonts, text helpers, 12/24-hour status bar and hub, the four
 pages, the haptic gestures against a FIFO standing in for sysfs), `test-sys` (fake
 lines, usage scan on a 128 KB stack, sysfs address read), `test-timeview` (the
-chronyc client incl. an adversarial held-open pipe), `test-settings` (v1 to v2),
+chronyc client incl. an adversarial held-open pipe), `test-settings` (v1 to v3), `test-als`, `test-alsclient`,
 `scripts/tests/test_chef_image_info.py`.
 
-**Reference comparison.** `host-test` writes 52 captures: the 30 below plus sound, time,
+**Reference comparison.** `host-test` writes 53 captures (M5 adds display-auto, display-auto-nosensor, hub-auto in both themes and display-theme-auto): the 52 earlier ones are the 30 below plus sound, time,
 time-12h, time-unverified, storage, storage-estimate, storage-ram, storage-calc, about,
 about-unknown and hub-12h (the first 30 are hub, display,
 wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden,
@@ -559,7 +624,7 @@ python3 -I tools/chefui/compare-ref.py OUT.png REF.png CAPTURE.ppm:host [DEVICE.
 ```
 
 The masks hide the design's temperature and the drawn notch. Remaining
-differences are intended: Auto brightness and theme Auto disabled, the active
+differences are intended: the active
 theme cell follows the real theme, and subtitles come from real sources.
 Wi-Fi: the master subtitle is the state ("On", "Off") instead of the Sync
 line, P15 has one neutral line instead of the Sync text (so the empty state
