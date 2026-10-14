@@ -90,6 +90,10 @@ int chefui_unwatch_fd(int fd);
 /* Screen off: POWERDOWN, flag created, rendering paused (application
  * timers and fds keep running). Screen on: the reverse, then a full
  * redraw. 0 or -errno. */
+/* True on the phone's fbdev backend (false for SDL or before init): device-only
+ * outputs such as haptics start only there. */
+bool chefui_backend_is_fbdev(void);
+
 int chefui_screen_set(bool on);
 bool chefui_screen_is_on(void);
 typedef void (*chefui_screen_cb)(bool on, void *user);

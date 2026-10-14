@@ -8,8 +8,12 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <time.h>
 
 #include "sysstate.h"
+#include "timeview.h"
+
+struct ui_store_stat_result;
 
 /* Battery: ps_root NULL = /sys/class/power_supply; uevent_fd -1 opens the
  * kernel uevent netlink socket (tests pass a datagram socket instead). */
@@ -21,9 +25,20 @@ bool sys_uevent_is_power_supply(const char *msg, size_t len);
 /* Clock: local hh:mm under a POSIX TZ, updated at each minute and after
  * a clock step (timerfd with TFD_TIMER_CANCEL_ON_SET). */
 int sys_clock_start(const char *tz);
+/* Local fields of an epoch under the current TZ into out->clock; and
+ * setting the TZ without reading the clock (fake runs). */
+void sys_clock_fields(time_t t, struct sys_state *out);
+void sys_clock_use_tz(const char *tz);
+/* "Thursday 8 October 2026" (English names, no locale); tm must be valid */
+void sys_clock_date_text(const struct tm *tm, char *out, size_t size);
 void sys_clock_set_tz(const char *tz);
 void sys_clock_refresh(void);
 void sys_clock_stop(void);
+
+/* Current time source verification, queried only while Time is visible. */
+int sys_timeview_init(void);
+void sys_timeview_want(bool visible);
+void sys_timeview_stop(void);
 
 /* GPS: gps-manager `watch` (never a lease) on sock (NULL = default), and
  * gpsd TPV mode/eph while RUNNING (port 0 = 2947). */
@@ -45,6 +60,19 @@ int sys_bt_set_powered(bool on);
 /* Storage: free bytes of /data when it is ours, read asynchronously on the
  * settings worker (needs ui_store_load() first); call on hub entry. */
 void sys_storage_refresh(void);
+void sys_storage_usage_init(void);
+void sys_storage_usage_want(bool visible);
+
+/* Device facts for About (image-info, serial, addresses, uptime), read on
+ * the settings worker while the page is visible. width/height/lvgl come
+ * from the display and the compile-time LVGL version. */
+void sys_device_info_init(void);
+void sys_device_info_want(bool visible, int width, int height, const char *lvgl);
+#ifdef CHEFUI_TEST
+void sys_storage_test_apply_stat(const struct ui_store_stat_result *stat);
+struct sys_usage_result;
+void sys_storage_test_apply_usage(const struct sys_usage_result *usage);
+#endif
 
 /* Fake state for host runs, tests and reference captures: every field
  * from a small text file (format in fake.c). 0 or -errno/-EINVAL. */

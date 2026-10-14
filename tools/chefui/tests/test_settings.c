@@ -88,6 +88,21 @@ static pthread_mutex_t oplog_mu = PTHREAD_MUTEX_INITIALIZER;
 static char oplog[64][320];
 static int noplog;
 static int fail_parent_fsync;	/* fail the next fsync of a directory named v1 */
+static int fail_rename;		/* fail every rename of a settings temp file while > 0 */
+static int rename_attempts;	/* renames of the settings temp file */
+static char seq_log[64];	/* R: a save attempt (rename), S: a free-space callback */
+
+static void seq_add(char c)
+{
+	size_t n = strlen(seq_log);
+
+	pthread_mutex_lock(&oplog_mu);
+	if (n + 1 < sizeof(seq_log)) {
+		seq_log[n] = c;
+		seq_log[n + 1] = 0;
+	}
+	pthread_mutex_unlock(&oplog_mu);
+}
 
 int __real_mkdir(const char *p, mode_t m);
 int __real_fsync(int fd);
@@ -134,7 +149,17 @@ int __wrap_fsync(int fd)
 
 int __wrap_rename(const char *a, const char *b)
 {
+	size_t n = strlen(a);
+
 	op("rename %s %s", rel(a), rel(b));
+	if (n > 4 && !strcmp(a + n - 4, ".tmp")) {
+		rename_attempts++;
+		seq_add('R');
+		if (fail_rename > 0) {
+			errno = EIO;
+			return -1;
+		}
+	}
 	return __real_rename(a, b);
 }
 
@@ -241,6 +266,65 @@ static long now_ms(void)
 }
 
 static struct ui_settings replaced;
+static struct sys_device_info got_info;
+static int info_calls;
+static struct sys_usage_result got_usage;
+static int usage_calls;
+
+static int stat_calls, boot_calls;
+
+static void on_stat(const struct ui_store_stat_result *st, void *user)
+{
+	(void)st;
+	(void)user;
+	stat_calls++;
+	seq_add('S');
+}
+
+static bool c_stat(void *unused)
+{
+	(void)unused;
+	return stat_calls > 0;
+}
+
+static void on_boot(enum sys_time_source source, void *user)
+{
+	(void)source;
+	(void)user;
+	boot_calls++;
+}
+
+static bool c_boot(void *unused)
+{
+	(void)unused;
+	return boot_calls > 0;
+}
+
+static void on_info(const struct sys_device_info *info, void *user)
+{
+	(void)user;
+	got_info = *info;
+	info_calls++;
+}
+
+static bool c_info(void *unused)
+{
+	(void)unused;
+	return info_calls > 0;
+}
+
+static void on_usage(const struct sys_usage_result *usage, void *user)
+{
+	(void)user;
+	got_usage = *usage;
+	usage_calls++;
+}
+
+static bool c_usage(void *unused)
+{
+	(void)unused;
+	return usage_calls > 0;
+}
 
 static void on_replaced(const struct ui_settings *s, void *user)
 {
@@ -304,13 +388,14 @@ static void test_parse(void)
 	CHECK(ui_settings_valid(&a));
 	CHECK(a.brightness == 40 && a.theme == UI_THEME_DARK && a.sleep_s == 60);
 	CHECK(!strcmp(a.tz, "IST-5:30"));
+	CHECK(a.alert_volume == 60 && a.haptics && a.alert_sounds && !a.quiet_paused && a.clock_24h);
 	a.brightness = 73;
 	a.theme = UI_THEME_LIGHT;
 	a.sleep_s = 300;
 	snprintf(a.tz, sizeof(a.tz), "UTC0");
 	n = ui_settings_format(&a, buf, sizeof(buf));
 	CHECK(n > 0);
-	CHECK(!strncmp(buf, "chef-ui-settings 1\nbrightness 73\ntheme light\nsleep 300\ntz UTC0\nsha256 ", 70));
+	CHECK(strstr(buf, "chef-ui-settings 2\nbrightness 73\ntheme light\nsleep 300\ntz UTC0\nalert_volume 60\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nsha256 ") == buf);
 	CHECK(ui_settings_parse(buf, (size_t)n, &b, &why) == 0);
 	CHECK(ui_settings_equal(&a, &b));
 	a.theme = UI_THEME_AUTO;
@@ -334,7 +419,7 @@ static void test_parse(void)
 
 	/* correctly sealed but wrong content */
 	static const struct { const char *body, *why; } cases[] = {
-		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\n", "not version 1" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\n", "bad version" },
 		{ "chef-ui-settings 1\nbrightness 4\ntheme dark\nsleep 60\ntz UTC0\n", "value out of range" },
 		{ "chef-ui-settings 1\nbrightness 101\ntheme dark\nsleep 60\ntz UTC0\n", "bad brightness line" },
 		{ "chef-ui-settings 1\nbrightness 050\ntheme dark\nsleep 60\ntz UTC0\n", "bad brightness line" },
@@ -346,6 +431,9 @@ static void test_parse(void)
 		{ "chef-ui-settings 1\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nextra 1\n", "extra lines" },
 		{ "chef-ui-settings 1\ntheme dark\nbrightness 50\nsleep 60\ntz UTC0\n", "bad brightness line" },
 		{ "chef-ui-settings 1\nbrightness 50\ntheme dark\nsleep 60\n", "bad tz line" },
+		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 101\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\n", "bad alert_volume line" },
+		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 2\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\n", "bad boolean line" },
+		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\n", "bad boolean line" },
 	};
 	for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
 		n = seal(cases[i].body, bad, sizeof(bad));
@@ -353,6 +441,27 @@ static void test_parse(void)
 		if (!why || strcmp(why, cases[i].why))
 			fprintf(stderr, "case %u: why=%s want %s\n", i, why ? why : "-", cases[i].why);
 		CHECK(why && !strcmp(why, cases[i].why));
+	}
+	/* Genuine sealed v1 retains existing values and adopts v2 defaults. */
+	{
+		const char *v1 = "chef-ui-settings 1\nbrightness 73\ntheme light\nsleep 300\ntz UTC0\n";
+		int vn = seal(v1, bad, sizeof(bad));
+
+		CHECK(ui_settings_parse(bad, (size_t)vn, &b, &why) == 0);
+		CHECK(b.brightness == 73 && b.theme == UI_THEME_LIGHT && b.sleep_s == 300);
+		CHECK(!strcmp(b.tz, "UTC0") && b.alert_volume == 60 && b.haptics && b.alert_sounds &&
+		      !b.quiet_paused && b.clock_24h);
+		n = ui_settings_format(&b, buf, sizeof(buf));
+		CHECK(n > 0 && !strncmp(buf, "chef-ui-settings 2\n", 19));
+	}
+	/* v2 accepts zero volume and all canonical boolean combinations. */
+	{
+		const char *v2 = "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\n"
+			"alert_volume 0\nhaptics 0\nalert_sounds 0\nquiet_paused 1\nclock_24h 0\n";
+		int vn = seal(v2, bad, sizeof(bad));
+
+		CHECK(ui_settings_parse(bad, (size_t)vn, &b, &why) == 0);
+		CHECK(b.alert_volume == 0 && !b.haptics && !b.alert_sounds && b.quiet_paused && !b.clock_24h);
 	}
 	CHECK(ui_tz_valid("IST-5:30") && ui_tz_valid("<+0530>-5:30") && !ui_tz_valid("a b"));
 	CHECK(ui_brightness_level(100) == 255 && ui_brightness_level(5) == 13 &&
@@ -451,6 +560,21 @@ static void test_store(void)
 	ui_store_on_replaced(on_replaced, NULL);
 	fakeloop_log_clear();
 	CHECK(ui_store_load(&s) == 0);
+	{
+		struct sys_device_info_request request = { .width = 1080, .height = 2246 };
+		strcpy(request.lvgl, "test LVGL");
+		ui_store_on_info(on_info, NULL);
+		ui_store_info(&request);
+		CHECK(await(c_info, NULL, false));
+		CHECK(!strcmp(got_info.resolution, "1080 x 2246") && !strcmp(got_info.lvgl, "test LVGL"));
+	}
+	{
+		ui_store_on_usage(on_usage, NULL);
+		ui_store_usage();
+		CHECK(await(c_usage, NULL, false));
+		CHECK(got_usage.known && got_usage.ours && got_usage.complete);
+		CHECK(got_usage.total_bytes > 0 && got_usage.free_bytes <= got_usage.total_bytes);
+	}
 	CHECK(ui_store_on_data());
 	snprintf(path, sizeof(path), "%s/v1/ui/settings", data);
 	snprintf(dir, sizeof(dir), "%s/v1/ui", data);
@@ -501,6 +625,99 @@ static void test_store(void)
 	CHECK(!ui_store_pending());
 	CHECK(strstr(ops(), "mkdir /data/v1/ui;fsync /data/v1;") == ops());
 	CHECK(read_back(path, &t) == 0 && t.brightness == 63);
+
+	/* F1: a failed save blocks nothing. The free-space, usage, device and boot
+	 * reads still run (a full /data is when they matter), the failed revision
+	 * waits for the next change, and a newer edit is saved first. */
+	{
+		struct sys_device_info_request ir = { .width = 10, .height = 10 };
+		unsigned long g;
+
+		fail_rename = 1000;
+		rename_attempts = 0;
+		s.brightness = 64;
+		ui_store_changed(&s);
+		g = ui_store_wanted_gen();
+		CHECK(await_failed(g));
+		CHECK(settle());
+		CHECK(ui_store_pending() && ui_store_failed_gen() >= g);
+		stat_calls = info_calls = usage_calls = boot_calls = 0;
+		ui_store_on_stat(on_stat, NULL);
+		ui_store_on_info(on_info, NULL);
+		ui_store_on_usage(on_usage, NULL);
+		ui_store_on_time_boot(on_boot, NULL);
+		ui_store_stat();
+		CHECK(await(c_stat, NULL, false));
+		ui_store_info(&ir);
+		CHECK(await(c_info, NULL, false));
+		ui_store_usage();
+		CHECK(await(c_usage, NULL, false));
+		ui_store_time_boot(NULL);
+		CHECK(await(c_boot, NULL, false));
+		/* a new edit is saved before a queued optional job */
+		seq_log[0] = 0;
+		stat_calls = 0;
+		s.brightness = 65;
+		ui_store_changed(&s);
+		ui_store_stat();			/* queued behind the pending debounce */
+		CHECK(await(c_stat, NULL, true));
+		CHECK(!strcmp(seq_log, "RSS") || !strcmp(seq_log, "RS"));
+		CHECK(seq_log[0] == 'R');
+		/* the directory writable again: the next edit saves */
+		fail_rename = 0;
+		s.brightness = 66;
+		ui_store_changed(&s);
+		CHECK(await_saved());
+		CHECK(!ui_store_pending() && read_back(path, &t) == 0 && t.brightness == 66);
+		/* an edit made while a failing save is in flight is retried, not starved */
+		CHECK(settle());
+		fail_rename = 1000;
+		rename_attempts = 0;
+		block(true);
+		s.brightness = 67;
+		ui_store_changed(&s);
+		fakeloop_advance(2100);
+		CHECK(ui_store_busy() && stuck());
+		s.brightness = 68;
+		ui_store_changed(&s);
+		g = ui_store_wanted_gen();
+		block(false);
+		CHECK(await_failed(g));
+		CHECK(rename_attempts >= 2);
+		stat_calls = 0;
+		ui_store_stat();
+		CHECK(await(c_stat, NULL, true));	/* optional work runs after it settles */
+		fail_rename = 0;
+		s.brightness = 63;		/* the value the next checks expect saved */
+		ui_store_changed(&s);
+		CHECK(await_saved());
+		CHECK(read_back(path, &t) == 0 && t.brightness == 63);
+
+		/* F11: optional work queued behind a busy worker is dropped when the page is
+		 * left, and the other jobs queued for the worker still run */
+		CHECK(settle());
+		block(true);
+		s.brightness = 58;
+		ui_store_changed(&s);
+		fakeloop_advance(2100);
+		CHECK(ui_store_busy() && stuck());
+		usage_calls = boot_calls = info_calls = stat_calls = 0;
+		ui_store_usage();
+		ui_store_time_boot(NULL);
+		ui_store_info(&ir);
+		ui_store_stat();
+		ui_store_usage_cancel();
+		ui_store_time_boot_cancel();
+		ui_store_info_cancel();
+		block(false);
+		CHECK(await_saved());
+		CHECK(await(c_stat, NULL, false));	/* the cheap read is not cancelled */
+		CHECK(settle());
+		CHECK(usage_calls == 0 && boot_calls == 0 && info_calls == 0 && stat_calls == 1);
+		s.brightness = 63;
+		ui_store_changed(&s);
+		CHECK(await_saved());
+	}
 
 	/* a change back to the saved value cancels the pending save */
 	s.brightness = 61;
@@ -696,6 +913,20 @@ static bool storage_known(void *arg)
 	return sys_state.storage.known;
 }
 
+static bool storage_usage_known(void *arg)
+{
+	(void)arg;
+	return sys_state.storage.usage_known;
+}
+
+static int64_t usage_before_refresh;
+static bool storage_usage_refreshed(void *arg)
+{
+	(void)arg;
+	return sys_state.storage.usage_known &&
+		sys_state.storage.usage_updated_mono_ms != usage_before_refresh;
+}
+
 static int64_t pf_now(void)
 {
 	return now_ms();
@@ -781,6 +1012,31 @@ static void test_queue(void)
 	sys_on_change(NULL, NULL);
 }
 
+/* Usage requests coalesce behind a blocked worker, never hold the UI loop,
+ * and a due settings save runs before optional usage work. */
+static void test_usage_schedule(void)
+{
+	struct ui_settings s, saved;
+	CHECK(settle());
+	CHECK(ui_store_load(&s) == 0);
+	ui_store_on_usage(on_usage, NULL);
+	usage_calls = 0;
+	block(true);
+	ui_store_usage();
+	CHECK(ui_store_busy() && stuck());
+	for (int i = 0; i < 8; i++) ui_store_usage();
+	s.brightness = s.brightness == 73 ? 74 : 73;
+	ui_store_changed(&s);
+	fakeloop_advance(2000);
+	CHECK(ui_store_busy() && ui_store_pending());
+	block(false);
+	CHECK(await_saved());
+	CHECK(read_back(ui_store_path(), &saved) == 0 && saved.brightness == s.brightness);
+	CHECK(await(c_usage, NULL, true));
+	CHECK(usage_calls <= 2); /* active scan plus one coalesced request */
+	CHECK(settle());
+}
+
 /* Hub storage: read on the worker, never on the UI thread. */
 static void test_storage(void)
 {
@@ -790,11 +1046,26 @@ static void test_storage(void)
 	long t0;
 
 	CHECK(settle());
+	sys_storage_usage_init();
 	set_mounted(1);
 	memset(&sys_state.storage, 0, sizeof(sys_state.storage));
 	sys_storage_refresh();
 	CHECK(fakeloop_run_until(storage_known, NULL, 2000));
 	CHECK(sys_state.storage.ours && sys_state.storage.free_bytes > 0);
+	sys_storage_usage_want(true);
+	CHECK(fakeloop_run_until(storage_usage_known, NULL, 2000));
+	CHECK(sys_state.storage.usage_complete && !sys_state.storage.usage_maps &&
+	      !sys_state.storage.usage_rides && !sys_state.storage.usage_routes);
+	int64_t usage_sample = sys_state.storage.usage_updated_mono_ms;
+	sys_storage_usage_want(true);
+	CHECK(settle());
+	CHECK(sys_state.storage.usage_updated_mono_ms == usage_sample); /* cached under 30 s */
+	usage_before_refresh = usage_sample;
+	sys_state.storage.usage_updated_mono_ms -= 30000;
+	sys_storage_refresh();
+	CHECK(fakeloop_run_until(storage_usage_refreshed, NULL, 2000));
+	CHECK(sys_state.storage.usage_updated_mono_ms != usage_sample);
+	sys_storage_usage_want(false);
 	set_mounted(0);
 	sys_storage_refresh();
 	CHECK(settle());
@@ -837,6 +1108,7 @@ int main(void)
 	test_store();
 	test_storage();
 	test_queue();
+	test_usage_schedule();
 	snprintf(cmd, sizeof(cmd), "chmod -R u+w '%s'; rm -rf '%s'", tmp, tmp);
 	if (system(cmd))
 		fprintf(stderr, "cleanup of %s failed\n", tmp);

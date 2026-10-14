@@ -58,14 +58,15 @@ HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
 FONT_SRCS := $(sort $(wildcard kit/fonts/chefkit_*.c))
 KIT_SRCS := kit/theme.c kit/widgets.c kit/blocks.c kit/keyboard.c $(FONT_SRCS)
 SYS_SRCS := sys/sysstate.c sys/settings.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c \
-	sys/storage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c
+	 sys/storage.c sys/storage_usage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c sys/timeview.c sys/deviceinfo.c sys/feedback.c
 # the system bus clients (sd-bus): basu on the phone, libsystemd on a PC
 NETBUS_SRCS := sys/netbus.c sys/wifi.c
 APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_wifi.c \
-	apps/settings/page_gps.c apps/settings/page_bt.c \
+	apps/settings/page_gps.c apps/settings/page_bt.c apps/settings/page_sound.c apps/settings/page_time.c \
+	apps/settings/page_storage.c apps/settings/page_about.c \
 	apps/settings/policy.c apps/settings/text.c
 KIT_HDRS := kit/theme.h kit/widgets.h kit/fonts.h kit/icons.h sys/sysstate.h sys/sys.h \
-	sys/settings.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/blesens.h apps/settings/app.h \
+	sys/settings.h sys/storage_usage.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/blesens.h sys/timeview.h sys/deviceinfo.h sys/feedback.h apps/settings/app.h \
 	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h
 HDRS += $(KIT_HDRS)
 ifneq ($(SDBUS_LIBS),)
@@ -163,7 +164,7 @@ host: check-lvgl
 # ---------------------------------------------------------------- test
 
 T := $(B)/test
-TEST_CFLAGS := $(CHEF_WARN) -g -O1 $(SAN) $(INC)
+TEST_CFLAGS := $(CHEF_WARN) -g -O1 $(SAN) -DCHEFUI_TEST=1 $(INC)
 
 $(T)/test-copy: tests/test_copy.c copy.c copy.h tests/check.h
 	@mkdir -p $(T)
@@ -208,6 +209,10 @@ $(T)/test-sys: tests/test_sys.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/libl
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_sys.c tests/fakeloop.c tests/wifi_stub.c \
 		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
 
+$(T)/test-timeview: tests/test_timeview.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
+	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_timeview.c tests/fakeloop.c tests/wifi_stub.c \
+		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
+
 $(T)/test-app: tests/test_app.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_app.c tests/fakeloop.c tests/wifi_stub.c \
 		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
@@ -228,7 +233,7 @@ $(T)/test-wifi: tests/test_wifi.c $(FAKELOOP) $(SYSUI_OBJS) $(NETBUS_OBJS) $(T)/
 		-Wl,--wrap=getrandom
 
 TESTS := $(T)/test-copy $(T)/test-plan $(T)/test-touch $(T)/test-buttons $(T)/test-fbscreen $(T)/test-chefui \
-	$(T)/test-settings $(T)/test-sys $(T)/test-app
+	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app
 ifneq ($(SDBUS_LIBS),)
 TESTS += $(T)/test-netbus $(T)/test-wifi
 endif
@@ -242,6 +247,7 @@ test: check-lvgl $(TESTS)
 	$(T)/test-chefui
 	$(T)/test-settings
 	$(T)/test-sys
+	$(T)/test-timeview
 	$(T)/test-app
 	@if [ -x $(T)/test-netbus ] && command -v dbus-daemon >/dev/null; then $(T)/test-netbus; \
 	else echo "test-netbus: skipped (needs libsystemd and dbus-daemon)"; fi
@@ -299,5 +305,25 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 			--page bt && \
 		cap bt-sensor --fake-state apps/settings/bt.state --page bt-sensor || exit; \
 	done
-	@echo "chef-settings: 30 captures in $(B)/host/captures"
+	@# the device pages P03 to P06 and their states (12-hour, unverified time,
+	@# partial/RAM/calculating storage, unknown firmware metadata)
+	@for t in dark light; do \
+		cap() { n=$$1; shift; SDL_VIDEODRIVER=offscreen $(B)/host/chef-settings \
+			--fake-state apps/settings/design.state --theme $$t --brightness 70 \
+			--snapshot $(B)/host/captures/$$n-$$t.ppm --data $(B)/host/captures/nodata \
+			--run $(B)/host/captures/run "$$@" 2>/dev/null || \
+			{ echo "chef-settings capture $$n $$t failed" >&2; return 1; }; }; \
+		cap sound --page sound && \
+		cap time --fake-state apps/settings/time.state --page time && \
+		cap time-12h --fake-state apps/settings/time.state --clock 12 --page time && \
+		cap time-unverified --fake-state apps/settings/time-unverified.state --page time && \
+		cap storage --fake-state apps/settings/storage.state --page storage && \
+		cap storage-estimate --fake-state apps/settings/storage-estimate.state --page storage && \
+		cap storage-ram --fake-state apps/settings/storage-ram.state --page storage && \
+		cap storage-calc --fake-state apps/settings/storage-calc.state --page storage && \
+		cap about --fake-state apps/settings/about.state --page about && \
+		cap about-unknown --page about && \
+		cap hub-12h --fake-state apps/settings/time.state --clock 12 --page hub || exit; \
+	done
+	@echo "chef-settings: 52 captures in $(B)/host/captures"
 	@tests/test_settings_proc.sh $(B)/host/chef-settings apps/settings/design.state

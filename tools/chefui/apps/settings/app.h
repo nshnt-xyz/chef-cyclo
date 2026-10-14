@@ -16,6 +16,8 @@
 #include "settings.h"
 #include "widgets.h"
 
+struct chefui_contact;
+
 #define APP_MAX_DEPTH 4
 
 enum app_page {
@@ -29,6 +31,10 @@ enum app_page {
 	APP_PAGE_GPS_SATS,		/* P14 */
 	APP_PAGE_BT,			/* P07 off, P08 sensors, P09 pairing (modal) */
 	APP_PAGE_BT_SENSOR,		/* P10: arg a struct page_bt_sensor_arg */
+	APP_PAGE_SOUND,
+	APP_PAGE_TIME,
+	APP_PAGE_STORAGE,
+	APP_PAGE_ABOUT,
 	APP_PAGE_PLACEHOLDER,
 };
 
@@ -72,6 +78,7 @@ void app_init(const struct app_platform *pf, const struct ui_settings *set, lv_o
 /* Platform events. */
 bool app_on_button(const char *gesture);	/* true: handled */
 void app_on_touch(void);			/* any touch frame: activity */
+void app_on_touch_frame(const struct chefui_contact *contacts, int n);
 void app_on_screen(bool on);
 void app_on_state(unsigned what);		/* sysstate.h SYS_* bits */
 
@@ -95,6 +102,11 @@ bool page_wifi_type(const char *text);
 void app_set_brightness(int percent);
 void app_set_theme(enum ui_theme_mode mode);
 void app_set_sleep(int sleep_s);
+void app_set_alert_volume(int volume);
+void app_set_haptics(bool enabled);
+void app_set_alert_sounds(bool enabled);
+void app_set_quiet_paused(bool enabled);
+void app_set_clock_24h(bool enabled);
 /* Settings replaced from storage (late /data): applied live. */
 void app_apply_settings(const struct ui_settings *set);
 

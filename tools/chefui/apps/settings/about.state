@@ -1,0 +1,14 @@
+# P06 values (layer after design.state): fake firmware, never hardware
+# facts. The design's firmware 0.9.3 is allowed only in this fixture.
+about name chef-cyclo
+about version 0.9.3
+about commit 71163bd000000000000000000000000000000000
+about builddate 8 Oct 2026
+about dirty 0
+about lvgl 9.6.0
+about kernel Linux 4.4
+about resolution 1080 x 2246
+about serial CC-0193-4417
+about bluetooth A4:C1:38:0F:22:91
+about wifi A4:C1:38:0F:22:92
+about uptime 11520

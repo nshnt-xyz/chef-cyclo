@@ -13,6 +13,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "timeview.h"
+#include "deviceinfo.h"
+#include "storage_usage.h"
+
 enum {
 	SYS_BATT = 1 << 0,
 	SYS_CLOCK = 1 << 1,
@@ -23,6 +27,8 @@ enum {
 	SYS_WIFI_VIEW = 1 << 6,		/* wifi_view (wifi.h): the Wi-Fi pages */
 	SYS_GPS_VIEW = 1 << 7,		/* gps_view (gpsview.h): the GPS pages */
 	SYS_BLE = 1 << 8,		/* ble_view (blesens.h): BLE sensors */
+	SYS_TIME_VIEW = 1 << 9,
+	SYS_DEVICE_INFO = 1 << 10,
 };
 
 /* gps-manager states (docs/features/gps.md) plus "no manager". */
@@ -44,6 +50,10 @@ struct sys_state {
 	struct {
 		char hhmm[8];		/* local "14:16" */
 		char zone[16];		/* "IST" */
+		int hour, minute;
+		bool valid;
+		char date[64];		/* "Thursday 8 October 2026" */
+		int utc_offset_min;	/* minutes east of UTC */
 	} clock;
 	struct {
 		enum sys_gps state;
@@ -67,8 +77,23 @@ struct sys_state {
 	struct {
 		bool known;
 		bool ours;		/* /data is the chef layout */
+		uint64_t total_bytes;
 		uint64_t free_bytes;
+		uint64_t root_dev, root_ino;
+		bool usage_known, usage_complete;
+		uint64_t usage_maps, usage_rides, usage_routes, usage_other;
+		uint64_t usage_total_bytes, usage_free_bytes, usage_root_dev, usage_root_ino;
+		uint64_t usage_mount_id;
+		enum sys_usage_cat usage_cat[3];	/* maps, rides, routes */
+		int64_t usage_updated_mono_ms;
 	} storage;
+	struct {
+		enum sys_time_source source;
+		enum sys_time_source boot_source;
+		bool verified;
+		double reference_epoch;
+	} timeview;
+	struct sys_device_info device;
 };
 
 extern struct sys_state sys_state;

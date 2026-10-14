@@ -208,6 +208,11 @@ static const struct cu_backend *pick_backend(enum chefui_backend want)
 	return NULL;
 }
 
+bool chefui_backend_is_fbdev(void)
+{
+	return G.be && G.be->kind == CHEFUI_BACKEND_FBDEV;
+}
+
 lv_display_t *chefui_init(const struct chefui_config *cfg)
 {
 	struct sigaction sa;

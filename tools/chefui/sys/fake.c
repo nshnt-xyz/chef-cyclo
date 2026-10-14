@@ -10,7 +10,18 @@
  *                           [mode [eph m]]
  *   wifi connected HomeNet  unknown|off|on|connecting|connected SSID
  *   bt connected 2          unknown|none|off|on|connected N
- *   storage 18200000000     free bytes on an owned /data; or "storage ram"
+ *   storage 18200000000 [32000000000]
+ *                           free (and total) bytes on an owned /data; or "storage ram"
+ *   storageusage MAPS RIDES ROUTES [estimate]
+ *                           category bytes; Other is total - free - the three
+ *   clockepoch 1791449160   the clock from this epoch under the current TZ
+ *                           (date, 12-hour fields, offset); "time" alone sets
+ *                           only HH:MM
+ *   timesync gps|network|restored|floor|none|unknown REF_EPOCH_OR_0
+ *                           the Time page's source (a model, no subprocess)
+ *   about KEY VALUE         the About page: name version commit builddate
+ *                           dirty lvgl kernel resolution serial bluetooth wifi
+ *                           uptime (seconds); VALUE is the rest of the line
  *
  * The Wi-Fi pages' view (wifi.h); the SSID is the rest of the line:
  *
@@ -127,10 +138,69 @@ static int wifi_field(struct wifi_view *v, const char *key, char *rest)
 	return 0;
 }
 
-static int field(struct sys_state *s, char *key, char *a, char *b, char *c)
+static int64_t fake_mono_ms(void);
+
+static int field(struct sys_state *s, char *key, char *a, char *b, char *c, char *d)
 {
 	if (!strcmp(key, "time") && a && strlen(a) < sizeof(s->clock.hhmm)) {
+		int h, m;
+
 		strcpy(s->clock.hhmm, a);
+		s->clock.valid = strlen(a) == 5 && sscanf(a, "%2d:%2d", &h, &m) == 2 && h >= 0 &&
+			h < 24 && m >= 0 && m < 60;
+		s->clock.hour = s->clock.valid ? h : -1;
+		s->clock.minute = s->clock.valid ? m : -1;
+	} else if (!strcmp(key, "clockepoch") && a) {
+		char *end;
+		long long e = strtoll(a, &end, 10);
+
+		if (*end || e < 1767225600LL || e >= 4102444800LL)
+			return -1;
+		sys_clock_fields((time_t)e, s);
+		if (!s->clock.valid)
+			return -1;
+	} else if (!strcmp(key, "timesync") && a && b) {
+		static const char *const names[] = { "unknown", "gps", "network", "restored", "floor",
+			"none" };
+		static const enum sys_time_source src[] = { SYS_TIME_UNKNOWN, SYS_TIME_GPS,
+			SYS_TIME_NETWORK, SYS_TIME_RESTORED, SYS_TIME_FLOOR, SYS_TIME_NONE };
+		char *end;
+		double ref = strtod(b, &end);
+		unsigned i;
+
+		for (i = 0; i < 6 && strcmp(a, names[i]); i++)
+			;
+		if (i == 6 || *end || ref < 0)
+			return -1;
+		memset(&s->timeview, 0, sizeof(s->timeview));
+		if (i == 1 || i == 2) {
+			s->timeview.verified = true;
+			s->timeview.source = src[i];
+			s->timeview.reference_epoch = ref;
+		} else {
+			s->timeview.boot_source = src[i];
+		}
+	} else if (!strcmp(key, "storageusage") && a && b && c) {
+		uint64_t maps = strtoull(a, NULL, 10), rides = strtoull(b, NULL, 10),
+			routes = strtoull(c, NULL, 10), used;
+
+		if (!s->storage.known || !s->storage.ours || !s->storage.total_bytes ||
+		    s->storage.free_bytes > s->storage.total_bytes)
+			return -1;
+		used = s->storage.total_bytes - s->storage.free_bytes;
+		s->storage.usage_known = true;
+		for (int i = 0; i < 3; i++)
+			s->storage.usage_cat[i] = USAGE_CAT_EXACT;
+		s->storage.usage_maps = maps;
+		s->storage.usage_rides = rides;
+		s->storage.usage_routes = routes;
+		s->storage.usage_other = maps + rides + routes < used ? used - maps - rides - routes : 0;
+		s->storage.usage_total_bytes = s->storage.total_bytes;
+		s->storage.usage_free_bytes = s->storage.free_bytes;
+		if (d && strcmp(d, "estimate"))
+			return -1;
+		s->storage.usage_complete = !d;
+		s->storage.usage_updated_mono_ms = fake_mono_ms();
 	} else if (!strcmp(key, "zone") && a && strlen(a) < sizeof(s->clock.zone)) {
 		strcpy(s->clock.zone, a);
 	} else if (!strcmp(key, "batt") && a) {
@@ -182,6 +252,9 @@ static int field(struct sys_state *s, char *key, char *a, char *b, char *c)
 		s->storage.known = true;
 		s->storage.ours = strcmp(a, "ram") != 0;
 		s->storage.free_bytes = s->storage.ours ? strtoull(a, NULL, 10) : 0;
+		s->storage.total_bytes = s->storage.ours && b ? strtoull(b, NULL, 10) : 0;
+		s->storage.usage_known = false;
+		s->storage.usage_complete = false;
 	} else {
 		return -1;
 	}
@@ -268,6 +341,58 @@ static int ble_field(struct ble_view *v, const char *key, char *rest)
 	return 0;
 }
 
+/* About lines: KEY then the rest of the line as the value. */
+static int about_field(struct sys_state *s, char *rest, bool *meta)
+{
+	struct sys_device_info *d = &s->device;
+	char *key, *val;
+	char *save = NULL;
+
+	key = strtok_r(rest, " \t", &save);
+	val = save ? save + strspn(save, " \t") : NULL;
+	if (!key || !val || !*val)
+		return -1;
+	if (!strcmp(key, "name") || !strcmp(key, "version") || !strcmp(key, "commit") ||
+	    !strcmp(key, "builddate") || !strcmp(key, "dirty"))
+		*meta = true;
+	if (!strcmp(key, "name") && strlen(val) < sizeof(d->image_name))
+		strcpy(d->image_name, val);
+	else if (!strcmp(key, "version") && strlen(val) < sizeof(d->version))
+		strcpy(d->version, val);
+	else if (!strcmp(key, "commit") && strlen(val) < sizeof(d->commit))
+		strcpy(d->commit, val);
+	else if (!strcmp(key, "builddate") && strlen(val) < sizeof(d->build_date))
+		strcpy(d->build_date, val);
+	else if (!strcmp(key, "dirty") && (!strcmp(val, "0") || !strcmp(val, "1")))
+		d->dirty = val[0] == '1';
+	else if (!strcmp(key, "lvgl") && strlen(val) < sizeof(d->lvgl))
+		strcpy(d->lvgl, val);
+	else if (!strcmp(key, "kernel") && strlen(val) < sizeof(d->kernel))
+		strcpy(d->kernel, val);
+	else if (!strcmp(key, "resolution") && strlen(val) < sizeof(d->resolution))
+		strcpy(d->resolution, val);
+	else if (!strcmp(key, "serial") && strlen(val) < sizeof(d->serial)) {
+		strcpy(d->serial, val);
+		d->serial_known = true;
+	} else if (!strcmp(key, "bluetooth") && strlen(val) == 17) {
+		strcpy(d->bluetooth, val);
+		d->bluetooth_known = true;
+	} else if (!strcmp(key, "wifi") && strlen(val) == 17) {
+		strcpy(d->wifi, val);
+		d->wifi_known = true;
+	} else if (!strcmp(key, "uptime")) {
+		char *end;
+		unsigned long long u = strtoull(val, &end, 10);
+
+		if (*end || u > 100ULL * 365 * 86400)
+			return -1;
+		d->uptime_s = u;
+		d->sampled_mono_ms = fake_mono_ms();
+	} else
+		return -1;
+	return 0;
+}
+
 int sys_fake_load(const char *path)
 {
 	struct sys_state s = sys_state;
@@ -276,12 +401,13 @@ int sys_fake_load(const char *path)
 	struct ble_view bv = ble_view;
 	char line[512];
 	int n = 0;
+	bool saw_meta = false;
 	FILE *f = fopen(path, "re");
 
 	if (!f)
 		return -errno;
 	while (fgets(line, sizeof(line), f)) {
-		char *save = NULL, *key, *a, *b, *c;
+		char *save = NULL, *key, *a, *b, *c, *d;
 
 		n++;
 		line[strcspn(line, "#\r\n")] = 0;
@@ -317,6 +443,14 @@ int sys_fake_load(const char *path)
 			}
 			continue;
 		}
+		if (!strcmp(key, "about")) {
+			if (about_field(&s, save, &saw_meta)) {
+				chefui_log("fake state %s:%d: bad line", path, n);
+				fclose(f);
+				return -EINVAL;
+			}
+			continue;
+		}
 		if (!strcmp(key, "wifiscan")) {
 			a = strtok_r(NULL, " \t", &save);
 			v.scanning = a && atoi(a);
@@ -325,18 +459,28 @@ int sys_fake_load(const char *path)
 		a = strtok_r(NULL, " \t", &save);
 		b = strtok_r(NULL, " \t", &save);
 		c = strtok_r(NULL, " \t", &save);
-		if (field(&s, key, a, b, c)) {
+		d = strtok_r(NULL, " \t", &save);
+		if (field(&s, key, a, b, c, d)) {
 			chefui_log("fake state %s:%d: bad line", path, n);
 			fclose(f);
 			return -EINVAL;
 		}
 	}
 	fclose(f);
+	/* image facts come whole or not at all: a title without a build is rejected */
+	if (saw_meta) {
+		if (!s.device.image_name[0] || !s.device.version[0] || !s.device.commit[0] ||
+		    !s.device.build_date[0]) {
+			chefui_log("fake state %s: about needs name, version, commit and builddate", path);
+			return -EINVAL;
+		}
+		s.device.metadata_known = true;
+	}
 	sys_state = s;
 	wifi_view = v;
 	gps_view = g;
 	ble_view = bv;
 	sys_changed(SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE | SYS_WIFI_VIEW |
-		    SYS_GPS_VIEW | SYS_BLE);
+		    SYS_GPS_VIEW | SYS_BLE | SYS_TIME_VIEW | SYS_DEVICE_INFO);
 	return 0;
 }

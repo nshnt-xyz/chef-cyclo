@@ -33,6 +33,7 @@ struct page {
 extern const struct page_ops page_display_ops, page_wifi_ops, page_wifi_password_ops,
 	page_wifi_hidden_ops, page_wifi_details_ops, page_gps_ops, page_gps_sats_ops, page_bt_ops,
 	page_bt_sensor_ops;
+extern const struct page_ops page_sound_ops, page_time_ops, page_storage_ops, page_about_ops;
 
 /* P10's argument: the sensor (address) and which of its kinds. */
 struct page_bt_sensor_arg {
@@ -41,7 +42,13 @@ struct page_bt_sensor_arg {
 };
 
 /* Shared helpers (app.c). */
-void page_help_text(lv_obj_t *parent, const char *s);
+lv_obj_t *page_help_text(lv_obj_t *parent, const char *s);	/* the label */
+/* A 216 px row (title, muted subtitle) between 3 px rules, with a switch at
+ * the right (sw_out non-NULL) or nothing. Returns the subtitle label. */
+lv_obj_t *page_info_row(lv_obj_t *parent, const char *title, const char *subtitle,
+			lv_obj_t **sw_out);
+/* Display size and LVGL version for the About page. */
+void page_screen_size(int *w, int *h);
 bool app_page_visible(const struct page *p);
 
 #endif /* CHEF_SETTINGS_PAGES_H */

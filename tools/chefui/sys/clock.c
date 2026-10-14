@@ -32,23 +32,56 @@ static void arm(void)
 		chefui_log("clock: timerfd_settime: %s", strerror(errno));
 }
 
-void sys_clock_refresh(void)
+/* English names: the date must not depend on a C library locale. */
+static const char *const weekdays[] = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
+	"Friday", "Saturday" };
+static const char *const months[] = { "January", "February", "March", "April", "May", "June",
+	"July", "August", "September", "October", "November", "December" };
+
+void sys_clock_date_text(const struct tm *tm, char *out, size_t size)
 {
-	char hhmm[sizeof(sys_state.clock.hhmm)], zone[sizeof(sys_state.clock.zone)];
-	time_t t = time(NULL);
+	snprintf(out, size, "%s %d %s %d", weekdays[tm->tm_wday], tm->tm_mday, months[tm->tm_mon],
+		 tm->tm_year + 1900);
+}
+
+/* Local fields of an epoch under the current TZ (UI thread only). */
+void sys_clock_fields(time_t t, struct sys_state *out)
+{
 	struct tm tm;
 
-	if (!localtime_r(&t, &tm)) {
-		snprintf(hhmm, sizeof(hhmm), "--:--");
-		zone[0] = 0;
-	} else {
-		strftime(hhmm, sizeof(hhmm), "%H:%M", &tm);
-		if (!strftime(zone, sizeof(zone), "%Z", &tm))
-			zone[0] = 0;
+	if (!localtime_r(&t, &tm) || tm.tm_wday < 0 || tm.tm_wday > 6 || tm.tm_mon < 0 ||
+	    tm.tm_mon > 11) {
+		snprintf(out->clock.hhmm, sizeof(out->clock.hhmm), "--:--");
+		out->clock.zone[0] = 0;
+		out->clock.date[0] = 0;
+		out->clock.hour = out->clock.minute = -1;
+		out->clock.valid = false;
+		return;
 	}
-	if (strcmp(hhmm, sys_state.clock.hhmm) || strcmp(zone, sys_state.clock.zone)) {
-		memcpy(sys_state.clock.hhmm, hhmm, sizeof(hhmm));
-		memcpy(sys_state.clock.zone, zone, sizeof(zone));
+	strftime(out->clock.hhmm, sizeof(out->clock.hhmm), "%H:%M", &tm);
+	if (!strftime(out->clock.zone, sizeof(out->clock.zone), "%Z", &tm))
+		out->clock.zone[0] = 0;
+	sys_clock_date_text(&tm, out->clock.date, sizeof(out->clock.date));
+	out->clock.hour = tm.tm_hour;
+	out->clock.minute = tm.tm_min;
+	out->clock.valid = true;
+	/* the offset in minutes east of UTC, for the Time page */
+	out->clock.utc_offset_min = (int)(tm.tm_gmtoff / 60);
+}
+
+void sys_clock_refresh(void)
+{
+	struct sys_state now;
+
+	memset(&now, 0, sizeof(now));
+	sys_clock_fields(time(NULL), &now);
+	if (strcmp(now.clock.hhmm, sys_state.clock.hhmm) ||
+	    strcmp(now.clock.zone, sys_state.clock.zone) ||
+	    strcmp(now.clock.date, sys_state.clock.date) ||
+	    now.clock.hour != sys_state.clock.hour || now.clock.minute != sys_state.clock.minute ||
+	    now.clock.valid != sys_state.clock.valid ||
+	    now.clock.utc_offset_min != sys_state.clock.utc_offset_min) {
+		sys_state.clock = now.clock;
 		sys_changed(SYS_CLOCK);
 	}
 }
@@ -66,10 +99,15 @@ static void readable(int fd, short revents, void *user)
 	arm();
 }
 
-void sys_clock_set_tz(const char *tz)
+void sys_clock_use_tz(const char *tz)
 {
 	setenv("TZ", tz && *tz ? tz : "UTC0", 1);
 	tzset();
+}
+
+void sys_clock_set_tz(const char *tz)
+{
+	sys_clock_use_tz(tz);
 	sys_clock_refresh();
 }
 

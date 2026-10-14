@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <pthread.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,10 @@
 #include "sysstate.h"
 #include "wifi.h"
 #include "blesens.h"
+#include "timeview.h"
+#include "deviceinfo.h"
+#include "storage_usage.h"
+#include "feedback.h"
 
 static char tmp[256];
 static unsigned changes;
@@ -599,6 +604,573 @@ static void test_clock(void)
 	sys_clock_stop();
 }
 
+static void test_timeview_parsers(void)
+{
+	char digits[8], full[24], meridiem[3];
+	struct sys_time_report r;
+	const char *gps = "47505300,GPS,1,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n";
+	const char *net = "A1B2C3D4,192.0.2.1,2,1791448320.5,0,0,0,0,0,0,0,0,64,Normal\n";
+
+	CHECK(sys_time_format(0, 0, false, digits, sizeof(digits), meridiem));
+	CHECK(!strcmp(digits, "12:00") && !strcmp(meridiem, "am"));
+	sys_time_full(12, 0, false, full, sizeof(full));
+	CHECK(!strcmp(full, "12:00 pm"));
+	CHECK(sys_time_format(23, 59, false, digits, sizeof(digits), meridiem));
+	CHECK(!strcmp(digits, "11:59") && !strcmp(meridiem, "pm"));
+	CHECK(sys_time_format(0, 0, true, digits, sizeof(digits), meridiem));
+	CHECK(!strcmp(digits, "00:00") && !meridiem[0]);
+	CHECK(!sys_time_format(24, 0, false, digits, sizeof(digits), meridiem));
+	CHECK(!strcmp(digits, "--:--") && !meridiem[0]);
+	CHECK(sys_time_parse_tracking(gps, strlen(gps), 1791448400, &r));
+	CHECK(r.source == SYS_TIME_GPS && r.reference_epoch == 1791448320.0);
+	CHECK(sys_time_parse_tracking(net, strlen(net), 1791448400, &r));
+	CHECK(r.source == SYS_TIME_NETWORK);
+	{
+		const char *boot = "source=rtc-offset\nreason=restored\nsaved_age_s=42\n";
+		const char *floor = "source=floor\nreason=first_boot\nsaved_age_s=na\n";
+		const char *bad = "source=rtc-offset\nsource=floor\nreason=x\nsaved_age_s=1\n";
+		CHECK(sys_time_parse_boot(boot, strlen(boot)) == SYS_TIME_RESTORED);
+		CHECK(sys_time_parse_boot(floor, strlen(floor)) == SYS_TIME_FLOOR);
+		CHECK(sys_time_parse_boot(bad, strlen(bad)) == SYS_TIME_UNKNOWN);
+		CHECK(sys_time_parse_boot(boot, strlen(boot) - 1) == SYS_TIME_UNKNOWN);
+	}
+	{
+		char bad[160];
+		snprintf(bad, sizeof(bad), "%s", gps);
+		bad[strlen(bad) - 1] = 0;
+		CHECK(!sys_time_parse_tracking(bad, strlen(bad), 1791448400, &r));
+		CHECK(!sys_time_parse_tracking(gps, strlen(gps) - 1, 1791448400, &r));
+		snprintf(bad, sizeof(bad), "00000000,GPS,1,1791448320,0,0,0,0,0,0,0,0,64,Normal\n");
+		CHECK(!sys_time_parse_tracking(bad, strlen(bad), 1791448400, &r));
+		snprintf(bad, sizeof(bad), "47505300,GPS,1,nan,0,0,0,0,0,0,0,0,64,Normal\n");
+		CHECK(!sys_time_parse_tracking(bad, strlen(bad), 1791448400, &r));
+		snprintf(bad, sizeof(bad), "47505300,GPS,1,1791448320,0,0,0,0,0,0,0,0,64,Normal,extra\n");
+		CHECK(!sys_time_parse_tracking(bad, strlen(bad), 1791448400, &r));
+	}
+	{
+		/* the matrix of records that must not verify (each from a valid base) */
+		static const char *const cases[] = {
+			"47505300,NTP,1,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",	/* GPS refid, other name */
+			"7F7F0101,LOCL,1,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",
+			"7F7F0101,,1,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",
+			"7f7f0101,LOCL,1,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",
+			"7f7f0101,192.0.2.1,1,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",
+			"00000000,192.0.2.1,1,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",
+			"A1B2C3D4,192.0.2.1,1,1791448320.000,0,0,0,0,0,0,0,0,64,Not synchronised\n",
+			"A1B2C3D4,192.0.2.1,0,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",
+			"A1B2C3D4,192.0.2.1,16,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",
+			"A1B2C3D4,192.0.2.1,2,1791448406.000,0,0,0,0,0,0,0,0,64,Normal\n",	/* after now + 5 */
+			"A1B2C3D4,192.0.2.1,2,1767225599.000,0,0,0,0,0,0,0,0,64,Normal\n",	/* before 2026 */
+			"A1B2C3D4,192.0.2.1,2,1791448320.000,nan,0,0,0,0,0,0,0,64,Normal\n",
+			"A1B2C3D4,192.0.2.1,2,1791448320.000,0,inf,0,0,0,0,0,0,64,Normal\n",
+			"A1B2C3D4,192.0.2.1,2,1791448320.000,0,0,0,0,0,0,0,Normal\n",		/* 13 columns */
+			"A1B2C3D4,192.0.2.1,2,1791448320.000,0,0,0,0,0,0,0,0,0,64,Normal\n",	/* 15 columns */
+			"A1B2C3D4,192.0.2.1,2,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n"
+			"A1B2C3D4,192.0.2.1,2,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",	/* two records */
+		};
+		char big[5000];
+
+		for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+			CHECK(!sys_time_parse_tracking(cases[i], strlen(cases[i]), 1791448400, &r));
+		/* a record longer than the 4096-byte cap */
+		memset(big, 'a', sizeof(big));
+		big[sizeof(big) - 1] = 0;
+		memcpy(big, "A1B2C3D4,192.0.2.1,2,1791448320.000,0,0,0,0,0,0,0,0,64,Normal,", 63);
+		big[sizeof(big) - 2] = '\n';
+		CHECK(!sys_time_parse_tracking(big, strlen(big), 1791448400, &r));
+		/* the valid network record next to them still passes (uppercase refid) */
+		CHECK(sys_time_parse_tracking("A1B2C3D4,192.0.2.1,2,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n",
+					      strlen("A1B2C3D4,192.0.2.1,2,1791448320.000,0,0,0,0,0,0,0,0,64,Normal\n"),
+					      1791448400, &r) && r.source == SYS_TIME_NETWORK);
+	}
+}
+
+static void test_deviceinfo_parsers(void)
+{
+	struct sys_image_info image;
+	char serial[64], mac[18];
+	char stamp[200];
+	const char *cmd = "console=tty androidboot.serialno=ABC-123 root=/dev/mmcblk0";
+	const char *address = "aa:bb:cc:00:12:fe\n";
+	int n = snprintf(stamp, sizeof(stamp), "chef-image-info 1\nname chef-cyclo\nversion dev\n"
+			 "commit 0123456789abcdef0123456789abcdef01234567\ndirty 1\nepoch 1790812800\n");
+
+	CHECK(sys_image_info_parse(stamp, (size_t)n, &image));
+	CHECK(!strcmp(image.name, "chef-cyclo") && !strcmp(image.version, "dev") && image.dirty);
+	CHECK(image.epoch == 1790812800);
+	CHECK(!sys_image_info_parse(stamp, (size_t)n - 1, &image));
+	CHECK(!sys_image_info_parse("chef-image-info 1\nname chef-cyclo\nversion dev\ncommit bad\n"
+				    "dirty 0\nepoch 1790812800\n", 83, &image));
+	CHECK(sys_device_serial_parse(cmd, strlen(cmd), serial, sizeof(serial)) && !strcmp(serial, "ABC-123"));
+	CHECK(!sys_device_serial_parse("noteandroidboot.serialno=bad", 30, serial, sizeof(serial)));
+	CHECK(!sys_device_serial_parse("androidboot.serialno=a androidboot.serialno=b", 47,
+				       serial, sizeof(serial)));
+	CHECK(sys_device_mac_parse(address, strlen(address), mac) && !strcmp(mac, "AA:BB:CC:00:12:FE"));
+	CHECK(!sys_device_mac_parse("00:00:00:00:00:0z", 17, mac));
+	{
+		struct sys_device_info_request request = { .width = 1080, .height = 2246 };
+		struct sys_device_info info;
+		char root[] = "/tmp/chef-deviceinfo-test.XXXXXX", path[256];
+		const char *metadata = "chef-image-info 1\nname chef-cyclo\nversion dev\n"
+			"commit 0123456789abcdef0123456789abcdef01234567\ndirty 1\nepoch 1790812800\n";
+		CHECK(mkdtemp(root) != NULL);
+		snprintf(path, sizeof(path), "%s/image-info", root);
+		strcpy(request.metadata_path, path);
+		snprintf(path, sizeof(path), "%s/cmdline", root);
+		strcpy(request.cmdline_path, path);
+		snprintf(path, sizeof(path), "%s/bt", root);
+		strcpy(request.bluetooth_path, path);
+		snprintf(path, sizeof(path), "%s/wifi", root);
+		strcpy(request.wifi_path, path);
+		strcpy(request.lvgl, "9.6.0");
+		snprintf(path, sizeof(path), "%s/image-info", root);
+		FILE *f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs(metadata, f); fclose(f); }
+		snprintf(path, sizeof(path), "%s/cmdline", root);
+		f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs(cmd, f); fclose(f); }
+		snprintf(path, sizeof(path), "%s/bt", root);
+		f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs(address, f); fclose(f); }
+		snprintf(path, sizeof(path), "%s/wifi", root);
+		f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs("00:11:22:33:44:55\n", f); fclose(f); }
+		CHECK(sys_device_info_collect(&request, &info) == 0);
+		CHECK(info.metadata_known && !strcmp(info.image_name, "chef-cyclo") && info.dirty);
+		CHECK(info.serial_known && !strcmp(info.serial, "ABC-123"));
+		CHECK(info.bluetooth_known && !strcmp(info.bluetooth, "AA:BB:CC:00:12:FE"));
+		CHECK(info.wifi_known && !strcmp(info.wifi, "00:11:22:33:44:55"));
+		CHECK(!strcmp(info.resolution, "1080 x 2246") && !strcmp(info.lvgl, "9.6.0"));
+		CHECK(info.kernel[0] && info.sampled_mono_ms > 0);
+		/* a real sysfs attribute reports st_size 4096: it must still read (the
+		 * addresses were "Unavailable" on the phone until this was checked) */
+		if (access("/sys/class/net/lo/address", R_OK) == 0) {
+			strcpy(request.wifi_path, "/sys/class/net/lo/address");
+			CHECK(sys_device_info_collect(&request, &info) == 0);
+			CHECK(info.wifi_known && !strcmp(info.wifi, "00:00:00:00:00:00"));
+		}
+		unlink(request.metadata_path); unlink(request.cmdline_path);
+		unlink(request.bluetooth_path); unlink(request.wifi_path); rmdir(root);
+	}
+}
+
+struct small_stack_scan { const char *root; struct sys_usage_result u; };
+
+static bool fixture_mountpoint(const char *path);
+
+static void *small_stack_scan_run(void *arg)
+{
+	struct small_stack_scan *j = arg;
+
+	sys_storage_usage_scan(j->root, fixture_mountpoint, &j->u);
+	return NULL;
+}
+
+static bool fixture_mountpoint(const char *path)
+{
+	(void)path;
+	return true;
+}
+
+static int mountpoint_calls;
+static bool disappearing_mountpoint(const char *path)
+{
+	(void)path;
+	return ++mountpoint_calls == 1;
+}
+
+static int capacity_calls;
+static bool changing_capacity(const char *root)
+{
+	if (++capacity_calls == 2) {
+		char path[512];
+		FILE *f;
+		snprintf(path, sizeof(path), "%s/v1/maps/capacity-change", root);
+		f = fopen(path, "w");
+		if (f) {
+			for (int i = 0; i < 4096; i++) fputs("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n", f);
+			fclose(f);
+		}
+	}
+	return true;
+}
+
+static void remove_victim(const char *name, void *user)
+{
+	char path[600];
+
+	if (strcmp(name, "victim"))
+		return;
+	snprintf(path, sizeof(path), "%s/v1/maps/victim", (const char *)user);
+	(void)unlink(path);
+}
+
+static void test_storage_usage_scan(void)
+{
+	struct sys_usage_result u;
+	char root[400], path[500], target[500];
+	FILE *f;
+
+	snprintf(root, sizeof(root), "%s/usage-data", tmp);
+	CHECK(mkdir(root, 0700) == 0);
+	snprintf(path, sizeof(path), "%s/chef-layout", root);
+	f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs("chef-cyclo-data-v1\n", f); fclose(f); }
+	snprintf(path, sizeof(path), "%s/v1", root); CHECK(mkdir(path, 0700) == 0);
+	for (const char *cat[] = { "maps", "rides", "routes" }, **p = cat; p < cat + 3; p++) {
+		snprintf(path, sizeof(path), "%s/v1/%s", root, *p);
+		CHECK(mkdir(path, 0700) == 0);
+	}
+	snprintf(path, sizeof(path), "%s/v1/maps/map.bin", root);
+	f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs("allocated map metadata", f); fclose(f); }
+	snprintf(target, sizeof(target), "%s/v1/rides/map-alias", root);
+	CHECK(link(path, target) == 0);
+	snprintf(path, sizeof(path), "%s/v1/routes/route.bin", root);
+	f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs("route", f); fclose(f); }
+	snprintf(path, sizeof(path), "%s/v1/maps/nested", root);
+	CHECK(mkdir(path, 0700) == 0);
+	strcat(path, "/inside.bin");
+	f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs("nested", f); fclose(f); }
+	snprintf(path, sizeof(path), "%s/v1/maps/link", root);
+	CHECK(symlink("/etc/passwd", path) == 0);
+	snprintf(path, sizeof(path), "%s/v1/rides/pipe", root);
+	CHECK(mkfifo(path, 0600) == 0);
+	sys_storage_usage_scan(root, fixture_mountpoint, &u);
+	CHECK(u.known && u.ours && u.complete);
+	CHECK(u.maps_bytes > 0 && u.routes_bytes > 0 && u.rides_bytes == 0);
+	CHECK(u.total_bytes > 0 && u.free_bytes <= u.total_bytes);
+	CHECK(u.root_ino > 0 && u.mount_id > 0 && u.sampled_mono_ms > 0);
+	CHECK(u.maps_bytes + u.rides_bytes + u.routes_bytes + u.other_bytes <=
+	      u.total_bytes - u.free_bytes);
+	/* the scan runs on the settings worker: musl gives a thread 128 KB of
+	 * stack, so it must not keep its inode table there (it crashed the
+	 * app on the phone while glibc's 8 MB hid it) */
+	{
+		pthread_attr_t attr;
+		pthread_t th;
+		struct small_stack_scan job = { .root = root };
+
+		pthread_attr_init(&attr);
+		CHECK(pthread_attr_setstacksize(&attr, 128 * 1024) == 0);
+		CHECK(pthread_create(&th, &attr, small_stack_scan_run, &job) == 0);
+		pthread_join(th, NULL);
+		pthread_attr_destroy(&attr);
+		CHECK(job.u.known && job.u.ours && job.u.complete && job.u.maps_bytes > 0);
+	}
+	capacity_calls = 0;
+	sys_storage_usage_scan(root, changing_capacity, &u);
+	CHECK(u.known && !u.complete); /* capacity changed between statvfs samples */
+	{
+		const struct sys_usage_limits limits[] = {
+			{ .max_depth = 1, .max_entries = 100, .max_keys = 100, .budget_ns = 1000000000LL },
+			{ .max_depth = 40, .max_entries = 1, .max_keys = 100, .budget_ns = 1000000000LL },
+			{ .max_depth = 40, .max_entries = 100, .max_keys = 1, .budget_ns = 1000000000LL },
+			{ .max_depth = 40, .max_entries = 100, .max_keys = 100, .budget_ns = 1 },
+		};
+		for (size_t i = 0; i < sizeof(limits) / sizeof(limits[0]); i++) {
+			sys_storage_usage_scan_limited(root, fixture_mountpoint, &limits[i], &u);
+			CHECK(u.known && !u.complete);
+		}
+		char nested[500];
+		struct stat nested_st;
+		snprintf(nested, sizeof(nested), "%s/v1/maps/nested", root);
+		CHECK(stat(nested, &nested_st) == 0);
+		struct sys_usage_limits mount_mismatch = {
+			.max_depth = 40, .max_entries = 100, .max_keys = 100,
+			.budget_ns = 1000000000LL, .mismatch_ino = (uint64_t)nested_st.st_ino,
+		};
+		sys_storage_usage_scan_limited(root, fixture_mountpoint, &mount_mismatch, &u);
+		CHECK(u.known && !u.complete); /* foreign mount ID subtree is skipped, totals are approximate */
+	}
+	/* Sparse files are charged by allocated blocks, not logical length. */
+	snprintf(path, sizeof(path), "%s/v1/maps/sparse", root);
+	int sparse = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0600);
+	CHECK(sparse >= 0);
+	if (sparse >= 0) {
+		CHECK(ftruncate(sparse, 16 * 1024 * 1024) == 0);
+		close(sparse);
+	}
+	sys_storage_usage_scan(root, fixture_mountpoint, &u);
+	CHECK(u.known && u.complete);
+	CHECK(u.maps_bytes < 16 * 1024 * 1024);
+	mountpoint_calls = 0;
+	sys_storage_usage_scan(root, disappearing_mountpoint, &u);
+	CHECK(!u.known && !u.ours && !u.complete);
+	/* Ownership loss is never represented as a known exact result. */
+	snprintf(path, sizeof(path), "%s/chef-layout", root);
+	CHECK(unlink(path) == 0);
+	sys_storage_usage_scan(root, fixture_mountpoint, &u);
+	CHECK(!u.known && !u.ours);
+	CHECK(symlink("/", path) == 0);
+	sys_storage_usage_scan(root, fixture_mountpoint, &u);
+	CHECK(!u.known && !u.ours);
+	CHECK(unlink(path) == 0);
+	/* Recreate ownership and prove excessive nesting is incomplete. */
+	f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs("chef-cyclo-data-v1\n", f); fclose(f); }
+	char deep[500];
+	snprintf(deep, sizeof(deep), "%s/v1/routes", root);
+	for (int i = 0; i < 35; i++) {
+		size_t n = strlen(deep);
+		CHECK(n + 8 < sizeof(deep));
+		if (n + 8 >= sizeof(deep)) break;
+		strcat(deep, "/d");
+		CHECK(mkdir(deep, 0700) == 0);
+	}
+	sys_storage_usage_scan(root, fixture_mountpoint, &u);
+	CHECK(u.known && !u.complete);
+	{
+		char empty[400];
+		snprintf(empty, sizeof(empty), "%s/usage-empty", tmp);
+		CHECK(mkdir(empty, 0700) == 0);
+		snprintf(path, sizeof(path), "%s/chef-layout", empty);
+		f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs("chef-cyclo-data-v1\n", f); fclose(f); }
+		sys_storage_usage_scan(empty, fixture_mountpoint, &u);
+		CHECK(u.known && u.ours && u.complete);
+		CHECK(!u.maps_bytes && !u.rides_bytes && !u.routes_bytes);
+	}
+}
+
+static void test_storage_stat_invalidates_usage(void)
+{
+	struct ui_store_stat_result stat = {
+		.known = true, .ours = true, .total_bytes = 1000, .free_bytes = 400,
+		.root_dev = 1, .root_ino = 2,
+	};
+	sys_state.storage.known = true;
+	sys_state.storage.ours = true;
+	sys_state.storage.total_bytes = 1000;
+	sys_state.storage.free_bytes = 400;
+	sys_state.storage.root_dev = 1;
+	sys_state.storage.root_ino = 2;
+	sys_state.storage.usage_known = true;
+	sys_state.storage.usage_total_bytes = 1000;
+	sys_state.storage.usage_free_bytes = 400;
+	sys_state.storage.usage_root_dev = 1;
+	sys_state.storage.usage_root_ino = 2;
+	sys_storage_test_apply_stat(&stat);
+	CHECK(sys_state.storage.usage_known);
+	stat.free_bytes--;
+	sys_storage_test_apply_stat(&stat);
+	CHECK(!sys_state.storage.usage_known && !sys_state.storage.usage_complete);
+	sys_state.storage.usage_known = true;
+	stat.free_bytes = 400;
+	stat.root_ino++;
+	sys_storage_test_apply_stat(&stat);
+	CHECK(!sys_state.storage.usage_known);
+}
+
+/* --- review round 1: F3 (adopt the newest sample), F4 (mount point), F10 (per-category state) */
+
+static struct sys_usage_result ok_usage(uint64_t total, uint64_t free_b)
+{
+	struct sys_usage_result u = { .known = true, .ours = true, .complete = true,
+		.total_bytes = total, .free_bytes = free_b, .maps_bytes = 5, .root_dev = 1,
+		.root_ino = 2, .mount_id = 7, .sampled_mono_ms = 100 };
+
+	for (int i = 0; i < 3; i++)
+		u.cat_state[i] = USAGE_CAT_EXACT;
+	return u;
+}
+
+static void test_storage_usage_adopts_newest(void)
+{
+	struct ui_store_stat_result stat = { .known = true, .ours = true, .total_bytes = 1000,
+		.free_bytes = 400, .root_dev = 1, .root_ino = 2 };
+	struct sys_usage_result u = ok_usage(1000, 380);	/* capacity moved after the STAT */
+	unsigned before;
+
+	memset(&sys_state.storage, 0, sizeof(sys_state.storage));
+	sys_storage_test_apply_stat(&stat);
+	CHECK(sys_state.storage.free_bytes == 400);
+	sys_storage_test_apply_usage(&u);
+	CHECK(sys_state.storage.usage_known && sys_state.storage.free_bytes == 380 &&
+	      sys_state.storage.usage_free_bytes == 380 && sys_state.storage.usage_complete);
+	/* ownership lost: the cheap fields follow, no snapshot, and no job is asked for */
+	sys_storage_usage_want(true);
+	before = ui_store_test_usage_requests();
+	u.ours = false;
+	sys_storage_test_apply_usage(&u);
+	CHECK(!sys_state.storage.ours && !sys_state.storage.usage_known &&
+	      !sys_state.storage.usage_complete);
+	CHECK(ui_store_test_usage_requests() == before);
+	/* a STAT that differs invalidates an older snapshot and, with the page
+	 * visible, asks for exactly one USAGE */
+	u = ok_usage(1000, 380);
+	sys_storage_test_apply_usage(&u);
+	before = ui_store_test_usage_requests();
+	stat.free_bytes = 300;
+	sys_storage_test_apply_stat(&stat);
+	CHECK(!sys_state.storage.usage_known);
+	CHECK(ui_store_test_usage_requests() == before + 1);
+	sys_storage_usage_want(false);
+}
+
+static void test_storage_usage_review(void)
+{
+	struct sys_usage_result u;
+	struct sys_usage_limits lim = { .max_depth = 32, .max_entries = 10000, .max_keys = 10000,
+		.budget_ns = 250000000LL };
+	char root[400], path[500];
+	struct stat st;
+	FILE *f;
+
+	/* F4: the production default (hook NULL) refuses a directory that is not a mount point */
+	snprintf(root, sizeof(root), "%s/usage-notmount", tmp);
+	CHECK(mkdir(root, 0700) == 0);
+	snprintf(path, sizeof(path), "%s/chef-layout", root);
+	f = fopen(path, "w");
+	CHECK(f != NULL);
+	if (f) {
+		fputs("chef-cyclo-data-v1\n", f);
+		fclose(f);
+	}
+	snprintf(path, sizeof(path), "%s/v1", root);
+	CHECK(mkdir(path, 0700) == 0);
+	snprintf(path, sizeof(path), "%s/v1/maps", root);
+	CHECK(mkdir(path, 0700) == 0);
+	snprintf(path, sizeof(path), "%s/v1/maps/a.bin", root);
+	f = fopen(path, "w");
+	CHECK(f != NULL);
+	if (f) {
+		fputs("map", f);
+		fclose(f);
+	}
+	sys_storage_usage_scan(root, NULL, &u);
+	CHECK(!u.known && !u.ours && !u.maps_bytes && !u.rides_bytes && !u.routes_bytes);
+
+	/* F10: the entries bound inside Maps; Rides and Routes were never reached */
+	snprintf(path, sizeof(path), "%s/v1/rides", root);
+	CHECK(mkdir(path, 0700) == 0);
+	snprintf(path, sizeof(path), "%s/v1/routes", root);
+	CHECK(mkdir(path, 0700) == 0);
+	for (int i = 0; i < 4; i++) {
+		snprintf(path, sizeof(path), "%s/v1/maps/f%d", root, i);
+		f = fopen(path, "w");
+		CHECK(f != NULL);
+		if (f) {
+			fputs("x", f);
+			fclose(f);
+		}
+	}
+	lim.max_entries = 2;
+	sys_storage_usage_scan_limited(root, fixture_mountpoint, &lim, &u);
+	CHECK(u.known && !u.complete);
+	CHECK(u.cat_state[0] == USAGE_CAT_PARTIAL && u.cat_state[1] == USAGE_CAT_UNSCANNED &&
+	      u.cat_state[2] == USAGE_CAT_UNSCANNED);
+	lim.max_entries = 10000;
+	sys_storage_usage_scan_limited(root, fixture_mountpoint, &lim, &u);
+	CHECK(u.known && u.complete);
+	for (int i = 0; i < 3; i++)
+		CHECK(u.cat_state[i] == USAGE_CAT_EXACT);
+
+	/* an error inside Rides only (a foreign mount): Rides PARTIAL, Routes EXACT */
+	snprintf(path, sizeof(path), "%s/v1/rides/foreign", root);
+	f = fopen(path, "w");
+	CHECK(f != NULL);
+	if (f) {
+		fputs("x", f);
+		fclose(f);
+	}
+	CHECK(stat(path, &st) == 0);
+	lim.mismatch_ino = (uint64_t)st.st_ino;
+	sys_storage_usage_scan_limited(root, fixture_mountpoint, &lim, &u);
+	CHECK(u.known && !u.complete);
+	CHECK(u.cat_state[0] == USAGE_CAT_EXACT && u.cat_state[1] == USAGE_CAT_PARTIAL &&
+	      u.cat_state[2] == USAGE_CAT_EXACT);
+	lim.mismatch_ino = 0;
+	CHECK(unlink(path) == 0);
+
+	/* an entry deleted between readdir and open is not an error */
+	snprintf(path, sizeof(path), "%s/v1/maps/victim", root);
+	f = fopen(path, "w");
+	CHECK(f != NULL);
+	if (f) {
+		fputs("x", f);
+		fclose(f);
+	}
+	lim.before_open = remove_victim;
+	lim.user = root;
+	sys_storage_usage_scan_limited(root, fixture_mountpoint, &lim, &u);
+	/* no category is cut short by it (complete itself may flip: the deletion
+	 * moves the filesystem's free count during the walk) */
+	CHECK(access(path, F_OK) != 0);
+	CHECK(u.known);
+	for (int i = 0; i < 3; i++)
+		CHECK(u.cat_state[i] == USAGE_CAT_EXACT);
+}
+
+static void test_feedback_worker(void)
+{
+	char path[400], fifo[400], target[400], buf[16] = { 0 };
+	int fd;
+	snprintf(path, sizeof(path), "%s/vibrator-enable", tmp);
+	snprintf(target, sizeof(target), "%s/vibrator-file", tmp);
+	snprintf(fifo, sizeof(fifo), "%s/vibrator-fifo", tmp);
+	fd = open(target, O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, 0600);
+	CHECK(fd >= 0);
+	if (fd < 0) return;
+	close(fd);
+	CHECK(mkfifo(fifo, 0600) == 0);
+	CHECK(symlink(target, path) == 0);
+	CHECK(sys_feedback_start(path, true) == 0);
+	for (int i = 0; i < 100 && !sys_feedback_test_signals_blocked(); i++) {
+		struct timespec ts = { .tv_nsec = 1000000 };
+		nanosleep(&ts, NULL);
+	}
+	CHECK(sys_feedback_test_signals_blocked());
+	CHECK(sys_feedback_request());
+	for (int i = 0; i < 100; i++) {
+		struct timespec ts = { .tv_nsec = 10000000 };
+		nanosleep(&ts, NULL);
+		fd = open(path, O_RDONLY | O_CLOEXEC);
+		if (fd >= 0) { ssize_t n = read(fd, buf, sizeof(buf) - 1); close(fd); if (n > 0) break; }
+	}
+	CHECK(!strcmp(buf, "10\n"));
+	CHECK(unlink(path) == 0);
+	CHECK(symlink(fifo, path) == 0);
+	{
+		struct timespec ts = { .tv_nsec = 120000000 };
+		nanosleep(&ts, NULL);
+	}
+	CHECK(sys_feedback_request());
+	{
+		struct timespec ts = { .tv_nsec = 120000000 };
+		nanosleep(&ts, NULL);
+	}
+	CHECK(!sys_feedback_request()); /* the worker is held in FIFO open; no queued replay */
+	sys_feedback_enabled(false);
+	CHECK(!sys_feedback_request());
+	sys_feedback_enabled(true);
+	sys_feedback_screen_allowed(false);
+	CHECK(!sys_feedback_request());
+	fd = open(fifo, O_RDWR | O_NONBLOCK | O_CLOEXEC);
+	CHECK(fd >= 0);
+	if (fd >= 0) {
+		struct timespec ts = { .tv_nsec = 30000000 };
+		nanosleep(&ts, NULL);
+		memset(buf, 0, sizeof(buf));
+		CHECK(read(fd, buf, sizeof(buf)) < 0 && (errno == EAGAIN || errno == EWOULDBLOCK));
+		close(fd);
+	}
+	sys_feedback_screen_allowed(true);
+	{
+		struct timespec ts = { .tv_nsec = 120000000 };
+		nanosleep(&ts, NULL);
+	}
+	sys_feedback_stop();
+	CHECK(!sys_feedback_request());
+	/* a failing node is logged once, not per request (N1) */
+	{
+		struct timespec gapt = { .tv_nsec = 130000000 };
+
+		CHECK(sys_feedback_start("/nonexistent/vibrator/enable", true) == 0);
+		CHECK(sys_feedback_request());		/* the worker's open fails */
+		nanosleep(&gapt, NULL);
+		(void)sys_feedback_request();		/* logs the recorded error */
+		nanosleep(&gapt, NULL);
+		(void)sys_feedback_request();
+		nanosleep(&gapt, NULL);
+		(void)sys_feedback_request();
+		CHECK(fakeloop_log_count("haptics:") == 1);
+		sys_feedback_stop();
+	}
+}
+
 /* ------------------------------------------------------ storage, fake */
 
 static void test_fake(void)
@@ -615,7 +1187,7 @@ static void test_fake(void)
 	changes = 0;
 	CHECK(sys_fake_load(st) == 0);
 	CHECK(changes == (SYS_BATT | SYS_CLOCK | SYS_GPS | SYS_WIFI | SYS_BT | SYS_STORAGE |
-			  SYS_WIFI_VIEW | SYS_GPS_VIEW | SYS_BLE));
+			  SYS_WIFI_VIEW | SYS_GPS_VIEW | SYS_BLE | SYS_TIME_VIEW | SYS_DEVICE_INFO));
 	CHECK(!strcmp(sys_state.clock.hhmm, "14:16") && sys_state.batt.capacity == 78);
 	CHECK(sys_state.gps.state == SYS_GPS_RUNNING && sys_state.gps.mode == 3);
 	CHECK(sys_wifi_connected(&sys_state) && !strcmp(sys_state.wifi.ssid, "HomeNet"));
@@ -627,6 +1199,87 @@ static void test_fake(void)
 	CHECK(sys_fake_load(st) == -EINVAL);
 	CHECK(sys_state.gps.state == SYS_GPS_RUNNING);	/* unchanged on error */
 	CHECK(sys_fake_load("/nonexistent/x") == -ENOENT);
+
+	/* M4 fixtures: frozen clock, source model, storage usage, About facts */
+	sys_clock_use_tz("IST-5:30");
+	f = fopen(st, "w");
+	fputs("storage 18200000000 32000000000\nstorageusage 6400000000 3100000000 300000000\n"
+	      "clockepoch 1791449160\ntimesync gps 1791448320\n"
+	      "about name chef-cyclo\nabout version 0.9.3\nabout serial CC-0193-4417\n"
+	      "about commit 71163bd000000000000000000000000000000000\nabout builddate 8 Oct 2026\n"
+	      "about bluetooth A4:C1:38:0F:22:91\nabout resolution 1080 x 2246\n"
+	      "about uptime 11520\nabout dirty 1\n", f);
+	fclose(f);
+	CHECK(sys_fake_load(st) == 0);
+	CHECK(sys_state.clock.valid && sys_state.clock.hour == 14 && sys_state.clock.minute == 16);
+	CHECK(!strcmp(sys_state.clock.hhmm, "14:16") && !strcmp(sys_state.clock.zone, "IST"));
+	CHECK(!strcmp(sys_state.clock.date, "Thursday 8 October 2026") &&
+	      sys_state.clock.utc_offset_min == 330);
+	CHECK(sys_state.timeview.verified && sys_state.timeview.source == SYS_TIME_GPS &&
+	      sys_state.timeview.reference_epoch == 1791448320.0);
+	CHECK(sys_state.storage.total_bytes == 32000000000ull && sys_state.storage.usage_known &&
+	      sys_state.storage.usage_complete && sys_state.storage.usage_maps == 6400000000ull &&
+	      sys_state.storage.usage_other == 4000000000ull);
+	CHECK(sys_state.device.metadata_known && !strcmp(sys_state.device.version, "0.9.3") &&
+	      sys_state.device.serial_known && sys_state.device.bluetooth_known &&
+	      !sys_state.device.wifi_known && sys_state.device.uptime_s == 11520 &&
+	      sys_state.device.dirty);
+	/* non-verifying sources: only the boot provenance is set */
+	f = fopen(st, "w");
+	fputs("timesync restored 0\n", f);
+	fclose(f);
+	CHECK(sys_fake_load(st) == 0);
+	CHECK(!sys_state.timeview.verified && sys_state.timeview.boot_source == SYS_TIME_RESTORED);
+	/* a changed free size drops the old usage */
+	f = fopen(st, "w");
+	fputs("storage 1000 2000\n", f);
+	fclose(f);
+	CHECK(sys_fake_load(st) == 0);
+	CHECK(!sys_state.storage.usage_known);
+	/* bad lines change nothing */
+	{
+		static const char *const bad[] = {
+			"clockepoch abc\n", "clockepoch 100\n", "timesync gps\n", "timesync moon 0\n",
+			"timesync gps -5\n", "storageusage 1 2\n", "about colour red\n",
+			"about bluetooth short\n", "about uptime x\n", "about dirty 2\n",
+			"about name\n", "about version "
+			"0123456789012345678901234567890123456789\n",
+		};
+		struct sys_state before = sys_state;
+
+		for (unsigned i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+			f = fopen(st, "w");
+			fputs(bad[i], f);
+			fclose(f);
+			CHECK(sys_fake_load(st) == -EINVAL);
+			CHECK(!memcmp(&before.device, &sys_state.device, sizeof(before.device)));
+		}
+		CHECK(!memcmp(&before.timeview, &sys_state.timeview, sizeof(before.timeview)));
+	}
+	/* image facts come whole: a fixture with only some of them is rejected atomically */
+	{
+		struct sys_state keep = sys_state;
+
+		memset(&sys_state.device, 0, sizeof(sys_state.device));
+		f = fopen(st, "w");
+		fputs("about name chef-cyclo\nabout version 0.9\nabout kernel Linux 4.4\n", f);
+		fclose(f);
+		CHECK(sys_fake_load(st) == -EINVAL);
+		CHECK(!sys_state.device.metadata_known && !sys_state.device.image_name[0] &&
+		      !sys_state.device.kernel[0]);
+		f = fopen(st, "w");
+		fputs("about kernel Linux 4.4\nabout lvgl 9.6.0\n", f);	/* no image facts at all */
+		fclose(f);
+		CHECK(sys_fake_load(st) == 0 && !sys_state.device.metadata_known &&
+		      !strcmp(sys_state.device.kernel, "Linux 4.4"));
+		sys_state = keep;
+	}
+	/* legacy "time" sets the 12-hour fields too, with no date */
+	f = fopen(st, "w");
+	fputs("time 09:30\n", f);
+	fclose(f);
+	CHECK(sys_fake_load(st) == 0);
+	CHECK(sys_state.clock.valid && sys_state.clock.hour == 9 && sys_state.clock.minute == 30);
 
 	/* Wi-Fi view lines: SSIDs with spaces, the active connection */
 	f = fopen(st, "w");
@@ -903,6 +1556,13 @@ int main(void)
 	test_gps_page();
 	test_battery();
 	test_clock();
+	test_timeview_parsers();
+	test_deviceinfo_parsers();
+	test_storage_usage_scan();
+	test_storage_stat_invalidates_usage();
+	test_storage_usage_adopts_newest();
+	test_storage_usage_review();
+	test_feedback_worker();
 	test_fake();
 	test_wifi_model();
 	test_ble_parser();

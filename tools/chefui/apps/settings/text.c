@@ -3,10 +3,13 @@
  */
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "blesens.h"
 #include "icons.h"
 #include "text.h"
+#include "sys.h"
+#include "timeview.h"
 
 #define DOT " \xC2\xB7 "	/* " · " */
 #define PLUSMINUS "\xC2\xB1"	/* "±" */
@@ -76,12 +79,35 @@ void text_display(const struct ui_settings *st, char *buf, size_t n)
 	snprintf(buf, n, "%s" DOT "%d%%", t, st->brightness);
 }
 
-void text_time(const struct sys_state *s, char *buf, size_t n)
+/* hhmm stays the canonical 24-hour string (old fixtures set only it);
+ * hour and minute carry the 12-hour presentation. */
+static void time_parts(const struct sys_state *s, bool clock_24h, char *digits, size_t dn,
+		       char meridiem[3])
 {
-	if (s->clock.zone[0])
-		snprintf(buf, n, "%s" DOT "%s", s->clock.hhmm, s->clock.zone);
+	int h = -1, m = -1;
+
+	if (s->clock.valid) {
+		h = s->clock.hour;
+		m = s->clock.minute;
+	} else if (strlen(s->clock.hhmm) != 5 || sscanf(s->clock.hhmm, "%2d:%2d", &h, &m) != 2) {
+		h = m = -1;
+	}
+	sys_time_format(h, m, clock_24h, digits, dn, meridiem);	/* "--:--" when invalid */
+}
+
+void text_time(const struct sys_state *s, bool clock_24h, char *buf, size_t n)
+{
+	char digits[8], mer[3];
+
+	time_parts(s, clock_24h, digits, sizeof(digits), mer);
+	if (mer[0] && s->clock.zone[0])
+		snprintf(buf, n, "%s %s" DOT "%s", digits, mer, s->clock.zone);
+	else if (mer[0])
+		snprintf(buf, n, "%s %s", digits, mer);
+	else if (s->clock.zone[0])
+		snprintf(buf, n, "%s" DOT "%s", digits, s->clock.zone);
 	else
-		snprintf(buf, n, "%s", s->clock.hhmm);
+		snprintf(buf, n, "%s", digits);
 }
 
 void text_storage(const struct sys_state *s, char *buf, size_t n)
@@ -111,7 +137,7 @@ bool tile_wifi_on(const struct sys_state *s)
 	return sys_wifi_on(s);
 }
 
-void status_from_state(const struct sys_state *s, struct kit_status *out)
+void status_from_state(const struct sys_state *s, bool clock_24h, struct kit_status *out)
 {
 	memset(out, 0, sizeof(*out));
 	/* locate-off only when switched off (or no manager); on, idle or
@@ -123,7 +149,9 @@ void status_from_state(const struct sys_state *s, struct kit_status *out)
 		: KIT_WIFI_OFF;
 	out->batt = s->batt.known ? s->batt.capacity : -1;
 	out->powered = s->batt.known && s->batt.powered;
-	snprintf(out->time, sizeof(out->time), "%s", s->clock.hhmm[0] ? s->clock.hhmm : "--:--");
+	time_parts(s, clock_24h, out->time, sizeof(out->time), out->meridiem);
+	if (!out->time[0])
+		snprintf(out->time, sizeof(out->time), "--:--");
 }
 
 const char *glyph_bt(enum kit_bt b)
@@ -141,4 +169,112 @@ const char *glyph_gps(enum kit_gps g)
 const char *glyph_wifi(enum kit_wifi w)
 {
 	return w == KIT_WIFI_OFF ? KIT_IC_WIFI_OFF : KIT_IC_WIFI;
+}
+
+void text_sound(const struct ui_settings *st, char *buf, size_t n)
+{
+	snprintf(buf, n, "%s", st->haptics ? "Haptics on" : "Haptics off");
+}
+
+void text_time_source(const struct sys_state *s, char *buf, size_t n)
+{
+	const struct sys_state *t = s;
+
+	if (t->timeview.verified && t->timeview.source == SYS_TIME_GPS)
+		snprintf(buf, n, "Set by GPS");
+	else if (t->timeview.verified && t->timeview.source == SYS_TIME_NETWORK)
+		snprintf(buf, n, "Set by network");
+	else if (t->timeview.boot_source == SYS_TIME_RESTORED)
+		snprintf(buf, n, "Restored at boot, not yet verified");
+	else if (t->timeview.boot_source == SYS_TIME_FLOOR)
+		snprintf(buf, n, "Restored boot-time floor, not yet verified");
+	else if (t->timeview.boot_source == SYS_TIME_NONE)
+		snprintf(buf, n, "Time not yet verified");
+	else
+		snprintf(buf, n, "Time source unavailable");
+}
+
+/* "IST . UTC+05:30" for the fixed zone; the offset is the current local one */
+void text_time_zone(const struct sys_state *s, char *buf, size_t n)
+{
+	int off = s->clock.utc_offset_min, a = off < 0 ? -off : off;
+
+	if (!s->clock.valid)
+		snprintf(buf, n, "Unknown");
+	else if (s->clock.zone[0])
+		snprintf(buf, n, "%s" DOT "UTC%c%02d:%02d", s->clock.zone, off < 0 ? '-' : '+',
+			 a / 60, a % 60);
+	else
+		snprintf(buf, n, "UTC%c%02d:%02d", off < 0 ? '-' : '+', a / 60, a % 60);
+}
+
+void text_time_hint(const struct sys_state *s, char *buf, size_t n)
+{
+	char a[16], b[16];
+
+	if (!s->clock.valid) {
+		snprintf(buf, n, "Show 24-hour time");
+		return;
+	}
+	sys_time_full(s->clock.hour, s->clock.minute, true, a, sizeof(a));
+	sys_time_full(s->clock.hour, s->clock.minute, false, b, sizeof(b));
+	snprintf(buf, n, "%s instead of %s", a, b);
+}
+
+/* "Last synced 14:02 via GPS." under the local zone (UI thread only) */
+void text_time_sync(const struct sys_state *s, bool clock_24h, char *buf, size_t n)
+{
+	static const char *const mon[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
+		"Sep", "Oct", "Nov", "Dec" };
+	const char *via = s->timeview.source == SYS_TIME_GPS ? "GPS" : "network";
+	char when[32], hm[16];
+	struct tm tm;
+	time_t t = (time_t)s->timeview.reference_epoch;
+	char ref_date[64];
+
+	if (!s->timeview.verified || s->timeview.reference_epoch < 1767225600.0 ||
+	    s->timeview.reference_epoch >= 4102444800.0 || !localtime_r(&t, &tm)) {
+		snprintf(buf, n, "Last sync time unknown.");
+		return;
+	}
+	sys_time_full(tm.tm_hour, tm.tm_min, clock_24h, hm, sizeof(hm));
+	/* the date too when it is not the clock's own date (the model's, which a
+	 * frozen fixture also sets) */
+	sys_clock_date_text(&tm, ref_date, sizeof(ref_date));
+	if (s->clock.date[0] && strcmp(ref_date, s->clock.date))
+		snprintf(when, sizeof(when), "%d %s %s", tm.tm_mday, mon[tm.tm_mon], hm);
+	else
+		snprintf(when, sizeof(when), "%s", hm);
+	snprintf(buf, n, "Last synced %s via %s.", when, via);
+}
+
+void text_gb(uint64_t bytes, bool estimate, char *buf, size_t n)
+{
+	snprintf(buf, n, "%s%.1f GB", estimate ? "~" : "", (double)bytes / 1e9);
+}
+
+void text_storage_unit(const struct sys_state *s, char *buf, size_t n)
+{
+	double total = (double)s->storage.total_bytes / 1e9;
+
+	if (!s->storage.known)
+		snprintf(buf, n, "storage unavailable");
+	else if (!s->storage.ours)
+		snprintf(buf, n, "RAM only");
+	else if (total - (double)(long)(total + 0.5) < 0.05 && (double)(long)(total + 0.5) - total < 0.05)
+		snprintf(buf, n, "GB free of %ld GB", (long)(total + 0.5));
+	else
+		snprintf(buf, n, "GB free of %.1f GB", total);
+}
+
+void text_uptime(uint64_t seconds, char *buf, size_t n)
+{
+	unsigned long long m = seconds / 60, h = m / 60, d = h / 24;
+
+	if (d)
+		snprintf(buf, n, "%llu d %llu h", d, h % 24);
+	else if (h)
+		snprintf(buf, n, "%llu h %llu min", h, m % 60);
+	else
+		snprintf(buf, n, "%llu min", m);
 }

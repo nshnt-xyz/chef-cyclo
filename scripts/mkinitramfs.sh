@@ -501,6 +501,11 @@ else
 fi
 rm -rf "$MAPTMP"
 
+# Separate, read-only display metadata. The security build-stamp format is
+# intentionally unchanged; this file is not used for boot validation.
+python3 scripts/chef-image-info.py > "$ROOT/etc/chef/image-info"
+chmod 644 "$ROOT/etc/chef/image-info"
+
 python3 scripts/ssh-keys.py scan "$ROOT" || { echo "refusing: private key material in $ROOT" >&2; exit 1; }
 
 # newc format, everything owned by root, reproducible ordering; the LZMA

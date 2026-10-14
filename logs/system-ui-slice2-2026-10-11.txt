@@ -464,3 +464,82 @@ Emulator PID absence and no restart independently verified.
 No push or install. Guided USB-out idle current, Wi-Fi join/failed join/
 Forget and GPS window checks remain the agreed final slice 2 batch.
 Real sensors and wheel circumference UI remain documented follow-ups.
+
+M4 (device pages P03 to P06) IMPLEMENTATION, 2026-10-14 (NOT yet approved)
+
+Implemented by ui_impl (Claude) after the interrupted first implementer's tree
+was reconciled and rebuilt from clean. Scope: Sound and haptics, Time and date,
+Storage, About; settings format v2 (one-way, see docs/features/system-ui.md);
+12/24-hour time everywhere (status bar column with am/pm); a third thread
+(ui-feedback) for tap/Back/wake haptics; chrony source verification only while
+P04 is visible; a bounded no-follow same-mount usage scan on the settings
+worker; /etc/chef/image-info (separate from the strict root stamp).
+
+Host: make -C tools/chefui clean test: test-chefui 325, test-settings 246,
+test-sys 551, test-timeview 15, test-app 898, test-netbus 87, test-wifi 213;
+host + device + host-test (52 captures, 20 SIGUSR1) pass; font-check (51
+fonts reproduce); blesensd, chef-stamp, chef-image-info tests; git diff
+--check. Reference comparison P03 to P06 dark/light: mean 2.1 to 3.7 of 255,
+bands aligned, intended differences in docs/features/system-ui.md.
+Device binary 2753000 (M3) -> 3314536 bytes (M4).
+
+Defects found only on the phone and fixed (host regression tests added):
+(1) the usage scan kept a 393 KB inode table on the settings worker's musl
+128 KB thread stack and crashed chef-settings silently on opening Storage
+(now heap allocated; test-sys runs the scan on a 128 KB-stack thread);
+(2) sysfs address files report st_size 4096, so Bluetooth and Wi-Fi showed
+Unavailable (now read by length; test-sys reads /sys/class/net/lo/address).
+
+Live (RAM image out/boot-m4.img 68efac31..., chef-settings 3898e0bf...; the
+earlier images 575505b5.. and 9d8f5ba7.. predate the two fixes): eight device
+fake-state captures byte-identical to host; real P04 showed "Set by network"
+with the chrony NTP source, P05 53.5 of 54.1 GB equal to statvfs (Other 0.6 GB
+reserved + metadata), P06 real kernel/serial/addresses (private, not
+committed); idle CPU over 60 s: P03 0, P04 2 (30 s chronyc query), P05 1,
+P06 2 ticks, screen off 1; 20 SIGUSR1 captures with all three threads alive;
+kill -9 respawn keeps prefs. Preferences were changed with touches injected
+into the NVT evdev node from the host (evidence-only tool): volume by tap (25)
+and drag (70), switches, 24-hour to 12-hour; the saved v2 file had the exact
+field order and a valid checksum; retention verified after kill -9 and after
+an ordinary reboot (file unchanged). The starting values were restored through
+the app, then the original v1 bytes (sha256 07237417...) were restored
+byte-exactly and survived 12 s of respawn without a rewrite. Evidence:
+~/chef-cyclo-evidence/system-ui2-m4-20261013/ (host/, compare/, live/).
+
+Unverified / for the final guided batch: the physical feel of the haptic
+pulses, and a glance at the 12-hour status bar near the rounded top-right
+corner (the am/pm column raises the digits about 10 px). Not verified: real
+host nested-mount scan (unshare is not permitted; deterministic mismatch
+tests instead); source loss while P04 is open is covered by fakes and the
+adversarial subprocess tests, not by stopping chrony on the phone.
+
+M4 REVIEW ROUND 1 FIXES, 2026-10-14 (still not approved)
+
+ui_review round 1 (F1 to F12) and ui_coord's decisions are all applied:
+F1 a failed save no longer starves the free-space, boot, device and usage
+jobs (save_due: only a due save goes first); F2 the Back pulse moved to the
+power.short branch (state-driven closes and the header target add none);
+F3 the scan's newest capacity replaces the cheap one, never dropped; F4 the
+production scan checks the mount point; F5 ECHILD is a failure; F6 the reap
+timer repeats until reaped and a reap in query_start spawns at once; F7 the
+process tests are effective (kill counters, the 2 s deadline, EOF before
+exit, a descendant holding stdout); F8 refid compares are case-insensitive
+and the parser matrix is tested; F9 the image-info/stamp coexistence test
+exists; F10 categories are exact, partial or unscanned ("--" never "~0.0
+GB"), deleted-between-readdir-and-open entries are skipped; F11 leaving a
+page drops its queued optional job; F12 all live evidence redone on the new
+image. Nits: haptics errors logged once, usage text, whole-or-nothing about
+fixtures, one neutral storage style, file headers and house style. The new
+tests also found a real race: a restarted feedback worker closed the new
+pipe's read end (each worker now owns its fd).
+
+Host: test-settings 272, test-sys 610, test-timeview 42, test-app 913 (the
+rest unchanged), host+device+host-test 52 captures, font-check 51, both
+Python suites; the 8 page captures are unchanged. Live: RAM image
+out/boot-m4.img db0871ec69af..., chef-settings d7398213ef62... (running exe
+hash recorded in every file): 8 device captures byte-identical to host,
+real Time/Storage/About pages, idle CPU 1/2/0/2 ticks (P03..P06) and 0 with
+the screen off, 20 SIGUSR1 captures, kill -9 respawn, the settings file
+untouched (072374...). Evidence: ~/chef-cyclo-evidence/system-ui2-m4-20261013/
+live2/ (the earlier live/ files are superseded except K6/K9 records) and
+review/round2-delta.diff.

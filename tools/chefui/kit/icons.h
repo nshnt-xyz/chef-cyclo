@@ -35,6 +35,8 @@
 #define KIT_IC_SUN_DIM			"\xEE\x8A\x99"	/* U+E299 */
 #define KIT_IC_SUN_MEDIUM		"\xEE\x8A\xB1"	/* U+E2B1 */
 #define KIT_IC_SUN_MOON			"\xEE\x8A\xB2"	/* U+E2B2 */
+#define KIT_IC_VOLUME			"\xEE\x86\xA9"	/* U+E1A9 */
+#define KIT_IC_VOLUME_2			"\xEE\x86\xAB"	/* U+E1AB */
 #define KIT_IC_TRASH_2			"\xEE\x86\x8E"	/* U+E18E */
 #define KIT_IC_VIBRATE			"\xEE\x88\xA3"	/* U+E223 */
 #define KIT_IC_WIFI			"\xEE\x86\xAE"	/* U+E1AE */

@@ -8,6 +8,8 @@
 #define _GNU_SOURCE
 #include <math.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -32,6 +34,8 @@
 #include "gpsview.h"
 #include "pages.h"
 #include "blesens.h"
+#include "chefui.h"
+#include "feedback.h"
 
 /* ---------------------------------------------------- fake platform */
 
@@ -316,24 +320,24 @@ static void test_text(void)
 	CHECK(!strcmp(b, "18.2 GB free"));
 	snprintf(s.clock.hhmm, sizeof(s.clock.hhmm), "14:16");
 	snprintf(s.clock.zone, sizeof(s.clock.zone), "IST");
-	text_time(&s, b, sizeof(b));
+	text_time(&s, true, b, sizeof(b));
 	CHECK(!strcmp(b, "14:16 \xC2\xB7 IST"));
 
 	s.batt.known = true;
 	s.batt.capacity = 10;
 	s.batt.powered = true;
-	status_from_state(&s, &st);
+	status_from_state(&s, true, &st);
 	CHECK(st.batt == 10 && st.powered && st.wifi == KIT_WIFI_CONNECTED && st.bt == KIT_BT_CONNECTED);
 	CHECK(st.gps == KIT_GPS_SEARCH && !strcmp(st.time, "14:16"));	/* on, failed: muted */
 	s.gps.state = SYS_GPS_DISABLED;
-	status_from_state(&s, &st);
+	status_from_state(&s, true, &st);
 	text_gps(&s, b, sizeof(b));
 	CHECK(st.gps == KIT_GPS_OFF && !strcmp(b, "Off") && !tile_gps_on(&s));
 	s.gps.state = SYS_GPS_UNAVAILABLE;
-	status_from_state(&s, &st);
+	status_from_state(&s, true, &st);
 	CHECK(st.gps == KIT_GPS_OFF && !tile_gps_on(&s));
 	s.batt.known = false;
-	status_from_state(&s, &st);
+	status_from_state(&s, true, &st);
 	CHECK(st.batt == -1 && !st.powered);
 }
 
@@ -1175,6 +1179,718 @@ static void test_bt_pages(void)
 	close(ble_peer); close(lfd); unlink(path);
 }
 
+
+/* ------------------------------------------------------------- M4 pages */
+
+static void set_clock(int hour, int minute)
+{
+	snprintf(sys_state.clock.hhmm, sizeof(sys_state.clock.hhmm), "%02d:%02d", hour, minute);
+	sys_state.clock.hour = hour;
+	sys_state.clock.minute = minute;
+	sys_state.clock.valid = true;
+	snprintf(sys_state.clock.zone, sizeof(sys_state.clock.zone), "IST");
+	snprintf(sys_state.clock.date, sizeof(sys_state.clock.date), "Thursday 8 October 2026");
+	sys_state.clock.utc_offset_min = 330;
+}
+
+static bool has_label(lv_obj_t *root, const char *text)
+{
+	return find_label(root, text, true) != NULL;
+}
+
+static int timer_count(void)
+{
+	int n = 0;
+
+	for (lv_timer_t *t = lv_timer_get_next(NULL); t; t = lv_timer_get_next(t))
+		n++;
+	return n;
+}
+
+static void test_m4_fonts_text(void)
+{
+	lv_font_glyph_dsc_t g;
+	struct sys_state st;
+	char b[128];
+
+	for (const char *c = "ampm"; *c; c++)
+		CHECK(lv_font_get_glyph_dsc(&chefkit_b400_20, &g, (uint32_t)*c, 0));
+	for (uint32_t c = 0x20; c <= 0x7E; c++)
+		CHECK(lv_font_get_glyph_dsc(&chefkit_b400_52, &g, c, 0) &&
+		      lv_font_get_glyph_dsc(&chefkit_b400_44, &g, c, 0) &&
+		      lv_font_get_glyph_dsc(&chefkit_bc600_160, &g, c, 0));
+	CHECK(lv_font_get_glyph_dsc(&chefkit_b400_44, &g, 0xB7, 0));
+	for (const char *c = "0123456789 -.GB~"; *c; c++)
+		CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_64, &g, (uint32_t)*c, 0));
+	for (const char *c = "0123456789-.~"; *c; c++)
+		CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_200, &g, (uint32_t)*c, 0));
+	for (const char *c = "0123456789-:"; *c; c++)
+		CHECK(lv_font_get_glyph_dsc(&chefkit_bc600_280, &g, (uint32_t)*c, 0));
+	CHECK(kit_font_px(&chefkit_b400_52) == 52 && kit_font_px(&chefkit_bc600_280) == 280 &&
+	      kit_font_px(&chefkit_bc600_64) == 64 && kit_font_px(&chefkit_b400_20) == 20);
+
+	/* hub and status text in both presentations, including midnight and noon */
+	memset(&st, 0, sizeof(st));
+	set_clock(0, 5);
+	memcpy(&st.clock, &sys_state.clock, sizeof(st.clock));
+	text_time(&st, true, b, sizeof(b));
+	CHECK(!strcmp(b, "00:05 \xC2\xB7 IST"));
+	text_time(&st, false, b, sizeof(b));
+	CHECK(!strcmp(b, "12:05 am \xC2\xB7 IST"));
+	st.clock.hour = 12;
+	text_time(&st, false, b, sizeof(b));
+	CHECK(!strcmp(b, "12:05 pm \xC2\xB7 IST"));
+	st.clock.valid = false;
+	st.clock.hhmm[0] = 0;
+	text_time(&st, false, b, sizeof(b));
+	CHECK(!strcmp(b, "--:-- \xC2\xB7 IST"));
+
+	/* the time source row: only a verified report says "Set by" */
+	memset(&st, 0, sizeof(st));
+	text_time_source(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "Time source unavailable"));
+	st.timeview.boot_source = SYS_TIME_RESTORED;
+	text_time_source(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "Restored at boot, not yet verified"));
+	st.timeview.boot_source = SYS_TIME_FLOOR;
+	text_time_source(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "Restored boot-time floor, not yet verified"));
+	st.timeview.boot_source = SYS_TIME_NONE;
+	text_time_source(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "Time not yet verified"));
+	st.timeview.source = SYS_TIME_GPS;	/* not verified: no claim */
+	text_time_source(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "Time not yet verified"));
+	st.timeview.verified = true;
+	text_time_source(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "Set by GPS"));
+	st.timeview.source = SYS_TIME_NETWORK;
+	text_time_source(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "Set by network"));
+
+	/* last sync: the reference time, local zone, 12/24 hour; unknown otherwise */
+	setenv("TZ", "IST-5:30", 1);
+	tzset();
+	st.timeview.source = SYS_TIME_GPS;
+	st.timeview.reference_epoch = 1791448320;	/* 14:02 IST 8 October 2026 */
+	st.clock.valid = false;				/* no "today": time only */
+	text_time_sync(&st, true, b, sizeof(b));
+	CHECK(!strcmp(b, "Last synced 14:02 via GPS."));
+	text_time_sync(&st, false, b, sizeof(b));
+	CHECK(!strcmp(b, "Last synced 2:02 pm via GPS."));
+	st.timeview.reference_epoch = 0;
+	text_time_sync(&st, true, b, sizeof(b));
+	CHECK(!strcmp(b, "Last sync time unknown."));
+	st.timeview.reference_epoch = 1791448320;
+	st.timeview.verified = false;
+	text_time_sync(&st, true, b, sizeof(b));
+	CHECK(!strcmp(b, "Last sync time unknown."));
+
+	/* zone row: the current local offset, not an assumption */
+	memset(&st, 0, sizeof(st));
+	text_time_zone(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "Unknown"));
+	set_clock(14, 16);
+	memcpy(&st.clock, &sys_state.clock, sizeof(st.clock));
+	text_time_zone(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "IST \xC2\xB7 UTC+05:30"));
+	st.clock.utc_offset_min = -210;
+	snprintf(st.clock.zone, sizeof(st.clock.zone), "NST");
+	text_time_zone(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "NST \xC2\xB7 UTC-03:30"));
+	text_time_hint(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "14:16 instead of 2:16 pm"));
+
+	text_gb(6400000000ULL, false, b, sizeof(b));
+	CHECK(!strcmp(b, "6.4 GB"));
+	text_gb(300000000ULL, true, b, sizeof(b));
+	CHECK(!strcmp(b, "~0.3 GB"));
+	text_uptime(11520, b, sizeof(b));
+	CHECK(!strcmp(b, "3 h 12 min"));
+	text_uptime(59, b, sizeof(b));
+	CHECK(!strcmp(b, "0 min"));
+	text_uptime(90000, b, sizeof(b));
+	CHECK(!strcmp(b, "1 d 1 h"));
+	memset(&st, 0, sizeof(st));
+	st.storage.known = st.storage.ours = true;
+	st.storage.total_bytes = 32000000000ULL;
+	text_storage_unit(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "GB free of 32 GB"));
+	st.storage.total_bytes = 29900000000ULL;
+	text_storage_unit(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "GB free of 29.9 GB"));
+	st.storage.ours = false;
+	text_storage_unit(&st, b, sizeof(b));
+	CHECK(!strcmp(b, "RAM only"));
+}
+
+static void test_m4_pages(void)
+{
+	lv_obj_t *content = app.content, *page, *l, *sw;
+	struct ui_settings n;
+	int timers;
+
+	memset(&sys_state, 0, sizeof(sys_state));
+	setenv("TZ", "IST-5:30", 1);
+	tzset();
+	set_clock(14, 16);
+	sys_state.storage.known = sys_state.storage.ours = true;
+	app.fake_state = true;
+	app_on_state(~0u);
+	pf_set(true);
+	CHECK(app_depth() == 0);
+
+	/* ---- status bar: 24 hour keeps the old geometry, 12 hour adds the marker */
+	CHECK(!strcmp(lv_label_get_text(app.sb.time), "14:16") && app.set.clock_24h);
+	lv_obj_update_layout(app.sb.obj);
+	CHECK(lv_obj_is_hidden(lv_obj_get_parent(app.sb.meridiem)));
+	{
+		lv_area_t col24;
+
+		lv_obj_get_coords(app.sb.time_col, &col24);
+		CHECK(col24.y2 - col24.y1 + 1 == 44);
+	}
+	app_set_clock_24h(false);
+	CHECK(!strcmp(lv_label_get_text(app.sb.time), "2:16"));
+	CHECK(!strcmp(lv_label_get_text(app.sb.meridiem), "pm") &&
+	      !lv_obj_is_hidden(lv_obj_get_parent(app.sb.meridiem)));
+	CHECK(!strcmp(lv_label_get_text(app.row_time.sub), "2:16 pm \xC2\xB7 IST"));
+	set_clock(12, 59);
+	app_on_state(SYS_CLOCK);
+	lv_obj_update_layout(app.sb.obj);
+	CHECK(!strcmp(lv_label_get_text(app.sb.time), "12:59"));
+	{
+		lv_area_t bar, col, batt;
+
+		lv_obj_get_coords(app.sb.obj, &bar);
+		lv_obj_get_coords(app.sb.time_col, &col);
+		lv_obj_get_coords(app.sb.batt, &batt);
+		CHECK(col.y1 >= bar.y1 && col.y2 <= bar.y1 + KIT_STATUS_H - 1);	/* inside the ear */
+		CHECK(col.x2 <= bar.x2 - 24);
+		CHECK(batt.x1 >= 818);			/* right of the drawn notch */
+		CHECK(batt.x2 - batt.x1 + 1 == 78 && batt.y2 - batt.y1 + 1 == 38);
+	}
+	set_clock(0, 5);
+	app_on_state(SYS_CLOCK);
+	CHECK(!strcmp(lv_label_get_text(app.sb.time), "12:05") &&
+	      !strcmp(lv_label_get_text(app.sb.meridiem), "am"));
+	app_set_clock_24h(true);
+	CHECK(!strcmp(lv_label_get_text(app.sb.time), "00:05") &&
+	      lv_obj_is_hidden(lv_obj_get_parent(app.sb.meridiem)));
+	set_clock(14, 16);
+	app_on_state(SYS_CLOCK);
+
+	/* ---- every hub row reaches its page; Back returns */
+	click(app.row_sound.obj);
+	CHECK(app_depth() == 1 && app_top() == APP_PAGE_SOUND);
+	app_back();
+	advance(20);
+	click(app.row_time.obj);
+	CHECK(app_top() == APP_PAGE_TIME);
+	app_back();
+	advance(20);
+	click(app.row_storage.obj);
+	CHECK(app_top() == APP_PAGE_STORAGE);
+	app_back();
+	advance(20);
+	click(app.row_about.obj);
+	CHECK(app_top() == APP_PAGE_ABOUT);
+	app_back();
+	advance(20);
+	CHECK(lv_obj_get_child_count(content) == 1);
+
+	/* ---- P03 Sound */
+	click(app.row_sound.obj);
+	page = app_top_page()->kp.obj;
+	CHECK(has_label(page, "ALERT VOLUME") && has_label(page, "60%"));
+	CHECK(has_label(page, "Haptics") && has_label(page, "Alert sounds") &&
+	      has_label(page, "Quiet when paused") && !has_label(page, "Touch sounds"));
+	CHECK(has_label(page, "Volume rocker is reserved for ride pages."));
+	{
+		struct sound_probe { struct kit_slider *dummy; } *unused = NULL;
+		(void)unused;
+	}
+	/* the first slider on the page is the volume; switches in row order */
+	{
+		lv_obj_t *sws[3] = { NULL }, *vol = NULL;
+		int ns = 0;
+		uint32_t cnt;
+		lv_obj_t *stack[64];
+		int sp = 0;
+
+		lv_obj_update_layout(page);
+		stack[sp++] = page;
+		while (sp) {
+			lv_obj_t *o = stack[--sp];
+
+			cnt = lv_obj_get_child_count(o);
+			if (lv_obj_get_width(o) == KIT_SWITCH_W && lv_obj_get_height(o) == KIT_SWITCH_H &&
+			    ns < 3)
+				sws[ns++] = o;
+			if (!vol && lv_obj_get_height(o) == 144 && lv_obj_get_width(o) > 200)
+				vol = o;
+			for (uint32_t i = cnt; i > 0 && sp < 63; i--)
+				stack[sp++] = lv_obj_get_child(o, (int32_t)(i - 1));
+		}
+		CHECK(ns == 3 && vol != NULL);
+		/* order of discovery is document order: Haptics, Alert sounds, Quiet */
+		CHECK(kit_switch_get(sws[0]) && kit_switch_get(sws[1]) && !kit_switch_get(sws[2]));
+		click(sws[2]);
+		CHECK(app.set.quiet_paused && kit_switch_get(sws[2]));
+		click(sws[1]);
+		CHECK(!app.set.alert_sounds);
+		click(sws[0]);
+		CHECK(!app.set.haptics);
+		app_back();
+		advance(20);
+		CHECK(!strcmp(lv_label_get_text(app.row_sound.sub), "Haptics off"));
+	}
+	click(app.row_sound.obj);
+	page = app_top_page()->kp.obj;
+	app_set_alert_volume(-5);
+	CHECK(app.set.alert_volume == 0);
+	app_apply_settings(&app.set);
+	CHECK(has_label(page, "0%"));
+	app_set_alert_volume(250);
+	CHECK(app.set.alert_volume == 100);
+	app_set_alert_volume(60);
+	app_set_haptics(true);
+	app_set_alert_sounds(true);
+	app_set_quiet_paused(false);
+	/* settings replaced from storage refresh the open page */
+	n = app.set;
+	n.alert_volume = 25;
+	n.haptics = false;
+	n.quiet_paused = true;
+	app_apply_settings(&n);
+	CHECK(has_label(page, "25%") && !strcmp(lv_label_get_text(app.row_sound.sub), "Haptics off"));
+	n.alert_volume = 60;
+	n.haptics = true;
+	n.quiet_paused = false;
+	app_apply_settings(&n);
+	CHECK(has_label(page, "60%"));
+	app_back();
+	advance(20);
+
+	/* ---- P04 Time */
+	click(app.row_time.obj);
+	CHECK(app_top() == APP_PAGE_TIME);
+	page = app_top_page()->kp.obj;
+	CHECK(has_label(page, "14:16") && has_label(page, "Thursday 8 October 2026"));
+	CHECK(has_label(page, "Time source") && has_label(page, "Time zone") &&
+	      has_label(page, "24-hour clock") && !has_label(page, "Set automatically"));
+	CHECK(has_label(page, "IST \xC2\xB7 UTC+05:30"));
+	CHECK(has_label(page, "Time source unavailable") && has_label(page, "Last sync time unknown."));
+	CHECK(has_label(page, "14:16 instead of 2:16 pm"));
+	/* no chevron or switch on the zone row: exactly one switch (24-hour) */
+	sys_state.timeview.verified = true;
+	sys_state.timeview.source = SYS_TIME_GPS;
+	sys_state.timeview.reference_epoch = 1791448320;
+	app_on_state(SYS_TIME_VIEW);
+	CHECK(has_label(page, "Set by GPS") && has_label(page, "Last synced 14:02 via GPS."));
+	sys_state.timeview.verified = false;		/* query failed: no stale claim */
+	sys_state.timeview.reference_epoch = 0;
+	app_on_state(SYS_TIME_VIEW);
+	CHECK(!has_label(page, "Set by GPS") && has_label(page, "Last sync time unknown."));
+	sys_state.timeview.boot_source = SYS_TIME_RESTORED;
+	app_on_state(SYS_TIME_VIEW);
+	CHECK(has_label(page, "Restored at boot, not yet verified"));
+	sys_state.timeview.verified = true;
+	sys_state.timeview.source = SYS_TIME_NETWORK;
+	sys_state.timeview.reference_epoch = 1791448320;
+	app_on_state(SYS_TIME_VIEW);
+	/* the switch: 12 hour everywhere at once */
+	app_set_clock_24h(false);
+	CHECK(has_label(page, "2:16") && has_label(page, "pm") &&
+	      has_label(page, "Last synced 2:02 pm via network."));
+	CHECK(!strcmp(lv_label_get_text(app.sb.meridiem), "pm"));
+	app_set_clock_24h(true);
+	CHECK(has_label(page, "14:16") && has_label(page, "Last synced 14:02 via network."));
+	/* a minute passes */
+	set_clock(14, 17);
+	app_on_state(SYS_CLOCK);
+	CHECK(has_label(page, "14:17"));
+	/* date rolls with the same hh:mm */
+	snprintf(sys_state.clock.date, sizeof(sys_state.clock.date), "Friday 9 October 2026");
+	app_on_state(SYS_CLOCK);
+	CHECK(has_label(page, "Friday 9 October 2026"));
+	/* a legacy fixture with only hh:mm */
+	sys_state.clock.valid = false;
+	snprintf(sys_state.clock.hhmm, sizeof(sys_state.clock.hhmm), "09:30");
+	sys_state.clock.date[0] = 0;
+	app_set_clock_24h(false);
+	CHECK(has_label(page, "9:30") && has_label(page, "Date unknown"));
+	app_set_clock_24h(true);
+	set_clock(14, 16);
+	memset(&sys_state.timeview, 0, sizeof(sys_state.timeview));
+	app_on_state(SYS_CLOCK | SYS_TIME_VIEW);
+	/* screen off and back: the page survives */
+	pf_set(false);
+	pf_set(true);
+	CHECK(app_top() == APP_PAGE_TIME);
+	app_back();
+	advance(20);
+
+	/* ---- P05 Storage */
+	sys_state.storage.known = sys_state.storage.ours = true;
+	sys_state.storage.total_bytes = 32000000000ULL;
+	sys_state.storage.free_bytes = 18200000000ULL;
+	click(app.row_storage.obj);
+	CHECK(app_top() == APP_PAGE_STORAGE);
+	page = app_top_page()->kp.obj;
+	CHECK(has_label(page, "18.2") && has_label(page, "GB free of 32 GB"));
+	CHECK(has_label(page, "Calculating usage...") && !has_label(page, "System"));
+	CHECK(has_label(page, "Maps") && has_label(page, "Rides") && has_label(page, "Routes") &&
+	      has_label(page, "Other") && has_label(page, "Free") && has_label(page, "18.2 GB"));
+	CHECK(!has_label(page, "6.4 GB"));	/* nothing exact before a coherent scan */
+	sys_state.storage.usage_known = true;
+	sys_state.storage.usage_complete = true;
+	for (int i = 0; i < 3; i++)
+		sys_state.storage.usage_cat[i] = USAGE_CAT_EXACT;
+	sys_state.storage.usage_maps = 6400000000ULL;
+	sys_state.storage.usage_rides = 3100000000ULL;
+	sys_state.storage.usage_routes = 300000000ULL;
+	sys_state.storage.usage_other = 4000000000ULL;
+	sys_state.storage.usage_total_bytes = 32000000000ULL;
+	sys_state.storage.usage_free_bytes = 18200000000ULL;
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "6.4 GB") && has_label(page, "3.1 GB") && has_label(page, "0.3 GB") &&
+	      has_label(page, "4.0 GB") && !has_label(page, "Calculating usage..."));
+	CHECK(!has_label(page, "Usage estimate; storage changed or could not be fully scanned."));
+	/* the bar: segments in order, inside the track, never wider than it */
+	{
+		lv_obj_t *bar = NULL;
+		lv_area_t ba, sa;
+		int shown_segs = 0, last_x2 = -1;
+
+		for (uint32_t i = 0; i < lv_obj_get_child_count(lv_obj_get_child(page, 1)); i++) {
+			lv_obj_t *c = lv_obj_get_child(lv_obj_get_child(page, 1), (int32_t)i);
+
+			if (lv_obj_get_height(c) == 120 + 2 * KIT_LINE)
+				bar = lv_obj_get_child(c, 0);
+		}
+		CHECK(bar != NULL);
+		if (bar) {
+			lv_obj_update_layout(bar);
+			lv_obj_get_coords(bar, &ba);
+			for (uint32_t i = 0; i < lv_obj_get_child_count(bar); i++) {
+				lv_obj_t *c = lv_obj_get_child(bar, (int32_t)i);
+
+				if (lv_obj_is_hidden(c))
+					continue;
+				lv_obj_get_coords(c, &sa);
+				CHECK(sa.x1 >= ba.x1 && sa.x2 <= ba.x2);
+				CHECK(sa.x1 > last_x2 || last_x2 < 0);
+				last_x2 = sa.x2;
+				shown_segs++;
+			}
+			CHECK(shown_segs == 4);
+		}
+	}
+	/* an estimate: tilde values, the K7 note */
+	sys_state.storage.usage_complete = false;
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "~6.4 GB") && has_label(page, "~4.0 GB") &&
+	      has_label(page, "Usage estimate; storage changed or could not be fully scanned."));
+	/* categories above the capacity: no raw plot, no exact claim */
+	sys_state.storage.usage_complete = true;
+	sys_state.storage.usage_maps = 40000000000ULL;
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "Calculating usage..."));
+	sys_state.storage.usage_maps = 6400000000ULL;
+	/* the cheap capacity changes: the old snapshot is not mixed in */
+	sys_state.storage.free_bytes = 17000000000ULL;
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "17.0") && has_label(page, "Calculating usage...") &&
+	      !has_label(page, "6.4 GB"));
+	sys_state.storage.free_bytes = 18200000000ULL;
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "6.4 GB"));
+	/* a foreign /data: RAM only, no capacity claim */
+	sys_state.storage.ours = false;
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "RAM only") && has_label(page, "Nothing is kept across reboots.") &&
+	      !has_label(page, "18.2"));
+	sys_state.storage.known = false;
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "storage unavailable"));
+	sys_state.storage.known = sys_state.storage.ours = true;
+	app_back();
+	advance(20);
+
+	/* ---- P06 About */
+	snprintf(sys_state.device.image_name, sizeof(sys_state.device.image_name), "chef-cyclo");
+	click(app.row_about.obj);
+	CHECK(app_top() == APP_PAGE_ABOUT);
+	page = app_top_page()->kp.obj;
+	CHECK(has_label(page, "chef-cyclo") && has_label(page, "Build information unavailable"));
+	CHECK(has_label(page, "FIRMWARE") && has_label(page, "LVGL") && has_label(page, "Kernel") &&
+	      has_label(page, "Display") && has_label(page, "Serial") && has_label(page, "Bluetooth") &&
+	      has_label(page, "Wi-Fi") && has_label(page, "Uptime"));
+	CHECK(!has_label(page, "403 ppi"));
+	sys_state.device.metadata_known = true;
+	snprintf(sys_state.device.version, sizeof(sys_state.device.version), "dev");
+	snprintf(sys_state.device.commit, sizeof(sys_state.device.commit),
+		 "71163bd000000000000000000000000000000000");
+	snprintf(sys_state.device.build_date, sizeof(sys_state.device.build_date), "2026-10-08 UTC");
+	sys_state.device.dirty = true;
+	snprintf(sys_state.device.lvgl, sizeof(sys_state.device.lvgl), "9.6.0");
+	snprintf(sys_state.device.kernel, sizeof(sys_state.device.kernel), "Linux 4.4");
+	snprintf(sys_state.device.resolution, sizeof(sys_state.device.resolution), "1080 x 2246");
+	snprintf(sys_state.device.serial, sizeof(sys_state.device.serial), "SER123");
+	sys_state.device.serial_known = true;
+	snprintf(sys_state.device.bluetooth, sizeof(sys_state.device.bluetooth), "A4:C1:38:0F:22:91");
+	sys_state.device.bluetooth_known = true;
+	sys_state.device.uptime_s = 11520;
+	sys_state.device.sampled_mono_ms = 0;		/* fixture: no elapsed time */
+	app_on_state(SYS_DEVICE_INFO);
+	CHECK(has_label(page, "chef-cyclo dev") && has_label(page, "Build 71163bd+dirty \xC2\xB7 2026-10-08 UTC"));
+	CHECK(has_label(page, "9.6.0") && has_label(page, "Linux 4.4") && has_label(page, "1080 x 2246") &&
+	      has_label(page, "SER123") && has_label(page, "A4:C1:38:0F:22:91") &&
+	      has_label(page, "3 h 12 min"));
+	CHECK(has_label(page, "Unavailable"));	/* the Wi-Fi address is unknown */
+	/* the uptime timer exists only while the page is visible */
+	timers = timer_count();
+	pf_set(false);
+	CHECK(timer_count() <= timers);
+	timers = timer_count();
+	pf_set(true);
+	CHECK(timer_count() == timers + 1);
+	app_back();
+	advance(20);
+	CHECK(timer_count() <= timers);
+	(void)l;
+	(void)sw;
+	CHECK(lv_obj_get_child_count(content) == 1);
+}
+
+/* ------------------------------------------------------ haptic gestures */
+
+static int pulses(int fd)
+{
+	char b[64];
+	int total = 0;
+	struct timespec ts = { .tv_nsec = 80000000 };
+
+	nanosleep(&ts, NULL);		/* the worker is a real thread */
+	for (;;) {
+		ssize_t n = read(fd, b, sizeof(b));
+
+		if (n <= 0)
+			break;
+		total += (int)n;
+	}
+	return total / 3;		/* each pulse writes "10\n" */
+}
+
+static void gap(void)
+{
+	struct timespec ts = { .tv_nsec = 130000000 };	/* past the 100 ms rate limit */
+
+	nanosleep(&ts, NULL);
+}
+
+static void test_m4_haptics(void)
+{
+	struct chefui_contact c[2] = { { 0 } };
+	char path[256];
+	int fd;
+
+	snprintf(path, sizeof(path), "/tmp/chefui-test-vib-%d", (int)getpid());
+	unlink(path);
+	CHECK(mkfifo(path, 0600) == 0);
+	fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+	CHECK(fd >= 0);
+	if (fd < 0)
+		return;
+	memset(&sys_state, 0, sizeof(sys_state));
+	set_clock(14, 16);
+	app_on_state(~0u);
+	pf_set(true);
+	app_set_haptics(true);
+	CHECK(sys_feedback_start(path, true) == 0);
+	sys_feedback_enabled(true);
+	sys_feedback_screen_allowed(true);
+
+	/* a gesture is one pulse at its start: not on drag, a second finger or release */
+	app_on_touch_frame(c, 1);
+	CHECK(pulses(fd) == 1);
+	app_on_touch_frame(c, 1);
+	app_on_touch_frame(c, 2);
+	app_on_touch_frame(c, 1);
+	app_on_touch_frame(c, 0);
+	CHECK(pulses(fd) == 0);
+	gap();
+	app_on_touch_frame(c, 1);	/* a new gesture */
+	CHECK(pulses(fd) == 1);
+	app_on_touch_frame(c, 0);
+	/* touch still counts as activity: auto-sleep restarts */
+	app_on_touch_frame(NULL, 0);
+	gap();
+
+	/* Back from a page: one pulse; the hub's power.short (screen off) none */
+	click(app.row_display.obj);
+	CHECK(pulses(fd) == 0);		/* opening by tap is the gesture's own pulse */
+	gap();
+	CHECK(app_on_button("power.short"));
+	CHECK(pulses(fd) == 1);
+	advance(20);
+	gap();
+	CHECK(!app_on_button("power.short"));	/* hub: the platform turns the screen off */
+	CHECK(pulses(fd) == 0);
+
+	/* the wake pulse comes after the screen is on, once */
+	pf_set(false);
+	CHECK(pulses(fd) == 0);
+	gap();
+	pf_set(true);
+	CHECK(pulses(fd) == 1);
+
+	/* off: no pulses, and enabling does not preview */
+	gap();
+	app_set_haptics(false);
+	app_on_touch_frame(c, 1);
+	app_on_touch_frame(c, 0);
+	CHECK(pulses(fd) == 0);
+	app_set_haptics(true);
+	CHECK(pulses(fd) == 0);
+	gap();
+	app_on_touch_frame(c, 1);
+	app_on_touch_frame(c, 0);
+	CHECK(pulses(fd) == 1);
+
+	sys_feedback_stop();
+	close(fd);
+	unlink(path);
+}
+
+/* ---------------------------------------------- Back pulse (review F2) */
+
+static void test_m4_back_pulse(void)
+{
+	struct chefui_contact c[1] = { { 0 } };
+	unsigned base;
+
+	memset(&sys_state, 0, sizeof(sys_state));
+	set_clock(14, 16);
+	app_on_state(~0u);
+	pf_set(true);
+	app_set_haptics(true);
+	app_on_touch_frame(c, 0);
+	/* a close driven by state (a join finishing, a forgotten sensor) is silent */
+	click(app.row_sound.obj);
+	base = sys_feedback_test_calls();
+	CHECK(app_back());
+	advance(20);
+	CHECK(sys_feedback_test_calls() == base);
+	/* the header Back target: the touch-down pulses, the close adds none */
+	click(app.row_sound.obj);
+	base = sys_feedback_test_calls();
+	app_on_touch_frame(c, 1);
+	click(app_top_page()->kp.back);
+	app_on_touch_frame(c, 0);
+	advance(20);
+	CHECK(app_depth() == 0 && sys_feedback_test_calls() == base + 1);
+	/* power.short on a page is Back with one pulse; on the hub it is the screen toggle */
+	click(app.row_sound.obj);
+	base = sys_feedback_test_calls();
+	CHECK(app_on_button("power.short"));
+	advance(20);
+	CHECK(sys_feedback_test_calls() == base + 1);
+	base = sys_feedback_test_calls();
+	CHECK(!app_on_button("power.short"));
+	CHECK(sys_feedback_test_calls() == base);
+}
+
+/* --------------------------------- Storage page: review F3 and F10 */
+
+static lv_obj_t *storage_bar(lv_obj_t *page)
+{
+	lv_obj_t *body = lv_obj_get_child(page, 1);
+
+	for (uint32_t i = 0; body && i < lv_obj_get_child_count(body); i++) {
+		lv_obj_t *c = lv_obj_get_child(body, (int32_t)i);
+
+		if (lv_obj_get_height(c) == 120 + 2 * KIT_LINE)
+			return lv_obj_get_child(c, 0);
+	}
+	return NULL;
+}
+
+static int shown_segments(lv_obj_t *bar, uint32_t *colour)
+{
+	int n = 0;
+
+	for (uint32_t i = 0; bar && i < lv_obj_get_child_count(bar); i++) {
+		lv_obj_t *c = lv_obj_get_child(bar, (int32_t)i);
+
+		if (!lv_obj_is_hidden(c)) {
+			n++;
+			if (colour)
+				*colour = bg(c);
+		}
+	}
+	return n;
+}
+
+static void test_m4_storage_review(void)
+{
+	struct ui_store_stat_result stat = { .known = true, .ours = true, .total_bytes = 32000000000ULL,
+		.free_bytes = 18200000000ULL, .root_dev = 1, .root_ino = 2 };
+	struct sys_usage_result u = { .known = true, .ours = true, .complete = true,
+		.total_bytes = 32000000000ULL, .free_bytes = 17000000000ULL,
+		.maps_bytes = 6400000000ULL, .rides_bytes = 3100000000ULL, .routes_bytes = 300000000ULL,
+		.other_bytes = 5200000000ULL, .root_dev = 1, .root_ino = 2, .mount_id = 7 };
+	lv_obj_t *page, *bar;
+	uint32_t col = 0;
+
+	memset(&sys_state, 0, sizeof(sys_state));
+	set_clock(14, 16);
+	app_on_state(~0u);
+	pf_set(true);
+	click(app.row_storage.obj);
+	page = app_top_page()->kp.obj;
+	sys_storage_test_apply_stat(&stat);
+	for (int i = 0; i < 3; i++)
+		u.cat_state[i] = USAGE_CAT_EXACT;
+	/* the scan's capacity (newer than the STAT) is adopted, not dropped */
+	sys_storage_test_apply_usage(&u);
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "17.0") && has_label(page, "6.4 GB") && has_label(page, "5.2 GB") &&
+	      !has_label(page, "Calculating usage..."));
+	bar = storage_bar(page);
+	CHECK(bar != NULL && shown_segments(bar, NULL) == 4);
+	/* Maps cut short, Rides and Routes never reached: estimate, "--", one neutral segment */
+	u.complete = false;
+	u.cat_state[0] = USAGE_CAT_PARTIAL;
+	u.cat_state[1] = u.cat_state[2] = USAGE_CAT_UNSCANNED;
+	u.rides_bytes = u.routes_bytes = 0;
+	sys_storage_test_apply_usage(&u);
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "~6.4 GB") && !has_label(page, "3.1 GB") && !has_label(page, "0.3 GB") &&
+	      !has_label(page, "~0.0 GB") && !has_label(page, "5.2 GB"));
+	CHECK(has_label(page, "Usage estimate; storage changed or could not be fully scanned."));
+	CHECK(shown_segments(bar, &col) == 1 && col == kit_palette_dark.mut);
+	/* an error inside Rides only: complete is false, so every value is an estimate */
+	u.cat_state[0] = USAGE_CAT_EXACT;
+	u.cat_state[1] = USAGE_CAT_PARTIAL;
+	u.cat_state[2] = USAGE_CAT_EXACT;
+	u.rides_bytes = 3100000000ULL;
+	u.routes_bytes = 300000000ULL;
+	u.maps_bytes = 6400000000ULL;
+	sys_storage_test_apply_usage(&u);
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "~3.1 GB") && has_label(page, "~0.3 GB") && has_label(page, "~6.4 GB"));
+	CHECK(shown_segments(bar, NULL) == 4);
+	/* ownership lost: the cheap fields follow, RAM only, no snapshot */
+	u.ours = false;
+	sys_storage_test_apply_usage(&u);
+	app_on_state(SYS_STORAGE);
+	CHECK(has_label(page, "RAM only") && !has_label(page, "6.4 GB"));
+	app_back();
+	advance(20);
+}
+
 int main(void)
 {
 	lv_obj_t *scr;
@@ -1192,5 +1908,10 @@ int main(void)
 	test_wifi_pages(scr);
 	test_gps_pages(scr);
 	test_bt_pages();
+	test_m4_fonts_text();
+	test_m4_pages();
+	test_m4_haptics();
+	test_m4_back_pulse();
+	test_m4_storage_review();
 	return check_report("test-app");
 }

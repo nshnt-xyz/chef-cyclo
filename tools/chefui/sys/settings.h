@@ -4,11 +4,16 @@
  *
  * File (same rules as chef-state, docs/features/storage.md):
  *
- *   chef-ui-settings 1
+ *   chef-ui-settings 2
  *   brightness 70
  *   theme dark
  *   sleep 60
  *   tz IST-5:30
+ *   alert_volume 60
+ *   haptics 1
+ *   alert_sounds 1
+ *   quiet_paused 0
+ *   clock_24h 1
  *   sha256 <hex of the lines above, newlines included>
  *
  * /data/v1/ui/settings when /data is ours (a mount point whose chef-layout
@@ -29,6 +34,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "deviceinfo.h"
+#include "storage_usage.h"
+#include "timeview.h"
+
 enum ui_theme_mode { UI_THEME_DARK, UI_THEME_LIGHT, UI_THEME_AUTO };
 
 #define UI_BRIGHTNESS_MIN 5	/* percent; lower is unreadable outdoors and */
@@ -42,6 +51,8 @@ struct ui_settings {
 	enum ui_theme_mode theme;
 	int sleep_s;			/* 30, 60, 300; 0 = never */
 	char tz[UI_TZ_MAX + 1];		/* POSIX TZ, no tzdata */
+	int alert_volume;			/* alert preference, 0..100 */
+	bool haptics, alert_sounds, quiet_paused, clock_24h;
 };
 
 void ui_settings_defaults(struct ui_settings *s);
@@ -93,9 +104,30 @@ int ui_store_flush(void);
 /* Free space of /data, read on the worker (never on the UI thread): the
  * callback gets known (statvfs worked), ours and the free bytes. A request
  * while a job is out runs after it. Nothing before ui_store_load(). */
-typedef void (*ui_store_stat_cb)(bool known, bool ours, uint64_t free_bytes, void *user);
+struct ui_store_stat_result {
+	bool known, ours;
+	uint64_t total_bytes, free_bytes, root_dev, root_ino;
+};
+typedef void (*ui_store_stat_cb)(const struct ui_store_stat_result *stat, void *user);
 void ui_store_on_stat(ui_store_stat_cb cb, void *user);
 void ui_store_stat(void);
+typedef void (*ui_store_usage_cb)(const struct sys_usage_result *usage, void *user);
+void ui_store_on_usage(ui_store_usage_cb cb, void *user);
+void ui_store_usage(void);
+#ifdef CHEFUI_TEST
+unsigned ui_store_test_usage_requests(void);	/* calls, started or not */
+#endif
+typedef void (*ui_store_info_cb)(const struct sys_device_info *info, void *user);
+void ui_store_on_info(ui_store_info_cb cb, void *user);
+void ui_store_info(const struct sys_device_info_request *request);
+typedef void (*ui_store_time_boot_cb)(enum sys_time_source source, void *user);
+void ui_store_on_time_boot(ui_store_time_boot_cb cb, void *user);
+void ui_store_time_boot(const char *path);
+/* A page was left: drop its queued optional job (one already started may
+ * finish). The free-space read is not cancelled. */
+void ui_store_usage_cancel(void);
+void ui_store_info_cancel(void);
+void ui_store_time_boot_cancel(void);
 /* The file in use, and state for logs and tests. */
 const char *ui_store_path(void);
 bool ui_store_on_data(void);

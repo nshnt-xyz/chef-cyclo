@@ -182,6 +182,11 @@ lessons: `~/chef-cyclo-evidence/system-ui-live-20261011/`,
 
 ### M4 Device pages (P03 to P06)
 
+Status 2026-10-14: implemented and live-verified on a RAM image, awaiting review
+([log](../../logs/system-ui-slice2-2026-10-11.txt)). Follow-ups it found: the
+physical haptic feel and the 12-hour status bar corner glance join the final guided
+batch; a zone picker, real timezone data and manual time stay out of scope.
+
 - P03 Sound and haptics: alert volume slider, Haptics, Alert sounds,
   Quiet when paused, stored in the UI settings for the ride app (no
   sound is played by this slice); Haptics also drives a short tap buzz

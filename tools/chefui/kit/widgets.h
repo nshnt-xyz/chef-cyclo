@@ -56,12 +56,13 @@ struct kit_status {
 	enum kit_wifi wifi;
 	int batt;		/* 0..100, -1 unknown */
 	bool powered;		/* a supply is online (zap; never warn) */
-	char time[8];		/* "14:16" */
+	char time[8];		/* "14:16" or "2:16" */
+	char meridiem[3];	/* "am", "pm" or "" (24-hour) */
 };
 
 struct kit_statusbar {
 	lv_obj_t *obj, *gps, *bt, *wifi;
-	lv_obj_t *batt, *batt_fill, *batt_zap, *batt_pct, *time;
+	lv_obj_t *batt, *batt_fill, *batt_zap, *batt_pct, *time, *meridiem, *time_col;
 	struct kit_status shown;
 	bool valid;
 };
@@ -157,6 +158,9 @@ struct kit_slider {
  * LV_EVENT_VALUE_CHANGED on s->obj for each change (coalesce in the
  * handler). */
 void kit_slider_create(struct kit_slider *s, lv_obj_t *parent, int min, int max, int value);
+void kit_slider_create_icons(struct kit_slider *s, lv_obj_t *parent, int min, int max, int value,
+			     const lv_font_t *left_font, int left_px, const char *left_glyph,
+			     const lv_font_t *right_font, int right_px, const char *right_glyph);
 void kit_slider_set(struct kit_slider *s, int value);
 
 /* ------------------------------------------- slice 2 blocks (blocks.c) */
@@ -210,6 +214,8 @@ void kit_row_set(struct kit_row *r, const char *glyph, const char *title, const 
 /* Key/value row: 132 px, 48 px muted key, 48 px Medium value at the right.
  * Returns the value label. */
 lv_obj_t *kit_kv_row(lv_obj_t *parent, const char *key, const char *value);
+/* The same with another height (About: 156). */
+lv_obj_t *kit_kv_row_h(lv_obj_t *parent, const char *key, const char *value, int height);
 void kit_kv_set(lv_obj_t *value_label, const char *value);
 
 /* Steps card: n (<= 3) columns, each a check (done) or empty circle and a

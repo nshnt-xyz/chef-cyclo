@@ -1,0 +1,5 @@
+# P04 reference values (layer after design.state): 14:16 IST on Thursday
+# 8 October 2026, synchronised by GPS at 14:02. The clock is frozen from the
+# epoch; the zone comes from the saved settings (IST-5:30).
+clockepoch 1791449160
+timesync gps 1791448320

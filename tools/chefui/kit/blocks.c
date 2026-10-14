@@ -227,12 +227,12 @@ void kit_row_set(struct kit_row *r, const char *glyph, const char *title, const 
 
 /* ---------------------------------------------------------- key/value rows */
 
-lv_obj_t *kit_kv_row(lv_obj_t *parent, const char *key, const char *value)
+lv_obj_t *kit_kv_row_h(lv_obj_t *parent, const char *key, const char *value, int height)
 {
 	lv_obj_t *row = kit_box(parent), *v;
 
-	/* height:132px + border-bottom 3; space-between; gap 32; 48 px */
-	lv_obj_set_size(row, lv_pct(100), 132 + KIT_LINE);
+	/* height + border-bottom 3; space-between; gap 32; 48 px */
+	lv_obj_set_size(row, lv_pct(100), height + KIT_LINE);
 	lv_obj_add_style(row, &kit_st.rule_bottom, 0);
 	lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
 	lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
@@ -244,6 +244,11 @@ lv_obj_t *kit_kv_row(lv_obj_t *parent, const char *key, const char *value)
 	lv_obj_set_flex_grow(lv_obj_get_parent(v), 1);
 	lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_RIGHT, 0);
 	return v;
+}
+
+lv_obj_t *kit_kv_row(lv_obj_t *parent, const char *key, const char *value)
+{
+	return kit_kv_row_h(parent, key, value, 132);
 }
 
 void kit_kv_set(lv_obj_t *value_label, const char *value)

@@ -81,6 +81,11 @@ struct kit_styles {
 	lv_style_t scrim;		/* black at 60 % over the screen (a modal) */
 	lv_style_t modal;		/* bg, line2 frame, radius 48 */
 	lv_style_t progress, progress_fill;	/* line2 frame, radius 12; acc fill */
+	/* Storage page: bar frame (radius 32), segment opacities (Maps,
+	 * Rides, Routes, Other), the bg-coloured right edge between segments,
+	 * and the legend swatches (radius 14; Free is an outline) */
+	lv_style_t usage_bar, usage_seg[4], usage_seg_edge, usage_swatch, usage_swatch_free;
+	lv_style_t storage_neutral;	/* the single used segment when no category split is known */
 };
 extern struct kit_styles kit_st;
 

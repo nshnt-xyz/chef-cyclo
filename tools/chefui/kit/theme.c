@@ -46,7 +46,9 @@ static void shapes(void)
 		&s->field_idle, &s->kb, &s->key, &s->key_fn, &s->key_join, &s->key_pressed,
 		&s->caret, &s->ring, &s->ring_in, &s->hair, &s->sat_on, &s->sat_off, &s->bar_on,
 		&s->bar_off, &s->swatch_on, &s->swatch_off, &s->pill, &s->scrim, &s->modal,
-		&s->progress, &s->progress_fill,
+		&s->progress, &s->progress_fill, &s->usage_bar, &s->usage_seg[0], &s->usage_seg[1],
+		&s->usage_seg[2], &s->usage_seg[3], &s->usage_seg_edge, &s->usage_swatch,
+		&s->usage_swatch_free, &s->storage_neutral,
 	};
 
 	for (unsigned i = 0; i < sizeof(all) / sizeof(all[0]); i++)
@@ -133,6 +135,20 @@ static void shapes(void)
 	lv_style_set_bg_opa(&s->swatch_on, LV_OPA_COVER);
 	lv_style_set_radius(&s->swatch_off, 10);
 	lv_style_set_border_width(&s->swatch_off, KIT_LINE);
+	lv_style_set_border_width(&s->usage_bar, KIT_LINE);
+	lv_style_set_radius(&s->usage_bar, 32);
+	lv_style_set_clip_corner(&s->usage_bar, true);
+	/* opacities 1, .45, .25, .70 of 255 */
+	lv_style_set_bg_opa(&s->usage_seg[0], LV_OPA_COVER);
+	lv_style_set_bg_opa(&s->usage_seg[1], 115);
+	lv_style_set_bg_opa(&s->usage_seg[2], 64);
+	lv_style_set_bg_opa(&s->usage_seg[3], 179);
+	lv_style_set_border_side(&s->usage_seg_edge, LV_BORDER_SIDE_RIGHT);
+	lv_style_set_border_width(&s->usage_seg_edge, KIT_LINE);
+	lv_style_set_bg_opa(&s->storage_neutral, 179);	/* .70 of 255 */
+	lv_style_set_radius(&s->usage_swatch, 14);
+	lv_style_set_radius(&s->usage_swatch_free, 14);
+	lv_style_set_border_width(&s->usage_swatch_free, KIT_LINE);
 	lv_style_set_border_width(&s->pill, KIT_LINE);
 	lv_style_set_radius(&s->pill, 60);
 	lv_style_set_bg_opa(&s->scrim, 153);		/* rgba(0,0,0,.6) */
@@ -214,6 +230,13 @@ static void colours(const struct kit_palette *p)
 	lv_style_set_border_color(&s->bar_off, lv_color_hex(p->line2));
 	lv_style_set_bg_color(&s->swatch_on, lv_color_hex(p->acc));
 	lv_style_set_border_color(&s->swatch_off, lv_color_hex(p->line2));
+	lv_style_set_border_color(&s->usage_bar, lv_color_hex(p->line2));
+	for (int i = 0; i < 4; i++)
+		lv_style_set_bg_color(&s->usage_seg[i], lv_color_hex(p->acc));
+	lv_style_set_border_color(&s->usage_seg_edge, lv_color_hex(p->bg));
+	lv_style_set_bg_color(&s->storage_neutral, lv_color_hex(p->mut));
+	lv_style_set_bg_color(&s->usage_swatch, lv_color_hex(p->acc));
+	lv_style_set_border_color(&s->usage_swatch_free, lv_color_hex(p->line2));
 	lv_style_set_border_color(&s->pill, lv_color_hex(p->acc));
 	lv_style_set_bg_color(&s->modal, lv_color_hex(p->bg));
 	lv_style_set_border_color(&s->modal, lv_color_hex(p->line2));

@@ -15,11 +15,13 @@
  *                (for the first network listed), wifi-hidden, wifi-details
  *                (on real state these two open once NetworkManager has
  *                given the network or the connection), gps, gps-sats, bt,
- *                bt-sensor (the first sensor row, once blesensd has listed it)
+ *                bt-sensor (the first sensor row, once blesensd has listed it),
+ *                sound, time, storage, about
  * --keys         with --fake-state only: type TEXT on the page's keyboard
  * --theme        this theme for this run (not saved)
  * --brightness   this brightness for this run (not saved)
  * --sleep        this auto-sleep (seconds, 0 = never) for this run (not saved)
+ * --clock        12 or 24 hour time for this run (not saved)
  * --snapshot     write the frame as PPM after MS (default 500) and exit
  * --data/--run   settings roots instead of /data and /run (host runs)
  *
@@ -53,6 +55,7 @@
 #include "chefui.h"
 #include "pages.h"
 #include "settings.h"
+#include "feedback.h"
 #include "sys.h"
 #include "wifi.h"
 
@@ -69,6 +72,7 @@ struct opts {
 	int snapshot_after;
 	int brightness;		/* 0 = from settings */
 	int sleep_s;		/* -1 = from settings */
+	int clock;		/* 12, 24; 0 = from settings */
 };
 
 static struct opts O = { .snapshot_after = 500, .sleep_s = -1 };
@@ -84,8 +88,8 @@ static int64_t now_ms(void)
 static int usage(void)
 {
 	fprintf(stderr, "usage: chef-settings [--fake-state FILE]... [--page hub|display|wifi|"
-			"wifi-password|wifi-hidden|wifi-details|gps|gps-sats|bt|bt-sensor] [--theme dark|light] [--brightness PCT] "
-			"[--sleep 30|60|300|0] "
+			"wifi-password|wifi-hidden|wifi-details|gps|gps-sats|bt|bt-sensor|sound|time|storage|about] [--theme dark|light] [--brightness PCT] "
+			"[--sleep 30|60|300|0] [--clock 12|24] "
 			"[--snapshot PATH [--snapshot-after MS]] [--data DIR] [--run DIR] "
 			"[--keys TEXT]\n");
 	return 2;
@@ -101,6 +105,8 @@ static int page_kind(const char *v)
 		{ "wifi-password", APP_PAGE_WIFI_PASSWORD }, { "wifi-hidden", APP_PAGE_WIFI_HIDDEN },
 		{ "wifi-details", APP_PAGE_WIFI_DETAILS }, { "gps", APP_PAGE_GPS },
 		{ "gps-sats", APP_PAGE_GPS_SATS }, { "bt", APP_PAGE_BT }, { "bt-sensor", APP_PAGE_BT_SENSOR },
+		{ "sound", APP_PAGE_SOUND }, { "time", APP_PAGE_TIME }, { "storage", APP_PAGE_STORAGE },
+		{ "about", APP_PAGE_ABOUT },
 	};
 
 	for (unsigned i = 0; i < sizeof(pages) / sizeof(pages[0]); i++)
@@ -115,6 +121,18 @@ static void open_start_page(const char *v)
 	switch (page_kind(v)) {
 	case APP_PAGE_DISPLAY:
 		app_open(APP_PAGE_DISPLAY, "Display");
+		break;
+	case APP_PAGE_SOUND:
+		app_open(APP_PAGE_SOUND, "Sound & haptics");
+		break;
+	case APP_PAGE_TIME:
+		app_open(APP_PAGE_TIME, "Time & date");
+		break;
+	case APP_PAGE_STORAGE:
+		app_open(APP_PAGE_STORAGE, "Storage");
+		break;
+	case APP_PAGE_ABOUT:
+		app_open(APP_PAGE_ABOUT, "About");
 		break;
 	case APP_PAGE_WIFI_PASSWORD:
 	case APP_PAGE_WIFI_DETAILS:
@@ -167,6 +185,8 @@ static int parse(int argc, char **argv, struct opts *o)
 		else if (!strcmp(a, "--sleep") && (!strcmp(v, "30") || !strcmp(v, "60") ||
 						    !strcmp(v, "300") || !strcmp(v, "0")))
 			o->sleep_s = atoi(v);
+		else if (!strcmp(a, "--clock") && (!strcmp(v, "12") || !strcmp(v, "24")))
+			o->clock = atoi(v);
 		else if (!strcmp(a, "--brightness") && atoi(v) >= UI_BRIGHTNESS_MIN &&
 			 atoi(v) <= UI_BRIGHTNESS_MAX)
 			o->brightness = atoi(v);
@@ -259,10 +279,8 @@ static bool on_button(const char *gesture, void *user)
 
 static void on_touch(const struct chefui_contact *c, int n, void *user)
 {
-	(void)c;
-	(void)n;
 	(void)user;
-	app_on_touch();
+	app_on_touch_frame(c, n);
 }
 
 static void on_screen(bool on, void *user)
@@ -398,6 +416,8 @@ int main(int argc, char **argv)
 	ui_store_set_paths(&paths);
 	ui_store_on_replaced(on_replaced, NULL);
 	r = ui_store_load(&set);
+	sys_storage_usage_init();
+	sys_device_info_init();
 	if (r)
 		chefui_log("settings: no persistence worker (%s); defaults, not saved", strerror(-r));
 	if (O.theme)
@@ -406,10 +426,15 @@ int main(int argc, char **argv)
 		set.brightness = O.brightness;
 	if (O.sleep_s >= 0)
 		set.sleep_s = O.sleep_s;
+	if (O.clock)
+		set.clock_24h = O.clock == 24;
 	chefui_brightness_set(ui_brightness_level(set.brightness));
 
 	sys_on_change(on_state, NULL);
 	app.fake_state = O.n_fake > 0;
+	/* fake clock fields (clockepoch) use the saved zone, no clock source */
+	if (O.n_fake)
+		sys_clock_use_tz(set.tz);
 	for (int i = 0; i < O.n_fake; i++) {
 		r = sys_fake_load(O.fake[i]);
 		if (r) {
@@ -425,9 +450,13 @@ int main(int argc, char **argv)
 		sys_netbus_start();
 		sys_wifi_init();
 	}
+	/* UI haptics (taps, Back, wake): the phone only, never a fake run */
+	if (!O.n_fake && chefui_backend_is_fbdev() &&
+	    (r = sys_feedback_start(NULL, set.haptics)))
+		chefui_log("haptics: no feedback worker (%s)", strerror(-r));
 	app_init(&pf, &set, chefui_root(), chefui_content_root());
 	/* captures and overrides change nothing on disk */
-	app.persist = !O.theme && !O.brightness && O.sleep_s < 0 && !O.snapshot;
+	app.persist = !O.theme && !O.brightness && O.sleep_s < 0 && !O.clock && !O.snapshot;
 	if (O.page)
 		open_start_page(O.page);
 	/* typed text only into fake state: a real passphrase never comes

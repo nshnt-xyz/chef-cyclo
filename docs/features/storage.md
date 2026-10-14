@@ -108,7 +108,7 @@ Since 2026-10-06 (`chef-state`, `tools/rtc-edge.c`; [handoff](../archive/state-p
 | Magnetometer hard-iron bias (REG2 group 2980) | `/data/v1/sensors/mag-group-2980` | `sensors-up` via `chef-state mag-save` | `sensors-up` via `chef-state mag-restore` ([sensors](sensors.md#magnetometer-calibration)) |
 | GPS switch (gps-manager `enable`/`disable`) | `/data/v1/gps/enabled` (`gps` 0700, created on the first save) | `gps-manager` via `chef-state gps-save 0\|1` | `gps-manager` via `chef-state gps-load` at start; `/run/chef-state-gps-enabled` when `/data` is not ours ([GPS](gps.md#use-gnss-gps-manager)) |
 | BLE sensor records (address, kinds, paired date, name, pending Forget) | `/data/v1/blesens/sensors` (`blesens` 0700, file 0600, created on first save) | `blesensd` via `chef-state blesens-save`, sealed atomic writes | `blesensd` via `chef-state blesens-load`; `/run/chef-state-blesens` without owned `/data` ([Bluetooth](bluetooth.md#ble-sensors)) |
-| UI settings (brightness, theme, auto-sleep, time zone) | `/data/v1/ui/settings` (`ui` 0700, file 0600, created on the first save) | `chef-settings` 2 s after a change and at exit, same checksum and atomic-write rules, on its persistence worker | `chef-settings` at start; `/run/ui/settings` when `/data` is not ours, adopted when `/data` appears ([system UI](system-ui.md#settings)) |
+| UI settings (brightness, theme, auto-sleep, time zone, alert volume, haptics, alert sounds, quiet when paused, 24-hour clock) | `/data/v1/ui/settings` (`ui` 0700, file 0600, created on the first save) | `chef-settings` 2 s after a change and at exit, same checksum and atomic-write rules, on its persistence worker | `chef-settings` at start; `/run/ui/settings` when `/data` is not ours, adopted when `/data` appears ([system UI](system-ui.md#settings)) |
 
 `chef-storage boot` creates `crash`, `time`, `power`, `sensors` and `ssh` (the [SSH](ssh.md) host key; root, 0700) and `chrony` (`chrony:chrony`, 0700) after the BlueZ and NetworkManager binds, and binds `chrony` on `/var/lib/chrony`. A failure there is logged and leaves the other binds in place. A failed chrony bind leaves its tmpfs directory; a missing or foreign `/data` gives all consumers their RAM paths. On an owned but unwritable `/data`, state saves are skipped or fail with a log line; powerd falls back if creating its log directory fails, and keeps its pending rows on `/run` (bounded, oldest dropped) while flushing them fails.
 
@@ -123,12 +123,17 @@ Common rules, all in `initramfs/usr/bin/chef-state`:
 
 **Crash records.** At boot pstore is mounted read-only on `/sys/fs/pstore`; every non-empty record whose SHA-256 is not already saved is copied into `/data/v1/crash/<seq>-<bootreason>/` with an `info` file (this boot's id, the previous boot's id, `androidboot.bootreason`, `since_epoch`, wall time if the clock was restored, and each file's size and SHA-256), then pstore is unmounted. Nothing is removed from pstore. One kmsg line names the directory. The newest 32 record directories are kept, and older ones are removed while the directory holds more than 16 MiB. `boots.log` gets `seq=N boot_id=... bootreason=... since_epoch=... wall=...|na pstore=N` per boot, appended and fsynced (a torn last line is skipped when the next sequence number is read), rotating to `boots.log.1` at 256 KiB. What survives in pstore: a kernel panic's `dmesg-ramoops-0` and `console-ramoops-0`, for one boot (the warm PON after the panic). An unplugged buttond poweroff followed by Power on on 2026-10-06 also kept only the empty annotate record: no previous console survived. An ordinary `reboot`, the bootloader path and a `fastboot boot` keep nothing but an empty `annotate-ramoops-0` (checked 2026-10-06), so the previous boot's console log is not available after a clean reboot.
 
+The system UI's Storage page reads these three category paths (maps, rides, routes) read-only
+and bounded ([system UI](system-ui.md#device-pages-m4)): allocated blocks, never following
+symlinks or leaving the `/data` mount, absent directories count as zero and are never created.
+
 Reserved follow-up locations, still volatile until their consumers migrate:
 
 | State | Planned directory |
 |---|---|
 | Rides | `/data/v1/rides` |
 | Map tiles | `/data/v1/maps` |
+| Planned routes | `/data/v1/routes` |
 | GNSS RAM shadow | `/data/v1/gnss` |
 
 Since phase 3 the root filesystem is the read-only `system_a`

@@ -1,0 +1,4 @@
+# P05 reference values (layer after design.state): the design's 32 GB with
+# 18.2 GB free and Maps 6.4, Rides 3.1, Routes 0.3 (Other 4.0 follows).
+storage 18200000000 32000000000
+storageusage 6400000000 3100000000 300000000

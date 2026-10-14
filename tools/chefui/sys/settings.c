@@ -21,8 +21,10 @@
 #include "chefui.h"
 #include "settings.h"
 #include "sha256.h"
+#include "storage_usage.h"
 
-#define MAGIC "chef-ui-settings 1"
+#define MAGIC1 "chef-ui-settings 1"
+#define MAGIC2 "chef-ui-settings 2"
 #define LAYOUT_MARKER "chef-cyclo-data-v1"
 
 void ui_settings_defaults(struct ui_settings *s)
@@ -32,6 +34,11 @@ void ui_settings_defaults(struct ui_settings *s)
 	s->theme = UI_THEME_DARK;
 	s->sleep_s = 60;
 	snprintf(s->tz, sizeof(s->tz), "IST-5:30");
+	s->alert_volume = 60;
+	s->haptics = true;
+	s->alert_sounds = true;
+	s->quiet_paused = false;
+	s->clock_24h = true;
 }
 
 bool ui_tz_valid(const char *tz)
@@ -56,13 +63,16 @@ bool ui_settings_valid(const struct ui_settings *s)
 {
 	return s->brightness >= UI_BRIGHTNESS_MIN && s->brightness <= UI_BRIGHTNESS_MAX &&
 	       (s->theme == UI_THEME_DARK || s->theme == UI_THEME_LIGHT || s->theme == UI_THEME_AUTO) &&
-	       sleep_valid(s->sleep_s) && ui_tz_valid(s->tz);
+	       sleep_valid(s->sleep_s) && ui_tz_valid(s->tz) &&
+	       s->alert_volume >= 0 && s->alert_volume <= 100;
 }
 
 bool ui_settings_equal(const struct ui_settings *a, const struct ui_settings *b)
 {
 	return a->brightness == b->brightness && a->theme == b->theme && a->sleep_s == b->sleep_s &&
-	       strcmp(a->tz, b->tz) == 0;
+	       strcmp(a->tz, b->tz) == 0 && a->alert_volume == b->alert_volume &&
+	       a->haptics == b->haptics && a->alert_sounds == b->alert_sounds &&
+	       a->quiet_paused == b->quiet_paused && a->clock_24h == b->clock_24h;
 }
 
 int ui_brightness_level(int percent)
@@ -148,9 +158,14 @@ int ui_settings_parse(const char *buf, size_t len, struct ui_settings *out, cons
 	}
 	end = last;
 
-	memset(&s, 0, sizeof(s));
-	if (!next_line(&p, end, line, sizeof(line)) || strcmp(line, MAGIC)) {
-		*why = "not version 1";
+	ui_settings_defaults(&s);
+	if (!next_line(&p, end, line, sizeof(line))) {
+		*why = "bad version";
+		return -1;
+	}
+	bool v2 = !strcmp(line, MAGIC2);
+	if (!v2 && strcmp(line, MAGIC1)) {
+		*why = "bad version";
 		return -1;
 	}
 	if (!next_line(&p, end, line, sizeof(line)) || strncmp(line, "brightness ", 11) ||
@@ -183,6 +198,24 @@ int ui_settings_parse(const char *buf, size_t len, struct ui_settings *out, cons
 		return -1;
 	}
 	memcpy(s.tz, line + 3, strlen(line + 3) + 1);
+	if (v2) {
+		int value;
+		bool *flags[] = { &s.haptics, &s.alert_sounds, &s.quiet_paused, &s.clock_24h };
+		const char *keys[] = { "haptics ", "alert_sounds ", "quiet_paused ", "clock_24h " };
+		if (!next_line(&p, end, line, sizeof(line)) || strncmp(line, "alert_volume ", 13) ||
+		    !parse_uint(line + 13, 100, &s.alert_volume)) {
+			*why = "bad alert_volume line";
+			return -1;
+		}
+		for (size_t i = 0; i < sizeof(flags) / sizeof(flags[0]); i++) {
+			if (!next_line(&p, end, line, sizeof(line)) || strncmp(line, keys[i], strlen(keys[i])) ||
+			    !parse_uint(line + strlen(keys[i]), 1, &value)) {
+				*why = "bad boolean line";
+				return -1;
+			}
+			*flags[i] = value != 0;
+		}
+	}
 	if (p != end) {
 		*why = "extra lines";
 		return -1;
@@ -200,8 +233,12 @@ int ui_settings_format(const struct ui_settings *s, char *buf, size_t size)
 	char hex[65];
 	int n, m;
 
-	n = snprintf(buf, size, MAGIC "\nbrightness %d\ntheme %s\nsleep %d\ntz %s\n", s->brightness,
-		     theme_name(s->theme), s->sleep_s, s->tz);
+	if (!ui_settings_valid(s))
+		return -1;
+	n = snprintf(buf, size, MAGIC2 "\nbrightness %d\ntheme %s\nsleep %d\ntz %s\n"
+		     "alert_volume %d\nhaptics %d\nalert_sounds %d\nquiet_paused %d\nclock_24h %d\n",
+		     s->brightness, theme_name(s->theme), s->sleep_s, s->tz, s->alert_volume,
+		     s->haptics, s->alert_sounds, s->quiet_paused, s->clock_24h);
 	if (n < 0 || (size_t)n >= size)
 		return -1;
 	sha256_hex(buf, (size_t)n, hex);
@@ -305,7 +342,7 @@ bool ui_data_ours(const char *data, bool (*mountpoint)(const char *path))
  * Generations only grow, across reloads too; waiters (exit flush, tests)
  * wait for persisted >= wanted, never for an idle worker.
  */
-enum job_kind { JOB_NONE, JOB_LOAD, JOB_SAVE, JOB_STAT };
+enum job_kind { JOB_NONE, JOB_LOAD, JOB_SAVE, JOB_STAT, JOB_TIME_BOOT, JOB_INFO, JOB_USAGE };
 
 struct job {
 	enum job_kind kind;
@@ -313,7 +350,9 @@ struct job {
 	struct ui_settings s;
 	bool on_data;			/* SAVE: under data (else run) */
 	char data[200], run[200];
+	char time_boot_path[256];
 	bool (*mountpoint)(const char *path);
+	struct sys_device_info_request info_request;
 };
 
 struct result {
@@ -322,6 +361,11 @@ struct result {
 	int err;			/* SAVE: 0 or -errno; LOAD: read status */
 	bool ours;			/* LOAD, STAT: /data is ours */
 	uint64_t free_bytes;		/* STAT: statvfs of an owned /data (err 0) */
+	uint64_t total_bytes;
+	uint64_t root_dev, root_ino;
+	struct sys_device_info info;
+	struct sys_usage_result usage;
+	enum sys_time_source boot_source;
 	const char *why;		/* LOAD: parse rejection */
 	struct ui_settings s;		/* LOAD: what was read (err == 0); SAVE: written */
 };
@@ -339,6 +383,17 @@ static struct {
 	ui_store_stat_cb stat_cb;
 	void *stat_user;
 	bool stat_wanted;
+	ui_store_info_cb info_cb;
+	void *info_user;
+	struct sys_device_info_request info_request;
+	bool info_wanted;
+	ui_store_usage_cb usage_cb;
+	void *usage_user;
+	bool usage_wanted;
+	ui_store_time_boot_cb time_boot_cb;
+	void *time_boot_user;
+	char time_boot_path[256];
+	bool time_boot_wanted;
 
 	/* worker */
 	bool started;
@@ -380,10 +435,50 @@ bool ui_store_pending(void)
 	return St.loaded && St.saved_rev < St.want_rev;
 }
 
+/* A save that should run before optional work: pending and not the
+ * revision that already failed (that one waits for the next change). */
+static bool save_due(void)
+{
+	return ui_store_pending() && St.failed_rev < St.want_rev;
+}
+
+void ui_store_usage_cancel(void)
+{
+	St.usage_wanted = false;
+}
+
+void ui_store_info_cancel(void)
+{
+	St.info_wanted = false;
+}
+
+void ui_store_time_boot_cancel(void)
+{
+	St.time_boot_wanted = false;
+}
+
 void ui_store_on_stat(ui_store_stat_cb cb, void *user)
 {
 	St.stat_cb = cb;
 	St.stat_user = user;
+}
+
+void ui_store_on_info(ui_store_info_cb cb, void *user)
+{
+	St.info_cb = cb;
+	St.info_user = user;
+}
+
+void ui_store_on_usage(ui_store_usage_cb cb, void *user)
+{
+	St.usage_cb = cb;
+	St.usage_user = user;
+}
+
+void ui_store_on_time_boot(ui_store_time_boot_cb cb, void *user)
+{
+	St.time_boot_cb = cb;
+	St.time_boot_user = user;
 }
 
 int ui_store_wait_clock(void)
@@ -539,14 +634,30 @@ static void do_load(const struct job *j, struct result *res)
 static void do_stat(const struct job *j, struct result *res)
 {
 	struct statvfs v;
+	struct stat st, end;
+	int fd;
 
 	res->ours = ui_data_ours(j->data, j->mountpoint);
 	if (!res->ours)
 		return;
-	if (statvfs(j->data, &v))
+	fd = open(j->data, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+	if (fd < 0)
 		res->err = -errno;
-	else
+	else if (fstat(fd, &st) || fstatvfs(fd, &v))
+		res->err = -errno;
+	else if (!v.f_frsize || (uint64_t)v.f_blocks > UINT64_MAX / v.f_frsize ||
+		 (uint64_t)v.f_bavail > UINT64_MAX / v.f_frsize)
+		res->err = -EOVERFLOW;
+	else {
+		res->root_dev = (uint64_t)st.st_dev;
+		res->root_ino = (uint64_t)st.st_ino;
+		res->total_bytes = (uint64_t)v.f_blocks * v.f_frsize;
 		res->free_bytes = (uint64_t)v.f_bavail * v.f_frsize;
+		if (fstat(fd, &end) || end.st_dev != st.st_dev || end.st_ino != st.st_ino ||
+		    !(j->mountpoint ? j->mountpoint(j->data) : ui_mountpoint(j->data)))
+			res->err = -ENODEV;
+	}
+	if (fd >= 0) close(fd);
 }
 
 static void *worker(void *arg)
@@ -574,6 +685,12 @@ static void *worker(void *arg)
 			res.s = j.s;
 		} else if (j.kind == JOB_STAT) {
 			do_stat(&j, &res);
+		} else if (j.kind == JOB_INFO) {
+			res.err = sys_device_info_collect(&j.info_request, &res.info);
+		} else if (j.kind == JOB_TIME_BOOT) {
+			res.boot_source = sys_time_read_boot(j.time_boot_path);
+		} else if (j.kind == JOB_USAGE) {
+			sys_storage_usage_scan(j.data, j.mountpoint, &res.usage);
 		}
 		else
 			do_load(&j, &res);
@@ -609,6 +726,8 @@ static bool submit(enum job_kind kind)
 	snprintf(j.data, sizeof(j.data), "%s", data_root());
 	snprintf(j.run, sizeof(j.run), "%s", run_root());
 	j.mountpoint = St.p.mountpoint;
+	j.info_request = St.info_request;
+	snprintf(j.time_boot_path, sizeof(j.time_boot_path), "%s", St.time_boot_path[0] ? St.time_boot_path : "/run/chef-time");
 	pthread_mutex_lock(&St.mu);
 	St.job = j;
 	St.queued = true;
@@ -640,11 +759,20 @@ static bool collect(void)
 		return true;	/* flush/reload drive the worker themselves */
 	/* an edit made while the worker was busy still needs its save; a
 	 * failed save waits for the next change (or exit) instead */
-	if (ui_store_pending() && !St.busy && !St.timer && !(r.kind == JOB_SAVE && r.err))
+	if (save_due() && !St.busy && !St.timer)
 		schedule_save();
-	if (St.stat_wanted && !St.busy) {
+	if (St.stat_wanted && !St.busy && !save_due() && !St.timer) {
 		St.stat_wanted = false;
 		submit(JOB_STAT);
+	} else if (St.time_boot_wanted && !St.busy && !save_due() && !St.timer) {
+		St.time_boot_wanted = false;
+		submit(JOB_TIME_BOOT);
+	} else if (St.info_wanted && !St.busy && !save_due() && !St.timer) {
+		St.info_wanted = false;
+		submit(JOB_INFO);
+	} else if (St.usage_wanted && !St.busy && !save_due() && !St.timer) {
+		St.usage_wanted = false;
+		submit(JOB_USAGE);
 	}
 	return true;
 }
@@ -757,9 +885,30 @@ static void log_load(const char *path, const struct result *r)
 static void handle_result(const struct result *r)
 {
 	if (r->kind == JOB_STAT) {
-		if (St.stat_cb)
-			St.stat_cb(r->err == 0, r->ours, r->ours && !r->err ? r->free_bytes : 0,
-				   St.stat_user);
+		if (St.stat_cb) {
+			struct ui_store_stat_result stat = {
+				.known = r->err == 0, .ours = r->ours,
+				.total_bytes = r->ours && !r->err ? r->total_bytes : 0,
+				.free_bytes = r->ours && !r->err ? r->free_bytes : 0,
+				.root_dev = r->root_dev, .root_ino = r->root_ino,
+			};
+			St.stat_cb(&stat, St.stat_user);
+		}
+		return;
+	}
+	if (r->kind == JOB_INFO) {
+		if (!r->err && St.info_cb)
+			St.info_cb(&r->info, St.info_user);
+		return;
+	}
+	if (r->kind == JOB_TIME_BOOT) {
+		if (St.time_boot_cb)
+			St.time_boot_cb(r->boot_source, St.time_boot_user);
+		return;
+	}
+	if (r->kind == JOB_USAGE) {
+		if (St.usage_cb)
+			St.usage_cb(&r->usage, St.usage_user);
 		return;
 	}
 	if (r->kind == JOB_SAVE) {
@@ -872,6 +1021,9 @@ int ui_store_load(struct ui_settings *out)
 	}
 	St.quiesce = false;
 	St.stat_wanted = false;
+	St.info_wanted = false;
+	St.usage_wanted = false;
+	St.time_boot_wanted = false;
 	St.loaded = true;
 	St.want = St.saved = *out;
 	St.saved_rev = St.want_rev;	/* generations keep growing */
@@ -937,10 +1089,54 @@ void ui_store_stat(void)
 {
 	if (!St.started)
 		return;
-	if (St.busy || St.quiesce)	/* flush/reload: no incidental work */
+	if (St.busy || St.quiesce || save_due() || St.timer)
 		St.stat_wanted = true;	/* after the job that is out */
 	else
 		submit(JOB_STAT);
+}
+
+void ui_store_info(const struct sys_device_info_request *request)
+{
+	if (!St.started || !request || request->width <= 0 || request->height <= 0)
+		return;
+	St.info_request = *request;
+	if (St.busy || St.quiesce || save_due() || St.timer)
+		St.info_wanted = true;
+	else
+		submit(JOB_INFO);
+}
+
+#ifdef CHEFUI_TEST
+static unsigned test_usage_requests;
+
+unsigned ui_store_test_usage_requests(void)
+{
+	return test_usage_requests;
+}
+#endif
+
+void ui_store_usage(void)
+{
+#ifdef CHEFUI_TEST
+	test_usage_requests++;
+#endif
+	if (!St.started)
+		return;
+	if (St.busy || St.quiesce || save_due() || St.timer)
+		St.usage_wanted = true;
+	else
+		submit(JOB_USAGE);
+}
+
+void ui_store_time_boot(const char *path)
+{
+	if (!St.started)
+		return;
+	snprintf(St.time_boot_path, sizeof(St.time_boot_path), "%s", path && *path ? path : "/run/chef-time");
+	if (St.busy || St.quiesce || save_due() || St.timer)
+		St.time_boot_wanted = true;
+	else
+		submit(JOB_TIME_BOOT);
 }
 
 int ui_store_flush(void)
@@ -970,5 +1166,8 @@ int ui_store_flush(void)
 	}
 	St.quiesce = false;
 	St.stat_wanted = false;	/* one asked for by a callback meanwhile */
+	St.info_wanted = false;
+	St.usage_wanted = false;
+	St.time_boot_wanted = false;
 	return r;
 }

@@ -3,10 +3,11 @@
 [Feature guides](README.md) · [UI platform](ui-platform.md) · [Display and touch](display-and-touch.md) · [Buttons](buttons-and-power-off.md) · [UI plan](../next-steps/ui-and-ride-app.md) · [Slice 1 handoff](../next-steps/system-ui-handoff.md)
 
 `chef-settings` is the phone's system UI: a status bar, the settings hub,
-the Display page, the Wi-Fi, GPS and Bluetooth sensor pages, built on the [UI platform](ui-platform.md) from the
+the Display, Sound and haptics, Time and date, Storage and About pages, the Wi-Fi, GPS and Bluetooth sensor pages, built on the [UI platform](ui-platform.md) from the
 round-1 system design ([design contract](../next-steps/ui-and-ride-app.md#system-ui-design)).
 Slice 2 ([spec](../next-steps/system-ui-2-handoff.md)) adds the remaining
-pages milestone by milestone: Wi-Fi, GPS and Bluetooth sensors.
+pages milestone by milestone: Wi-Fi, GPS and Bluetooth sensors, and (M4) the four
+device pages below.
 It starts at boot and owns the panel; `fblog` shows the log screen whenever
 it is not running. Portrait only. Live-verified on a RAM image on 2026-10-11
 ([evidence](../../logs/system-ui-slice1-2026-10-11.txt)); not installed yet. Source: `tools/chefui/apps/settings/`
@@ -45,20 +46,123 @@ Storage and About. Subtitle sources:
 | GPS | `3D fix · ±3 m`, `Searching…`, `On`, `Off`, `Failed`, `Unavailable` | gps-manager (`Off` = the switch off), gpsd TPV `mode`/`eph` while `RUNNING` |
 | Wi-Fi | the connection name, `Connecting…`, `Not connected`, `Off`, `No device`, `Unavailable` | NetworkManager |
 | Display | theme and brightness, `Dark · 70%` | settings |
-| Sound and haptics | `Haptics on` | static placeholder (buttond's buzz is the only haptic) |
-| Time and date | `14:16 · IST` | clock and zone abbreviation |
+| Sound and haptics | `Haptics on` / `Haptics off` | the haptics preference |
+| Time and date | `14:16 · IST` or `2:16 pm · IST` | clock, the 12/24-hour preference and zone abbreviation |
 | Storage | `18.2 GB free`, `RAM only` | `statvfs("/data")` on hub entry when `/data` is ours |
-| About | `Linux 4.4.192-…` | `uname` release |
+| About | `Linux 4.4.192-…` | `uname` release (a fake run shows the fixture's kernel, never the host's) |
 
-The Bluetooth, Wi-Fi and GPS tiles open their pages and the Display row the Display page;
-the other rows open a placeholder page (header, Back, "Coming in
-a later update.") until their milestone.
+The Bluetooth, Wi-Fi and GPS tiles and every row open their pages.
 
 **Display (P02)**: brightness slider (5 to 100 %, drawn on a 0 to 100 track,
 coalesced into the next frame), theme Dark or Light, and auto-sleep 30 s,
 1 min (default), 5 min or Never. Auto brightness and theme Auto are shown
 muted and do not take input: they need the light sensor, and `sensord` is
 not started at boot yet. A theme switch restyles every widget in place.
+
+## Device pages (M4)
+
+**Status bar time.** The local time follows the 24-hour preference. In 12-hour
+mode the digits are `h:mm` and a 20 px `am`/`pm` marker sits under them in a
+column (64 px high inside the 96 px ear; the column is 44 px in 24-hour mode,
+so that geometry is unchanged). The marker raises the digits about 10 px
+toward the rounded panel corner; this is an intended deviation from the
+reference.
+
+**Sound and haptics (P03)**: alert volume 0 to 100 % (a preference for the
+future ride app, default 60; it does not touch the backlight or ALSA), then
+Haptics, Alert sounds and Quiet when paused switches. No sound is played and
+there is no Touch sounds row. Only haptics is an active output: a 10 ms pulse
+on `/sys/class/timed_output/vibrator/enable` at the start of a touch gesture
+(zero to one or more contacts; not on drag, a second finger or release), on
+Back by the power key and after the screen wakes. A close driven by state
+(a join finishing, a forgotten sensor) and the header Back target (whose touch
+already pulsed) add none. Volume keys, power long and
+redraws never buzz. The haptics preference controls these UI pulses only:
+buttond's and powerd's safety buzzes are independent and untouched. Alert
+sounds and Quiet when paused are stored for the ride app, which does not
+exist yet.
+
+*Feedback worker.* A third thread, `ui-feedback` (UI + `ui-store` +
+feedback is the maximum), is started only on the fbdev backend and never in a
+fake or SDL run. The UI hands it one fixed record over a CLOEXEC pipe
+(nonblocking write end): duration 10 ms, a 100 ms monotonic expiry and a
+generation. A single atomic busy flag admits one request at a time; requests
+while the worker is busy, within 100 ms of the last accepted one, or while
+haptics is off or the screen is off are dropped, never queued or replayed.
+Disabling haptics, screen off and teardown bump the generation, so a stale
+record is discarded; a sysfs write that already started cannot be cancelled
+(a small unavoidable race). A failing node is logged once per distinct error from the UI thread. The worker writes `10\n`, never `0\n`, blocks
+the app signals like the persistence worker and touches no LVGL or app
+state. The UI never waits on it.
+
+**Time and date (P04)**: the local clock (condensed 280 px) and date, then a
+read-only Time source row, the fixed Time zone row (`IST · UTC+05:30`, no
+chevron, derived from the current local offset) and the 24-hour switch with
+its example (`14:16 instead of 2:16 pm`). The last-sync line is
+`Last synced 14:02 via GPS.` (a date is added when it is not today).
+
+*Where the time came from.* `/run/chef-time` is boot provenance only. The
+page therefore asks chrony while it is visible: on entry or wake, then every
+30 s, `chronyc -c -n -h /run/chrony/chronyd.sock tracking` (fixed argv,
+`LC_ALL=C`, posix_spawn, no shell), parsed strictly (14 CSV columns, leap
+Normal, finite reference time in 2026 to 2100 not after now, no `LOCL`).
+Reference `GPS` with refid `47505300` reads `Set by GPS`, a numeric NTP
+address `Set by network`; anything else is unverified. Failure or leaving the
+page clears the verified state at once (no stale claim). The last-sync time
+is chrony's reference time (when it last processed a measurement), not when
+the page opened. Unverified text comes from `/run/chef-time`: `Restored at
+boot, not yet verified`, `Restored boot-time floor, not yet verified`, `Time
+not yet verified`, else `Time source unavailable`. The query supervision
+timer runs while the query is unsettled (2 s deadline, 4 KiB cap, own process
+group, the child is signalled only before it is reaped, a 1 s reap timer
+afterwards), never while the page is hidden or the screen is off.
+
+**Storage (P05)**: the free space of the owned `/data` (`f_bavail`, the same
+number as the hub) and the capacity (`f_blocks`), a bar and rows for Maps,
+Rides, Routes, Other and Free. Maps, Rides and Routes are the allocated
+blocks (`st_blocks`) under `/data/v1/maps`, `rides` and `routes`; a missing
+directory is zero. Other is capacity minus free minus those three, so it
+includes filesystem metadata, service state and reserved blocks (it is not
+the OS image: that is on `system_a`). The scan runs on the settings worker
+as a separate job: descriptor-relative (`openat`, `O_NOFOLLOW`), never
+following symlinks, staying on `/data`'s mount (`mnt_id` from fdinfo), hard
+links counted once (first category wins), only metadata. Bounds: depth 32,
+10000 entries, 10000 inode keys and 250 ms of monotonic time; on a bound, an
+error or a capacity change during the walk the numbers are shown as
+estimates (`~6.4 GB`, note `Usage estimate; storage changed or could not be
+fully scanned.`). A soft budget cannot interrupt one blocked eMMC call, which
+is why it never runs on the UI thread. Each category is exact, partial
+(a bound, depth, a foreign mount or an unreadable entry cut it short) or
+unscanned (a global bound stopped the scan before it); a partial or incomplete
+value shows `~`, an unscanned one `--` (and so does Other), and the bar
+then shows the single neutral used segment. An entry deleted between listing
+and open is skipped, not an error. The scan samples capacity again at its end
+and that newest sample replaces the cheap one (a change during the walk marks
+the categories an estimate); the production default checks that `/data` is a
+mount point. It is requested once on entry or wake
+when the cache (30 s) is stale, never periodically. The page shows only a
+coherent snapshot: if the cheap capacity changes, ownership is lost or the
+scan is missing, it shows the capacity, `Calculating usage...` and a single
+neutral used segment. A foreign or unmounted `/data` shows `RAM only`.
+
+**About (P06)**: firmware card (image name and version, `Build <commit>
+ · <date>` with `+dirty` for a modified tree), then LVGL (compile-time),
+Kernel (`uname`), Display (the real `1080 x 2246`, no pixel density), Serial
+(the exact `androidboot.serialno=` token of `/proc/cmdline`), Bluetooth and
+Wi-Fi addresses (`/sys/class/bluetooth/hci0/address`,
+`/sys/class/net/wlan0/address`; sysfs reports `st_size` 4096, so they are read
+by length, not size) and Uptime (`CLOCK_BOOTTIME`, advanced at minute
+boundaries only while visible). Unknown values read `Unavailable`. The image
+facts come from a second small file, `/etc/chef/image-info` (below); the
+security `build-stamp` is unchanged.
+
+*Image info.* `scripts/chef-image-info.py` writes, from `mkinitramfs.sh`
+into the root (so `mksystem.sh` inherits it): `chef-image-info 1`, `name
+chef-cyclo`, `version dev` (no release exists), the 40-hex HEAD `commit`,
+`dirty 0|1`, and `epoch` (`SOURCE_DATE_EPOCH` or the HEAD commit time, never
+the boot clock). It is read-only display metadata, not trust material; it
+coexists with the strict root stamp (tested). An old image without it shows
+`chef-cyclo` and `Build information unavailable`.
 
 ## Wi-Fi pages
 
@@ -239,17 +343,27 @@ reconnect re-sends the page's hold and scan wants. See the
 else `/run/ui/settings` with one kmsg line (lost at reboot):
 
 ```
-chef-ui-settings 1
+chef-ui-settings 2
 brightness 40
 theme dark
 sleep 60
 tz IST-5:30
+alert_volume 60
+haptics 1
+alert_sounds 1
+quiet_paused 0
+clock_24h 1
 sha256 <hex of the lines above>
 ```
 
-Defaults as shown. `tz` is a POSIX `TZ` string (no tzdata). There is no
-zone picker yet and a hand edit fails the checksum, so it stays `IST-5:30`
-until the Time page exists. The file follows
+Defaults as shown. `tz` is a POSIX `TZ` string (no tzdata); POSIX reverses
+the sign, so `IST-5:30` means UTC+05:30. Version 1 files are accepted with
+the five new preferences filled from defaults. They are not rewritten just
+for migration: the next actual setting change saves canonical version 2.
+**The migration is one-way:** images from before M4 (M1 to M3) parse only
+exact version 1, reject a version 2 file and fall back to defaults until a
+save rewrites version 1, which drops the M4 preferences. There is no zone
+picker. The file follows
 the chef-state rules: checked version, layout, ranges and checksum, a bad
 file ignored with a kmsg line (defaults, replaced at the next save), never
 fatal. Writes are debounced 2 s after the last change and flushed at exit:
@@ -259,9 +373,11 @@ renamed and the directory fsynced, under `/run/ui-settings.lock`. A failed
 save is logged once per kind of error and retried at the next change or at
 exit; the change stays in memory.
 
-**Threads.** chefui applications are single-threaded; this app has one
-exception, the persistence worker. Every storage access (the ownership
-check, reads, writes, fsyncs and the hub's free-space `statvfs`) runs on
+**Threads.** chefui applications are single-threaded; this app has two
+exceptions (three threads in all, the maximum): the persistence worker and
+the haptic feedback worker (above). Every storage access (the ownership
+check, reads, writes, fsyncs, the hub's free-space `statvfs`, the Storage
+scan, the boot provenance and About reads) runs on
 that thread, so a slow or hung
 eMMC cannot stall touch or rendering. It gets immutable jobs and returns
 results over an eventfd on the chefui loop; LVGL and all app state stay on
@@ -270,7 +386,17 @@ revision it wrote, so an older completion never hides a newer change. The
 first read waits at most 1 s at start (defaults meanwhile, the file applied
 when it arrives); the exit flush waits at most 2 s per step and otherwise
 logs that the file may be stale. Waits use `CLOCK_MONOTONIC`, so a clock
-step cannot stretch them.
+step cannot stretch them. A *due* settings save (waiting for its debounce, or
+newer than the revision that already failed) goes before the optional jobs
+(free space, boot provenance, device info, usage; at most one of each is
+pending, in that order); a save that failed for the newest revision waits for
+the next change and blocks nothing, so a full `/data` cannot freeze the
+Storage, Time and About reads. Leaving a page drops its queued, not yet
+started optional job (usage, boot provenance, device info); one already
+started may finish. The worker is a musl thread with a 128 KB stack:
+nothing large may live on it (the usage scan's inode table is heap
+allocated; a 400 KB stack table crashed the app on the phone while glibc's
+8 MB hid it, now a test runs the scan on a 128 KB thread).
 
 **Late `/data`.** On `/run`, the worker checks every 30 s whether `/data`
 became ours. If settings were changed in this boot they win and are written
@@ -357,7 +483,7 @@ files, read in order, so `wifi-off.state` after it gives P15), `--page
 hub|display|wifi|wifi-password|wifi-hidden|wifi-details` (the password page
 for the first listed network), `--keys TEXT` (with fake state only: typed on
 the open entry page's keyboard, for captures; a real passphrase never comes
-from arguments), `--page gps|gps-sats|bt|bt-sensor` (sensor detail uses the first listed kind), `--theme dark|light`, `--brightness PCT` and `--sleep
+from arguments), `--page gps|gps-sats|bt|bt-sensor|sound|time|storage|about` (sensor detail uses the first listed kind), `--theme dark|light`, `--brightness PCT`, `--clock 12|24` and `--sleep
 30|60|300|0` (this run only, not saved), `--snapshot PATH [--snapshot-after MS]` (write the frame as PPM and
 exit), `--data DIR --run DIR` (settings roots). On the phone a root-owned
 `/run/chef-settings/args` (options, one per line) is read once at start and
@@ -401,7 +527,24 @@ outcomes, combo rows, null values and address/kind identity through Forget.
 `test-sys` tests malformed JSON, escapes, foreign pair events, daemon loss,
 reconnect backoff and wants re-sent after reconnect.
 
-**Reference comparison.** `host-test` writes 30 captures (hub, display,
+M4 fake lines (`sys/fake.c`): `clockepoch EPOCH` freezes the clock under the saved
+zone (the design's `1791449160` is Thursday 8 October 2026 14:16 IST), `timesync
+gps|network|restored|floor|none|unknown REF_EPOCH` injects the Time page's source
+model (never a subprocess), `storage FREE [TOTAL]`, `storageusage MAPS RIDES
+ROUTES [estimate]`, and `about KEY VALUE` (name, version, commit, builddate, dirty,
+lvgl, kernel, resolution, serial, bluetooth, wifi, uptime). A bad line changes
+nothing. Fixtures `time.state`, `time-unverified.state`, `storage.state`,
+`storage-estimate.state`, `storage-ram.state`, `storage-calc.state`, `about.state`
+layer after `design.state` (the fake firmware 0.9.3 and serial exist only there).
+M4 tests: `test-app` (fonts, text helpers, 12/24-hour status bar and hub, the four
+pages, the haptic gestures against a FIFO standing in for sysfs), `test-sys` (fake
+lines, usage scan on a 128 KB stack, sysfs address read), `test-timeview` (the
+chronyc client incl. an adversarial held-open pipe), `test-settings` (v1 to v2),
+`scripts/tests/test_chef_image_info.py`.
+
+**Reference comparison.** `host-test` writes 52 captures: the 30 below plus sound, time,
+time-12h, time-unverified, storage, storage-estimate, storage-ram, storage-calc, about,
+about-unknown and hub-12h (the first 30 are hub, display,
 wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden,
 gps-off, gps-searching, gps-locked, gps-sats, bt-off, bt, bt-pairing,
 bt-sensor; dark and light) to
@@ -430,11 +573,26 @@ satellite labels use Barlow Medium for the design's 700 and 600 weights,
 P13's Speed key reads "Speed km/h", and its Satellites row counts 12 in use
 where the design's text says 13 (its own list has 12).
 
+M4 pages (means 2.1 to 3.7 of 255 against P03 to P06): Touch sounds row omitted;
+P04's Set automatically row replaced by the read-only source row and the zone row
+has no chevron and shows the fixed zone; P05's System becomes Other, the order is
+Maps, Rides, Routes, Other, the Wi-Fi upload help is omitted and its corner marks
+are clipped as in the reference; P06's Display value is `1080 x 2246` without ppi
+and the firmware shows the build metadata; the 12-hour status bar adds the marker.
+
 Bluetooth: en dash for no value; found CSC subtitle "Speed / cadence"
 instead of "Cadence"; Pair pill about 6 px narrower from kerning; power/CSC
 detail adds cadence; non-live RSSI says "(last seen)"; empty lists have help
 lines. P09 keeps the actual list under its scrim, whereas the reference
 uses a simplified background.
+
+## Live acceptance of the device pages
+
+The 12-hour status bar sits about 10 px toward the rounded panel corner; a glance
+at the top-right corner in 12-hour mode belongs in the final guided batch, with
+the physical feel of the haptic pulses (only the user can judge it). Preference
+changes were verified by injecting touches into the NVT evdev node from the host
+(evidence only; the tool is not in the repository or the image).
 
 ## Fonts and icons
 

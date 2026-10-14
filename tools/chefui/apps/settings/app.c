@@ -18,6 +18,7 @@
 #include "icons.h"
 #include "pages.h"
 #include "sys.h"
+#include "feedback.h"
 #include "sysstate.h"
 #include "text.h"
 
@@ -27,6 +28,8 @@ struct app app;
 
 static void sleep_timer_cb(lv_timer_t *t);
 static void notify_visible(struct page *p, bool visible);
+static int touch_count;
+static bool was_screen_on;
 
 static void sleep_rearm(void)
 {
@@ -60,13 +63,29 @@ void app_on_touch(void)
 	policy_activity(&app.sleep, app.pf.now_ms());
 }
 
+void app_on_touch_frame(const struct chefui_contact *contacts, int n)
+{
+	(void)contacts;
+	app_on_touch();
+	if (n > 0 && touch_count == 0 && app.set.haptics)
+		sys_feedback_request();
+	touch_count = n > 0 ? n : 0;
+}
+
 void app_on_screen(bool on)
 {
+	bool woke = on && !was_screen_on;
+	was_screen_on = on;
+	sys_feedback_screen_allowed(on);
+	if (!on)
+		touch_count = 0;
 	if (on)
 		policy_activity(&app.sleep, app.pf.now_ms());
 	sleep_rearm();
 	if (app.root)
 		notify_visible(app.stack[app.depth], on);
+	if (woke && app.set.haptics)
+		sys_feedback_request();
 }
 
 bool app_on_button(const char *gesture)
@@ -74,6 +93,11 @@ bool app_on_button(const char *gesture)
 	if (strcmp(gesture, "power.short"))
 		return false;		/* nothing else is claimed in menus */
 	if (policy_power_short(app.pf.screen_is_on(), app.depth) == POWER_BACK) {
+		/* the pulse belongs to the key: closes driven by state (a join
+		 * finishing, a forgotten sensor) and the header target (whose touch
+		 * already pulsed) do not buzz again */
+		if (app.set.haptics)
+			sys_feedback_request();
 		app_back();
 		policy_activity(&app.sleep, app.pf.now_ms());
 		return true;
@@ -90,6 +114,7 @@ static void settings_changed(void)
 }
 
 static void hub_rows_refresh(void);
+static void hub_settings_refresh(void);
 static enum kit_theme effective_theme(enum ui_theme_mode m);
 
 void app_set_brightness(int percent)
@@ -131,10 +156,51 @@ void app_set_sleep(int sleep_s)
 	settings_changed();
 }
 
+void app_set_alert_volume(int volume)
+{
+	if (volume < 0) volume = 0;
+	if (volume > 100) volume = 100;
+	if (volume == app.set.alert_volume) return;
+	app.set.alert_volume = volume;
+	settings_changed();
+}
+
+void app_set_haptics(bool enabled)
+{
+	if (enabled == app.set.haptics) return;
+	app.set.haptics = enabled;
+	sys_feedback_enabled(enabled);
+	hub_settings_refresh();
+	settings_changed();
+}
+
+void app_set_alert_sounds(bool enabled)
+{
+	if (enabled == app.set.alert_sounds) return;
+	app.set.alert_sounds = enabled;
+	settings_changed();
+}
+
+void app_set_quiet_paused(bool enabled)
+{
+	if (enabled == app.set.quiet_paused) return;
+	app.set.quiet_paused = enabled;
+	settings_changed();
+}
+
+void app_set_clock_24h(bool enabled)
+{
+	if (enabled == app.set.clock_24h) return;
+	app.set.clock_24h = enabled;
+	app_on_state(SYS_CLOCK);
+	settings_changed();
+}
+
 /* Settings replaced from storage (a late /data): apply them live. */
 void app_apply_settings(const struct ui_settings *set)
 {
 	app.set = *set;
+	sys_feedback_enabled(set->haptics);
 	app.pf.brightness_set(ui_brightness_level(set->brightness));
 	kit_theme_set(effective_theme(set->theme));
 	policy_set_sleep(&app.sleep, set->sleep_s * 1000, app.pf.now_ms());
@@ -144,11 +210,14 @@ void app_apply_settings(const struct ui_settings *set)
 			app.stack[i]->ops->on_settings(app.stack[i]);
 	if (app.depth == 0)
 		hub_rows_refresh();
+	else
+		hub_settings_refresh();
+	app_on_state(SYS_CLOCK);	/* 12/24-hour may have changed */
 }
 
 /* ------------------------------------------------------------ helpers */
 
-void page_help_text(lv_obj_t *parent, const char *s)
+lv_obj_t *page_help_text(lv_obj_t *parent, const char *s)
 {
 	/* padding:20px 0 0; 40 px muted */
 	lv_obj_t *l = kit_text(parent, &chefkit_b400_40, 0, KIT_INK_MUT, s);
@@ -156,6 +225,37 @@ void page_help_text(lv_obj_t *parent, const char *s)
 
 	lv_obj_set_style_pad_top(box, 20, 0);
 	lv_obj_set_height(box, 20 + kit_css_line(&chefkit_b400_40));
+	return l;
+}
+
+lv_obj_t *page_info_row(lv_obj_t *parent, const char *title, const char *subtitle,
+			lv_obj_t **sw_out)
+{
+	lv_obj_t *row = kit_box(parent), *col, *sub;
+
+	lv_obj_set_size(row, lv_pct(100), KIT_ROW_H + KIT_LINE);
+	lv_obj_add_style(row, &kit_st.rule_bottom, 0);
+	lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+	lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+	lv_obj_set_style_pad_column(row, 40, 0);
+	col = kit_box(row);
+	lv_obj_set_height(col, LV_SIZE_CONTENT);
+	lv_obj_set_flex_grow(col, 1);
+	lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+	lv_obj_set_style_pad_row(col, 6, 0);
+	kit_text(col, &chefkit_b500_56, 62, KIT_INK_FG, title);
+	sub = kit_text(col, &chefkit_b400_42, 0, KIT_INK_MUT, subtitle);
+	if (sw_out)
+		*sw_out = kit_switch_create(row);
+	return sub;
+}
+
+void page_screen_size(int *w, int *h)
+{
+	lv_display_t *d = lv_display_get_default();
+
+	*w = d ? lv_display_get_horizontal_resolution(d) : 0;
+	*h = d ? lv_display_get_vertical_resolution(d) : 0;
 }
 
 static void back_clicked(lv_event_t *e)
@@ -192,6 +292,10 @@ static const struct page_ops *ops_for(enum app_page kind)
 	case APP_PAGE_GPS_SATS: return &page_gps_sats_ops;
 	case APP_PAGE_BT: return &page_bt_ops;
 	case APP_PAGE_BT_SENSOR: return &page_bt_sensor_ops;
+	case APP_PAGE_SOUND: return &page_sound_ops;
+	case APP_PAGE_TIME: return &page_time_ops;
+	case APP_PAGE_STORAGE: return &page_storage_ops;
+	case APP_PAGE_ABOUT: return &page_about_ops;
 	default: return &placeholder_ops;
 	}
 }
@@ -299,8 +403,16 @@ static void tile_clicked(lv_event_t *e)
 static void row_clicked(lv_event_t *e)
 {
 	const char *title = lv_event_get_user_data(e);
-
-	app_open(strcmp(title, "Display") ? APP_PAGE_PLACEHOLDER : APP_PAGE_DISPLAY, title);
+	static const struct { const char *title; enum app_page page; } rows[] = {
+		{ "Display", APP_PAGE_DISPLAY }, { "Sound & haptics", APP_PAGE_SOUND },
+		{ "Time & date", APP_PAGE_TIME }, { "Storage", APP_PAGE_STORAGE },
+		{ "About", APP_PAGE_ABOUT },
+	};
+	for (unsigned i = 0; i < sizeof(rows) / sizeof(rows[0]); i++)
+		if (!strcmp(title, rows[i].title)) {
+			app_open(rows[i].page, title);
+			return;
+		}
 }
 
 static void hub_tiles_refresh(unsigned what)
@@ -309,7 +421,7 @@ static void hub_tiles_refresh(unsigned what)
 	struct kit_status st;
 	char b[96];
 
-	status_from_state(s, &st);
+	status_from_state(s, app.set.clock_24h, &st);
 	if (what & (SYS_BT | SYS_BLE)) {
 		text_bt(s, b, sizeof(b));
 		kit_tile_set(&app.tiles[0], tile_bt_on(s), glyph_bt(st.bt), b);
@@ -323,7 +435,7 @@ static void hub_tiles_refresh(unsigned what)
 		kit_tile_set(&app.tiles[2], tile_wifi_on(s), glyph_wifi(st.wifi), b);
 	}
 	if (what & SYS_CLOCK) {
-		text_time(s, b, sizeof(b));
+		text_time(s, app.set.clock_24h, b, sizeof(b));
 		kit_row_set_sub(&app.row_time, b);
 	}
 	if (what & SYS_STORAGE) {
@@ -332,13 +444,20 @@ static void hub_tiles_refresh(unsigned what)
 	}
 }
 
-/* On hub entry: settings may have changed, storage is re-read. */
-static void hub_rows_refresh(void)
+static void hub_settings_refresh(void)
 {
 	char b[64];
 
 	text_display(&app.set, b, sizeof(b));
 	kit_row_set_sub(&app.row_display, b);
+	text_sound(&app.set, b, sizeof(b));
+	kit_row_set_sub(&app.row_sound, b);
+}
+
+/* On hub entry: settings may have changed, storage is re-read. */
+static void hub_rows_refresh(void)
+{
+	hub_settings_refresh();
 	if (!app.fake_state)
 		sys_storage_refresh();		/* asynchronous */
 }
@@ -349,7 +468,7 @@ void app_on_state(unsigned what)
 
 	if (!app.root)
 		return;		/* app_init() reads the state as it builds */
-	status_from_state(&sys_state, &st);
+	status_from_state(&sys_state, app.set.clock_24h, &st);
 	kit_statusbar_set(&app.sb, &st);
 	hub_tiles_refresh(what);
 	for (int i = 1; i <= app.depth; i++)
@@ -383,14 +502,16 @@ static void build_hub(void)
 	kit_section(body, "DEVICE", 72, 8);
 	kit_row_create(&app.row_display, body, KIT_IC_SUN_MEDIUM, "Display", "", row_clicked,
 		       "Display");
-	/* no Sound page yet: buttond's buzz is the only haptic, always on */
-	kit_row_create(&app.row_sound, body, KIT_IC_VIBRATE, "Sound & haptics", "Haptics on",
+	kit_row_create(&app.row_sound, body, KIT_IC_VIBRATE, "Sound & haptics", "",
 		       row_clicked, "Sound & haptics");
 	kit_row_create(&app.row_time, body, KIT_IC_CLOCK, "Time & date", "", row_clicked,
 		       "Time & date");
 	kit_row_create(&app.row_storage, body, KIT_IC_HARD_DRIVE, "Storage", "", row_clicked,
 		       "Storage");
-	if (uname(&u) == 0)
+	if (app.fake_state)	/* a fixture, never the host's kernel */
+		snprintf(app.about, sizeof(app.about), "%.90s",
+			 sys_state.device.kernel[0] ? sys_state.device.kernel : "Linux");
+	else if (uname(&u) == 0)
 		snprintf(app.about, sizeof(app.about), "Linux %s", u.release);
 	else
 		snprintf(app.about, sizeof(app.about), "Linux");
@@ -403,14 +524,18 @@ void app_init(const struct app_platform *pf, const struct ui_settings *set, lv_o
 	struct kit_status st;
 
 	app.pf = *pf;
+	was_screen_on = pf->screen_is_on();
+	touch_count = 0;
 	app.set = *set;
+	sys_feedback_enabled(set->haptics);
+	sys_feedback_screen_allowed(pf->screen_is_on());
 	app.root = root;
 	app.content = content;
 	kit_theme_init(effective_theme(set->theme));
 	lv_obj_add_style(root, &kit_st.screen, 0);
 	kit_statusbar_create(&app.sb, root);
 	build_hub();
-	status_from_state(&sys_state, &st);
+	status_from_state(&sys_state, app.set.clock_24h, &st);
 	kit_statusbar_set(&app.sb, &st);
 	hub_tiles_refresh(~0u);
 	hub_rows_refresh();

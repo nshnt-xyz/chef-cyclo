@@ -11,12 +11,15 @@
 #include "lvgl.h"
 
 LV_FONT_DECLARE(chefkit_b400_26)	/* digits only */
+LV_FONT_DECLARE(chefkit_b400_20)	/* a, m, p */
 LV_FONT_DECLARE(chefkit_b400_36)	/* ASCII */
 LV_FONT_DECLARE(chefkit_b400_38)
 LV_FONT_DECLARE(chefkit_b400_40)
 LV_FONT_DECLARE(chefkit_b400_42)
+LV_FONT_DECLARE(chefkit_b400_44)	/* ASCII and middle dot: build text */
 LV_FONT_DECLARE(chefkit_b400_46)	/* ASCII */
 LV_FONT_DECLARE(chefkit_b400_48)
+LV_FONT_DECLARE(chefkit_b400_52)	/* ASCII: date, capacity unit */
 LV_FONT_DECLARE(chefkit_b400_56)	/* " /Wbhkmpr" only (units) */
 LV_FONT_DECLARE(chefkit_b400_72)	/* printable ASCII and U+2022 only */
 LV_FONT_DECLARE(chefkit_b500_24)	/* ASCII */
@@ -34,6 +37,7 @@ LV_FONT_DECLARE(chefkit_bc600_44)	/* digits, ':' and '-' only */
 LV_FONT_DECLARE(chefkit_bc600_48)	/* digits and '/' only */
 LV_FONT_DECLARE(chefkit_bc600_52)	/* "Pair" only */
 LV_FONT_DECLARE(chefkit_bc600_60)	/* ASCII */
+LV_FONT_DECLARE(chefkit_bc600_64)	/* digits, " -.BG~" (storage values) */
 LV_FONT_DECLARE(chefkit_bc600_68)	/* digits, ",-.", NSEW, degree, en dash */
 LV_FONT_DECLARE(chefkit_bc600_76)	/* digits, "-./ms", plus-minus, en dash */
 LV_FONT_DECLARE(chefkit_bc600_72)	/* digits, '%' and '-' only */
@@ -41,6 +45,9 @@ LV_FONT_DECLARE(chefkit_bc600_80)	/* ASCII */
 LV_FONT_DECLARE(chefkit_bc600_88)	/* digits, "-.", en dash */
 LV_FONT_DECLARE(chefkit_bc600_96)	/* ASCII titles */
 LV_FONT_DECLARE(chefkit_bc600_150)	/* GPS status figures (gen-fonts.sh) */
+LV_FONT_DECLARE(chefkit_bc600_160)	/* ASCII firmware title */
+LV_FONT_DECLARE(chefkit_bc600_200)	/* capacity */
+LV_FONT_DECLARE(chefkit_bc600_280)	/* clock */
 LV_FONT_DECLARE(chefkit_bc600_300)	/* digits, "-.", en dash */
 LV_FONT_DECLARE(chefkit_icon_24)
 LV_FONT_DECLARE(chefkit_icon_36)

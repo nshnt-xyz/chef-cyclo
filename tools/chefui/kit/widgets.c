@@ -34,11 +34,12 @@ void kit_set_ink(lv_obj_t *label, enum kit_ink ink)
 int kit_font_px(const lv_font_t *f)
 {
 	static const struct { const lv_font_t *f; int px; } map[] = {
-		{ &chefkit_b400_26, 26 }, { &chefkit_b400_36, 36 }, { &chefkit_b500_24, 24 },
+		{ &chefkit_b400_20, 20 }, { &chefkit_b400_26, 26 }, { &chefkit_b400_36, 36 }, { &chefkit_b500_24, 24 },
 		{ &chefkit_b500_32, 32 }, { &chefkit_bc600_48, 48 }, { &chefkit_bc600_68, 68 },
-		{ &chefkit_bc600_76, 76 }, { &chefkit_bc600_150, 150 },
+		{ &chefkit_bc600_64, 64 }, { &chefkit_bc600_76, 76 }, { &chefkit_bc600_150, 150 },
+		{ &chefkit_bc600_160, 160 }, { &chefkit_bc600_200, 200 }, { &chefkit_bc600_280, 280 },
 		{ &chefkit_b400_38, 38 }, { &chefkit_b400_40, 40 }, { &chefkit_b400_42, 42 },
-		{ &chefkit_b400_46, 46 }, { &chefkit_b400_48, 48 }, { &chefkit_b400_72, 72 },
+		{ &chefkit_b400_44, 44 }, { &chefkit_b400_46, 46 }, { &chefkit_b400_52, 52 }, { &chefkit_b400_48, 48 }, { &chefkit_b400_72, 72 },
 		{ &chefkit_b500_42, 42 }, { &chefkit_b500_48, 48 }, { &chefkit_b500_52, 52 },
 		{ &chefkit_b500_54, 54 }, { &chefkit_b500_56, 56 }, { &chefkit_b500_60, 60 },
 		{ &chefkit_b500_64, 64 }, { &chefkit_bc600_32, 32 }, { &chefkit_bc600_40, 40 },
@@ -203,7 +204,16 @@ void kit_statusbar_create(struct kit_statusbar *sb, lv_obj_t *parent)
 	sb->batt_pct = kit_text(inner, &chefkit_bc600_32, 32, KIT_INK_FG, "--");
 	lv_obj_remove_style(sb->batt_pct, &kit_st.ink[KIT_INK_FG], 0);
 	/* Barlow Condensed 600 44, line-height 1 */
-	sb->time = kit_text(r, &chefkit_bc600_44, 44, KIT_INK_FG, "--:--");
+	/* a column: the 44 px digits, and under them the 20 px am/pm marker
+	 * in 12-hour mode (hidden in 24-hour mode, which keeps the geometry) */
+	sb->time_col = kit_box(r);
+	lv_obj_set_size(sb->time_col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+	lv_obj_set_flex_flow(sb->time_col, LV_FLEX_FLOW_COLUMN);
+	lv_obj_set_flex_align(sb->time_col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END,
+			      LV_FLEX_ALIGN_END);
+	sb->time = kit_text(sb->time_col, &chefkit_bc600_44, 44, KIT_INK_FG, "--:--");
+	sb->meridiem = kit_text(sb->time_col, &chefkit_b400_20, 20, KIT_INK_MUT, "pm");
+	lv_obj_set_hidden(lv_obj_get_parent(sb->meridiem), true);
 }
 
 static const char *gps_glyph(enum kit_gps g)
@@ -255,6 +265,11 @@ void kit_statusbar_set(struct kit_statusbar *sb, const struct kit_status *st)
 	}
 	if (!old || strcmp(old->time, st->time))
 		set_text_if(sb->time, st->time);
+	if (!old || strcmp(old->meridiem, st->meridiem)) {
+		if (st->meridiem[0])
+			set_text_if(sb->meridiem, st->meridiem);
+		lv_obj_set_hidden(lv_obj_get_parent(sb->meridiem), !st->meridiem[0]);
+	}
 	sb->shown = *st;
 	sb->valid = true;
 }
@@ -603,7 +618,9 @@ static void slider_input(lv_event_t *e)
 	}
 }
 
-void kit_slider_create(struct kit_slider *s, lv_obj_t *parent, int min, int max, int value)
+void kit_slider_create_icons(struct kit_slider *s, lv_obj_t *parent, int min, int max, int value,
+			     const lv_font_t *left_font, int left_px, const char *left_glyph,
+			     const lv_font_t *right_font, int right_px, const char *right_glyph)
 {
 	memset(s, 0, sizeof(*s));
 	s->min = min;
@@ -615,7 +632,7 @@ void kit_slider_create(struct kit_slider *s, lv_obj_t *parent, int min, int max,
 	lv_obj_set_flex_flow(s->obj, LV_FLEX_FLOW_ROW);
 	lv_obj_set_flex_align(s->obj, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 	lv_obj_set_style_pad_column(s->obj, 28, 0);
-	kit_icon(s->obj, &chefkit_icon_60, 60, KIT_INK_MUT, KIT_IC_SUN_DIM);
+	kit_icon(s->obj, left_font, left_px, KIT_INK_MUT, left_glyph);
 	s->track = kit_box(s->obj);
 	lv_obj_set_height(s->track, 144);
 	lv_obj_set_flex_grow(s->track, 1);
@@ -634,9 +651,15 @@ void kit_slider_create(struct kit_slider *s, lv_obj_t *parent, int min, int max,
 	lv_obj_add_style(s->knob, &kit_st.track_knob, 0);
 	lv_obj_set_size(s->knob, 28, 144 - 2 * KIT_LINE - 2 * 14);
 	lv_obj_set_y(s->knob, 14);
-	kit_icon(s->obj, &chefkit_icon_72, 72, KIT_INK_FG, KIT_IC_SUN);
+	kit_icon(s->obj, right_font, right_px, KIT_INK_FG, right_glyph);
 	s->value = value < s->min ? s->min : value > s->max ? s->max : value;
 	slider_place(s);
+}
+
+void kit_slider_create(struct kit_slider *s, lv_obj_t *parent, int min, int max, int value)
+{
+	kit_slider_create_icons(s, parent, min, max, value, &chefkit_icon_60, 60, KIT_IC_SUN_DIM,
+				&chefkit_icon_72, 72, KIT_IC_SUN);
 }
 
 void kit_slider_set(struct kit_slider *s, int value)
