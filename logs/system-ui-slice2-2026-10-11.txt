@@ -465,7 +465,7 @@ No push or install. Guided USB-out idle current, Wi-Fi join/failed join/
 Forget and GPS window checks remain the agreed final slice 2 batch.
 Real sensors and wheel circumference UI remain documented follow-ups.
 
-M4 (device pages P03 to P06) IMPLEMENTATION, 2026-10-14 (NOT yet approved)
+M4 (device pages P03 to P06) IMPLEMENTATION, 2026-10-14 (approved in round 2, see the outcome below)
 
 Implemented by ui_impl (Claude) after the interrupted first implementer's tree
 was reconciled and rebuilt from clean. Scope: Sound and haptics, Time and date,
@@ -513,7 +513,7 @@ host nested-mount scan (unshare is not permitted; deterministic mismatch
 tests instead); source loss while P04 is open is covered by fakes and the
 adversarial subprocess tests, not by stopping chrony on the phone.
 
-M4 REVIEW ROUND 1 FIXES, 2026-10-14 (still not approved)
+M4 REVIEW ROUND 1 FIXES, 2026-10-14 (approved in round 2, see the outcome below)
 
 ui_review round 1 (F1 to F12) and ui_coord's decisions are all applied:
 F1 a failed save no longer starves the free-space, boot, device and usage
@@ -543,3 +543,17 @@ the screen off, 20 SIGUSR1 captures, kill -9 respawn, the settings file
 untouched (072374...). Evidence: ~/chef-cyclo-evidence/system-ui2-m4-20261013/
 live2/ (the earlier live/ files are superseded except K6/K9 records) and
 review/round2-delta.diff.
+
+M4 FINAL REVIEW OUTCOME: APPROVED by ui_review, round 2, 2026-10-14
+
+Approved in round 2 (evidence review/round2.md) for the tree with manifest
+sha256 8806374dc5728cd5b68dd8395f10a18f3152f50aecff03b8bcb335027a92093d and
+git diff sha256 f0a3d87dd8ca936494affef9e887534d0cc770b61feee5872bd3ead27da1d602.
+Committed as 3d664fb, not pushed or installed.
+
+Still open for the final guided batch: the physical feel of the haptic pulses
+and the 12-hour status bar corner glance near the top-right.
+
+Reviewer non-blocking follow-ups: an old feedback worker clears the shared
+busy flag when it exits (only in test restarts); the before_open scan hook is
+declared outside CHEFUI_TEST.
