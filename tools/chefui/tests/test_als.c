@@ -71,6 +71,13 @@ static void fresh(struct als *a)
 	als_init(a, &p);
 }
 
+/* A stream whose claim was acknowledged at t: wake grace runs ALS_WAKE_GRACE_MS from t. */
+static void fresh_warm(struct als *a, int64_t t)
+{
+	fresh(a);
+	als_warmup_start(a, t);
+}
+
 static void test_curve(void)
 {
 	static const struct { double lux; int pct; } anchors[] = {
@@ -161,10 +168,16 @@ static void test_restart(void)
 	CHECK(als_curve_now(&a) == 75);
 	als_stream_restart(&a);
 	CHECK(als_next_deadline_ms(&a) == -1);
-	sample(&a, 0, 100000, &r);
-	CHECK(als_curve_now(&a) == 5);	/* no ramp from the stale value */
-	CHECK(r.last_bright == 5);
+	/* D8: the filter is kept across a restart (a long screen-off does not forget the light) */
+	als_warmup_start(&a, 100000);
+	sample(&a, 0, 100500, &r);
+	CHECK(als_curve_now(&a) == 75 && a.applied == 75);
 	CHECK(als_curve_now(&(struct als){ 0 }) == -1);
+	/* only the very first sample of all sets the filter */
+	fresh(&a);
+	r = (struct run){ 0 };
+	sample(&a, 0, 0, &r);
+	CHECK(als_curve_now(&a) == 5 && r.last_bright == 5);
 }
 
 static void test_deadband(void)
@@ -207,19 +220,20 @@ static void test_floor_ceiling(void)
 	r = (struct run){ 0 };
 	run_to(&a, 1000, &r);
 	CHECK(r.bright_events == 1 && r.last_bright == UI_BRIGHTNESS_MIN);
-	als_stream_restart(&a);
+	/* the ceiling is reached exactly through the ticks and then holds */
 	als_set_applied(&a, 99);
 	r = (struct run){ 0 };
 	sample(&a, 1e6, 2000, &r);
-	CHECK(r.bright_events == 1 && r.last_bright == UI_BRIGHTNESS_MAX);
+	run_to(&a, 60000, &r);
+	CHECK(r.last_bright == UI_BRIGHTNESS_MAX && a.applied == UI_BRIGHTNESS_MAX);
 	r = (struct run){ 0 };
-	sample(&a, 1e6, 2200, &r);
-	run_to(&a, 10000, &r);
+	sample(&a, 1e6, 60200, &r);
+	run_to(&a, 100000, &r);
 	CHECK(r.bright_events == 0);
 	/* forgetting the applied level re-applies at the next tick */
 	als_set_applied(&a, -1);
 	CHECK(als_next_deadline_ms(&a) >= 0);
-	run_to(&a, 11000, &r);
+	run_to(&a, 111000, &r);
 	CHECK(r.bright_events == 1 && r.last_bright == 100);
 }
 
@@ -285,96 +299,192 @@ static void test_theme_holds(void)
 	CHECK(r.theme_events == 0 && !a.light);
 	fresh(&a);
 	r = (struct run){ 0 };
-	sample(&a, 3000, 0, &r);
-	CHECK(r.theme_events == 1 && a.light && r.last_held == 0);	/* the first sample decides */
-	sample(&a, 1500, 1000, &r);
+	sample(&a, 3000, 0, &r);		/* no wake grace here: the normal hold applies */
+	run_to(&a, 4999, &r);
+	CHECK(r.theme_events == 0);
+	run_to(&a, 5000, &r);
+	CHECK(r.theme_events == 1 && a.light && r.last_held == 5000);
+	sample(&a, 1500, 6000, &r);
 	run_to(&a, 1000000, &r);
 	CHECK(r.theme_events == 1 && a.light);
 
 	/* one 700 lux sample after Light, then silence: Dark at +20 s, not before */
 	fresh(&a);
+	a.light = true;
 	r = (struct run){ 0 };
-	sample(&a, 3000, 0, &r);
 	sample(&a, 700, 1000, &r);
 	run_to(&a, 20999, &r);
-	CHECK(r.theme_events == 1);
+	CHECK(r.theme_events == 0);
 	run_to(&a, 21000, &r);
-	CHECK(r.theme_events == 2 && !r.last_light && r.last_held == 20000);
+	CHECK(r.theme_events == 1 && !r.last_light && r.last_held == 20000);
 
 	/* a sample between the thresholds resets the dark hold */
 	fresh(&a);
+	a.light = true;
 	r = (struct run){ 0 };
-	sample(&a, 3000, 0, &r);
 	sample(&a, 700, 1000, &r);
 	sample(&a, 900, 15000, &r);
 	sample(&a, 700, 15200, &r);
 	run_to(&a, 35199, &r);
-	CHECK(r.theme_events == 1);
+	CHECK(r.theme_events == 0);
 	run_to(&a, 35200, &r);
-	CHECK(r.theme_events == 2);
+	CHECK(r.theme_events == 1);
 }
 
-static void test_theme_first_decision(void)
+/* A sample at t during a wake grace, with the deadlines before it processed. */
+static const double WARM_SAMPLES_DARK[] = { 0, 0, 5, 10, 3, 3, 3, 3, 3 };
+
+/* D8: a wake in a dark room from Light: the readings start at 0, so the theme must
+ * stay Light through wake grace and turn Dark 20 s after its end, once. */
+static void test_warmup_dark_room(void)
 {
 	struct als a;
 	struct run r = { 0 };
-	static const struct { double lux; bool start_light; int events; bool light; } cases[] = {
-		{ 3000, false, 1, true },	/* the first sample decides */
-		{ 100, false, 0, false },
-		{ 1500, false, 0, false },	/* in between: kept */
-		{ 1500, true, 0, true },
-		{ 700, true, 1, false },
-		{ 3000, true, 0, true },
-	};
 
-	for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-		fresh(&a);
-		a.light = cases[i].start_light;
-		r = (struct run){ 0 };
-		sample(&a, cases[i].lux, 0, &r);
-		CHECK(r.theme_events == cases[i].events && a.light == cases[i].light);
-	}
-	/* an Auto theme reset: Dark, or at once from the held lux */
-	fresh(&a);
-	r = (struct run){ 0 };
-	sample(&a, 3000, 0, &r);
-	CHECK(a.light);
-	als_theme_reset(&a);
-	CHECK(a.light);			/* held 3000 lux: Light at once */
-	sample(&a, 1500, 100, &r);
-	als_theme_reset(&a);
-	CHECK(!a.light);		/* in between: Dark */
-	fresh(&a);
+	fresh_warm(&a, 0);
 	a.light = true;
-	als_theme_reset(&a);
-	CHECK(!a.light);		/* no lux yet: Dark until the first sample */
+	for (unsigned i = 0; i < sizeof(WARM_SAMPLES_DARK) / sizeof(WARM_SAMPLES_DARK[0]); i++)
+		sample(&a, WARM_SAMPLES_DARK[i], 500 + 1000 * (int64_t)i, &r);
+	run_to(&a, ALS_WAKE_GRACE_MS + 19999, &r);
+	CHECK(r.theme_events == 0 && a.light);	/* Light through wake grace and 20 s after it, minus 1 ms */
+	run_to(&a, ALS_WAKE_GRACE_MS + 20000, &r);
+	CHECK(r.theme_events == 1 && !r.last_light && r.last_held == 20000 && !r.last_light);
+	run_to(&a, 1000000, &r);
+	CHECK(r.theme_events == 1);
 }
 
-/* D3: a stream restart keeps the theme unless the first sample says otherwise. */
+/* Outdoors: the first readings are low, then bright. From Light it never goes Dark. */
+static void test_warmup_outdoors(void)
+{
+	struct als a;
+	struct run r = { 0 };
+	static const double s[] = { 0, 50, 4000, 30000 };
+
+	fresh_warm(&a, 0);
+	a.light = true;
+	for (unsigned i = 0; i < 4; i++)
+		sample(&a, s[i], 200 * (int64_t)(i + 1), &r);
+	run_to(&a, 1000000, &r);
+	CHECK(r.theme_events == 0 && a.light);
+
+	/* from Dark: Light as soon as the wake grace maximum reaches the threshold, not later */
+	fresh_warm(&a, 0);
+	r = (struct run){ 0 };
+	sample(&a, 0, 200, &r);
+	sample(&a, 50, 400, &r);
+	CHECK(r.theme_events == 0 && !a.light);
+	{
+		struct als_event ev;
+
+		run_to(&a, 500, &r);
+		als_feed(&a, 4000, 600, &ev);
+		CHECK(ev.theme_changed && ev.light && ev.warmup && ev.lux == 4000 && ev.held_ms == 0);
+	}
+	/* a later low sample inside the wake grace does not undo it; with the light still low at
+	 * the end, the normal 20 s Dark hold then runs from the end of wake grace */
+	sample(&a, 10, 900, &r);
+	run_to(&a, ALS_WAKE_GRACE_MS + 19999, &r);
+	CHECK(a.light);
+	run_to(&a, ALS_WAKE_GRACE_MS + 20000, &r);
+	CHECK(!a.light);
+	/* while bright at the end it stays Light */
+	fresh_warm(&a, 0);
+	r = (struct run){ 0 };
+	sample(&a, 4000, 200, &r);
+	sample(&a, 5000, 900, &r);
+	run_to(&a, 1000000, &r);
+	CHECK(a.light && r.theme_events == 1);
+}
+
+/* Warm-up: the level never decreases, then it dims with the normal rules. */
+static void test_warmup_brightness(void)
+{
+	struct als a;
+	struct run r = { 0 };
+	int prev;
+
+	fresh(&a);
+	steady(&a, 5000, 0, 3000, &r);
+	run_to(&a, 60000, &r);
+	CHECK(a.applied == 75);
+	als_stream_restart(&a);
+	als_warmup_start(&a, 100000);
+	prev = a.applied;
+	r = (struct run){ 0 };
+	for (int i = 0; i < 4; i++) {		/* all inside the grace window */
+		struct als_event ev;
+
+		run_to(&a, 100000 + 200 + 1000 * i, &r);
+		als_feed(&a, i < 2 ? 0 : 20, 100200 + 1000 * i, &ev);
+		note(&r, &ev);
+		CHECK(a.applied >= prev);
+		prev = a.applied;
+	}
+	run_to(&a, 100000 + ALS_WAKE_GRACE_MS - 1, &r);
+	CHECK(a.applied == 75 && r.bright_events == 0 && a.warm);
+	/* after wake grace the 20 lux readings dim the level with the 5 s tau */
+	run_to(&a, 100000 + ALS_WAKE_GRACE_MS + 1, &r);
+	CHECK(!a.warm);
+	run_to(&a, 200000, &r);
+	CHECK(r.bright_events > 0 && a.applied < 30);
+}
+
+/* The end of wake grace fires by deadline without any further sample. */
+static void test_warmup_deadline(void)
+{
+	struct als a;
+	struct run r = { 0 };
+
+	fresh_warm(&a, 1000);
+	sample(&a, 300, 1500, &r);
+	CHECK(a.warm);
+	run_to(&a, 1000 + ALS_WAKE_GRACE_MS - 1, &r);
+	CHECK(a.warm);
+	CHECK(als_next_deadline_ms(&a) <= 1000 + ALS_WAKE_GRACE_MS);
+	run_to(&a, 1000 + ALS_WAKE_GRACE_MS, &r);
+	CHECK(!a.warm);
+	run_to(&a, 100000, &r);
+	CHECK(als_next_deadline_ms(&a) == -1);
+	/* a stream with no sample yet has no deadline at all */
+	fresh_warm(&a, 0);
+	CHECK(als_next_deadline_ms(&a) == -1);
+}
+
+/* In-between light keeps the theme across a restart and wake grace. */
 static void test_theme_restart(void)
 {
 	struct als a;
 	struct run r = { 0 };
 
+	fresh_warm(&a, 0);
+	a.light = true;
+	sample(&a, 1500, 300, &r);
+	run_to(&a, 300000, &r);
+	CHECK(a.light && r.theme_events == 0);
+	als_stream_restart(&a);
+	als_warmup_start(&a, 400000);
+	sample(&a, 1500, 400300, &r);
+	run_to(&a, 700000, &r);
+	CHECK(a.light && r.theme_events == 0);
+
+	/* Dark and in between stays Dark */
+	fresh_warm(&a, 0);
+	sample(&a, 1500, 300, &r);
+	run_to(&a, 300000, &r);
+	CHECK(!a.light && r.theme_events == 0);
+
+	/* an Auto theme reset decides at once from the held light, else it is Dark */
 	fresh(&a);
 	sample(&a, 3000, 0, &r);
-	CHECK(a.light && r.theme_events == 1);
-	als_stream_restart(&a);
-	steady(&a, 1500, 100000, 110000, &r);
-	CHECK(a.light && r.theme_events == 1);	/* stays Light, no event */
-	als_stream_restart(&a);
-	steady(&a, 3000, 200000, 210000, &r);
-	CHECK(a.light && r.theme_events == 1);
-	als_stream_restart(&a);
-	sample(&a, 700, 300000, &r);
-	CHECK(!a.light && r.theme_events == 2 && r.last_held == 0);	/* decided at once */
-
+	als_theme_reset(&a);
+	CHECK(a.light);
+	sample(&a, 1500, 100, &r);
+	als_theme_reset(&a);
+	CHECK(!a.light);
 	fresh(&a);
-	r = (struct run){ 0 };
-	sample(&a, 100, 0, &r);
-	als_stream_restart(&a);
-	steady(&a, 1500, 100000, 110000, &r);
-	CHECK(!a.light && r.theme_events == 0);
+	a.light = true;
+	als_theme_reset(&a);
+	CHECK(!a.light);
 }
 
 static void test_theme_flapping(void)
@@ -382,12 +492,11 @@ static void test_theme_flapping(void)
 	struct als a;
 	struct run r = { 0 };
 
-	/* 2000..3000 lux square wave, period 6 s, 10 min: never held 5 s;
-	 * starting high the first sample gives the only transition */
+	/* 2000..3000 lux square wave, period 6 s, 10 min: never held 5 s, either start */
 	fresh(&a);
 	for (int64_t t = 0; t < 600000; t += STEP)
 		sample(&a, ((t / 3000) & 1) ? 2000 : 3000, t, &r);
-	CHECK(r.theme_events == 1);
+	CHECK(r.theme_events == 0);
 	fresh(&a);
 	r = (struct run){ 0 };
 	for (int64_t t = 0; t < 600000; t += STEP)
@@ -400,7 +509,7 @@ static void test_theme_flapping(void)
 		sample(&a, 2500 + 500 * sin(2 * M_PI * (double)t / 6000.0 - 0.5), t, &r);
 	CHECK(r.theme_events == 0);
 	/* 60 s period, 30 s at 3000 and 30 s at 700, ten cycles: every half cycle
-	 * flips once (the first through the first sample) */
+	 * flips once (the first after its 5 s hold) */
 	fresh(&a);
 	r = (struct run){ 0 };
 	for (int64_t t = 0; t < 600000; t += STEP)
@@ -471,7 +580,10 @@ int main(void)
 	test_floor_ceiling();
 	test_steady_state();
 	test_theme_holds();
-	test_theme_first_decision();
+	test_warmup_dark_room();
+	test_warmup_outdoors();
+	test_warmup_brightness();
+	test_warmup_deadline();
 	test_theme_restart();
 	test_theme_flapping();
 	test_offset();

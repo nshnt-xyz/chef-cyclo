@@ -27,6 +27,7 @@
 #define ALS_TAU_DOWN_MS 5000.0	/* dimming */
 #define ALS_PROBE_MS 30000	/* status probe on the claimed connection */
 #define ALS_REPLY_MS 5000	/* no status reply within this: sensord hung, reconnect */
+#define ALS_WAKE_GRACE_MS 5000	/* after a claim: low readings are untrustworthy (a hand on the sensor at a wake) */
 #define ALS_TICK_MS 200		/* smoothing step while the level has not settled */
 #define ALS_DEADBAND 2		/* percent points */
 
@@ -45,6 +46,10 @@ struct als {
 	double xf;			/* filtered log10(lux + 1) */
 	int64_t t_xf;			/* the time xf is valid for */
 	int applied;			/* percent, -1 none yet */
+	/* wake grace after a claim acknowledgment: samples are trusted only as a maximum */
+	bool warm;
+	int64_t warm_until;
+	double warm_max;		/* highest sample since the claim ack, -1 none */
 	/* theme */
 	bool light;			/* current ALS theme */
 	int64_t above_since, below_since;	/* when cur_lux entered the zone, -1 none */
@@ -54,6 +59,7 @@ struct als_event {
 	bool bright_changed;
 	int bright;			/* new applied percent */
 	bool theme_changed;
+	bool warmup;			/* the theme change came from the wake grace maximum */
 	bool light;			/* the new theme */
 	double lux;			/* the lux that decided */
 	int64_t held_ms;		/* how long the condition held (0: first decision) */
@@ -62,13 +68,20 @@ struct als_event {
 void als_params_default(struct als_params *p);
 bool als_params_valid(const struct als_params *p);
 void als_init(struct als *a, const struct als_params *p);
-/* The sensor stream (re)started or ended: the held lux is forgotten, hold
- * timers stop, and the next sample sets the filter directly and decides
- * the theme at once. The theme, the applied level and the curve state are
- * kept. */
+/* The sensor stream ended or restarts: the held lux is forgotten and hold
+ * timers stop. The theme, the applied level and the brightness filter are kept
+ * (a long screen-off does not forget the light). */
 void als_stream_restart(struct als *a);
-/* Theme Auto was selected from another mode: Dark, then decided at once from
- * the held lux if the stream has one, else by the next sample. */
+/* The claim was acknowledged: a wake grace window starts (ALS_WAKE_GRACE_MS).
+ * Right after a wake the user's hand is often on or near the sensor (pressing
+ * power, picking the phone up): an occluded sensor reads LOW, never high. So
+ * during the window the logic uses the maximum sample since now: Light at once
+ * when it reaches the light threshold, no Dark decision or hold, no dimming.
+ * At the end the latest sample takes over and the normal hysteresis runs from
+ * there. */
+void als_warmup_start(struct als *a, int64_t now_ms);
+/* Theme Auto was selected from another mode: Dark, then Light at once if the
+ * held (or wake grace maximum) lux says so. */
 void als_theme_reset(struct als *a);
 /* Auto brightness was (re)enabled or the backlight was set by someone
  * else: forget the applied level (pct < 0) or record it. */

@@ -619,3 +619,45 @@ live files (step3-enable, step4, d7d) are superseded by boot 3 (37a92ad4...: ste
 sleep-claim, 4b, 6, 7, 9a, K6b); d7d uses the sensord CLI with the UI stopped. D7d was at
 0 lux only; the guided visit repeats it at room light (5 claims in STEP 2). k6b times:
 live/k6b-times.txt.
+
+M5 PART 2 (2026-10-16): measurement, boot integration, wake grace, prompt overlay
+
+Phase A idle current (image of HEAD 390b0e0 without M5 code, boot-m5meas.img 02375c14..., alsab.sh c2e61b6c...,
+battery only, panel off with wled 0, Wi-Fi radio off, BT as booted, 180 s blocks, 1 Hz current_now, 29 % capacity,
+battery 40 -> 36 C): base (ADSP off) 198.1 mA (203.4, 197.5, 193.6), idle (ADSP booted, sensord, no claims) 195.3 mA,
+als (illuminance at 5 Hz) 195.7 mA. idle - base -2.8 mA (pairs -8.4..+2.2; the base blocks fall with the cooling
+battery, against the last base block idle is +1.7 mA), als - idle +0.4 mA (pairs -1.1..+2.0), block sd 11 to 22 mA:
+the cost of the ADSP, sensord and a claim is below the noise (0 to +2 mA). ADSP boot 2.5 s (sensors-up start to smgr
+ready). Voltage -36 mV in 28 min. No invalid block (wled 0 throughout, 10 s rolling excess at most 30 mA, no key or
+touch in kmsg). Earlier tries: one timed out (nobody unplugged), one ran on the PD wall charger (the node `usb` of
+type USB_PD; the swap itself dropped all supplies for a moment) and is invalid. Evidence: live/alsab-report.md.
+D4 stream statistics at steady dark light: 22, 24, 27 lines per 180 s, max gaps 102, 27, 55 s. The decision: boot
+integration accepted by the user (brief section 18).
+
+Idle draw regression (next step, in docs/next-steps/power-and-reliability.md): the base blocks averaged about 198 mA
+against about 95 mA for gps-manager OFF on 2026-10-04; an A/B stopping one resident at a time is needed.
+
+Phase C (brief section 9): inittab starts sensors-up (respawn through a wrapper waiting 10 s), flock lock on
+/run/sensors-up.lock (fd 9 closed for children), sensord pid file and orphan handling (TERM, KILL after 3 s, pid
+checked against the sensord binary), tests in tools/sensord/tests/test_sensors-up.sh (second instance refused, lock
+dropped by kill -9, orphan stopped, recycled pid left alone). Live on boot-m5.img 39208c96...: step 2 sensors-up from
+inittab, smgr ready 12.8 s after boot (chef-settings started at 11.1 s as before); step 5 kill -9 of the supervisor:
+the wrapper respawned it after 12 s, the orphaned sensord was stopped, registry reused, one new pair, one illuminance
+claim (live/step2.txt, step5.txt). D10: the wrapper moves /run/sensors-up.log to .log.1 when it is over 256 KiB before each start (one generation); at boot sensord runs without -v and with stderr on /dev/null (SENSORD_ARGS=, SENSORD_STDERR=/dev/null; its notes stay in kmsg), so the log holds only sensors-up lines, about 512 KiB at most; tested with the real inittab line in test_sensors-up.sh). The live evidence on boot-m5-5 (39208c96...) predates D10 (old wrapper); D10 is checked live on the next image.
+
+D8/D9 (briefs 20 and 21): live guided run 1 (invalid: the 30 s auto-sleep turned the screen off, live/m5live-try1)
+showed low samples (15, 0, 7 .. 44 lux, then 234, 261) in a 270 lux room right after a wake; the reviewer's
+explanation (a hand over the sensor while the script's lux watch already held the report) is the working
+hypothesis, so the rule became a wake grace: ALS_WAKE_GRACE_MS 5000 after each claim acknowledgment, the highest
+sample is used, Light at once, no Dark decision or hold and no dimming inside it, the filter is kept across restarts.
+Tests: test_als (dark room wake from Light, outdoors from Light and Dark, brightness never decreasing, the end by
+deadline, restart keeping the filter and theme), test_alsclient, test_app. Cold-start check script: live/coldstart.sh
+(headless, next visit).
+
+19a prompt overlay: apps/settings/prompt.{c,h}, /run/chef-settings/prompt through inotify, trust rules of the args
+file, 1 s timer only with a countdown, test-prompt (246 checks), captures display-prompt-{dark,light}, live card seen
+on the phone (live/prompt-live). 19b guided rerun: live/guided-m5.sh (prompts for every cue, auto-sleep Never by taps,
+lux watch stopped across the power steps and restarted when the UI's claim shows claims 1) and the rerun waits for a
+user visit.
+
+Open: guided rerun and the cold-start check (next visit); ui_review's review of part 2; M6.

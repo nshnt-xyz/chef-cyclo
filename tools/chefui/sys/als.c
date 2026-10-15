@@ -61,15 +61,30 @@ void als_init(struct als *a, const struct als_params *p)
 void als_stream_restart(struct als *a)
 {
 	a->have_prev = false;
+	a->warm = false;
 	a->above_since = a->below_since = -1;
+}
+
+void als_warmup_start(struct als *a, int64_t now_ms)
+{
+	a->warm = true;
+	a->warm_until = now_ms + ALS_WAKE_GRACE_MS;
+	a->warm_max = -1;
+	a->above_since = a->below_since = -1;
+}
+
+/* The light the logic acts on: the wake grace maximum, then the latest sample. */
+static double eff_lux(const struct als *a)
+{
+	return a->warm ? a->warm_max : a->cur_lux;
 }
 
 void als_theme_reset(struct als *a)
 {
 	a->light = false;
 	a->above_since = a->below_since = -1;
-	/* decided at once from the held lux, if this stream has one */
-	if (a->have_prev && a->cur_lux >= a->p.light_lux)
+	/* Light at once from the held lux (or wake grace maximum), if this stream has one */
+	if (a->have_prev && eff_lux(a) >= a->p.light_lux)
 		a->light = true;
 }
 
@@ -110,10 +125,18 @@ static int target_of(const struct als *a, double x)
 	return clampi((int)lround(curve_x(x)) + a->offset, UI_BRIGHTNESS_MIN, UI_BRIGHTNESS_MAX);
 }
 
-/* Would the applied level still change once the filter reached the held lux? */
+/* The filter's goal: during wake grace it never goes down. */
+static double goal_x(const struct als *a)
+{
+	double x = lux_x(eff_lux(a));
+
+	return a->warm && x < a->xf ? a->xf : x;
+}
+
+/* Would the applied level still change once the filter reached its goal? */
 static bool unsettled(const struct als *a)
 {
-	int t = target_of(a, lux_x(a->cur_lux));
+	int t = target_of(a, goal_x(a));
 
 	return a->applied < 0 || abs(t - a->applied) >= ALS_DEADBAND ||
 	       ((t == UI_BRIGHTNESS_MIN || t == UI_BRIGHTNESS_MAX) && t != a->applied);
@@ -143,19 +166,46 @@ static void theme_set(struct als *a, bool light, double lux, int64_t held, struc
 	ev->held_ms = held;
 }
 
-/* Everything the held lux implies up to now. */
+/* The filter follows the held light up to t; in wake grace it only brightens. */
+static void filter_to(struct als *a, int64_t t)
+{
+	if (t <= a->t_xf)
+		return;
+	double x = lux_x(eff_lux(a));
+
+	if (!(a->warm && x < a->xf)) {
+		double tau = x > a->xf ? ALS_TAU_UP_MS : ALS_TAU_DOWN_MS;
+
+		a->xf += (x - a->xf) * (1.0 - exp(-(double)(t - a->t_xf) / tau));
+	}
+	a->t_xf = t;
+}
+
+/* Wake grace over at t: the latest sample takes over, the hold timers start here. */
+static void warm_end(struct als *a, int64_t t)
+{
+	a->warm = false;
+	a->above_since = a->below_since = -1;
+	if (a->cur_lux >= a->p.light_lux)
+		a->above_since = t;
+	else if (a->cur_lux <= a->p.dark_lux)
+		a->below_since = t;
+}
+
+/* Everything the held light implies up to now. */
 static void advance(struct als *a, int64_t now, struct als_event *ev)
 {
 	if (!a->have_prev)
 		return;
-	if (now > a->t_xf) {
-		double x = lux_x(a->cur_lux);
-		double tau = x > a->xf ? ALS_TAU_UP_MS : ALS_TAU_DOWN_MS;
-
-		a->xf += (x - a->xf) * (1.0 - exp(-(double)(now - a->t_xf) / tau));
-		a->t_xf = now;
+	if (a->warm && now >= a->warm_until) {
+		filter_to(a, a->warm_until);
+		bright_apply(a, ev);
+		warm_end(a, a->warm_until);
 	}
+	filter_to(a, now);
 	bright_apply(a, ev);
+	if (a->warm)
+		return;		/* no Dark decision and no hold during wake grace */
 	if (a->cur_lux >= a->p.light_lux && a->above_since >= 0 && !a->light &&
 	    now - a->above_since >= (int64_t)a->p.light_hold_s * 1000)
 		theme_set(a, true, a->cur_lux, now - a->above_since, ev);
@@ -175,14 +225,25 @@ void als_feed(struct als *a, double lux, int64_t t_ms, struct als_event *ev)
 	bool first = !a->have_prev;
 
 	*ev = (struct als_event){ 0 };
-	advance(a, t_ms, ev);		/* the previous lux held until now */
+	advance(a, t_ms, ev);		/* the previous light held until now */
 	a->cur_lux = lux;
 	a->have_prev = true;
+	if (a->warm && lux > a->warm_max)
+		a->warm_max = lux;
 	if (first) {
-		a->xf = lux_x(lux);
+		if (!a->xf_known) {		/* only the very first sample sets the filter */
+			a->xf = lux_x(eff_lux(a));
+			a->xf_known = true;
+		}
 		a->t_xf = t_ms;
-		a->xf_known = true;
-		bright_apply(a, ev);
+	}
+	bright_apply(a, ev);
+	if (a->warm) {
+		if (a->warm_max >= a->p.light_lux && !a->light) {
+			theme_set(a, true, a->warm_max, 0, ev);
+			ev->warmup = true;
+		}
+		return;
 	}
 	if (lux >= a->p.light_lux) {
 		a->below_since = -1;
@@ -195,13 +256,6 @@ void als_feed(struct als *a, double lux, int64_t t_ms, struct als_event *ev)
 	} else {
 		a->above_since = a->below_since = -1;
 	}
-	if (first) {
-		/* the first sample of a stream decides: in between keeps the theme */
-		if (lux >= a->p.light_lux)
-			theme_set(a, true, lux, 0, ev);
-		else if (lux <= a->p.dark_lux)
-			theme_set(a, false, lux, 0, ev);
-	}
 }
 
 int64_t als_next_deadline_ms(const struct als *a)
@@ -210,10 +264,13 @@ int64_t als_next_deadline_ms(const struct als *a)
 
 	if (!a->have_prev)
 		return -1;
-	if (!a->light && a->cur_lux >= a->p.light_lux && a->above_since >= 0)
+	if (a->warm) {
+		d = a->warm_until;
+	} else if (!a->light && a->cur_lux >= a->p.light_lux && a->above_since >= 0) {
 		d = a->above_since + (int64_t)a->p.light_hold_s * 1000;
-	else if (a->light && a->cur_lux <= a->p.dark_lux && a->below_since >= 0)
+	} else if (a->light && a->cur_lux <= a->p.dark_lux && a->below_since >= 0) {
 		d = a->below_since + (int64_t)a->p.dark_hold_s * 1000;
+	}
 	if (unsettled(a)) {
 		c = a->t_xf + ALS_TICK_MS;
 		if (d < 0 || c < d)

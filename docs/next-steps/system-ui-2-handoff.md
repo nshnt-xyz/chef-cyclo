@@ -209,12 +209,15 @@ batch; a zone picker, real timezone data and manual time stay out of scope.
 
 ### M5 Ambient light: Auto brightness and theme Auto
 
-Status 2026-10-14: part 1 implemented and host-tested, partly live-verified on a RAM
-image with `sensors-up` started by hand ([log](../../logs/system-ui-slice2-2026-10-11.txt)).
-Open: the idle-current measurement and the boot decision, boot integration of
-`sensors-up` and its live checks, the guided light steps (wake, covered sensor, room,
-lamp or window, steady level), and ui_review's review. The illuminance stream is
-on-change only, so the client uses a status probe instead of a silence timeout.
+Status 2026-10-16: implemented and host-tested; live-verified on a RAM image except the
+guided light steps ([log](../../logs/system-ui-slice2-2026-10-11.txt)). The idle current of the ADSP,
+`sensord` and an illuminance claim is below the measurement noise (0 to +2 mA), so `sensors-up` now
+starts from inittab. The illuminance stream is on-change only, so the client uses a status probe
+instead of a silence timeout, and a 5 s wake grace protects the theme against a covered sensor at a
+wake. Guided prompts are shown on the phone (a prompt card, see the
+[system UI guide](../features/system-ui.md#guided-prompts-testing)). Open: the guided rerun (cover,
+uncover, torch, room, power off and on, wake after 60 s off) and the headless cold-start check at the
+next visit, and ui_review's review of part 2.
 
 - First measure, then decide (bring the numbers to the coordinator, who
   asks the user): idle current with `sensord` running and no claims

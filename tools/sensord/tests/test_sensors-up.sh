@@ -292,6 +292,122 @@ SAVE_RC=0 FAKE_UPTIME=211
 reg_save_pending
 eq "failed snapshot retried without another DSP write" 0 "$REG_SAVE_PENDING"
 
+# --- the flock lock and the orphaned sensord (real script runs) -----------
+# The script is run for real with every path under $T; it stops at the missing
+# IPC-router dump_servers right after taking the lock and handling an orphan,
+# so nothing is mounted and persist is never looked at.
+RUNENV="LOCK=$T/up.lock SENSORD_PIDFILE=$T/up.pid DUMP_SERVERS=$T/no-such-dump RUN_DIR=$T/run2 SENSORD=$T/bin/sensord"
+mkdir -p "$T/bin"
+# two real binaries (a multi-call sleep cannot be copied under another name)
+printf '#include <unistd.h>\nint main(int c, char **v) { (void)c; (void)v; sleep(60); return 0; }\n' > "$T/nap.c"
+cc -o "$T/bin/sensord" "$T/nap.c" && cp "$T/bin/sensord" "$T/bin/othersleep" || { echo "no C compiler for the lock test" >&2; exit 1; }
+runscript() { env $RUNENV sh "$SCRIPT" > "$T/rs.out" 2>&1; }
+# a free lock: the instance gets past it (and stops at dump_servers, exit 1)
+runscript; eq "free lock: past the lock" 1 "$?"
+grep -q "dump_servers is unavailable" "$T/rs.out" || bad "free lock run: $(cat "$T/rs.out")"
+# a held lock: refused with the old text, before anything else
+sh -c 'exec 9>"'"$T"'/up.lock"; flock -n 9 || exit 3; exec "'"$T"'/bin/othersleep"' &
+HOLDER=$!
+sleep 0.3
+runscript; eq "held lock: refused" 1 "$?"
+grep -q "already running" "$T/rs.out" || bad "held lock message: $(cat "$T/rs.out")"
+grep -q "dump_servers" "$T/rs.out" && bad "held lock: ran past the lock"
+kill "$HOLDER" 2>/dev/null; wait "$HOLDER" 2>/dev/null
+# kill -9 of the holder: the kernel drops the lock, a new instance starts
+sh -c 'exec 9>"'"$T"'/up.lock"; flock -n 9 || exit 3; exec "'"$T"'/bin/sensord" 30' &
+HOLDER=$!
+sleep 0.3
+runscript; grep -q "already running" "$T/rs.out" || bad "second instance not refused while the first runs"
+kill -9 "$HOLDER" 2>/dev/null; wait "$HOLDER" 2>/dev/null
+runscript; grep -q "dump_servers is unavailable" "$T/rs.out" || bad "no new start after kill -9 of the holder: $(cat "$T/rs.out")"
+# an orphaned sensord named by the pid file is stopped, a recycled pid is not
+"$T/bin/sensord" &
+ORPHAN=$!
+echo "$ORPHAN" > "$T/up.pid"
+runscript
+grep -q "stopping orphaned sensord pid $ORPHAN" "$T/rs.out" || bad "orphan not announced: $(cat "$T/rs.out")"
+sleep 0.2
+kill -0 "$ORPHAN" 2>/dev/null && [ "$(awk '{print $3}' "/proc/$ORPHAN/stat" 2>/dev/null)" != Z ] && bad "orphaned sensord still running"
+wait "$ORPHAN" 2>/dev/null
+[ -e "$T/up.pid" ] && bad "pid file left behind"
+"$T/bin/othersleep" &
+OTHER=$!
+echo "$OTHER" > "$T/up.pid"
+runscript
+grep -q "orphaned" "$T/rs.out" && bad "a pid that is not sensord was stopped"
+kill -0 "$OTHER" 2>/dev/null || bad "the other process was killed"
+kill "$OTHER" 2>/dev/null; wait "$OTHER" 2>/dev/null
+echo 99999999 > "$T/up.pid"
+runscript; grep -q "dump_servers is unavailable" "$T/rs.out" || bad "stale pid file blocked the start"
+# children never inherit the lock fd
+grep -q '9>&- &' "$SCRIPT" || bad "sensord start does not close fd 9"
+[ "$(grep -c '9>&-' "$SCRIPT")" -ge 2 ] || bad "audio-up start does not close fd 9"
+
+# --- the inittab wrapper bounds the log (D10) ------------------------------
+# The real wrapper line from inittab runs with its paths swapped for $T and a fake sensors-up.
+wl=$(grep "^::respawn:/bin/sh -c '.*sensors-up" initramfs/etc/inittab)
+[ -n "$wl" ] || bad "no sensors-up respawn line in inittab"
+wcmd=${wl#::respawn:/bin/sh -c \'}
+wcmd=${wcmd%\'}
+wcmd=$(printf '%s' "$wcmd" | sed "s|/run/sensors-up.log|$T/up.log|; s|/usr/bin/sensors-up|$T/fake-up|; s|sleep 10|sleep 0|")
+printf '#!/bin/sh\necho "start $$"\n' > "$T/fake-up"
+chmod +x "$T/fake-up"
+rm -f "$T/up.log" "$T/up.log.1"
+sh -c "$wcmd"
+eq "wrapper: first start logged" 1 "$(grep -c '^start' "$T/up.log")"
+[ -e "$T/up.log.1" ] && bad "small log rotated"
+sh -c "$wcmd"
+eq "wrapper: second start appended" 2 "$(grep -c '^start' "$T/up.log")"
+head -c 300000 /dev/zero | tr '\0' 'x' >> "$T/up.log"
+sh -c "$wcmd"
+[ -e "$T/up.log.1" ] || bad "log over 256 KiB not rotated"
+eq "wrapper: new log holds the new start only" 1 "$(grep -c . "$T/up.log")"
+[ "$(wc -c < "$T/up.log.1")" -gt 262144 ] || bad "rotated log lost its content"
+head -c 300000 /dev/zero | tr '\0' 'y' >> "$T/up.log"
+sh -c "$wcmd"
+eq "wrapper: still one generation" 1 "$(ls "$T"/up.log* | grep -c .log.1)"
+grep -q y "$T/up.log.1" && ! grep -q x "$T/up.log.1" || bad "the older generation was not replaced"
+
+# --- sensord's flags and stderr (L1): the real script against a stub sensord ---
+H=$T/h
+mkdir -p "$H/run" "$H/bin" "$H/subsys/subsys0"
+printf '0123456789abcdef' > "$H/run/sns.reg"
+echo hostboot > "$H/boot_id"
+cp "$H/boot_id" "$H/run/sns.reg.boot_id"
+printf '0x0000010f |0x00000002 |0x00000001 |0x0000003c |\n0x00000100 |0x00003201 |0x00000005 |0x00000059 |\n' > "$H/dump"
+echo adsp > "$H/subsys/subsys0/name"
+echo ONLINE > "$H/subsys/subsys0/state"
+printf '#!/bin/sh\nexit 0\n' > "$H/bin/irsc"
+printf '#!/bin/sh\nexit 0\n' > "$H/chef-state"
+cat > "$H/sensord" <<'STUB'
+#!/bin/sh
+echo "$*" > "$H_ARGS"
+echo "stub-stderr-note" >&2
+exec sleep 30
+STUB
+chmod +x "$H/bin/irsc" "$H/chef-state" "$H/sensord"
+run_up() {	# run_up OUTFILE [ENV...]: start sensors-up on the stub, wait for the args file, stop it
+	out=$1; shift
+	rm -f "$H/args" "$H/up.lock" "$H/up.pid"
+	env "$@" H_ARGS="$H/args" PATH="$H/bin:$PATH" LOCK="$H/up.lock" SENSORD_PIDFILE="$H/up.pid" \
+		RUN_DIR="$H/run" REG_MAP="$T/sns_reg.map" BOOT_ID_FILE="$H/boot_id" DUMP_SERVERS="$H/dump" \
+		SUBSYS_DIR="$H/subsys" SENSORD="$H/sensord" CHEF_STATE="$H/chef-state" \
+		sh "$SCRIPT" > "$out" 2>&1 &
+	UP=$!
+	n=0; while [ ! -s "$H/args" ] && [ "$n" -lt 60 ]; do sleep 0.1; n=$((n + 1)); done
+	sleep 0.3
+	kill "$UP" 2>/dev/null; wait "$UP" 2>/dev/null
+}
+run_up "$H/o1"
+case "$(cat "$H/args")" in "-v -r "*) ;; *) bad "unset SENSORD_ARGS did not pass -v: $(cat "$H/args")";; esac
+grep -q stub-stderr-note "$H/o1" || bad "unset SENSORD_STDERR: sensord's stderr is not inherited"
+run_up "$H/o2" SENSORD_ARGS=
+case "$(cat "$H/args")" in "-r "*) ;; *) bad "empty SENSORD_ARGS did not mean no flags: $(cat "$H/args")";; esac
+run_up "$H/o3" SENSORD_ARGS= SENSORD_STDERR="$H/sensord.err"
+grep -q stub-stderr-note "$H/sensord.err" || bad "SENSORD_STDERR: stub's stderr not in $H/sensord.err"
+grep -q stub-stderr-note "$H/o3" && bad "SENSORD_STDERR set: sensord's stderr leaked into the sensors-up log"
+grep -q "supervising sensord" "$H/o3" || bad "sensors-up did not reach supervision: $(cat "$H/o3")"
+
 if [ "$FAILS" -ne 0 ]; then
 	echo "test_sensors-up.sh: $FAILS failure(s)"
 	exit 1

@@ -223,8 +223,8 @@ static void als_changed(const struct als_event *ev, void *user)
 
 		kit_theme_set(ev->light ? KIT_THEME_LIGHT : KIT_THEME_DARK);
 		/* every change of the effective theme under Auto, no line when it stays */
-		if (changed && ev->held_ms == 0)
-			chefui_log("theme auto -> %s (lux %.0f, first sample)", ev->light ? "light" : "dark", ev->lux);
+		if (changed && ev->warmup)
+			chefui_log("theme auto -> %s (lux %.0f, wake grace)", ev->light ? "light" : "dark", ev->lux);
 		else if (changed)
 			chefui_log("theme auto -> %s (lux %.0f, held %.1f s)", ev->light ? "light" : "dark",
 				   ev->lux, (double)ev->held_ms / 1000.0);

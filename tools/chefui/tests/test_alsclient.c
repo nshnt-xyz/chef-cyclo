@@ -348,7 +348,7 @@ static void test_client(void)
 	run(60000);
 	CHECK(S.claims == 0 && S.accepts <= 1 && fakeloop_watched() == 0);
 
-	/* wanted again: claims again, with a fresh stream, first sample decides the theme */
+	/* wanted again: claims again, with a fresh stream, wake grace rules */
 	S.accepts = 0;
 	sys_als_want(true);
 	CHECK(until_accept(1, 3000));
@@ -357,7 +357,10 @@ static void test_client(void)
 	theme_cb = 0;
 	sample(700);
 	run(200);
-	CHECK(theme_cb == 1 && !last_light);	/* decided at once from the first sample */
+	CHECK(theme_cb == 0 && sys_als_theme_light());	/* the wake grace: a low reading decides nothing */
+	sample(3000);
+	run(200);
+	CHECK(theme_cb == 0 && sys_als_theme_light());	/* Light stays Light */
 	sys_als_stop();
 	run(100);
 	CHECK(fakeloop_watched() == 0);

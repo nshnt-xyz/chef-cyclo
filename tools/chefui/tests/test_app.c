@@ -2264,7 +2264,7 @@ static void test_m5_als(void)
 	lux_feed(3000, 20000);
 	CHECK(fakeloop_log_count("theme auto") == 1);
 
-	/* screen off drops the claim; wake claims again and decides at once, no Dark flash */
+	/* screen off drops the claim; a wake claims again, with a wake grace: no Dark flash */
 	AS.accepts = 0;
 	pf_set(false);
 	als_adv(300);
@@ -2279,8 +2279,12 @@ static void test_m5_als(void)
 	pf_set(true);
 	als_adv(200);
 	lux_feed(700, 1000);
-	CHECK(kit_theme_get() == KIT_THEME_DARK);	/* decided from the first sample */
-	CHECK(fakeloop_log_count("theme auto -> dark (lux 700, first sample)") == 1);
+	CHECK(kit_theme_get() == KIT_THEME_LIGHT);	/* wake grace: low readings do not decide Dark */
+	lux_feed(700, 22000);
+	CHECK(kit_theme_get() == KIT_THEME_LIGHT);	/* 5 s grace plus the 20 s hold are not over */
+	lux_feed(700, 3000);
+	CHECK(kit_theme_get() == KIT_THEME_DARK);
+	CHECK(fakeloop_log_count("theme auto -> dark (lux 700, held 20.0 s)") == 1);
 
 	/* Auto brightness again, then the sensor goes away: the note after 3 s, bounded retries */
 	kit_switch_set(d->auto_switch, true);

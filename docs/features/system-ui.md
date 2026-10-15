@@ -96,8 +96,10 @@ timer.
 20000 and above 100 % (a starting point; a 250 to 320 lux room is about 30 %).
 The value is smoothed in the log domain with an exponential filter on real
 elapsed time (tau 1 s brightening, 5 s dimming; the whole elapsed time counts, since the
-last sample is the light until the next one); the first
-sample of a (re)started stream sets the filter directly. Target is the curve
+last sample is the light until the next one); only the very first
+sample ever sets the filter (a stream restart keeps it; the wake grace below lets it only
+brighten for the first seconds), and it keeps stepping every 200 ms by ticks, with no
+sample needed, until the level has settled. Target is the curve
 plus the stored `auto_offset`, clamped to 5..100; the backlight changes only
 when the target is 2 points or more from the applied level, or when the
 floor or ceiling is reached exactly. The applied level is not saved. A slider
@@ -111,16 +113,58 @@ it stays at or below 800 for 20 s; between the two nothing changes and both
 hold timers reset. The theme is Dark only before the first decision since
 start (or since Auto was chosen from another mode; with a held lux known it
 is decided at once, logged as `selected`). A stream restart (wake, reconnect) keeps the current
-theme; the first sample of the stream decides (at or above the light threshold:
-Light, at or below the dark threshold: Dark, between: unchanged). The holds
-complete by time with the last sample's lux: one 3000 lux sample then silence
-gives Light 5 s after it. One kmsg line per change of the effective theme under Auto (no line when a
+theme and the brightness filter (a long screen-off does not forget the light). The
+holds complete by time with the last sample's lux: one 3000 lux sample then silence
+gives Light 5 s after it.
+
+**Wake grace.** When the screen wakes the user's hand is often on or near the top
+edge (pressing power, picking the phone up), and a covered sensor reads LOW, never
+high. So for `ALS_WAKE_GRACE_MS` (5 s, `sys/als.h`) after each claim acknowledgment
+the logic uses the highest sample since the claim: Light at once when it reaches the
+light threshold (logged `wake grace`), but no Dark decision, no Dark hold
+and no dimming inside the window; at its end the latest sample takes over and the
+normal hysteresis runs from there (a Dark change needs its 20 s counted from the end
+of the window). A Dark flash outdoors on every wake is what this prevents. The window
+length is a starting value to be set from live data (`live/coldstart.sh` checks a
+cold sensor). One kmsg line per change of the effective theme under Auto (no line when a
 decision keeps the theme), as the app prints it:
 `chefui[chef-settings]: theme auto -> light (lux 3120, held 5.0 s)`, with
-`first sample` or `selected` in place of the hold for a stream's first decision or
-the change caused by choosing Auto. Brightness changes are not logged. Tunables (also through the one-shot args file):
+`wake grace` or `selected` in place of the hold for a decision inside the wake window
+or the change caused by choosing Auto. Brightness changes are not logged. Tunables (also through the one-shot args file):
 `--als-light LUX`, `--als-dark LUX` (dark below light), `--als-light-hold S`,
 `--als-dark-hold S` (1..600); an invalid value is a usage error.
+
+## Guided prompts (testing)
+
+A live test that needs the user shows its steps on the phone: a script writes
+`/run/chef-settings/prompt` and `chef-settings` shows a card over the bottom of the
+screen (3 px accent frame, theme-aware, never clickable, no activity, never wakes
+the screen) until the file is removed. One `key value` per line, unknown keys
+ignored:
+
+```
+title STEP 3/9
+text COVER the sensor with your palm and hold still
+until 123456789            CLOCK_MONOTONIC ms when the step ends (optional)
+```
+
+With `until` the card counts down whole seconds (`12 s`); a single 1 s timer exists
+only while such a card is shown, so a screen without a prompt costs nothing. The
+file is noticed by inotify on the directory (no polling); a writer makes a temp file
+in `/run/chef-settings` and renames it over `prompt`. Same trust rules as the args
+file: a regular file owned by root, not group or other writable, not a symlink, at
+most 1 KiB, otherwise ignored with one kmsg line. Text is ASCII, other bytes show as
+`?`. Example writer:
+
+```sh
+now=$(awk '{printf "%d", $1 * 1000}' /proc/uptime)
+printf 'title STEP 3/9\ntext COVER the sensor\nuntil %d\n' $((now + 12000)) > /run/chef-settings/prompt.tmp
+chmod 600 /run/chef-settings/prompt.tmp && mv /run/chef-settings/prompt.tmp /run/chef-settings/prompt
+rm -f /run/chef-settings/prompt      # hide it
+```
+
+Host runs pass `--prompt-uid UID` to trust a prompt file of their own user (the
+captures `display-prompt-{dark,light}`); tests in `test-prompt`.
 
 ## Device pages (M4)
 
@@ -551,7 +595,7 @@ files, read in order, so `wifi-off.state` after it gives P15), `--page
 hub|display|wifi|wifi-password|wifi-hidden|wifi-details` (the password page
 for the first listed network), `--keys TEXT` (with fake state only: typed on
 the open entry page's keyboard, for captures; a real passphrase never comes
-from arguments), `--page gps|gps-sats|bt|bt-sensor|sound|time|storage|about` (sensor detail uses the first listed kind), `--theme dark|light|auto`, `--auto-brightness on|off`, `--brightness PCT`, `--clock 12|24` and `--sleep
+from arguments), `--page gps|gps-sats|bt|bt-sensor|sound|time|storage|about` (sensor detail uses the first listed kind), `--prompt-uid UID`, `--theme dark|light|auto`, `--auto-brightness on|off`, `--brightness PCT`, `--clock 12|24` and `--sleep
 30|60|300|0` (this run only, not saved), `--snapshot PATH [--snapshot-after MS]` (write the frame as PPM and
 exit), `--data DIR --run DIR` (settings roots). On the phone a root-owned
 `/run/chef-settings/args` (options, one per line) is read once at start and
@@ -607,10 +651,10 @@ layer after `design.state` (the fake firmware 0.9.3 and serial exist only there)
 M4 tests: `test-app` (fonts, text helpers, 12/24-hour status bar and hub, the four
 pages, the haptic gestures against a FIFO standing in for sysfs), `test-sys` (fake
 lines, usage scan on a 128 KB stack, sysfs address read), `test-timeview` (the
-chronyc client incl. an adversarial held-open pipe), `test-settings` (v1 to v3), `test-als`, `test-alsclient`,
+chronyc client incl. an adversarial held-open pipe), `test-settings` (v1 to v3), `test-als`, `test-alsclient`, `test-prompt`,
 `scripts/tests/test_chef_image_info.py`.
 
-**Reference comparison.** `host-test` writes 59 captures (M5 adds display-auto, display-auto-nosensor and hub-auto in both themes plus display-theme-auto, 7 files): the 52 earlier ones are the 30 below plus sound, time,
+**Reference comparison.** `host-test` writes 61 captures (M5 adds display-auto, display-auto-nosensor and hub-auto in both themes plus display-theme-auto, and the prompt card over P02 in both themes, 9 files): the 52 earlier ones are the 30 below plus sound, time,
 time-12h, time-unverified, storage, storage-estimate, storage-ram, storage-calc, about,
 about-unknown and hub-12h (the first 30 are hub, display,
 wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden,

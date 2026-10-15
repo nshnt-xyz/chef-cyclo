@@ -4,7 +4,7 @@
 
 ## Current behavior
 
-The accelerometer, gyroscope, magnetometer, ambient light and proximity sensors work under our image, live-verified on 2026-09-26 (evidence under `logs/sensors-live-test-2026-09-26-*`). They are **manual opt-in**: run `sensors-up` from the shell. Nothing starts them from inittab yet.
+The accelerometer, gyroscope, magnetometer, ambient light and proximity sensors work under our image, live-verified on 2026-09-26 (evidence under `logs/sensors-live-test-2026-09-26-*`). Since 2026-10-16 inittab starts `sensors-up` at boot (respawn through a wrapper that waits 10 s after an exit, log in `/run/sensors-up.log` and kmsg; before each start a log over 256 KiB is moved to `/run/sensors-up.log.1`, one generation). At boot `sensord` runs without `-v` and with its stderr on `/dev/null` (`SENSORD_ARGS=` and `SENSORD_STDERR=/dev/null` in the wrapper), so `/run/sensors-up.log` holds only `sensors-up`'s own lines and stays within about 512 KiB; sensord's own notes (claims, reports, registry write-backs) go to the kernel log (`dmesg | grep sensord`). By hand an unset `SENSORD_ARGS` still means `-v`. It can also be started by hand when init's copy is not running.
 
 | Channel | Chip | Unit | Fields | Max rate |
 |---|---|---|---|---|
@@ -27,10 +27,10 @@ The registry is served from a **RAM copy** of persist's `/sensors/sns.reg` (2742
 
 ## Run
 
-In the phone shell:
+`sensors-up` runs from inittab (stop it with `kill $(pidof sensors-up)`; init starts it again 10 s after it exits, so a plain `kill` is a restart; to keep it down for a test also stop the wrapper). In the phone shell:
 
 ```sh
-setsid sensors-up > /run/sensors-up.log 2>&1 &     # SENSORD_ARGS=-v for per-request REG2 logging
+setsid sensors-up > /run/sensors-up.log 2>&1 &     # by hand, when init's copy is not running; SENSORD_ARGS=-v for per-request REG2 logging
 sensord list                   # channels, chip names, rates, claims; "smgr":"ready" once up
 sensord status                 # daemon state and counters
 sensord get accel              # one sample, then exit
@@ -47,7 +47,7 @@ dmesg | grep -E 'sensord|sensors-up'
 4. Waits up to 60 s for SMGR (0x100) and logs how long it took.
 5. Stays resident supervising `sensord`. `TERM` stops `sensord` only. The ADSP stays up, and an `audio-up` it started keeps running.
 
-Run it with `setsid` so closing the telnet session does not hang it up. A second `sensors-up` refuses while `/run/sensors-up.lock` exists, and a second `sensord` refuses while another one answers on the socket.
+By hand, run it with `setsid` so closing the telnet session does not hang it up. One instance only: it holds an `flock` on `/run/sensors-up.lock` (the kernel drops the lock with the process, so a `kill -9` leaves nothing stale); a second `sensors-up` refuses with `already running`. The sensord it started is recorded in `/run/sensors-up.sensord.pid`; after a `kill -9` of the supervisor the new instance finds that sensord (the pid must still be the sensord binary), stops it (`TERM`, `KILL` after 3 s) and starts a fresh one. A second `sensord` also refuses while another one answers on the socket. If `sensord` dies, `sensors-up` logs `sensord exited` and exits, and the inittab wrapper starts it again after 10 s (the UI reconnects on its backoff). `chef-state shutdown` stops it before `/data` goes read-only. Measured cost with the panel off: the ADSP booted and `sensord` running adds 0 to +2 mA, and an illuminance claim at 5 Hz is not measurable ([evidence](../../logs/system-ui-slice2-2026-10-11.txt), M5 section).
 
 Without a REG2 server the ADSP boots (audio works) but SMGR never registers: live S0 saw only 5 sensor-range services in 70 s, then 50 once REG2 was served.
 
@@ -108,7 +108,7 @@ Timestamps: SMGR stamps each sample with the DSP's 32768 Hz tick counter. For ea
 
 ## Flags
 
-`sensord [-r REG] [-m MAP] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ] [-s CH=ID:DT]... [-c CH=full|factory|raw]... [-i BASE] [-M MOUNT] [-D DEG] [-Q] [-V] [-P] [-t] [-R] [-F] [-v]`; `sensors-up` passes `SENSORD_ARGS` through (default `-v`). Client mode: `sensord [-S SOCK] [-n COUNT] list | status | get SENSOR [HZ] | watch SENSOR [HZ] | declination [DEG|off]`.
+`sensord [-r REG] [-m MAP] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ] [-s CH=ID:DT]... [-c CH=full|factory|raw]... [-i BASE] [-M MOUNT] [-D DEG] [-Q] [-V] [-P] [-t] [-R] [-F] [-v]`; `sensors-up` passes `SENSORD_ARGS` through (unset means `-v`, set but empty means no flags; `SENSORD_STDERR` redirects sensord's stderr). Client mode: `sensord [-S SOCK] [-n COUNT] list | status | get SENSOR [HZ] | watch SENSOR [HZ] | declination [DEG|off]`.
 
 | Flag | Meaning |
 |---|---|
@@ -146,7 +146,7 @@ Sensors and audio share the ADSP. `sensors-up` reuses `audio-up` unchanged to bo
 
 ## Modify and verify
 
-`make -C tools/sensord test` runs fifteen suites: wire-format tests pinned to the stock IDL (`tests/test_sns_msgs.c`, plus an ASan/UBSan build with truncated-message cases), registry tests on a synthetic fixture, daemon unit tests (also under ASan), the compass filter on synthetic motion (`tests/test_compass.c`, also under ASan), an end-to-end test of the real daemon against a fake SMGR and QMAG_CAL over a fake transport that follows the kernel's lookup rule (`tests/test_e2e.sh`), the heading and rotation vector end to end with the daemon under ASan/UBSan (`tests/test_compass_e2e.sh`: the heading claim adding and removing the three reports, rate max with other clients, the calibrated flag from a fake group 2980 write, declination, the rotation vector client through release, TERM, HUP, SMGR and DSP restarts, slow and in-flight ENABLEs), `tests/test_sensors-up.sh` (setro before the only mount, refusal paths, same-boot reuse without blockdev or mount), `tests/test_magcal_run.sh` and `tests/test_compass_run.sh` (the guided scripts against the fake), `tests/test_sns_tools.py`, `tests/test_mag_cal_check.py` (the fit tool on synthetic phone motion with a known offset and soft-iron matrix) and `tests/test_compass_check.py` (the compass acceptance tool on synthetic runs with known errors, and the replay of synthetic raw captures through `compass-replay`; with `COMPASS_EVIDENCE=DIR` it also replays a recorded magcal capture directory). The QMI codec `tools/qrtr/qmi.c` is shared with servreg-locator, so also run `make -C tools/servreg-locator test` after changing it.
+`make -C tools/sensord test` runs fifteen suites: wire-format tests pinned to the stock IDL (`tests/test_sns_msgs.c`, plus an ASan/UBSan build with truncated-message cases), registry tests on a synthetic fixture, daemon unit tests (also under ASan), the compass filter on synthetic motion (`tests/test_compass.c`, also under ASan), an end-to-end test of the real daemon against a fake SMGR and QMAG_CAL over a fake transport that follows the kernel's lookup rule (`tests/test_e2e.sh`), the heading and rotation vector end to end with the daemon under ASan/UBSan (`tests/test_compass_e2e.sh`: the heading claim adding and removing the three reports, rate max with other clients, the calibrated flag from a fake group 2980 write, declination, the rotation vector client through release, TERM, HUP, SMGR and DSP restarts, slow and in-flight ENABLEs), `tests/test_sensors-up.sh` (setro before the only mount, refusal paths, same-boot reuse without blockdev or mount, the flock lock and the orphaned sensord), `tests/test_magcal_run.sh` and `tests/test_compass_run.sh` (the guided scripts against the fake), `tests/test_sns_tools.py`, `tests/test_mag_cal_check.py` (the fit tool on synthetic phone motion with a known offset and soft-iron matrix) and `tests/test_compass_check.py` (the compass acceptance tool on synthetic runs with known errors, and the replay of synthetic raw captures through `compass-replay`; with `COMPASS_EVIDENCE=DIR` it also replays a recorded magcal capture directory). The QMI codec `tools/qrtr/qmi.c` is shared with servreg-locator, so also run `make -C tools/servreg-locator test` after changing it.
 
 Protocol references: `logs/sns-idl-dump-2026-09-26.txt`, `logs/sns-idl-dump-2026-09-27-qmag.txt` (QMAG_CAL 0x140, MAG_CAL 0x110), `logs/sns-idl-dump-2026-09-27-rotvec.txt` (ROTATION_VECTOR 0x112, with the stock HAL's use of it; regenerate with `tools/sns-idl-dump.py` against the stock `libsensor1.so`), and `tools/sensord/sns_msgs.h`, which carries our reading of each message.
 

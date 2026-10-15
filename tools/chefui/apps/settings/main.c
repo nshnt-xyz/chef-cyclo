@@ -8,7 +8,7 @@
  *                 [--brightness PCT] [--auto-brightness on|off] [--sleep 30|60|300|0]
  *                 [--snapshot PATH [--snapshot-after MS]]
  *                 [--data DIR] [--run DIR] [--keys TEXT]
- *                 [--sensord-sock PATH] [--als-light LUX] [--als-dark LUX]
+ *                 [--prompt-uid UID] [--sensord-sock PATH] [--als-light LUX] [--als-dark LUX]
  *                 [--als-light-hold S] [--als-dark-hold S]
  *
  * --fake-state   fixed system state (sys/fake.c), no real sources; up to
@@ -27,6 +27,7 @@
  * --clock        12 or 24 hour time for this run (not saved)
  * --snapshot     write the frame as PPM after MS (default 500) and exit
  * --data/--run   settings roots instead of /data and /run (host runs)
+ * --prompt-uid   host captures: trust a prompt file owned by this uid (default root)
  * --sensord-sock the light sensor's socket (default /run/sensord.sock)
  * --als-light/--als-dark   theme Auto thresholds in lux (defaults 2500 and
  *                800; dark must be below light)
@@ -63,6 +64,7 @@
 #include "blesens.h"
 #include "chefui.h"
 #include "pages.h"
+#include "prompt.h"
 #include "settings.h"
 #include "feedback.h"
 #include "sys.h"
@@ -84,9 +86,10 @@ struct opts {
 	int sleep_s;		/* -1 = from settings */
 	int clock;		/* 12, 24; 0 = from settings */
 	int auto_brightness;	/* -1 = from settings, 0, 1 */
+	int prompt_uid;		/* -1 = root (production); host captures pass their uid */
 };
 
-static struct opts O = { .snapshot_after = 500, .sleep_s = -1, .auto_brightness = -1 };
+static struct opts O = { .snapshot_after = 500, .sleep_s = -1, .auto_brightness = -1, .prompt_uid = -1 };
 static bool als_set;		/* an --als-* option was given */
 
 static int64_t now_ms(void)
@@ -242,6 +245,8 @@ static int parse(int argc, char **argv, struct opts *o)
 			o->data = v;
 		else if (!strcmp(a, "--run"))
 			o->run = v;
+		else if (!strcmp(a, "--prompt-uid") && atoi(v) >= 0)
+			o->prompt_uid = atoi(v);
 		else if (!strcmp(a, "--sensord-sock"))
 			o->sensord_sock = v;
 		else if (!als_option(a, v, o))
@@ -512,6 +517,16 @@ int main(int argc, char **argv)
 		      O.auto_brightness < 0;
 	if (O.page)
 		open_start_page(O.page);
+	{	/* the guided-test prompt card: <run>/chef-settings/prompt (prompt.h) */
+		char pdir[300];
+
+		snprintf(pdir, sizeof(pdir), "%s/chef-settings", O.run ? O.run : "/run");
+		mkdir(O.run ? O.run : "/run", 0755);
+		mkdir(pdir, 0755);
+		prompt_set_trusted_uid(O.prompt_uid >= 0 ? (uid_t)O.prompt_uid : 0);
+		if ((r = prompt_start(pdir, now_ms)))
+			chefui_log("prompt: not watching %s (%s)", pdir, strerror(-r));
+	}
 	/* typed text only into fake state: a real passphrase never comes
 	 * from the command line or the args file */
 	if (O.keys && (!O.n_fake || !page_wifi_type(O.keys)))

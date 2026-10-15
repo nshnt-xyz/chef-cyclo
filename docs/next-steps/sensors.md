@@ -6,9 +6,7 @@ Raw sensors, within-boot registry reuse, magnetometer calibration, across-boot b
 
 ## Boot integration and power
 
-Measure idle current with `sensord` running without claims and with accelerometer streaming at ride rates, then decide whether `sensors-up` should run from inittab. Coordinate ADSP lifecycle with [power measurements](power-and-reliability.md#adsp-lifecycle-and-power), since audio and sensors share it.
-
-Acceptance: boot integration preserves manual bring-up behavior, clients reconnect after daemon/DSP recovery, and measured idle/streaming cost is recorded.
+Done 2026-10-16: `sensors-up` runs from inittab (respawn through a 10 s wrapper, `flock` lock, orphaned sensord handling, see [sensors](../features/sensors.md#run)). Phase A measured with the panel off, Wi-Fi radio off and a cooling battery: ADSP booted plus `sensord` without claims adds 0 to +2 mA (idle 195.3 mA against 193.6 mA in the last base block), and an `illuminance` claim at 5 Hz adds +0.4 mA, below the block noise of 11 to 22 mA ([evidence](../../logs/system-ui-slice2-2026-10-11.txt)). The UI reconnects after a daemon restart (live: claim back 0.54 s after the restart). Still to measure when a ride consumer exists: accelerometer streaming at ride rates. Coordinate ADSP lifecycle with [power measurements](power-and-reliability.md#adsp-lifecycle-and-power).
 
 ## Calibration across boots
 

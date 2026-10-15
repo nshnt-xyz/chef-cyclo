@@ -253,6 +253,7 @@ static void sensord_line(char *line, void *user)
 		if (A.claimed && !A.acked) {
 			A.acked = true;
 			timer_del(&A.reply);	/* the connect-to-ack deadline is met */
+			als_warmup_start(&A.als, now_ms());	/* wake grace: low readings right after a wake are not trusted */
 			A.probe = lv_timer_create(probe_fired, ALS_PROBE_MS, NULL);
 			send_status();		/* is SMGR up: decides availability */
 		}
