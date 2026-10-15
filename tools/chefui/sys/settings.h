@@ -21,7 +21,7 @@
  * The parser accepts v1 (no alert/flag lines), v2 (no auto lines) and v3 exactly;
  * missing fields get the defaults and the writer always writes v3 (one-way:
  * an older image rejects v3 and uses its defaults). auto_offset is percent
- * points added to the ambient-light brightness curve, -50..50.
+ * points added to the ambient-light brightness curve, -95..95.
  *
  * /data/v1/ui/settings when /data is ours (a mount point whose chef-layout
  * reads chef-cyclo-data-v1, checked again before every /data access),
@@ -49,8 +49,8 @@ enum ui_theme_mode { UI_THEME_DARK, UI_THEME_LIGHT, UI_THEME_AUTO };
 
 #define UI_BRIGHTNESS_MIN 5	/* percent; lower is unreadable outdoors and */
 #define UI_BRIGHTNESS_MAX 100	/* easy to lose the screen at */
-#define UI_AUTO_OFFSET_MIN -50
-#define UI_AUTO_OFFSET_MAX 50
+#define UI_AUTO_OFFSET_MIN -95	/* every slider level 5..100 is curve + offset */
+#define UI_AUTO_OFFSET_MAX 95
 #define UI_TZ_MAX 63
 #define UI_SETTINGS_DEBOUNCE_MS 2000
 #define UI_SETTINGS_MAX_BYTES 4096
@@ -63,7 +63,7 @@ struct ui_settings {
 	int alert_volume;			/* alert preference, 0..100 */
 	bool haptics, alert_sounds, quiet_paused, clock_24h;
 	bool auto_brightness;		/* brightness follows the light sensor */
-	int auto_offset;		/* percent points on the curve */
+	int auto_offset;		/* percent points on the curve, -95..95 */
 };
 
 void ui_settings_defaults(struct ui_settings *s);

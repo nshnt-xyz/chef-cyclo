@@ -426,12 +426,20 @@ static void test_offset(void)
 	sample(&a, 300, 0, &r);
 	run_to(&a, 20000, &r);
 	CHECK(als_offset_for(&a, 40, &o) && o == 10);
-	CHECK(als_offset_for(&a, 100, &o) && o == 50);
+	CHECK(als_offset_for(&a, 100, &o) && o == 70);	/* every level 5..100 is curve + offset */
 	CHECK(als_offset_for(&a, 5, &o) && o == -25);
 	sample(&a, 0, 30000, &r);
 	run_to(&a, 120000, &r);
-	CHECK(als_offset_for(&a, 100, &o) && o == 50);
+	CHECK(als_offset_for(&a, 100, &o) && o == 95);
 	CHECK(als_offset_for(&a, 5, &o) && o == 0);
+	for (int lvl = 5; lvl <= 100; lvl++) {
+		CHECK(als_offset_for(&a, lvl, &o) && als_curve_now(&a) + o == lvl);
+		CHECK(o >= UI_AUTO_OFFSET_MIN && o <= UI_AUTO_OFFSET_MAX);
+	}
+	/* and at the top of the curve */
+	sample(&a, 1e6, 130000, &r);
+	run_to(&a, 400000, &r);
+	CHECK(als_offset_for(&a, 5, &o) && o == -95);
 }
 
 static void test_params(void)

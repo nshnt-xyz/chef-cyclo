@@ -29,7 +29,7 @@ static int64_t clock_ms;
 
 static struct {
 	int lfd, cfd, accepts, status_reqs, claims;
-	bool drop_on_accept, ack, smgr, status_silent, eof;
+	bool drop_on_accept, ack, smgr, status_silent, eof, mute;
 	char in[1024];
 	size_t n;
 	int64_t accept_at[16];
@@ -104,7 +104,8 @@ static void server_io(void)
 				S.cfd = -1;
 				return;
 			}
-			say("{\"hello\":\"sensord\",\"proto\":1}\n");
+			if (!S.mute)
+				say("{\"hello\":\"sensord\",\"proto\":1}\n");
 		}
 	}
 	if (S.cfd >= 0) {
@@ -249,9 +250,9 @@ static void test_client(void)
 	/* a status that never answers: reconnect after the reply timeout, logged */
 	S.accepts = 0;
 	S.status_silent = true;
-	for (int i = 0; i < 40000 && fakeloop_log_count("no status reply") == 0; i += 10)
+	for (int i = 0; i < 40000 && fakeloop_log_count("no answer from sensord") == 0; i += 10)
 		run(10);
-	CHECK(fakeloop_log_count("no status reply") == 1 && !sys_state.als.available);
+	CHECK(fakeloop_log_count("no answer from sensord") == 1 && !sys_state.als.available);
 	S.status_silent = false;
 	CHECK(until_accept(1, 3000));
 	run(500);
@@ -301,17 +302,36 @@ static void test_client(void)
 	CHECK(until_accept(2, 3000));
 	CHECK(S.accept_at[1] - S.accept_at[0] < 1500);
 
-	/* a claim that is never acknowledged: no status probes, never available */
+	/* a claim that is never acknowledged: reconnect 5 s after each connect (L4), no
+	 * status probes, never available */
 	sys_als_want(false);
 	run(200);
 	S.ack = false;
 	S.status_reqs = 0;
 	S.accepts = 0;
+	fakeloop_log_clear();
 	sys_als_want(true);
 	CHECK(until_accept(1, 3000));
+	run(4500);
+	CHECK(S.accepts == 1 && fakeloop_log_count("no answer from sensord") == 0);
+	run(1000);
+	CHECK(fakeloop_log_count("no answer from sensord") == 1);
 	run(100000);
-	CHECK(S.status_reqs == 0 && !sys_state.als.available && S.accepts == 1);
+	CHECK(S.status_reqs == 0 && !sys_state.als.available && S.accepts >= 4 && S.accepts <= 9);
 	S.ack = true;
+
+	/* a sensord that accepts and says nothing at all (no hello): the same deadline */
+	sys_als_want(false);
+	run(200);
+	S.mute = true;
+	S.claims = 0;
+	S.accepts = 0;
+	fakeloop_log_clear();
+	sys_als_want(true);
+	CHECK(until_accept(1, 3000));
+	run(6000);
+	CHECK(S.claims == 0 && fakeloop_log_count("no answer from sensord") == 1 && !sys_state.als.available);
+	S.mute = false;
 
 	/* not wanted: the connection closes and nothing reconnects */
 	sys_als_want(false);

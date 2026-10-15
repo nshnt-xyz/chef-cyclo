@@ -435,8 +435,8 @@ static void test_parse(void)
 		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 2\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\n", "bad boolean line" },
 		{ "chef-ui-settings 2\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\n", "bad boolean line" },
 		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 2\nauto_offset 0\n", "bad auto_brightness line" },
-		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset 51\n", "bad auto_offset line" },
-		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset -51\n", "bad auto_offset line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset 96\n", "bad auto_offset line" },
+		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset -96\n", "bad auto_offset line" },
 		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset x\n", "bad auto_offset line" },
 		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset -0\n", "bad auto_offset line" },
 		{ "chef-ui-settings 3\nbrightness 50\ntheme dark\nsleep 60\ntz UTC0\nalert_volume 0\nhaptics 1\nalert_sounds 1\nquiet_paused 0\nclock_24h 1\nauto_brightness 0\nauto_offset +5\n", "bad auto_offset line" },
@@ -479,7 +479,7 @@ static void test_parse(void)
 	}
 	/* v3 round trip with the extremes of the offset */
 	{
-		static const int offs[] = { -50, -1, 0, 7, 50 };
+		static const int offs[] = { -95, -50, -1, 0, 7, 50, 95 };
 
 		for (unsigned i = 0; i < sizeof(offs) / sizeof(offs[0]); i++) {
 			ui_settings_defaults(&a);
@@ -490,9 +490,9 @@ static void test_parse(void)
 			      ui_settings_equal(&a, &b) && b.auto_offset == offs[i] &&
 			      b.auto_brightness == (i & 1));
 		}
-		a.auto_offset = 51;
+		a.auto_offset = 96;
 		CHECK(!ui_settings_valid(&a) && ui_settings_format(&a, buf, sizeof(buf)) < 0);
-		a.auto_offset = -51;
+		a.auto_offset = -96;
 		CHECK(!ui_settings_valid(&a));
 		a.auto_offset = 0;
 		b = a;

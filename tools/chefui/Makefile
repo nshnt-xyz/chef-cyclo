@@ -355,5 +355,5 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 		--run $(B)/host/captures/run "$$@" 2>/dev/null || \
 		{ echo "chef-settings capture $$n failed" >&2; return 1; }; }; \
 		cap display-theme-auto --theme auto --page display || exit 1
-	@echo "chef-settings: 53 captures in $(B)/host/captures"
+	@echo "chef-settings: 59 captures in $(B)/host/captures"
 	@tests/test_settings_proc.sh $(B)/host/chef-settings apps/settings/design.state

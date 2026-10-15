@@ -95,27 +95,30 @@ timer.
 `log10(lux + 1)`: 0 lux 5 %, 1: 8, 10: 14, 50: 20, 300: 30, 1000: 45, 5000: 75,
 20000 and above 100 % (a starting point; a 250 to 320 lux room is about 30 %).
 The value is smoothed in the log domain with an exponential filter on real
-elapsed time (tau 1 s brightening, 5 s dimming, dt at most 1 s); the first
+elapsed time (tau 1 s brightening, 5 s dimming; the whole elapsed time counts, since the
+last sample is the light until the next one); the first
 sample of a (re)started stream sets the filter directly. Target is the curve
 plus the stored `auto_offset`, clamped to 5..100; the backlight changes only
 when the target is 2 points or more from the applied level, or when the
 floor or ceiling is reached exactly. The applied level is not saved. A slider
-drag while Auto is on sets `auto_offset = slider - curve` (clamped -50..50,
-saved through the normal debounced path) and applies the dragged level at
-once; with no lux known yet the drag sets the manual brightness instead.
+drag while Auto is on sets `auto_offset = slider - curve` (-95..95, so every slider level 5..100 is curve plus offset and the level never
+moves under the finger; saved through the normal debounced path) and applies the
+dragged level at once; with no lux known yet the drag sets the manual brightness instead.
 Turning Auto off applies the manual brightness at once and keeps the offset.
 
 **Theme Auto.** Light when the raw lux stays at or above 2500 for 5 s, Dark when
 it stays at or below 800 for 20 s; between the two nothing changes and both
 hold timers reset. The theme is Dark only before the first decision since
 start (or since Auto was chosen from another mode; with a held lux known it
-is decided at once). A stream restart (wake, reconnect) keeps the current
+is decided at once, logged as `selected`). A stream restart (wake, reconnect) keeps the current
 theme; the first sample of the stream decides (at or above the light threshold:
 Light, at or below the dark threshold: Dark, between: unchanged). The holds
 complete by time with the last sample's lux: one 3000 lux sample then silence
-gives Light 5 s after it. One kmsg line per transition:
-`chef-settings: theme auto -> light (lux 3120, held 5.0 s)`. Brightness changes
-are not logged. Tunables (also through the one-shot args file):
+gives Light 5 s after it. One kmsg line per change of the effective theme under Auto (no line when a
+decision keeps the theme), as the app prints it:
+`chefui[chef-settings]: theme auto -> light (lux 3120, held 5.0 s)`, with
+`first sample` or `selected` in place of the hold for a stream's first decision or
+the change caused by choosing Auto. Brightness changes are not logged. Tunables (also through the one-shot args file):
 `--als-light LUX`, `--als-dark LUX` (dark below light), `--als-light-hold S`,
 `--als-dark-hold S` (1..600); an invalid value is a usage error.
 
@@ -425,7 +428,7 @@ for migration: the next actual setting change saves canonical version 2.
 **The migration is one-way:** images from before M4 (M1 to M3) parse only
 exact version 1, reject a version 2 file and fall back to defaults until a
 save rewrites version 1, which drops the M4 preferences. M5 adds version 3
-(`auto_brightness 0|1`, `auto_offset` -50..50 percent points): v1 and v2 files
+(`auto_brightness 0|1`, `auto_offset` -95..95 percent points): v1 and v2 files
 load with the defaults for the new lines and the next save writes v3, one-way
 again (an older image rejects v3 and uses its defaults). There is no zone
 picker. The file follows
@@ -607,7 +610,7 @@ lines, usage scan on a 128 KB stack, sysfs address read), `test-timeview` (the
 chronyc client incl. an adversarial held-open pipe), `test-settings` (v1 to v3), `test-als`, `test-alsclient`,
 `scripts/tests/test_chef_image_info.py`.
 
-**Reference comparison.** `host-test` writes 53 captures (M5 adds display-auto, display-auto-nosensor, hub-auto in both themes and display-theme-auto): the 52 earlier ones are the 30 below plus sound, time,
+**Reference comparison.** `host-test` writes 59 captures (M5 adds display-auto, display-auto-nosensor and hub-auto in both themes plus display-theme-auto, 7 files): the 52 earlier ones are the 30 below plus sound, time,
 time-12h, time-unverified, storage, storage-estimate, storage-ram, storage-calc, about,
 about-unknown and hub-12h (the first 30 are hub, display,
 wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden,

@@ -47,6 +47,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -188,7 +189,7 @@ static bool als_option(const char *a, const char *v, struct opts *o)
 	if (strncmp(a, "--als-", 6))
 		return false;
 	x = strtod(v, &end);
-	if (end == v || *end || x < 0 || x > 1e7)
+	if (end == v || *end || !isfinite(x) || x < 0 || x > 1e7)
 		return false;
 	if (!als_set) {
 		als_params_default(&o->als);
@@ -198,9 +199,9 @@ static bool als_option(const char *a, const char *v, struct opts *o)
 		o->als.light_lux = x;
 	else if (!strcmp(a, "--als-dark"))
 		o->als.dark_lux = x;
-	else if (!strcmp(a, "--als-light-hold") && x == (int)x)
+	else if (!strcmp(a, "--als-light-hold") && x <= ALS_HOLD_S_MAX && x == (int)x)
 		o->als.light_hold_s = (int)x;
-	else if (!strcmp(a, "--als-dark-hold") && x == (int)x)
+	else if (!strcmp(a, "--als-dark-hold") && x <= ALS_HOLD_S_MAX && x == (int)x)
 		o->als.dark_hold_s = (int)x;
 	else
 		return false;

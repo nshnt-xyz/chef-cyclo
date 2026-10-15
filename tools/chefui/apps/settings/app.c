@@ -162,16 +162,13 @@ static void als_live_refresh(void)
  * with no periodic timer: a change inside the second arms a one-shot. */
 static void hub_sub_refresh(void)
 {
-	static char shown[64];
 	char b[64];
 
 	if (app.depth != 0 || !app.set.auto_brightness || !app.pf.screen_is_on())
 		return;
 	text_display(&app.set, sys_als_applied(), b, sizeof(b));
-	if (strcmp(b, shown)) {
-		snprintf(shown, sizeof(shown), "%s", b);
+	if (strcmp(b, lv_label_get_text(app.row_display.sub)))	/* the label is the one truth */
 		kit_row_set_sub(&app.row_display, b);
-	}
 	app.hub_last_ms = app.pf.now_ms();
 }
 
@@ -222,9 +219,15 @@ static void als_changed(const struct als_event *ev, void *user)
 {
 	(void)user;
 	if (ev->theme_changed && app.set.theme == UI_THEME_AUTO) {
+		bool changed = kit_theme_get() != (ev->light ? KIT_THEME_LIGHT : KIT_THEME_DARK);
+
 		kit_theme_set(ev->light ? KIT_THEME_LIGHT : KIT_THEME_DARK);
-		chefui_log("theme auto -> %s (lux %.0f, held %.1f s)", ev->light ? "light" : "dark",
-			   ev->lux, (double)ev->held_ms / 1000.0);
+		/* every change of the effective theme under Auto, no line when it stays */
+		if (changed && ev->held_ms == 0)
+			chefui_log("theme auto -> %s (lux %.0f, first sample)", ev->light ? "light" : "dark", ev->lux);
+		else if (changed)
+			chefui_log("theme auto -> %s (lux %.0f, held %.1f s)", ev->light ? "light" : "dark",
+				   ev->lux, (double)ev->held_ms / 1000.0);
 	}
 	if (ev->bright_changed && app.set.auto_brightness) {
 		app.pf.brightness_set(ui_brightness_level(ev->bright));
@@ -290,8 +293,20 @@ void app_set_theme(enum ui_theme_mode mode)
 		return;
 	app.set.theme = mode;
 	if (mode == UI_THEME_AUTO)
-		sys_als_theme_reset();		/* Dark until the sensor decides */
-	kit_theme_set(effective_theme(mode));
+		sys_als_theme_reset();		/* Dark until the sensor decides, or at once from the held lux */
+	{
+		enum kit_theme before = kit_theme_get(), after = effective_theme(mode);
+
+		kit_theme_set(after);
+		if (mode == UI_THEME_AUTO && before != after) {
+			const char *name = after == KIT_THEME_LIGHT ? "light" : "dark";
+
+			if (sys_state.als.available)
+				chefui_log("theme auto -> %s (lux %.0f, selected)", name, sys_state.als.lux);
+			else
+				chefui_log("theme auto -> %s (selected, no sample yet)", name);
+		}
+	}
 	als_want_sync();
 	settings_changed();
 }
@@ -354,10 +369,12 @@ void app_apply_settings(const struct ui_settings *set)
 	app.set = *set;
 	sys_feedback_enabled(set->haptics);
 	sys_als_set_offset(set->auto_offset);
-	sys_als_set_applied(-1);
 	if (theme_auto_new)
 		sys_als_theme_reset();
-	app.pf.brightness_set(ui_brightness_level(set->brightness));
+	/* Auto on keeps its applied level once a sample set one (a new offset settles
+	 * through the ticks); otherwise, and before any sample, the manual level */
+	if (!set->auto_brightness || sys_als_applied() < 0)
+		app.pf.brightness_set(ui_brightness_level(set->brightness));
 	kit_theme_set(effective_theme(set->theme));
 	als_want_sync();
 	policy_set_sleep(&app.sleep, set->sleep_s * 1000, app.pf.now_ms());
@@ -629,7 +646,7 @@ void app_on_state(unsigned what)
 	kit_statusbar_set(&app.sb, &st);
 	hub_tiles_refresh(what);
 	if (what & SYS_ALS) {
-		app.als_lost_since = sys_state.als.available || !app.pf.screen_is_on() ? 0
+		app.als_lost_since = sys_state.als.available || !sys_als_wanted() ? 0
 			: (app.pf.now_ms() ? app.pf.now_ms() : 1);
 		als_note_arm();
 		als_live_refresh();

@@ -11,6 +11,15 @@ cleanup() { [ -n "$pid" ] && kill -KILL "$pid" 2>/dev/null; rm -rf "$d"; }
 trap cleanup EXIT
 fail() { echo "test-settings-proc: FAIL: $*" >&2; sed 's/^/  log: /' "$d/log" >&2; exit 1; }
 
+# --als-* values: usage error (exit 2) for NaN, huge, fractional or out of range holds,
+# and dark not below light; nothing starts
+for bad in "--als-light-hold nan" "--als-light-hold 1e30" "--als-dark-hold 2.5" "--als-dark-hold 601" \
+	   "--als-light nan" "--als-light inf" "--als-light-hold 0" "--als-dark 3000"; do
+	# shellcheck disable=SC2086
+	SDL_VIDEODRIVER=offscreen "$BIN" $bad --data "$d/data0" --run "$d/run0" >/dev/null 2>&1
+	[ $? -eq 2 ] || { echo "test-settings-proc: FAIL: '$bad' was not a usage error" >&2; exit 1; }
+done
+
 SDL_VIDEODRIVER=offscreen "$BIN" --fake-state "$STATE" --data "$d/data" --run "$d/run" 2>"$d/log" &
 pid=$!
 i=0

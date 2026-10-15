@@ -563,7 +563,7 @@ M5 AMBIENT LIGHT, PART 1 (2026-10-14): Auto brightness and theme Auto
 Built: settings v3 (auto_brightness, auto_offset, one-way from v1/v2), sys/als.c
 (pure, time-driven logic), sys/alsclient.c (sensord client), SYS_ALS and the fake
 `als LUX|none` line, Display page and hub integration, --sensord-sock and --als-*
-options, --auto-brightness and --theme auto for captures, 53 host captures (P02
+options, --auto-brightness and --theme auto for captures, 59 host captures (P02
 Auto on: dark mean diff 1.34 against the reference, baseline 1.92; light residuals
 unchanged from the baseline). Docs: docs/features/system-ui.md (Ambient light).
 
@@ -598,3 +598,24 @@ Open: the idle-current measurement (Phase A, needs the unplug, a visit tomorrow)
 and the boot decision; Phase C (sensors-up from inittab, flock lock, orphan
 handling, docs) and live steps 2 and 5; the guided visit (screen wake by the power
 key, covered sensor, room, lamp or window, steady level); ui_review's review.
+
+M5 PART 1 REVIEW (ui_review, review/review-m5-part1.md) AND THE FOLLOW-UP (2026-10-15)
+
+Fixed with tests: M1 hub subtitle cache (the label is now the one truth); L1 the 3 s
+grace counts only while the sensor is wanted; L2 offset range -95..95 so every slider
+level is curve plus offset (drag to 100 at a 30 % curve: offset 70, level stays); L3 a
+late /data apply keeps the Auto level once a sample set it (manual level only before
+any sample); L4 ALS_REPLY_MS from connect to the claim ack (and for a silent sensord);
+log line for every change of the effective theme under Auto (first sample, selected,
+held); the NaN/huge --als-*-hold cast (usage error, test in test_settings_proc.sh).
+L5 docs: dt is not clamped (D7's held lux, deviation from brief section 6), kmsg prefix
+is chefui[chef-settings]:, 59 captures, stale comment. L6 evidence: cmp files rerun
+with the documented masks (P02 Auto: dark 1.00, light 6.93 with only the known theme
+segment band 1008-1247 left; hub-auto against P01: dark 1.12, light 1.14); intended
+differences from the references: Auto brightness switch on with a muted sensor line,
+the theme Auto cell enabled, "Auto · N%" on the hub row, the design's temperature and
+notch masked. Boots 1 and 2 of out/boot-m5.img were never hashed (overwritten); their
+live files (step3-enable, step4, d7d) are superseded by boot 3 (37a92ad4...: step 3
+sleep-claim, 4b, 6, 7, 9a, K6b); d7d uses the sensord CLI with the UI stopped. D7d was at
+0 lux only; the guided visit repeats it at room light (5 claims in STEP 2). k6b times:
+live/k6b-times.txt.

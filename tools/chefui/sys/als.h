@@ -90,7 +90,7 @@ int als_curve_percent(double lux);
 /* The curve at the current filtered value; -1 if no sample was ever seen. */
 int als_curve_now(const struct als *a);
 /* The offset a manual level implies on the current curve, clamped to
- * -50..50; 0 and false when the curve is unknown. */
+ * -95..95 (UI_AUTO_OFFSET_*); 0 and false when the curve is unknown. */
 bool als_offset_for(const struct als *a, int slider, int *offset);
 
 #endif /* CHEF_ALS_H */

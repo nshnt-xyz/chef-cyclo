@@ -7,7 +7,8 @@
  * hello line, send "claim illuminance 5" and feed every sample line to
  * als_feed(). Not wanted: close the connection (sensord drops the claim
  * with it) and cancel any retry. The socket missing or refused, EOF, an
- * err line, or a hung sensord: close and retry with a backoff of 1 s
+ * err line, or a hung sensord (no claim acknowledgment within ALS_REPLY_MS
+ * of the connect, or no status reply): close and retry with a backoff of 1 s
  * doubling to 30 s, only while wanted; a ready status resets it. A
  * reconnect restarts the stream, so the logic's first-sample rules apply.
  *
@@ -198,7 +199,7 @@ static void reply_fired(lv_timer_t *t)
 {
 	(void)t;
 	A.reply = NULL;
-	chefui_log("als: no status reply from sensord; reconnecting");
+	chefui_log("als: no answer from sensord in %d s; reconnecting", ALS_REPLY_MS / 1000);
 	conn_retry_later();
 }
 
@@ -251,6 +252,7 @@ static void sensord_line(char *line, void *user)
 	if (!strncmp(line, "{\"ok\":\"claim\"", 13)) {
 		if (A.claimed && !A.acked) {
 			A.acked = true;
+			timer_del(&A.reply);	/* the connect-to-ack deadline is met */
 			A.probe = lv_timer_create(probe_fired, ALS_PROBE_MS, NULL);
 			send_status();		/* is SMGR up: decides availability */
 		}
@@ -338,6 +340,9 @@ static void connect_start(void)
 	}
 	A.connecting = true;
 	chefui_watch_fd(fd, POLLOUT, als_io, NULL);
+	/* the same deadline covers connect, hello and the claim acknowledgment */
+	A.reply = lv_timer_create(reply_fired, ALS_REPLY_MS, NULL);
+	lv_timer_set_repeat_count(A.reply, 1);
 }
 
 /* ----------------------------------------------------------- interface */

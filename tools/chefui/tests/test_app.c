@@ -9,6 +9,7 @@
 #include <math.h>
 #include <errno.h>
 #include <poll.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -2089,6 +2090,16 @@ static void test_m5_als(void)
 	als_adv(100);
 	CHECK(AS.accepts == 1 && !strncmp(AS.in, "claim illuminance 5\n", 20) && last_level == before);
 	CHECK(!strcmp(lv_label_get_text(app.row_display.sub), "Auto \xC2\xB7 40%"));
+	{	/* L3: before any sample a late /data apply writes the manual level */
+		struct ui_settings t = app.set;
+
+		t.brightness = 60;
+		app_apply_settings(&t);
+		CHECK(last_level == ui_brightness_level(60));
+		t.brightness = 40;
+		app_apply_settings(&t);
+		CHECK(last_level == ui_brightness_level(40));
+	}
 	lux_feed(300, 1000);
 	CHECK(last_level == ui_brightness_level(30) && app_shown_brightness() == 30);
 	CHECK(app.set.brightness == 40);	/* the manual value is untouched */
@@ -2099,6 +2110,32 @@ static void test_m5_als(void)
 	CHECK(app_shown_brightness() > 60 && last_level == ui_brightness_level(app_shown_brightness()));
 	lux_feed(300, 60000);
 	CHECK(abs(app_shown_brightness() - 30) <= 1);	/* inside the deadband */
+	{	/* M1: the hub subtitle after a change seen off the hub */
+		char want[32];
+
+		als_adv(1500);
+		click(app.row_display.obj);
+		lux_feed(400, 30000);
+		app_back();
+		advance(50);
+		lux_feed(300, 60000);
+		als_adv(1500);
+		snprintf(want, sizeof(want), "Auto \xC2\xB7 %d%%", app_shown_brightness());
+		CHECK(!strcmp(lv_label_get_text(app.row_display.sub), want));
+	}
+
+	/* L3: a late /data apply keeps the Auto level once a sample set it */
+	{
+		struct ui_settings t = app.set;
+		int calls0 = level_calls, last0 = last_level;
+
+		t.brightness = 77;
+		app_apply_settings(&t);
+		CHECK(level_calls == calls0 && last_level == last0 && app.set.brightness == 77);
+		t.brightness = 40;
+		app_apply_settings(&t);
+		CHECK(app.set.brightness == 40 && last_level == last0);
+	}
 
 	/* the Display page shows the live level; a drag sets the offset and persists */
 	click(app.row_display.obj);
@@ -2128,10 +2165,21 @@ static void test_m5_als(void)
 	}
 	CHECK(saved_gen(NULL));
 	CHECK(file_has(file, "auto_brightness 1\nauto_offset 20\n"));
-	/* a drag far off the curve clamps the offset */
+	/* every slider position is curve + offset (-95..95): a drag to 100 on a 30 % curve
+	 * is offset 70 and the level stays under the finger through the ticks (L2) */
 	kit_slider_set(&d->slider, 100);
 	lv_obj_send_event(d->slider.obj, LV_EVENT_VALUE_CHANGED, NULL);
-	CHECK(app.set.auto_offset == 50);
+	CHECK(app.set.auto_offset == 100 - sys_als_curve_now());
+	CHECK(app.set.auto_offset > 50 && last_level == ui_brightness_level(100));
+	calls = level_calls;
+	lux_feed(300, 3000);
+	CHECK(level_calls == calls && last_level == ui_brightness_level(100) && app_shown_brightness() == 100);
+	kit_slider_set(&d->slider, 5);
+	lv_obj_send_event(d->slider.obj, LV_EVENT_VALUE_CHANGED, NULL);
+	CHECK(app.set.auto_offset == 5 - sys_als_curve_now() && last_level == ui_brightness_level(5));
+	calls = level_calls;
+	lux_feed(300, 3000);
+	CHECK(level_calls == calls && app_shown_brightness() == 5);
 	kit_slider_set(&d->slider, 50);
 	lv_obj_send_event(d->slider.obj, LV_EVENT_VALUE_CHANGED, NULL);
 	CHECK(app.set.auto_offset == 20);
@@ -2172,6 +2220,36 @@ static void test_m5_als(void)
 	als_adv(200);
 	CHECK(sys_als_wanted());	/* theme Auto alone keeps the claim */
 
+	/* L1: a sensor that stopped being wanted does not count as lost; turning Auto
+	 * brightness on later gives the 3 s grace, not an instant "not available" */
+	click(d->theme.cell[0]);
+	als_adv(4000);
+	CHECK(!sys_als_wanted());
+	AS.drop = true;
+	kit_switch_set(d->auto_switch, true);
+	lv_obj_send_event(d->auto_switch, LV_EVENT_VALUE_CHANGED, NULL);
+	CHECK(!app_als_unavailable() && !strcmp(lv_label_get_text(d->auto_sub), "Follows the light sensor"));
+	als_adv(2000);
+	CHECK(!app_als_unavailable());
+	als_adv(1500);
+	CHECK(app_als_unavailable());
+	AS.drop = false;
+	kit_switch_set(d->auto_switch, false);
+	lv_obj_send_event(d->auto_switch, LV_EVENT_VALUE_CHANGED, NULL);
+	als_adv(1000);
+
+	/* selecting Auto from Light with no sample yet changes the effective theme: logged */
+	click(d->theme.cell[1]);
+	CHECK(kit_theme_get() == KIT_THEME_LIGHT);
+	fakeloop_log_clear();
+	click(d->theme.cell[2]);
+	CHECK(kit_theme_get() == KIT_THEME_DARK &&
+	      fakeloop_log_count("theme auto -> dark (selected, no sample yet)") == 1);
+	click(d->theme.cell[0]);
+	fakeloop_log_clear();
+	click(d->theme.cell[2]);
+	CHECK(fakeloop_log_count("theme auto ->") == 0);	/* Dark stays Dark: no line */
+
 	/* theme Auto: 1500 lux holds Dark, 3000 lux for 5 s flips to Light, logged once */
 	click(d->theme.cell[0]);
 	click(d->theme.cell[2]);
@@ -2201,8 +2279,8 @@ static void test_m5_als(void)
 	pf_set(true);
 	als_adv(200);
 	lux_feed(700, 1000);
-	CHECK(kit_theme_get() == KIT_THEME_DARK);	/* decided from the first 3 samples */
-	CHECK(fakeloop_log_count("theme auto -> dark (lux 700, held 0.0 s)") == 1);
+	CHECK(kit_theme_get() == KIT_THEME_DARK);	/* decided from the first sample */
+	CHECK(fakeloop_log_count("theme auto -> dark (lux 700, first sample)") == 1);
 
 	/* Auto brightness again, then the sensor goes away: the note after 3 s, bounded retries */
 	kit_switch_set(d->auto_switch, true);
@@ -2249,6 +2327,7 @@ int main(void)
 {
 	lv_obj_t *scr;
 
+	signal(SIGPIPE, SIG_IGN);	/* the fake sensord writes to clients that went away */
 	fakeloop_init(true);
 	fakeloop_display(1080, 2246);
 	scr = lv_screen_active();
