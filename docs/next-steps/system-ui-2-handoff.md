@@ -241,6 +241,10 @@ next visit, and ui_review's review of part 2.
 
 ### M6 Next-steps docs for everything left out
 
+Status 2026-10-16: written (docs only): the entries are in [connectivity](connectivity-and-sensors.md),
+[GPS and time](gps-and-time.md), [sensors](sensors.md), [power](power-and-reliability.md) and the
+[UI plan](ui-and-ride-app.md), which also carries the final guided batch (including the M5 visit).
+
 Add each omitted element to the plan that owns it, with what it needs,
 then remove the design-mapping notes that are now done from the
 [UI plan](ui-and-ride-app.md):

@@ -661,3 +661,12 @@ lux watch stopped across the power steps and restarted when the UI's claim shows
 user visit.
 
 Open: guided rerun and the cold-start check (next visit); ui_review's review of part 2; M6.
+
+M6 NEXT-STEPS DOCS (2026-10-16): docs only. Entries (what it is, what it needs, what blocks it) added to the owning
+plans: Wi-Fi Sync and the Storage upload note, internet check and dBm, touch sounds and alert playback, wheel
+circumference and real BLE validation, the PC classic re-pair (connectivity); manual time, the time zone picker and GPS
+power modes (GPS and time); landscape and the final guided batch with the M5 visit (UI plan). Found while implementing
+and added: ALS tuning and sunlight mode against Auto brightness, the on-change illuminance note (sensord guide and
+sensors plan), the sensors-up pid-file window, moving the older guided scripts to the prompt card, the A/B ordering
+note for the idle draw regression, the test-wifi check-count variance. Removed from the UI plan: the done design
+mapping items (P03 to P06, ALS Auto brightness) and the sentence that the ALS parts wait for sensord.

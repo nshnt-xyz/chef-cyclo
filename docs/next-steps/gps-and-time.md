@@ -16,6 +16,25 @@ Done: chrony steps the boot clock from the NTP pool over Wi-Fi or, offline, from
 
 - **USB host as a source.** When plugged in, the host's chronyd (or any NTP server on the USB link) could be a `server 172.16.42.x` source. The host needs an NTP server for that; a test SNTP responder on the link measured the phone against the host with 1.8 ms round trips.
 
+## Manual time, the time zone picker and GPS power modes
+
+Left out of slice 2 (the Time page shows the fixed `tz` setting and the source,
+see the [system UI guide](../features/system-ui.md#device-pages-m4)):
+
+- **Manual time setting and a time zone picker.** The design has none; today the
+  zone is the `tz` setting (a POSIX string, default `IST-5:30`, no tzdata) and
+  the clock comes from GPS, chrony or the saved offset. Needs: a small zone table
+  (tzdata is not shipped, a fixed list of POSIX strings per region is enough), a
+  picker page, and a manual set that goes through chrony (`chronyc settime`) or
+  the RTC without fighting the sources. Blocked on whether a bike computer ever
+  needs it: GPS gives UTC and the zone changes rarely, so decide after real use.
+- **GPS power modes** (Precise, Balanced, Saver). The design has a mode row on the
+  GPS page and a section on P13. Needs: a measurement of what each mode costs and
+  buys (fix rate, constellation set, `LOC` session parameters, current with USB
+  out; a GNSS session adds about +31 mA over `OFF` today) and a gps-manager option
+  to select it. Blocked on that measurement, which belongs with the GNSS cache
+  work below since both change how a session starts.
+
 ## Warm starts and assistance
 
 New RAM-shadow GNSS state disappears across boots. The recorded terrace cold start was ≤78 seconds; repeat measurements before treating that as a typical startup time. Investigate two improvements without touching real EFS: persist the *shadow* (or the identified GNSS cache files it contains — design and review their restore path; sector-only RMTFS traffic does not identify filenames) to our own writable storage ([persistent storage](../features/storage.md)) and re-seed the shadow from it at boot; and using the existing [Wi-Fi](../features/wifi-ui.md), fetch the modem-advertised gpsOneXTRA source (`xtra3grcej.bin` in the 2026-10-06 query) and inject it plus time through LOC and measure TTFF before/after. Faster warm or assisted starts remain an expected benefit to verify.

@@ -65,7 +65,7 @@ Without a REG2 server the ADSP boots (audio works) but SMGR never registers: liv
 | `get SENSOR [HZ]` | one sample line, or `{"err":"timeout","sensor":"accel"}` after 5 s |
 | `declination [DEG\|off]` | `{"ok":"declination","declination":1.50}` (or `null`): sets (-180..180, east positive), clears or reads the declination for every heading client; `{"err":"bad declination"}` |
 
-Sample lines, with `t` in CLOCK_MONOTONIC nanoseconds (the accel line is a live sample; the others show the shape):
+The illuminance report is on-change only: at steady light samples can be 100 s apart even at a 5 Hz claim. A consumer treats the last value as held until the next sample and checks liveness with `status` (`"smgr":"ready"`), not by waiting for samples. Sample lines, with `t` in CLOCK_MONOTONIC nanoseconds (the accel line is a live sample; the others show the shape):
 
 ```
 {"sensor":"accel","t":667817617363,"x":8.42253,"y":0.173035,"z":5.33611}

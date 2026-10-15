@@ -11,14 +11,24 @@ with PC emulation; see the [protocol, reconnect policy and test loop](../feature
 Remaining:
 
 - Validate HR16, power and CSC against real sensors, including encrypted
-  sensors, multi-service devices and their reboot/reconnect behavior.
+  sensors, multi-service devices and their reboot/reconnect behavior. Needs:
+  a real HR strap, a speed/cadence sensor and a power meter (the PC emulator
+  covers only the protocol); blocked on getting the hardware, nothing else.
 - Add wheel-circumference selection to the UI (the daemon accepts `-w MM`,
-  default 2105 mm), before making speed and distance part of a ride.
+  default 2105 mm), before making speed and distance part of a ride. Needs: a
+  setting for the CSC sensor's wheel (the sensor detail page P10 is the natural
+  place), stored per sensor next to its sealed record or in the UI settings, and
+  a way to hand it to `blesensd` (a restart with `-w`, or a socket command).
+  Blocked on the ride application defining which speed source it trusts (CSC
+  against GPS), since GPS speed needs no wheel size.
 - Compare USB-out idle current with a connected HR sensor, a quiet absent
   sensor and active bounded retries. This is in the final guided slice 2
   batch; CPU measurements alone do not establish battery cost.
 - Re-pair the PC as a classic peer for HID/PAN/A2DP after the LE emulator
-  tests, which remove only the test peer's previous classic bond.
+  tests, which remove only the test peer's previous classic bond. Needs: the
+  PC adapter free (the emulator and the classic tests share it) and the pairing
+  run from the [Bluetooth tooling notes](../features/bluetooth.md); blocked only
+  on scheduling a bench session, no code is missing.
 
 ## Standard Bluetooth tooling
 
@@ -46,6 +56,23 @@ checks passed on a RAM image; see the [slice 2 log](../../logs/system-ui-slice2-
 Guided keyboard join with a wrong then correct passphrase and two-tap Forget
 remain in the final guided batch.
 
+Left out of the slice 2 pages and still to build:
+
+- **Wi-Fi Sync** (ride upload, maps and routes update, rides waiting) and the
+  Storage page's upload note. The design shows a Sync section on the Wi-Fi master
+  page and a line on P05. Needs: the ride recorder's file layout and a "waiting"
+  count, a transfer protocol and server for rides and maps (for example HTTPS to
+  the owner's PC or a Strava bridge, see [Strava](#strava)), a retry and quiet
+  policy while riding, and the [ride application](ui-and-ride-app.md#bike-computer-application)
+  to produce rides. Blocked on the ride application and on choosing the sync
+  target.
+- **Internet check and signal in dBm.** The pages show "Connected" and a
+  percentage with a word (strong, fair); the design shows "internet OK" and dBm.
+  Needs: NetworkManager's `Connectivity` and its check URI enabled (a periodic
+  probe costs radio time, measure it first) and the access point's signal in
+  dBm from `wpa_supplicant` or the AccessPoint properties. Blocked on deciding
+  whether a probe is acceptable on a ride's power budget.
+
 Remaining work: complete those guided checks; measure the always-resident stack and
 associated/disabled current and assess demand-driven power management and long
 rides. Controlled overlapping DHCP leases remain untested live (host checks
@@ -60,6 +87,17 @@ server or UDP command listener and uses private Unix control. Preserve BT's
 verified pre-shutdown restart behavior.
 
 ## Audio
+
+The Sound and haptics page (P03) stores alert volume, haptics, alert sounds and
+"quiet when paused" for the ride application; no sound is played by the system UI
+yet, and touch sounds are not implemented. Left out of slice 2 and still to build:
+**touch sounds** (a short click on taps, off by default, needs the resident
+player below to be cheap enough) and **alert sound playback** honoring the volume,
+the alert-sounds switch and "quiet when paused" (the consumer, a paused ride,
+must be known to `alertd` or the UI before it plays). Both are blocked on the
+resident `alertd` player below and on the ride application, which owns the
+events. The [ride application](ui-and-ride-app.md#bike-computer-application)
+section lists the consumer side.
 
 The [audio guide](../features/audio.md) owns the verified playback contract, mmap requirement, installed diagnostic tools and permanent amplitude limits. Speaker protection was abandoned; the [investigation record](../research/speaker-protection.md) preserves the findings. Remaining work:
 

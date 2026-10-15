@@ -2,7 +2,7 @@
 
 [Next-steps index](README.md) · [Current features](../features/README.md)
 
-Remaining integration and validation work, updated 2026-10-13 through system UI slice 2 M3. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
+Remaining integration and validation work, updated 2026-10-16 through system UI slice 2 M5. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
 
 ## Button integration
 
@@ -20,7 +20,7 @@ The shared platform layer is implemented and live accepted: display backend, own
 
 The menus' screen policy is implemented in the [system UI](../features/system-ui.md) (it owns screen power and brightness, auto-sleeps, `fblog` is the fallback and never wakes a screen left off). Still open for the ride application: its own policy on ride pages, and a UI restart must not interrupt recording.
 
-Provide a **sunlight and gloves** mode: maximum backlight on request, a high-contrast, big-digit layout, and every riding action reachable from the side buttons because touch through gloves or rain is unreliable. Define always-on versus button-wake policy, manual brightness override, and ALS-driven brightness. Verify sleep/wake, process death, fallback, and clean shutdown before adding the full ride application.
+Provide a **sunlight and gloves** mode: maximum backlight on request, a high-contrast, big-digit layout, and every riding action reachable from the side buttons because touch through gloves or rain is unreliable. Define always-on versus button-wake policy and the manual brightness override against Auto brightness (a drag while Auto is on is an offset today). Verify sleep/wake, process death, fallback, and clean shutdown before adding the full ride application.
 
 ## System UI design
 
@@ -42,18 +42,16 @@ Pulling the design: in Claude Code, `DesignSync` `list_files`/`get_file` on the 
 
 Slice 1 (2026-10-11, [handoff](system-ui-handoff.md), [guide](../features/system-ui.md)) built the foundation: the token/theme kit with runtime switching, the generated Barlow and Lucide fonts, `chefui_snapshot()` and `tools/chefui/compare-ref.py` against 1:1 reference renders (kept outside git in `~/chef-cyclo-evidence/system-ui-r1-20261011/ref-png/`), the live status bar, the hub (P01), the Display page (P02), the settings file and start at boot.
 
-Slice 2 M1 to M3 added Wi-Fi (P15 to P18) on NetworkManager, GPS (P11 to P14) on gps-manager and gpsd, and Bluetooth sensors (P07 to P10) through blesensd. Their hub tiles open the implemented pages. Host tests, reference comparisons and RAM-image checks are recorded in the [slice 2 log](../../logs/system-ui-slice2-2026-10-11.txt). Guided Wi-Fi join, wrong-password and Forget checks, a GPS fix near a window, and USB-out BLE idle-current measurements remain in the final guided batch.
+Slice 2 M1 to M3 added Wi-Fi (P15 to P18) on NetworkManager, GPS (P11 to P14) on gps-manager and gpsd, and Bluetooth sensors (P07 to P10) through blesensd. M4 added Sound and haptics (P03), Time and date (P04), Storage (P05) and About (P06). M5 made Auto brightness and theme Auto work from the ambient light sensor, started `sensors-up` at boot and added the on-screen guided prompt card. The hub tiles and rows open the implemented pages. Host tests, reference comparisons and RAM-image checks are recorded in the [slice 2 log](../../logs/system-ui-slice2-2026-10-11.txt).
 
-Remaining translation work, each page backed by the existing interfaces and compared the same way:
+Remaining translation work: **landscape** (L01 to L04), after a design pass that respects the notch on the short edge. It needs the design pass first (the short edge puts content under the notch, so the safe areas and the status bar ears change), then a rotation-aware layout in the kit. Blocked on that design round. Left-out pieces of the finished pages (Wi-Fi Sync, internet check and dBm, sound playback, the zone picker and GPS power modes) are in the plans that own them: [connectivity](connectivity-and-sensors.md) and [GPS and time](gps-and-time.md).
 
-1. Sound and haptics (P03), Time and date (P04, showing the fixed `tz` setting), Storage (P05), About (P06). The time zone picker and manual time setting are deferred to the [GPS and time plan](gps-and-time.md), as specified in the [slice 2 handoff](system-ui-2-handoff.md).
-2. ALS-driven Auto brightness and theme Auto, once `sensord` starts at boot ([sensor integration](#sensor-integration)); both are shown disabled today.
-3. Landscape, after a design pass that respects the notch on the short edge.
+Final guided batch of slice 2 (open acceptance item, run in one user visit with on-screen prompts): the Wi-Fi join with a wrong then the right passphrase and the Forget (two taps) of that profile; a GPS fix near a window with live satellites (P13/P14); BLE USB-out idle current with a connected sensor and a quiet absent one; the physical feel of the haptic pulses; the 12-hour status bar corner glance near the top-right; and the M5 ambient light visit (headless cold-start check with `live/coldstart.sh` and the guided rerun: cover, uncover, torch, room light, power off and on, wake after 60 s off).
 
 Decided 2026-10-11 (implemented in slice 1 unless noted):
 
 - **Power short press**: Back on every page except the hub, where it turns the screen off. Menus also auto-sleep after the Display page's timeout, and Power wakes. In menus, the volume rocker and `power.double` stay unclaimed (they are reserved for ride pages).
-- **Dark and light**: a manual Dark/Light/Auto setting. Auto switches to Light in bright sun from the ALS with hysteresis, so Light doubles as the sunlight theme. The ALS parts wait for sensord to start at boot (not yet implemented).
+- **Dark and light**: a manual Dark/Light/Auto setting. Auto switches to Light in bright sun from the ALS with hysteresis, so Light doubles as the sunlight theme (implemented in slice 2 M5).
 - **Status bar**: no temperature (there is no ambient sensor).
 - **Local time**: a POSIX `TZ` setting, default `IST-5:30`, no tzdata.
 - **Landscape** waits for a design pass that respects the notch on the short edge. L01 to L04 put content under it (not yet implemented).
@@ -62,6 +60,8 @@ Decided 2026-10-11 (implemented in slice 1 unless noted):
 ## Bike-computer application
 
 Inputs: gpsd ([GPS manager](../features/gps.md#use-gnss-gps-manager), [client integration](gps-and-time.md#client-integration)) for position/speed/track/altitude, BLE sensors through [blesensd](../features/bluetooth.md#ble-sensors) ([remaining validation](connectivity-and-sensors.md#ble-sensors): HR strap, speed/cadence, power), battery (`power_supply/battery`), side buttons ([button integration](ui-and-ride-app.md#button-integration)), touch ([UI stack](ui-and-ride-app.md#ui-stack)). Outputs: the panel through the chosen [UI stack](#ui-stack), vibrator/speaker ([audio](connectivity-and-sensors.md#audio)) for alerts.
+
+Consumers of the left-out system pieces (the pieces themselves are in [connectivity](connectivity-and-sensors.md)): **alerts** play through the audio path honoring the Sound and haptics preferences stored by P03 (alert volume, alert sounds, haptics) and "quiet when paused", which the ride application must set when a ride is paused so alerts stay silent; **Wi-Fi Sync** needs the recorder to keep finished rides as files with a "waiting to upload" count the Wi-Fi page and the Storage page can show, and to mark a ride uploaded only after the server confirms it.
 
 Core: ride recording (GPX/FIT to [persistent storage](../features/storage.md)), live data pages (speed, distance, time, HR, cadence, climb), lap/auto-pause, route following later. Housekeeping: screen on/off, GPS leases and idle power, clean shutdown, upload over Wi-Fi ([Wi-Fi](connectivity-and-sensors.md#wi-fi)).
 
@@ -72,6 +72,8 @@ Order: (a) **UI first** — the data pages on the panel with touch/buttons on th
 **Time zone**: chrony ([time synchronization](gps-and-time.md#time-synchronization)) gives UTC; the UI needs local time (tzdata or a fixed `TZ`). Written as an ordinary Linux app against gpsd/BlueZ and the chosen toolkit/input stack so it is testable on the host with replayed `nmea.log` from the ride runs.
 
 ## Sensor integration
+
+Ambient light values are starting points to tune on real use: the curve (about 30 % at 250 to 320 lux), Light at 2500 lux held 5 s and Dark at 800 lux held 20 s, the smoothing (tau 1 s brightening, 5 s dimming) and the 5 s wake grace that protects the theme from a hand over the sensor right after a wake. Needs: outdoor and riding data (sun, shade, tunnels, a sleeved hand on the bars) and the thresholds' runtime options (`--als-*`) for trials; blocked on getting that data on a bike. Also open: sunlight mode against Auto brightness (above), and the system UI test hygiene item that `test-wifi`'s check count varies between runs (212 or 213, timing dependent): make it deterministic.
 
 Use the [sensord contract](../features/sensors.md) for raw sensors and magnetic heading. The UI owns ALS-driven brightness, including manual override and sunlight mode; the display owner applies backlight changes through the chosen display backend, preserving the framebuffer commit contract while the fbdev path remains in use.
 
