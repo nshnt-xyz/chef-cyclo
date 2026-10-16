@@ -134,8 +134,8 @@ light threshold (logged `wake grace`), but no Dark decision, no Dark hold
 and no dimming inside the window; at its end the latest sample takes over and the
 normal hysteresis runs from there (a Dark change needs its 20 s counted from the end
 of the window). A Dark flash outdoors on every wake is what this prevents. The window
-length is a starting value to be set from live data (`live/coldstart.sh` checks a
-cold sensor). One kmsg line per change of the effective theme under Auto (no line when a
+length is a starting value to be set from live data (`live/coldstart.sh` checked a
+cold sensor on 2026-10-16: no under-read in three rounds; the first line of a claim is a cached reading, see above). One kmsg line per change of the effective theme under Auto (no line when a
 decision keeps the theme), as the app prints it:
 `chefui[chef-settings]: theme auto -> light (lux 3120, held 5.0 s)`, with
 `wake grace` or `selected` in place of the hold for a decision inside the wake window

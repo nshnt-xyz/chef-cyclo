@@ -643,7 +643,7 @@ checked against the sensord binary), tests in tools/sensord/tests/test_sensors-u
 dropped by kill -9, orphan stopped, recycled pid left alone). Live on boot-m5.img 39208c96...: step 2 sensors-up from
 inittab, smgr ready 12.8 s after boot (chef-settings started at 11.1 s as before); step 5 kill -9 of the supervisor:
 the wrapper respawned it after 12 s, the orphaned sensord was stopped, registry reused, one new pair, one illuminance
-claim (live/step2.txt, step5.txt). D10: the wrapper moves /run/sensors-up.log to .log.1 when it is over 256 KiB before each start (one generation); at boot sensord runs without -v and with stderr on /dev/null (SENSORD_ARGS=, SENSORD_STDERR=/dev/null; its notes stay in kmsg), so the log holds only sensors-up lines, about 512 KiB at most; tested with the real inittab line in test_sensors-up.sh). The live evidence on boot-m5-5 (39208c96...) predates D10 (old wrapper); D10 is checked live on the next image.
+claim (live/step2.txt, step5.txt). D10: the wrapper moves /run/sensors-up.log to .log.1 when it is over 256 KiB before each start (one generation); at boot sensord runs without -v and with stderr on /dev/null (SENSORD_ARGS=, SENSORD_STDERR=/dev/null; its notes stay in kmsg), so the log holds only sensors-up lines, about 512 KiB at most; tested with the real inittab line in test_sensors-up.sh). The live evidence on boot-m5-5 (39208c96...) predates D10 (old wrapper); D10 passed live on boot-m5-6 (live/d10check.txt): boot log 878 bytes with no sensord lines; after padding it to 300878 bytes the wrapper's next start rotated it (log 461 bytes, log.1 300885 bytes).
 
 D8/D9 (briefs 20 and 21): live guided run 1 (invalid: the 30 s auto-sleep turned the screen off, live/m5live-try1)
 showed low samples (15, 0, 7 .. 44 lux, then 234, 261) in a 270 lux room right after a wake; the reviewer's
@@ -670,3 +670,56 @@ and added: ALS tuning and sunlight mode against Auto brightness, the on-change i
 sensors plan), the sensors-up pid-file window, moving the older guided scripts to the prompt card, the A/B ordering
 note for the idle draw regression, the test-wifi check-count variance. Removed from the UI plan: the done design
 mapping items (P03 to P06, ALS Auto brightness) and the sentence that the ALS parts wait for sensord.
+
+M5 VISIT (2026-10-16, 18:20 to 18:45 IST): cold start and the guided rerun
+Image out/boot-m5.img 2062b7c3... (tree of f327ae1), RAM boot from the installed pair (live/boot-m5-7.log). The prefs
+baseline changed: /data/v1/ui/settings was no longer the 2026-10-14 file (072374176...) but a v3 file of 237 bytes,
+sha f54f0bd2..., changed by the user at 15:39 IST before the visit (theme dark, sleep 30, brightness 20, Auto
+brightness off). The coordinator took it as the K6 baseline for the visit (backup live/settings-current-20261016.bin);
+after the run the file was restored byte-exact (sha f54f0bd2..., mode 600, 0:0, unchanged after a kill -9
+respawn: the second hash was taken 16 s after the kill per the command, the file has no uptime stamps;
+live/k6b-restore-20261016.txt). My injected restore taps did not change the file (the page they hit is not
+known; nothing was logged and no pref differed from the setup state), so the restore rests on the byte copy.
+
+Cold start (live/coldstart-20261016, 18:22 to 18:31 IST, no claim during the rests, room lights on, phone untouched):
+| rest  | claims | report-adds in the rest | first sample after a fresh claim | lines in 20 s | lux     |
+| 60 s  | 0      | 0                       | 0.10 s                           | 2             | 224-228 |
+| 120 s | 0      | 0                       | 0.10 s                           | 5             | 222-251 |
+| 300 s | 0      | 0                       | 0.10 s                           | 3             | 227-243 |
+No under-read in any round. The line count is low because the stream is on-change only. Per ui_review the first
+line of a fresh claim is a cached DSP reading with an old stamp (59.9, 20.7 and 301.8 s old in these rounds), so the
+"first sample after 0.10 s" is that cached line (0.10 s is only the poll step); the first fresh sample is stamped
+about 0.23 to 0.24 s after the claim (0.42 s in Phase A), and the fresh values (224, 237, 243) show the same lux, so no under-read. The
+Phase A "max gap 102 s" is the same cached age; the real on-change maximum there is 55.2 s. The UI ignored the stamp
+(review/m5visit-probes): decision D11, below.
+
+Guided rerun (live/guided-20261016/run/m5live, Auto brightness on, theme Auto, sleep Never, 18:39 to 18:44 IST;
+times are uptime seconds; the theme and power lines come from live/guided-20261016/dmesg-visit-lines.txt, a dmesg dump
+taken after the run, because the run's kmsg.txt is empty: BusyBox dmesg has no -w):
+- STEP 1 cover (1090.9): lux 0, 12, then 3 to 7; backlight request 71 -> 31 (wled 1140 -> 498) in about 12 s after the
+  0 lux sample (14 s after the prompt), a smooth ramp; no theme line (stayed Dark).
+- STEP 2 uncover (1110.9): lux 211 to 236, request back to 71 in about 6 s.
+- STEP 3/4 torch (1130.9): lux 450 -> 4803 -> 12946 .. 28916 in 4 s, 32768 (full scale) from 1166.5; request 71 -> 255 at
+  1138.33. One line: 1138.589 "theme auto -> light (lux 27476, held 5.0 s)". No flapping.
+- STEP 5 torch off (1190.9): lux 225 (one on-change sample at 1192.4); request 255 -> 163 -> 92 -> 77 -> 71 by 1220.
+  One line: 1212.492 "theme auto -> dark (lux 225, held 20.0 s)".
+- STEP 6 power off and on: off after 7 s, claims 0 while off, power.short on at 1251.68, illuminance claim 1251.95
+  (claims 1). No theme line (Dark stayed Dark). No dimming: request 71 (wled 1140) through steps 6 to 8, so none in
+  the wake grace.
+- STEP 7 wake after 60 s off: the user pressed POWER early: off 1258.7, on 1312.7 (54 s off), off again 1317.2, on
+  1321.34 (claim 1321.61, claims 1, so the logged claim followed only about 4 s off); watch 2 saw one sample, 248 lux. No wake decision line (no theme change needed).
+- STEP 8 done (1337, 18:44 IST).
+Limits: L3 (the samples of the grace window are not in the watch, because the watch starts only after the UI's own
+claim shows claims 1); step 7 was 54 s plus a 4 s cycle, not a clean 60 s. No visit step failed. Cold-start check and guided rerun are closed; the review of the visit found V1 (below).
+
+D11 (2026-10-16): alsclient takes CLOCK_MONOTONIC when it sends the claim and drops a sample stamped more than
+200 ms before it (ALS_STALE_SLACK_MS), with one kmsg line per claim. Live headless check on out/boot-m5d11.img
+(b6215cda..., chef-settings 7c99418d...; live/boot-m5d11-1.log, live/d11-live-dmesg.txt) with Auto brightness and theme
+Auto on and the screen on: claim at 1011.2257 -> "als: dropped a cached sample (239 lux, 260.0 s older than the
+claim)" at 1011.2348, exactly one line; the fresh samples after it were fed (backlight request 74, about 29 %,
+the room's level, wled 1188, from 20 % = request 51 set by the pref; these backlight reads were live reads
+of the sysfs nodes and were not saved to a file). After a kill of sensord the UI reclaimed at 1041.32: again one line (237 lux, 14.7 s older),
+backlight unchanged at 74 (same unsaved reads). Fresh stamps pass, so the DSP clock mapping is inside the 200 ms slack. The prefs were
+restored byte-exact (f54f0bd2..., live/k6b-restore-d11.txt; the injected setup taps worked, the screen had to be
+woken by the user first because the 30 s auto-sleep had already turned it off). Not repeated live: the wake after
+a screen-off (needs the power key).

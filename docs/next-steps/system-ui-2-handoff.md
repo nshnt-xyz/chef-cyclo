@@ -209,15 +209,14 @@ batch; a zone picker, real timezone data and manual time stay out of scope.
 
 ### M5 Ambient light: Auto brightness and theme Auto
 
-Status 2026-10-16: implemented and host-tested; live-verified on a RAM image except the
-guided light steps ([log](../../logs/system-ui-slice2-2026-10-11.txt)). The idle current of the ADSP,
+Status 2026-10-16: implemented and host-tested; live-verified on a RAM image, including the guided light steps ([log](../../logs/system-ui-slice2-2026-10-11.txt)). The idle current of the ADSP,
 `sensord` and an illuminance claim is below the measurement noise (0 to +2 mA), so `sensors-up` now
 starts from inittab. The illuminance stream is on-change only, so the client uses a status probe
 instead of a silence timeout, and a 5 s wake grace protects the theme against a covered sensor at a
 wake. Guided prompts are shown on the phone (a prompt card, see the
-[system UI guide](../features/system-ui.md#guided-prompts-testing)). Open: the guided rerun (cover,
-uncover, torch, room, power off and on, wake after 60 s off) and the headless cold-start check at the
-next visit, and ui_review's review of part 2.
+[system UI guide](../features/system-ui.md#guided-prompts-testing)). The guided rerun and the headless cold-start check were done on 2026-10-16; the visit review found
+that a fresh claim first delivers a cached reading, fixed by D11 (stale samples dropped, live-checked; see
+the log).
 
 - First measure, then decide (bring the numbers to the coordinator, who
   asks the user): idle current with `sensord` running and no claims
@@ -243,7 +242,7 @@ next visit, and ui_review's review of part 2.
 
 Status 2026-10-16: written (docs only): the entries are in [connectivity](connectivity-and-sensors.md),
 [GPS and time](gps-and-time.md), [sensors](sensors.md), [power](power-and-reliability.md) and the
-[UI plan](ui-and-ride-app.md), which also carries the final guided batch (including the M5 visit).
+[UI plan](ui-and-ride-app.md), which also carries the final guided batch.
 
 Add each omitted element to the plan that owns it, with what it needs,
 then remove the design-mapping notes that are now done from the

@@ -46,7 +46,7 @@ Slice 2 M1 to M3 added Wi-Fi (P15 to P18) on NetworkManager, GPS (P11 to P14) on
 
 Remaining translation work: **landscape** (L01 to L04), after a design pass that respects the notch on the short edge. It needs the design pass first (the short edge puts content under the notch, so the safe areas and the status bar ears change), then a rotation-aware layout in the kit. Blocked on that design round. Left-out pieces of the finished pages (Wi-Fi Sync, internet check and dBm, sound playback, the zone picker and GPS power modes) are in the plans that own them: [connectivity](connectivity-and-sensors.md) and [GPS and time](gps-and-time.md).
 
-Final guided batch of slice 2 (open acceptance item, run in one user visit with on-screen prompts): the Wi-Fi join with a wrong then the right passphrase and the Forget (two taps) of that profile; a GPS fix near a window with live satellites (P13/P14); BLE USB-out idle current with a connected sensor and a quiet absent one; the physical feel of the haptic pulses; the 12-hour status bar corner glance near the top-right; and the M5 ambient light visit (headless cold-start check with `live/coldstart.sh` and the guided rerun: cover, uncover, torch, room light, power off and on, wake after 60 s off).
+Final guided batch of slice 2 (open acceptance item, run in one user visit with on-screen prompts): the Wi-Fi join with a wrong then the right passphrase and the Forget (two taps) of that profile; a GPS fix near a window with live satellites (P13/P14); BLE USB-out idle current with a connected sensor and a quiet absent one; the physical feel of the haptic pulses; the 12-hour status bar corner glance near the top-right.
 
 Decided 2026-10-11 (implemented in slice 1 unless noted):
 
