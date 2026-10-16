@@ -723,3 +723,55 @@ backlight unchanged at 74 (same unsaved reads). Fresh stamps pass, so the DSP cl
 restored byte-exact (f54f0bd2..., live/k6b-restore-d11.txt; the injected setup taps worked, the screen had to be
 woken by the user first because the 30 s auto-sleep had already turned it off). Not repeated live: the wake after
 a screen-off (needs the power key).
+
+FINAL GUIDED BATCH (2026-10-16, about 19:30 to 21:05 IST, RAM image out/boot-m5d11.img b6215cda... for G1 to G5; evidence
+~/chef-cyclo-evidence/system-ui2-final-20261016/live; no passphrase, MAC or position in any file here)
+- Backups before touching anything (byte-exact, perms kept, outside the repo): NetworkManager keyfiles, BlueZ state,
+  the sensor list, the UI settings and the gps enabled file; the restore record with the sha256 of every file, backup vs
+  phone, is live/restore-final.txt (all equal; two BlueZ cache files differed after G5 and were restored). NM profiles and the gps switch were restored byte-exact at
+  the end of G4 (TP-Link_E975 and chef-storage-wifi back, hashes equal; GPS off, enabled file equal); K6b to f54f0bd2.
+- G1 haptics: the user called the pulses "subtle, good" (pass).
+- G2 12-hour corner glance: DEFECT. With the 24-hour clock off the minutes ones digit was cut by the rounded top-right
+  corner. Capture (live/g2): ink right x 1053 (27 px from the edge), top y 25 (the am/pm marker raised the digits 10 px).
+  From the 12 h cut and the 24 h fine the corner radius is about 89 to 105 px. Fix D-G2 (below).
+- G3 Wi-Fi join: the user forgot both saved Wi-Fi profiles by hand first (two Forgets logged, profiles gone), then the wrong
+  passphrase on TP-Link_E975 5G: "join refused the passphrase" 6 s after the join, the failed profile deleted,
+  "Wrong password. Try again." seen; then the right passphrase: joined in 0.6 s, a new profile 'TP-Link_E975 5G' (root 600),
+  the Connected card on the list (the designed flow); then Forget (Confirm, then the list), the profile gone, wlan0
+  disconnected. Pass. (live/g3-chefui-wifi-lines.txt has only the chefui lines.)
+- G4 GPS at a window: cold fix in 107.8 s (ACQUIRING 4285.9, RUNNING 4393.65: live reads of the phone's kmsg, not saved to a file); fix acquired, but the satellites count stayed 0 and
+  flickered: DEFECT. Recording (live/g4, positions stripped): gpsd 3.27.3 sends a full SKY (13 satellites, 6 used, all
+  GPS) then two DOP-only SKY lines (no satellites key) each second; gps_parse_sky_view reset the satellites on every
+  line, so the count read 0 for two thirds of the reports. The gnss-rf evidence of 2026-10-04 has the same pattern, so
+  P13/P14 never saw it with real data. Fix D-G4 (below).
+- G5 BLE idle current (live/g5-run, live/g5-report.md; script g5.sh, PC schedule g5-arm.py, rules g5-analyze.py, reviewed
+  by ui_review): T0 = 20:25:07 IST (the plan time; the user was unplugged before T0-40 s), 2 cycles of CONNECTED 4 min, ABSENT 8 min, BT OFF 4 min (1 min settle each,
+  excluded), 38 min; the unplug gate (no supply from T0-40 s, Discharging, current > 0) passed, 0 supply-online samples
+  after T0, 0 of 2483 samples with the panel on, battery 87 to 85 %, 36 to 32 C. Labels from a state log (blesensd status
+  and list every 10 s, one blesensd watch counting the value lines), not from the schedule. Means of valid windows:
+  BT OFF 179.7 mA (179.9, 179.5), ABSENT retrying (first 300 s after the PC drop, reconnecting true) 186.8 mA (186.8,
+  186.9) = +7.1 mA, ABSENT waiting (window over) 180.2 mA (181.0, 179.4) = +0.5 mA; window sd 11 to 18 mA. CONNECTED
+  (HR, power and CSC at 1 Hz each from the PC emulator): both blocks invalid under the 100 percent label rule, the link
+  flapped (label ok 79 and 67 percent, one outage of about 40 s); whole windows 184.4 and 184.1 mA, clean rows only
+  182.4 and 182.7 mA, about +3 mA (+2.7 and +3.0), inside the noise: inconclusive, no rerun. The held case (the ride app holding the
+  connection) is the retrying cost continued (+7 mA); both items are in docs/next-steps/connectivity-and-sensors.md.
+  A dry run with the phone plugged showed the unplug prompt to the user, who unplugged: no user-facing prompt in dry runs.
+- Live confirmation of the fixes (same visit, RAM image out/boot-g2g4.img b8900dbd...): the user checked the 12-hour
+  clock corner and both corner icons and found them good, then 24 h again; at the window the satellites page showed 4 of
+  12 locked without flicker (the recording of that minute, live/g4b: 120 full SKY lines of 13 satellites with 4 used,
+  240 DOP-only lines, the parser keeps the satellites between them). The 12 versus 13 is a different moment.
+- D-G2 (fix, 2026-10-16): the status bar side padding is 36 px (the design's 24 plus 12 for the corners), the digit column
+  stays 44 px in both modes and the am/pm marker hangs below it (ext draw size so LVGL draws it), so the 12 h digits sit
+  where 24 h puts them (ink top 35, right 1041, marker to y 89); clock ink worst point 115 px from an R=120 centre, the
+  left GPS glyph 121 px.
+- D-G4 (fix): a SKY without a satellites key updates the DOPs and keeps the satellites, one with the array replaces them,
+  and 10 s without a full SKY clears them; tests in test_sys (663 checks) and test_app (992).
+- G4 follow-up, the page counter: the SEARCHING time and the First fix row counted from the page's own lease, so leaving
+  the page and coming back inside gps-manager's 30 s grace showed 0:00 (and a first fix of about 0 s) while the manager was
+  still on the same bring-up. D-G6: gps-manager sends "acq UP_MS FIX_MS" (the age of its current bring-up and the time to its
+  first status-A RMC, -1 none) after every state line and in the watch reply; the page counts from it. Live (about 21:41 to 21:47 IST, out/boot-dg6.img
+  da53f397..., headless, no taps; live/g6b): bring-up 1 acquired in 204.9 s (cold, at the window), First fix 205 s on the locked
+  page, and still 205 s after chef-settings was killed and respawned within a second (init respawns it at once; the capture 6 s later, inside the grace, same bring-up); after
+  45 s away the manager stopped (acq -1 -1), the next lease started bring-up 2 (acq 0) and the page read SEARCHING 0:02 with
+  13 satellites, fixed after 2.9 s (warm). Not seen live: a return while the manager is still searching. The user's 4/12
+  satellites versus 13 in the recording was a different moment (low satellites at 1 to 3 degrees come and go).

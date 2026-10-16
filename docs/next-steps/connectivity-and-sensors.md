@@ -21,9 +21,20 @@ Remaining:
   a way to hand it to `blesensd` (a restart with `-w`, or a socket command).
   Blocked on the ride application defining which speed source it trusts (CSC
   against GPS), since GPS speed needs no wheel size.
-- Compare USB-out idle current with a connected HR sensor, a quiet absent
-  sensor and active bounded retries. This is in the final guided slice 2
-  batch; CPU measurements alone do not establish battery cost.
+- BLE idle current (measured 2026-10-16, USB out, screen off, Wi-Fi radio off, ADSP and
+  `sensord` up, 4 min blocks, noise about 11 to 18 mA per block, two cycles; see the
+  [slice 2 log](../../logs/system-ui-slice2-2026-10-11.txt)): adapter off 179.7 mA, a
+  paired sensor absent and `blesensd` retrying (the first 300 s after a drop) 186.8 mA
+  (+7.1 mA), the same sensor absent after the retry window 180.2 mA (+0.5 mA, not
+  measurable). Open: (a) the **connected** cost was not measured cleanly: against the PC
+  emulator the link flapped while connected (the state fell to `connecting` for 10 to 40 s
+  several times per 4 min block, cause unknown: the PC adapter, the phone's BLE or the
+  emulator), and the two blocks read about +3 mA on their clean rows, inside the noise; measure
+  it with a real HR strap (and look at the flapping with `btmon` on the phone, then with
+  the real sensor). (b) The **+7 mA while retrying** is the cost of a held connection to
+  an absent sensor (the ride app holds it): a design question for the retry backoff (the
+  5 to 30 s Connect cycle) once the ride app exists, for example a longer backoff or
+  an advertising-driven reconnect after the first minutes.
 - Re-pair the PC as a classic peer for HID/PAN/A2DP after the LE emulator
   tests, which remove only the test peer's previous classic bond. Needs: the
   PC adapter free (the emulator and the classic tests share it) and the pairing

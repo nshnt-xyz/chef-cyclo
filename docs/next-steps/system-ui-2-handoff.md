@@ -184,8 +184,9 @@ lessons: `~/chef-cyclo-evidence/system-ui-live-20261011/`,
 
 Status 2026-10-14: implemented and live-verified on a RAM image, awaiting review
 ([log](../../logs/system-ui-slice2-2026-10-11.txt)). Follow-ups it found: the
-physical haptic feel and the 12-hour status bar corner glance join the final guided
-batch; a zone picker, real timezone data and manual time stay out of scope.
+physical haptic feel and the 12-hour status bar corner glance joined the final guided
+batch (done 2026-10-16: the haptics passed, the corner clipped the minutes digit and was fixed, see
+the M6 status below); a zone picker, real timezone data and manual time stay out of scope.
 
 - P03 Sound and haptics: alert volume slider, Haptics, Alert sounds,
   Quiet when paused, stored in the UI settings for the ride app (no
@@ -242,7 +243,16 @@ the log).
 
 Status 2026-10-16: written (docs only): the entries are in [connectivity](connectivity-and-sensors.md),
 [GPS and time](gps-and-time.md), [sensors](sensors.md), [power](power-and-reliability.md) and the
-[UI plan](ui-and-ride-app.md), which also carries the final guided batch.
+[UI plan](ui-and-ride-app.md).
+
+Status 2026-10-16, final guided batch (one user visit, [log](../../logs/system-ui-slice2-2026-10-11.txt)): done. Passed:
+haptic feel, the Wi-Fi join with a wrong then the right passphrase and Forget, the BLE idle-current measurement (absent
+sensor +7 mA while retrying and +0.5 mA after; the connected cost stays open in
+[connectivity](connectivity-and-sensors.md)). Found live and fixed (commits 6818924 and 2ef6226): the 12-hour clock cut by
+the panel's rounded corner (status bar padding 36 px, digits not raised), the GPS satellite count reading 0 two thirds of
+the time (gpsd's DOP-only SKY lines no longer wipe the satellites), and the GPS page counter restarting at 0:00 on a quick
+return (it counts from gps-manager's bring-up now). Open: the counter on a return while the manager is still searching
+is covered by a host test only.
 
 Add each omitted element to the plan that owns it, with what it needs,
 then remove the design-mapping notes that are now done from the
