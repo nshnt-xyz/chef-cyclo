@@ -68,6 +68,7 @@ static struct {
 	bool watch;		/* the GPS page wants a lease and the view */
 	bool lease_sent;	/* "lease map" sent on this connection, not refused */
 	bool watching;		/* "watch" answered on this connection */
+	int64_t acq_start_ms, acq_fix_ms;	/* the manager's bring-up (monotonic ms, 0 none) */
 	lv_timer_t *sats_stale;	/* no full SKY for GPS_SATS_STALE_MS: the satellites are cleared */
 } G;
 
@@ -126,6 +127,24 @@ int sys_gps_parse_tpv(const char *line, int *mode, double *eph)
 		if (end != p + 6 && e >= 0 && e < 1e6)
 			*eph = e;
 	}
+	return 0;
+}
+
+int sys_gps_parse_acq(const char *line, long *up_ms, long *fix_ms)
+{
+	char *end;
+	long up, fix;
+
+	if (strncmp(line, "acq ", 4))
+		return -1;
+	up = strtol(line + 4, &end, 10);
+	if (end == line + 4 || *end != ' ')
+		return -1;
+	fix = strtol(end + 1, &end, 10);
+	if (*end || up < -1 || fix < -1 || up > 1000000000L || fix > 1000000000L)
+		return -1;
+	*up_ms = up;
+	*fix_ms = fix;
 	return 0;
 }
 
@@ -215,7 +234,7 @@ static void gps_set(enum sys_gps st, int mode, double eph)
  * reconnects; whoever ends the lease resets them (lease_end). */
 static void view_clear(void)
 {
-	int64_t lease = gps_view.lease_ms, first = gps_view.first_fix_ms;
+	int64_t lease = gps_view.lease_ms;
 
 	if (G.sats_stale)
 		lv_timer_pause(G.sats_stale);
@@ -224,13 +243,13 @@ static void view_clear(void)
 	gps_view.eph = gps_view.alt = gps_view.speed = gps_view.lat = gps_view.lon = NAN;
 	gps_view.hdop = gps_view.pdop = NAN;
 	gps_view.lease_ms = G.watch ? lease : 0;
-	gps_view.first_fix_ms = G.watch ? first : 0;
+	gps_view.start_ms = G.acq_start_ms;	/* the manager's bring-up outlives the page's views */
+	gps_view.first_fix_ms = G.acq_fix_ms;
 }
 
 static void lease_end(void)
 {
 	gps_view.lease_ms = 0;
-	gps_view.first_fix_ms = 0;
 }
 
 /* gpsd's DOP-only SKY lines keep the satellites of the last full one; without a full one for
@@ -262,8 +281,6 @@ static void gpsd_line(char *line, void *user)
 
 	(void)user;
 	if (G.watch && !gps_parse_tpv_view(line, &gps_view)) {
-		if (gps_view.mode >= 2 && !gps_view.first_fix_ms && gps_view.lease_ms)
-			gps_view.first_fix_ms = mono_ms();
 		sys_changed(SYS_GPS_VIEW);
 	} else if (G.watch && !gps_parse_sky_view(line, &gps_view)) {
 		if (strstr(line, "\"satellites\":["))
@@ -361,7 +378,6 @@ static void lease_sync(void)
 		if (send_str(c->fd, "lease map\n")) {
 			G.lease_sent = true;
 			gps_view.lease_ms = mono_ms();
-			gps_view.first_fix_ms = 0;
 			sys_changed(SYS_GPS_VIEW);
 		}
 	} else if (!G.watch && G.lease_sent) {
@@ -381,8 +397,19 @@ static void enabled_set(int on)
 static void mgr_line(char *line, void *user)
 {
 	enum sys_gps st;
+	long up, fix;
 
 	(void)user;
+	if (!sys_gps_parse_acq(line, &up, &fix)) {
+		int64_t now = mono_ms();
+
+		G.acq_start_ms = up >= 0 ? now - up : 0;
+		G.acq_fix_ms = up >= 0 && fix >= 0 ? G.acq_start_ms + fix : 0;
+		gps_view.start_ms = G.acq_start_ms;
+		gps_view.first_fix_ms = G.acq_fix_ms;
+		sys_changed(SYS_GPS_VIEW);
+		return;
+	}
 	if (!strncmp(line, "ok watch", 8)) {
 		/* the lease waits for the switch line that follows */
 		G.mgr.backoff_ms = BACKOFF_MIN_MS;
@@ -423,6 +450,7 @@ static void mgr_lost(void)
 {
 	conn_cancel(&G.gpsd);
 	G.lease_sent = G.watching = false;	/* the lease went with the connection */
+	G.acq_start_ms = G.acq_fix_ms = 0;
 	view_clear();				/* no manager: nothing to show */
 	lease_end();
 	sys_changed(SYS_GPS_VIEW);
@@ -509,6 +537,7 @@ void sys_gps_stop(void)
 	conn_cancel(&G.gpsd);
 	conn_cancel(&G.mgr);
 	G.lease_sent = G.watching = false;
+	G.acq_start_ms = G.acq_fix_ms = 0;
 	view_clear();
 	lease_end();
 	sys_changed(SYS_GPS_VIEW);

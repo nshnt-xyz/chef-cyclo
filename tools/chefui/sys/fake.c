@@ -313,7 +313,7 @@ static int gps_field(struct gps_view *v, const char *key, char **t, int n)
 		v->sky = true;
 		v->n_sats++;
 	} else if (!strcmp(key, "gpslease") && (n == 1 || n == 2)) {
-		v->lease_ms = fake_mono_ms() - (int64_t)(atof(t[0]) * 1000);
+		v->lease_ms = v->start_ms = fake_mono_ms() - (int64_t)(atof(t[0]) * 1000);
 		v->first_fix_ms = n == 2 ? v->lease_ms + (int64_t)(atof(t[1]) * 1000) : 0;
 	} else {
 		return -1;

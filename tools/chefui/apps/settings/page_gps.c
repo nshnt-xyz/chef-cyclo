@@ -226,7 +226,7 @@ static void tick_fired(lv_timer_t *t)
 	struct gps_page *g = lv_timer_get_user_data(t);
 	char b[16];
 
-	elapsed(gps_view.lease_ms, b, sizeof(b));
+	elapsed(gps_view.start_ms, b, sizeof(b));
 	set_text(g->s_time, b);
 }
 
@@ -303,8 +303,8 @@ static void gps_refresh(struct gps_page *g)
 	set_text(g->l_acc, b);
 	snprintf(b, sizeof(b), "%d/%d", used, v->n_sats);
 	set_text(g->l_val[0], b);
-	if (v->first_fix_ms && v->lease_ms)
-		snprintf(b, sizeof(b), "%d s", (int)((v->first_fix_ms - v->lease_ms + 500) / 1000));
+	if (v->first_fix_ms && v->start_ms)
+		snprintf(b, sizeof(b), "%d s", (int)((v->first_fix_ms - v->start_ms + 500) / 1000));
 	else
 		snprintf(b, sizeof(b), NONE);
 	set_text(g->l_val[1], b);

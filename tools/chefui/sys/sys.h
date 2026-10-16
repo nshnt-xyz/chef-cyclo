@@ -49,6 +49,8 @@ void sys_gps_stop(void);
  * or -1), -1 for anything else. */
 int sys_gps_parse_state(const char *line, enum sys_gps *out);
 int sys_gps_parse_tpv(const char *line, int *mode, double *eph);
+/* "acq UP_MS FIX_MS" (the age of the manager's bring-up and its first fix, -1 none): 0, or -1. */
+int sys_gps_parse_acq(const char *line, long *up_ms, long *fix_ms);
 
 /* Ambient light: an illuminance claim on sensord (default
  * /run/sensord.sock) while wanted, fed through the pure logic in als.h.

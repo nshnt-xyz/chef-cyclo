@@ -89,6 +89,16 @@ static void test_parsers(void)
 	double eph;
 
 	CHECK(sys_gps_parse_state("state OFF idle", &st) == 0 && st == SYS_GPS_OFF);
+	{
+		long up = 7, fix = 7;
+
+		CHECK(sys_gps_parse_acq("acq 84000 80000", &up, &fix) == 0 && up == 84000 && fix == 80000);
+		CHECK(sys_gps_parse_acq("acq 0 -1", &up, &fix) == 0 && up == 0 && fix == -1);
+		CHECK(sys_gps_parse_acq("acq -1 -1", &up, &fix) == 0 && up == -1 && fix == -1);
+		CHECK(sys_gps_parse_acq("acq 5", &up, &fix) == -1 && sys_gps_parse_acq("acq x y", &up, &fix) == -1);
+		CHECK(sys_gps_parse_acq("acq 5 6 7", &up, &fix) == -1 && sys_gps_parse_acq("acq -2 1", &up, &fix) == -1);
+		CHECK(sys_gps_parse_acq("state OFF idle", &up, &fix) == -1 && sys_gps_parse_acq("", &up, &fix) == -1);
+	}
 	CHECK(sys_gps_parse_state("state STOPPING -", &st) == 0 && st == SYS_GPS_OFF);
 	CHECK(sys_gps_parse_state("state FAILED no modem", &st) == 0 && st == SYS_GPS_FAILED);
 	CHECK(sys_gps_parse_state("state STARTING x", &st) == 0 && st == SYS_GPS_SEARCHING);
@@ -340,7 +350,7 @@ static bool view_sats(void *arg)
 static bool view_fix(void *arg)
 {
 	(void)arg;
-	return gps_view.mode == 3 && !isnan(gps_view.lat) && gps_view.first_fix_ms > 0;
+	return gps_view.mode == 3 && !isnan(gps_view.lat);
 }
 
 static bool view_empty(void *arg)
@@ -387,12 +397,46 @@ static void test_gps_page(void)
 	say(gpsd.cfd, "\n{\"class\":\"TPV\",\"mode\":1}\n");
 	n = 3;
 	CHECK(fakeloop_run_until(view_sats, &n, 1000) && gps_view.mode == 1 && !gps_view.first_fix_ms);
-	/* a fix: first fix time in this lease */
-	say(mgr.cfd, "state RUNNING CID 1, fix\n");
+	/* the manager's bring-up has been running 84 s and had its first fix after 80 s: those are
+	 * the counter and the first-fix time, not the page's lease */
+	say(mgr.cfd, "state RUNNING CID 1, fix\nacq 84000 80000\n");
 	say(gpsd.cfd, TPV3);
 	say(gpsd.cfd, "\n");
 	CHECK(fakeloop_run_until(view_fix, NULL, 1000));
-	CHECK(gps_view.first_fix_ms >= gps_view.lease_ms);
+	CHECK(gps_view.start_ms > 0 && gps_view.first_fix_ms - gps_view.start_ms == 80000);
+	CHECK(gps_view.start_ms < gps_view.lease_ms);	/* the bring-up began before this lease */
+	{
+		int64_t start = gps_view.start_ms, fixed = gps_view.first_fix_ms;
+
+		/* the page is left and seen again inside the manager's grace: the same bring-up goes on */
+		mgr.n = 0;
+		mgr.in[0] = 0;
+		sys_gps_watch(false);
+		CHECK(mgr_wait(&mgr, "release map\n", 1000));
+		CHECK(gps_view.start_ms == start && gps_view.first_fix_ms == fixed);
+		fakeloop_run_for(5000);
+		mgr.n = 0;
+		mgr.in[0] = 0;
+		sys_gps_watch(true);
+		CHECK(mgr_wait(&mgr, "lease map\n", 1000));
+		CHECK(gps_view.start_ms == start && gps_view.first_fix_ms == fixed && gps_view.lease_ms > start);
+		say(mgr.cfd, "ok lease map 1\nstate RUNNING CID 1, fix\n");
+		fakeloop_run_for(100);
+		/* gpsd was closed with the page; it is read again for the sky and the fix */
+		if (gpsd.cfd >= 0) {
+			close(gpsd.cfd);
+			gpsd.cfd = -1;
+			gpsd.n = 0;
+		}
+		CHECK(fakeloop_run_until(accepted, &gpsd, 4000));
+		CHECK(mgr_wait(&gpsd, "?WATCH", 1000));
+		say(gpsd.cfd, SKY);
+		say(gpsd.cfd, "\n");
+		say(gpsd.cfd, TPV3);
+		say(gpsd.cfd, "\n");
+		CHECK(fakeloop_run_until(view_fix, NULL, 1000));
+		CHECK(gps_view.start_ms == start && gps_view.first_fix_ms == fixed);
+	}
 
 	/* gpsd's DOP-only SKY lines between the full ones keep the satellites (the flicker defect
 	 * of the 2026-10-16 window run); no full SKY for 10 s clears them */
@@ -438,7 +482,7 @@ static void test_gps_page(void)
 	mgr.in[0] = 0;
 	CHECK(sys_gps_set_enabled(false) == 0);
 	CHECK(mgr_wait(&mgr, "disable\n", 1000));
-	say(mgr.cfd, "ok enabled 0\nenabled 0\nstate STOPPING released\nstate DISABLED disabled\n");
+	say(mgr.cfd, "ok enabled 0\nenabled 0\nstate STOPPING released\nstate DISABLED disabled\nacq -1 -1\n");
 	want = SYS_GPS_DISABLED;
 	CHECK(fakeloop_run_until(gps_is, &want, 1000) && sys_state.gps.enabled == 0);
 	CHECK(fakeloop_run_until(peer_closed, &gpsd, 1000));
@@ -446,6 +490,7 @@ static void test_gps_page(void)
 	gpsd.cfd = -1;
 	gpsd.n = 0;
 	CHECK(gps_view.n_sats == 0 && isnan(gps_view.lat) && gps_view.mode == 0);
+	CHECK(gps_view.start_ms == 0 && gps_view.first_fix_ms == 0);	/* the manager's bring-up is over */
 	/* the manager restarts while off: the lease is refused, and taken
 	 * again once the switch is back on */
 	close(mgr.cfd);

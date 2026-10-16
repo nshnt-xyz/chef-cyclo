@@ -132,6 +132,7 @@ check "CID 1 recorded with the owner" '[ "$(rec cid)" = 1 ] && [ "$(rec owner)" 
 check "bring-up order" 'grep -n "" "$T/qmicli.log" | tr "\n" " " | grep -q "1:-d .*--client-no-release-cid --loc-noop 2:-d .*--client-cid=1 --client-no-release-cid --loc-set-nmea-types=gga|rmc|gsv|gsa|vtg 3:-d .*--client-cid=1 --client-no-release-cid --loc-start --loc-session-id=1 4:-d .*--client-cid=1 --client-no-release-cid --loc-follow-nmea"'
 check "children inherit only stdio" '[ "$(ls /proc/$F/fd | wc -l)" -le 4 ] && [ "$(ls /proc/$B/fd | wc -l)" -le 4 ]'
 check "watcher saw the states" 'grep -q "^state RUNNING" "$T/hold1.out"'
+check "watcher saw the age and the first fix of the bring-up" 'grep -Eq "^acq [0-9]+ [0-9]+$" "$T/hold1.out"'
 grep -q nmea= "$T/hold1.out" || true
 
 # --- release: grace, ordered teardown (gpsd needs its KILL), OFF

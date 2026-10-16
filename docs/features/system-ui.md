@@ -387,15 +387,17 @@ position" and "Rides record without a track or map." On, the page holds a
 `map` lease while it is seen with the screen on, and shows:
 
 - **Searching (P12)** until a fix: STATUS "No fix" ("Failed" in `FAILED`,
-  "Starting" before the lease is in), SEARCHING the time since the page's
-  lease (m:ss, ticking once a second only while seen), "N satellites
+  "Starting" before the lease is in), SEARCHING the age of gps-manager's
+  current bring-up (m:ss from its `acq` line, ticking once a second only while seen: a quick
+  return to the page inside the manager's 30 s grace keeps counting, 0:00 only when the manager
+  really starts on this lease), "N satellites
   visible, M in use", and the sky plot (720 px, rings at 30 and 60
   degrees of elevation, north up) with a pill per satellite gpsd places,
   `G05` style (G GPS, R GLONASS, E Galileo, C BeiDou, J QZSS, S SBAS,
   I NavIC).
 - **Locked (P13)** while `RUNNING` with a TPV mode 2 or 3: FIX 2D/3D (accent),
   ACCURACY `±eph m`, then Satellites used/visible, First fix (seconds from
-  the page's lease to its first fix, "–" if the fix was there before),
+  the start of gps-manager's bring-up to its first fix, from the same `acq` line),
   Altitude (MSL), HDOP, PDOP, Speed in km/h, and Position (5 decimals,
   N/S E/W). The Satellites row ("12 in use · 4 systems") opens P14.
 - **Satellites (P14)**: the sky plot (840 px, N E S W), the legend, used/

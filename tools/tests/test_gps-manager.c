@@ -216,6 +216,7 @@ static void test_bringup_teardown_order(void)
 		     "gpsd|pipe:3|") == 0);
 	CHECK(m.state == ST_ACQUIRING && m.cid == 3 && m.session);
 	CHECK(m.alive[CH_GPSD] && m.alive[CH_FOLLOW] && m.alive[CH_BROKER]);
+	CHECK(m.start_at > 0 && m.first_fix_at == 0);	/* the bring-up started, no fix yet */
 
 	/* fix hint with hysteresis */
 	gm_nmea_line(&m, t + 1000, "$GPGGA,120000.00,,,,,0,00,99.9,,,,,,*00");
@@ -224,6 +225,9 @@ static void test_bringup_teardown_order(void)
 	gm_nmea_line(&m, t + 2000, "$GPRMC,120001.00,A,1234.5,N,01234.5,E,0.0,,041026,,,A*00");
 	gm_tick(&m, t + 2000);
 	CHECK(m.state == ST_RUNNING);
+	CHECK(m.first_fix_at == t + 2000 && m.first_fix_at > m.start_at);	/* the first fix of this bring-up */
+	gm_nmea_line(&m, t + 2100, "$GPRMC,120001.50,A,1234.5,N,01234.5,E,0.0,,041026,,,A*00");
+	CHECK(m.first_fix_at == t + 2000);	/* later fixes do not move it */
 	gm_nmea_line(&m, t + 3000, "$GPRMC,120002.00,V,,,,,,,041026,,,N*00");
 	gm_tick(&m, t + 8000);
 	CHECK(m.state == ST_RUNNING);	/* 6 s without A: held */
@@ -254,6 +258,7 @@ static void test_bringup_teardown_order(void)
 		     "step:--client-cid=3 --client-no-release-cid --loc-stop --loc-session-id=1|"
 		     "step:--client-cid=3 --loc-noop|save:-1|sig:gpsd:15|") == 0);
 	CHECK(m.state == ST_OFF && held_nothing(&m));
+	CHECK(m.start_at == 0 && m.first_fix_at == 0);	/* the bring-up is over */
 }
 
 static void test_grace_cancel_and_second_lease(void)
@@ -262,14 +267,21 @@ static void test_grace_cancel_and_second_lease(void)
 	int64_t t;
 
 	reset(&m);
-	t = bring_up(&m, 0);
+	t = bring_up(&m, 1000);
 	gm_set_leases(&m, t, 2);
 	gm_set_leases(&m, t + 10, 1);
 	CHECK(m.grace_at == 0 && m.phase == PH_UP);
-	gm_set_leases(&m, t + 100, 0);
-	CHECK(m.grace_at == t + 100 + GM_GRACE_MS);
-	gm_set_leases(&m, t + 20000, 1);
-	CHECK(m.grace_at == 0);
+	gm_nmea_line(&m, t + 50, "$GPRMC,120001.00,A,1234.5,N,01234.5,E,0.0,,041026,,,A*00");
+	{
+		int64_t start = m.start_at, fix = m.first_fix_at;
+
+		CHECK(start > 0 && fix == t + 50);
+		gm_set_leases(&m, t + 100, 0);
+		CHECK(m.grace_at == t + 100 + GM_GRACE_MS);
+		gm_set_leases(&m, t + 20000, 1);
+		CHECK(m.grace_at == 0);
+		CHECK(m.start_at == start && m.first_fix_at == fix);	/* the same bring-up: its age and fix go on */
+	}
 	g_trace[0] = '\0';
 	gm_nmea_line(&m, t + 59000, "$GPGSA,A,1*00");
 	gm_tick(&m, t + 60000);
@@ -714,6 +726,15 @@ static void send_line(int fd, const char *s)
 		perror("write");
 }
 
+/* the FIX_MS of the last "acq UP FIX" line in buf, -2 when there is none */
+static long long acq_fix(const char *buf)
+{
+	const char *p = strstr(buf, "acq ");
+	long long up, fix;
+
+	return p && sscanf(p, "acq %lld %lld", &up, &fix) == 2 ? fix : -2;
+}
+
 static void recv_all(int fd, char *buf, size_t len)
 {
 	ssize_t n = recv(fd, buf, len - 1, MSG_DONTWAIT);
@@ -765,11 +786,11 @@ static void test_server(void)
 	send_line(pw[1], "watch\n");
 	gm_client_input(&s, w);
 	recv_all(pw[1], buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok watch\nenabled 1\nstate STARTING waiting for the modem owner\n") == 0);
+	CHECK(strncmp(buf, "ok watch\nenabled 1\nstate STARTING waiting for the modem owner\nacq ", 66) == 0 && acq_fix(buf) == -1);
 	gm_set(&m, ST_FAILED, "x");
 	gm_server_broadcast(&s);
 	recv_all(pw[1], buf, sizeof(buf));
-	CHECK(strcmp(buf, "state FAILED x\n") == 0);
+	CHECK(strncmp(buf, "state FAILED x\nacq ", 19) == 0);
 
 	/* a watcher that never reads is dropped, not waited for */
 	{
@@ -820,7 +841,7 @@ static void test_switch(void)
 	send_line(pw[1], "watch\n");
 	gm_client_input(&s, w);
 	recv_all(pw[1], buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok watch\nenabled 1\nstate OFF idle\n") == 0);
+	CHECK(strcmp(buf, "ok watch\nenabled 1\nstate OFF idle\nacq -1 -1\n") == 0);
 
 	/* disabled with nothing leased: DISABLED at once, saved, watchers told */
 	send_line(pa[1], "disable\n");
@@ -830,7 +851,7 @@ static void test_switch(void)
 	CHECK(m.state == ST_DISABLED && !m.enabled && strstr(g_trace, "persist:0|"));
 	gm_server_broadcast(&s);	/* the shell's changed op does this */
 	recv_all(pw[1], buf, sizeof(buf));
-	CHECK(strcmp(buf, "enabled 0\nstate DISABLED disabled\n") == 0);
+	CHECK(strcmp(buf, "enabled 0\nstate DISABLED disabled\nacq -1 -1\n") == 0);
 	/* a new lease is refused; status says so */
 	send_line(pa[1], "lease map\nstatus\n");
 	gm_client_input(&s, a);
@@ -845,7 +866,7 @@ static void test_switch(void)
 	CHECK(strcmp(buf, "ok enabled 1\n") == 0 && m.state == ST_OFF && strcmp(g_trace, "persist:1|") == 0);
 	gm_server_broadcast(&s);
 	recv_all(pw[1], buf, sizeof(buf));
-	CHECK(strcmp(buf, "enabled 1\nstate OFF idle\n") == 0);
+	CHECK(strcmp(buf, "enabled 1\nstate OFF idle\nacq -1 -1\n") == 0);
 
 	/* leased and up, then disabled: torn down at once (no grace), the
 	 * lease held but parked; enabled again it comes back */

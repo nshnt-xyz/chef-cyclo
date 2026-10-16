@@ -19,6 +19,10 @@
  *                           ok status state=RUNNING enabled=1 leases=map:1,ride:0 ...
  *                           ok enabled 0
  *                           state RUNNING <detail>     (watchers)
+ *                           acq UP_MS FIX_MS           (watchers, after every state line and in
+ *                                                       the watch reply: the age of the current
+ *                                                       bring-up and the time from its start to
+ *                                                       its first fix, -1 when none)
  *                           enabled 0                  (watchers)
  *
  * The switch: disabled, a new lease gets "err disabled"; leases already
@@ -254,6 +258,7 @@ struct gm {
 	char fail_reason[64];
 	int streak;		/* consecutive fast failures */
 	int64_t grace_at, retry_at, up_at, last_nmea, last_fix;
+	int64_t start_at, first_fix_at;	/* this bring-up's start and first fix (0: none): the "acq" line */
 	unsigned long bringups, failures, nmea_lines, leaked;
 	char argv_buf[8][96];
 	char *argv[9];
@@ -386,6 +391,8 @@ static void gm_bringup(struct gm *m, int64_t now)
 	m->bringups++;
 	m->failing = m->fail_fast = m->owner_lost = m->healthy = m->fix_logged = false;
 	m->up_at = m->last_fix = m->retry_at = 0;
+	m->start_at = now;
+	m->first_fix_at = 0;
 	if (m->ops.rotate)
 		m->ops.rotate(m->ops.ctx);
 	gm_phase(m, PH_OWNER, now);
@@ -421,6 +428,7 @@ static void gm_finish(struct gm *m, int64_t now)
 	gm_phase(m, PH_IDLE, now);
 	m->session = false;
 	m->up_at = 0;
+	m->start_at = m->first_fix_at = 0;	/* the bring-up is over; a restart sets them again */
 	m->tearing = false;
 	if (!m->failing) {
 		if (m->leases > 0) {
@@ -698,8 +706,11 @@ static void gm_nmea_line(struct gm *m, int64_t now, const char *line)
 	/* $xxRMC,hhmmss.ss,A,... */
 	if (strlen(line) > 7 && strncmp(line + 3, "RMC,", 4) == 0) {
 		p = strchr(line + 7, ',');
-		if (p && p[1] == 'A' && p[2] == ',')
+		if (p && p[1] == 'A' && p[2] == ',') {
 			m->last_fix = now;
+			if (m->start_at && !m->first_fix_at)
+				m->first_fix_at = now;
+		}
 	}
 }
 
@@ -1006,13 +1017,29 @@ static void gm_status_line(const struct gm_server *s, char *buf, size_t len)
 		 m->failures, m->streak, m->leaked, m->grace_at ? "on" : "off", m->detail);
 }
 
-/* State change: one "state S detail" line to every watcher. */
+/* The "acq UP_MS FIX_MS" line: the age of the current bring-up and its first fix, -1 none. */
+static void gm_acq_line(const struct gm_server *s, char *buf, size_t len)
+{
+	const struct gm *m = s->m;
+	int64_t now = s->now();
+
+	if (m->start_at)
+		snprintf(buf, len, "acq %lld %lld\n", (long long)(now - m->start_at),
+			 m->first_fix_at ? (long long)(m->first_fix_at - m->start_at) : -1LL);
+	else
+		snprintf(buf, len, "acq -1 -1\n");
+}
+
+/* State change: one "state S detail" line and the "acq" line to every watcher. */
 static void gm_server_broadcast(struct gm_server *s)
 {
-	char buf[GM_DETAIL_MAX + 32];
+	char buf[GM_DETAIL_MAX + 64];
+	size_t n;
 	int i;
 
 	snprintf(buf, sizeof(buf), "state %s %s\n", gm_state_names[s->m->state], s->m->detail);
+	n = strlen(buf);
+	gm_acq_line(s, buf + n, sizeof(buf) - n);
 	for (i = 0; i < GM_MAX_CLIENTS; i++) {
 		struct gm_client *c = &s->clients[i];
 
@@ -1102,8 +1129,11 @@ static void gm_handle_line(struct gm_server *s, struct gm_client *c, char *line)
 			gm_server_sync(s);
 	} else if (strcmp(cmd, "watch") == 0) {
 		c->watch = true;
-		gm_reply(s, c, "ok watch\nenabled %d\nstate %s %s\n", s->m->enabled,
-			 gm_state_names[s->m->state], s->m->detail);
+		char acq[40];
+
+		gm_acq_line(s, acq, sizeof(acq));
+		gm_reply(s, c, "ok watch\nenabled %d\nstate %s %s\n%s", s->m->enabled,
+			 gm_state_names[s->m->state], s->m->detail, acq);
 	} else if (strcmp(cmd, "enable") == 0 || strcmp(cmd, "disable") == 0) {
 		bool on = cmd[0] == 'e';
 

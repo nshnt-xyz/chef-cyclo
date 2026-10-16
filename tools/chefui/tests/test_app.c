@@ -918,7 +918,7 @@ static void test_gps_pages(lv_obj_t *scr)
 	}
 
 	/* searching: elapsed since the lease, satellites in view */
-	gps_view.lease_ms = mono_now() - 24500;
+	gps_view.lease_ms = gps_view.start_ms = mono_now() - 24500;	/* the manager's bring-up began 24.5 s ago */
 	sat(GNSS_GPS, 5, 40, 62, 44, false);
 	sat(GNSS_GALILEO, 4, 130, 58, 42, false);
 	sat(GNSS_BEIDOU, 11, 270, 65, 40, false);
@@ -959,7 +959,7 @@ static void test_gps_pages(lv_obj_t *scr)
 	gps_view.lon = 151.21530;
 	gps_view.hdop = 0.8;
 	gps_view.pdop = 1.4;
-	gps_view.first_fix_ms = gps_view.lease_ms + 28000;
+	gps_view.first_fix_ms = gps_view.start_ms + 28000;
 	gps_view.sats[0].used = gps_view.sats[1].used = true;
 	gps_state_set(SYS_GPS_RUNNING, 1);
 	CHECK(shown_text("On \xC2\xB7 locked") && shown_text("3D") && shown_text("\xC2\xB1" "3 m"));
