@@ -62,10 +62,10 @@ Without a REG2 server the ADSP boots (audio works) but SMGR never registers: liv
 | `status` | `{"ok":"status","proto":1,"smgr":"ready","smgr_node":5,"smgr_port":87,"smgr_resets":0,"api":"buffering","reg2":true,"reg2_reads":...,"reg2_writes":...,"reg2_misses":...,"reg2_saves":...,"reg2_save_errors":...,"time2":false,"time2_reqs":0,"unknown_reqs":0,"ts":"dsps","clients":1,"qmag":"off","qmag_instance":-1,"qmag_enables":0,"qmag_inds":0,"qmag_errors":0,"qmag_last_error":-1}` (with `-Q` and a QMAG_CAL report received, also `"bias"`, `"bias_raw"`, `"accuracy"` as on magn lines) |
 | `claim SENSOR [HZ]` | `{"ok":"claim","sensor":"accel","rate":50}`, then sample lines |
 | `release SENSOR` | `{"ok":"release","sensor":"accel"}` |
-| `get SENSOR [HZ]` | one sample line, or `{"err":"timeout","sensor":"accel"}` after 5 s |
+| `get SENSOR [HZ]` | one sample line, or `{"err":"timeout","sensor":"accel"}` after 5 s; for illuminance on a fresh report the line is the DSP's cached reading with its old stamp (see below) |
 | `declination [DEG\|off]` | `{"ok":"declination","declination":1.50}` (or `null`): sets (-180..180, east positive), clears or reads the declination for every heading client; `{"err":"bad declination"}` |
 
-The illuminance report is on-change only: at steady light samples can be 100 s apart even at a 5 Hz claim. A consumer treats the last value as held until the next sample and checks liveness with `status` (`"smgr":"ready"`), not by waiting for samples. Sample lines, with `t` in CLOCK_MONOTONIC nanoseconds (the accel line is a live sample; the others show the shape):
+The illuminance report is on-change only: at steady light samples can be 55 s apart even at a 5 Hz claim (measured). The first line after a new claim is the DSP's cached reading with its old stamp (it can be older than 5 minutes: 302 s after a 5 minute rest in the M5 visit, and not bounded in general); the first fresh sample follows after about 0.2 to 0.4 s, so a consumer compares `t` with the time of its claim. A consumer treats the last value as held until the next sample and checks liveness with `status` (`"smgr":"ready"`), not by waiting for samples. Sample lines, with `t` in CLOCK_MONOTONIC nanoseconds (the accel line is a live sample; the others show the shape):
 
 ```
 {"sensor":"accel","t":667817617363,"x":8.42253,"y":0.173035,"z":5.33611}

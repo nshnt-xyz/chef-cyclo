@@ -28,6 +28,7 @@
 #define ALS_PROBE_MS 30000	/* status probe on the claimed connection */
 #define ALS_REPLY_MS 5000	/* no status reply within this: sensord hung, reconnect */
 #define ALS_WAKE_GRACE_MS 5000	/* after a claim: low readings are untrustworthy (a hand on the sensor at a wake) */
+#define ALS_STALE_SLACK_MS 200	/* a sample older than the claim send time minus this is a cached one (D11) */
 #define ALS_TICK_MS 200		/* smoothing step while the level has not settled */
 #define ALS_DEADBAND 2		/* percent points */
 

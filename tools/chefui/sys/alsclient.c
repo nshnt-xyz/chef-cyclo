@@ -62,6 +62,8 @@ static struct {
 	char last_err[64];
 	uint32_t tick_prev;
 	int64_t tick_base;
+	int64_t claim_ns;	/* CLOCK_MONOTONIC when the claim line was sent */
+	bool stale_logged;	/* the dropped-sample line was logged for this claim */
 } A = { .fd = -1, .als = { .applied = -1, .above_since = -1, .below_since = -1 } };
 
 /* chefui monotonic ms, extended past the 32-bit LVGL tick wrap */
@@ -77,7 +79,24 @@ static int64_t now_ms(void)
 
 /* ------------------------------------------------------------- parsers */
 
-int sys_als_parse_sample(const char *line, double *lux)
+/* sensord stamps a sample with CLOCK_MONOTONIC ns (sensord.c); -1 when "t" is absent */
+static int64_t mono_ns(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
+
+/* A fresh claim first delivers the DSP's cached reading with an old stamp (6 to 302 s old
+ * in the M5 visit); a sample stamped before the claim was sent (less the slack) is not
+ * a reading of now. A sample without a stamp is taken as fresh. */
+bool sys_als_sample_stale(int64_t t_ns, int64_t claim_ns)
+{
+	return t_ns >= 0 && claim_ns > 0 && t_ns + (int64_t)ALS_STALE_SLACK_MS * 1000000 < claim_ns;
+}
+
+int sys_als_parse_sample_t(const char *line, double *lux, int64_t *t_ns)
 {
 	static const char head[] = "{\"sensor\":\"illuminance\"";
 	const char *p;
@@ -94,7 +113,22 @@ int sys_als_parse_sample(const char *line, double *lux)
 	if (end == p || !isfinite(v) || v < 0)
 		return -1;
 	*lux = v;
+	*t_ns = -1;
+	p = strstr(line + sizeof(head) - 1, "\"t\":");
+	if (p) {
+		long long t = strtoll(p + 4, &end, 10);
+
+		if (end != p + 4 && t >= 0)
+			*t_ns = t;
+	}
 	return 0;
+}
+
+int sys_als_parse_sample(const char *line, double *lux)
+{
+	int64_t t;
+
+	return sys_als_parse_sample_t(line, lux, &t);
 }
 
 /* ------------------------------------------------------ timers, state */
@@ -228,6 +262,7 @@ static void sensord_line(char *line, void *user)
 {
 	struct als_event ev;
 	double lux;
+	int64_t t_ns;
 
 	(void)user;
 	if (!strncmp(line, "{\"hello\":", 9)) {
@@ -236,13 +271,23 @@ static void sensord_line(char *line, void *user)
 		if (!A.claimed && send(A.fd, claim, sizeof(claim) - 1, MSG_NOSIGNAL | MSG_DONTWAIT) ==
 				  (ssize_t)sizeof(claim) - 1) {
 			A.claimed = true;
+			A.claim_ns = mono_ns();
+			A.stale_logged = false;
 			als_stream_restart(&A.als);
 		} else if (!A.claimed) {
 			conn_retry_later();
 		}
 		return;
 	}
-	if (!sys_als_parse_sample(line, &lux)) {
+	if (!sys_als_parse_sample_t(line, &lux, &t_ns)) {
+		if (sys_als_sample_stale(t_ns, A.claim_ns)) {
+			if (!A.stale_logged) {
+				A.stale_logged = true;
+				chefui_log("als: dropped a cached sample (%.0f lux, %.1f s older than the claim)", lux,
+					   (double)(A.claim_ns - t_ns) / 1e9);
+			}
+			return;
+		}
 		sys_state.als.lux = lux;
 		als_feed(&A.als, lux, now_ms(), &ev);
 		deliver(&ev);

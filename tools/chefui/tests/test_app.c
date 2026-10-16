@@ -1985,8 +1985,10 @@ static void lux_feed(double lux, int ms)
 {
 	char line[160];
 
-	snprintf(line, sizeof(line), "{\"sensor\":\"illuminance\",\"t\":1,\"illuminance\":%g}\n", lux);
 	for (int i = 0; i < ms; i += 200) {
+		/* stamped now (CLOCK_MONOTONIC ns): a stamp before the claim is dropped as cached */
+		snprintf(line, sizeof(line), "{\"sensor\":\"illuminance\",\"t\":%lld,\"illuminance\":%g}\n",
+			 (long long)mono_now() * 1000000, lux);
 		als_say(line);
 		als_adv(200);
 	}

@@ -69,6 +69,10 @@ bool sys_als_theme_light(void);
 int sys_als_applied(void);
 /* Pure: one illuminance sample line -> lux. 0 or -1. */
 int sys_als_parse_sample(const char *line, double *lux);
+/* the same with the sample's CLOCK_MONOTONIC stamp in ns (-1 when absent) */
+int sys_als_parse_sample_t(const char *line, double *lux, int64_t *t_ns);
+/* a sample stamped before the claim was sent, less ALS_STALE_SLACK_MS (D11) */
+bool sys_als_sample_stale(int64_t t_ns, int64_t claim_ns);
 
 /* NetworkManager and BlueZ over the system bus (sd-bus); -ENOTSUP in a
  * build without it. Reconnects when the bus or a service comes back. */

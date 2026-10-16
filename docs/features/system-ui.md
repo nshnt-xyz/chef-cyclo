@@ -91,6 +91,15 @@ and the brightness smoothing with the held lux at `als_next_deadline_ms()`,
 armed as one one-shot timer; at steady light there is no deadline and no
 timer.
 
+**The first line of a claim is a cached reading.** A fresh claim first delivers the DSP's last reading
+with its old stamp (6 to 302 s old in the M5 visit); the first fresh sample is stamped about 0.23 to
+0.42 s after the claim. The client takes CLOCK_MONOTONIC when it sends the claim and drops every
+sample whose `t` is more than 200 ms (`ALS_STALE_SLACK_MS`) before that, before the logic sees it.
+One kmsg line per claim names the dropped reading and its age
+(`als: dropped a cached sample (N lux, X s older than the claim)`). Without it a bright cached value at
+a dark wake would give Light at once and full backlight for about 25 s. With no fresh sample there is
+no decision; the status probe still covers liveness.
+
 **Brightness.** Percent from lux on a piecewise linear curve in
 `log10(lux + 1)`: 0 lux 5 %, 1: 8, 10: 14, 50: 20, 300: 30, 1000: 45, 5000: 75,
 20000 and above 100 % (a starting point; a 250 to 320 lux room is about 30 %).

@@ -156,12 +156,27 @@ static void drop_conn(void)
 	S.cfd = -1;
 }
 
-static void sample(double lux)
+static int64_t mono_ns(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
+
+/* a sample stamped age_ms before now (CLOCK_MONOTONIC, as sensord does) */
+static void sample_aged(double lux, int age_ms)
 {
 	char line[160];
 
-	snprintf(line, sizeof(line), "{\"sensor\":\"illuminance\",\"t\":123456789,\"illuminance\":%g}\n", lux);
+	snprintf(line, sizeof(line), "{\"sensor\":\"illuminance\",\"t\":%lld,\"illuminance\":%g}\n",
+		 (long long)(mono_ns() - (int64_t)age_ms * 1000000), lux);
 	say(line);
+}
+
+static void sample(double lux)
+{
+	sample_aged(lux, 0);
 }
 
 static void test_parse(void)
@@ -176,6 +191,18 @@ static void test_parse(void)
 	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":inf}", &lux) == -1);
 	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":}", &lux) == -1);
 	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5}", &lux) == -1);
+	{
+		int64_t t = 0;
+
+		CHECK(sys_als_parse_sample_t("{\"sensor\":\"illuminance\",\"t\":1500000000,\"illuminance\":7}", &lux, &t) == 0 &&
+		      lux == 7 && t == 1500000000);
+		CHECK(sys_als_parse_sample_t("{\"sensor\":\"illuminance\",\"illuminance\":7}", &lux, &t) == 0 && t == -1);
+	}
+	/* stale: stamped more than the slack before the claim; the boundary is fresh */
+	CHECK(sys_als_sample_stale(1000000000 - 200000001, 1000000000));
+	CHECK(!sys_als_sample_stale(1000000000 - 200000000, 1000000000));
+	CHECK(!sys_als_sample_stale(1000000000, 1000000000) && !sys_als_sample_stale(2000000000, 1000000000));
+	CHECK(!sys_als_sample_stale(-1, 1000000000) && !sys_als_sample_stale(5, 0));
 	CHECK(sys_als_parse_sample("{\"dropped\":3}", &lux) == -1);
 	CHECK(sys_als_parse_sample("{\"ok\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}", &lux) == -1);
 	CHECK(sys_als_parse_sample("junk", &lux) == -1);
@@ -219,6 +246,13 @@ static void test_client(void)
 	CHECK(sys_state.als.available && bright_cb == 0 && theme_cb == 0 && !changes);
 	CHECK(fakeloop_log_count("als:") == 0 && S.status_reqs == 1);
 
+	/* the cached reading of a fresh claim (old stamp) is dropped with one log line per claim */
+	sample_aged(5000, 59900);
+	sample_aged(5000, 20700);
+	run(100);
+	CHECK(bright_cb == 0 && theme_cb == 0 && sys_state.als.lux != 5000);
+	CHECK(fakeloop_log_count("als: dropped a cached sample") == 1);
+
 	/* a first sample: brightness at once; long silence changes nothing and arms no work */
 	sample(300);
 	run(200);
@@ -257,6 +291,9 @@ static void test_client(void)
 	CHECK(until_accept(1, 3000));
 	run(500);
 	CHECK(S.accepts == 1 && sys_state.als.available);	/* new connection: claim, status ready */
+	sample_aged(5000, 30000);	/* the second claim's cached line: dropped, logged again */
+	run(100);
+	CHECK(fakeloop_log_count("als: dropped a cached sample") == 2);
 
 	/* an err line: logged once per distinct text, connection closed, retried */
 	S.accepts = 0;
