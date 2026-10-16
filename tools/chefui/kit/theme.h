@@ -24,6 +24,7 @@ extern const struct kit_palette kit_palette_dark, kit_palette_light;
 
 /* Sizes in device pixels (1080x2246 portrait). */
 #define KIT_STATUS_H		96	/* status bar = the calibrated safe top */
+#define KIT_STATUS_PAD_X	36	/* its side padding: the design's 24 plus 12 for the panel corners */
 #define KIT_HEADER_H		192	/* page header, plus its 3 px rule */
 #define KIT_BACK_W		168	/* back target in the header */
 #define KIT_PAGE_PAD		60	/* page side padding */

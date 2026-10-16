@@ -298,9 +298,16 @@ static void test_gps_view_parsers(void)
 	CHECK(!strcmp(b, "E36"));
 	gps_constellations(&v, used, seen);
 	CHECK(used[0] == 1 && seen[0] == 1 && used[1] == 1 && seen[2] == 1 && used[2] == 0 && seen[3] == 0);
-	/* a SKY without satellites; junk; not a SKY */
-	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"hdop\":2.5}", &v) == 0 && v.n_sats == 0 &&
-	      fabs(v.hdop - 2.5) < 1e-9 && isnan(v.pdop));
+	/* a SKY without satellites (gpsd's DOP-only line) updates the DOPs and keeps the satellites of
+	 * the last full one, twice in a row as gpsd sends them; an empty array replaces them; junk;
+	 * not a SKY */
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"hdop\":2.5,\"uSat\":2}", &v) == 0 && v.n_sats == 3 &&
+	      fabs(v.hdop - 2.5) < 1e-9 && isnan(v.pdop) && gps_sats_used(&v) == 2);
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"hdop\":2.6,\"pdop\":3}", &v) == 0 && v.n_sats == 3 &&
+	      fabs(v.hdop - 2.6) < 1e-9 && fabs(v.pdop - 3) < 1e-9 && gps_sats_used(&v) == 2);
+	CHECK(gps_parse_sky_view(SKY, &v) == 0 && v.n_sats == 3 && gps_sats_used(&v) == 2);
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"hdop\":1.1,\"satellites\":[]}", &v) == 0 && v.n_sats == 0);
+	CHECK(gps_parse_sky_view(SKY, &v) == 0 && v.n_sats == 3);
 	CHECK(gps_parse_sky_view("{\"class\":\"TPV\"}", &v) == -1);
 	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"satellites\":[{\"PRN\":", &v) == 0 && v.n_sats == 0);
 	CHECK(gps_parse_tpv_view(TPV3, &v) == 0 && v.mode == 3);
@@ -386,6 +393,27 @@ static void test_gps_page(void)
 	say(gpsd.cfd, "\n");
 	CHECK(fakeloop_run_until(view_fix, NULL, 1000));
 	CHECK(gps_view.first_fix_ms >= gps_view.lease_ms);
+
+	/* gpsd's DOP-only SKY lines between the full ones keep the satellites (the flicker defect
+	 * of the 2026-10-16 window run); no full SKY for 10 s clears them */
+	say(gpsd.cfd, "{\"class\":\"SKY\",\"hdop\":2.4,\"uSat\":2}\n{\"class\":\"SKY\",\"hdop\":2.3,\"uSat\":2}\n");
+	fakeloop_run_for(200);
+	CHECK(gps_view.n_sats == 3 && gps_sats_used(&gps_view) == 2 && fabs(gps_view.hdop - 2.3) < 1e-9);
+	for (int i = 0; i < 8; i++) {	/* a full SKY and two DOP-only lines each second: kept, the timer restarts */
+		say(gpsd.cfd, SKY);
+		say(gpsd.cfd, "\n{\"class\":\"SKY\",\"hdop\":2.3}\n{\"class\":\"SKY\",\"hdop\":2.3}\n");
+		fakeloop_run_for(1000);
+		CHECK(gps_view.n_sats == 3);
+	}
+	say(gpsd.cfd, "{\"class\":\"SKY\",\"hdop\":2.3}\n");	/* only DOP-only lines from now on */
+	fakeloop_run_for(8500);
+	CHECK(gps_view.n_sats == 3);
+	fakeloop_run_for(1500);
+	CHECK(gps_view.n_sats == 0 && gps_view.mode == 3 && gps_view.sky);	/* satellites gone, the fix stays */
+	say(gpsd.cfd, SKY);
+	say(gpsd.cfd, "\n");
+	fakeloop_run_for(200);
+	CHECK(gps_view.n_sats == 3);
 
 	/* gpsd goes away: nothing stale stays on the page until it is back,
 	 * but this lease's first fix keeps its time */

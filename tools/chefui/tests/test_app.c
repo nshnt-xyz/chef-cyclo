@@ -1354,7 +1354,8 @@ static void test_m4_pages(void)
 	pf_set(true);
 	CHECK(app_depth() == 0);
 
-	/* ---- status bar: 24 hour keeps the old geometry, 12 hour adds the marker */
+	/* ---- status bar: 24 hour keeps the old geometry, 12 hour adds the marker below the digits */
+	int col24_y1;
 	CHECK(!strcmp(lv_label_get_text(app.sb.time), "14:16") && app.set.clock_24h);
 	lv_obj_update_layout(app.sb.obj);
 	CHECK(lv_obj_is_hidden(lv_obj_get_parent(app.sb.meridiem)));
@@ -1363,6 +1364,7 @@ static void test_m4_pages(void)
 
 		lv_obj_get_coords(app.sb.time_col, &col24);
 		CHECK(col24.y2 - col24.y1 + 1 == 44);
+		col24_y1 = col24.y1;
 	}
 	app_set_clock_24h(false);
 	CHECK(!strcmp(lv_label_get_text(app.sb.time), "2:16"));
@@ -1379,8 +1381,17 @@ static void test_m4_pages(void)
 		lv_obj_get_coords(app.sb.obj, &bar);
 		lv_obj_get_coords(app.sb.time_col, &col);
 		lv_obj_get_coords(app.sb.batt, &batt);
+		lv_area_t mer, gps;
+
 		CHECK(col.y1 >= bar.y1 && col.y2 <= bar.y1 + KIT_STATUS_H - 1);	/* inside the ear */
-		CHECK(col.x2 <= bar.x2 - 24);
+		CHECK(col.y1 == col24_y1 && col.y2 - col.y1 + 1 == 44);	/* the digits did not move in 12 hour */
+		CHECK(col.x2 <= bar.x2 - 36);	/* the corner inset: the box ends at x 1043, its ink at 1041 */
+		CHECK(col.y1 >= bar.y1 + 26);	/* digit ink top at y 35 or lower, as in 24 hour */
+		lv_obj_get_coords(lv_obj_get_parent(app.sb.meridiem), &mer);
+		CHECK(mer.y1 >= col.y2 && mer.y2 <= bar.y1 + KIT_STATUS_H - 1);	/* the marker is under the digits, inside the bar */
+		CHECK(mer.x2 <= col.x2 && mer.x2 >= col.x2 - 2);	/* right aligned with them */
+		lv_obj_get_coords(app.sb.gps, &gps);
+		CHECK(gps.x1 >= bar.x1 + 36);	/* the left inset */
 		CHECK(batt.x1 >= 818);			/* right of the drawn notch */
 		CHECK(batt.x2 - batt.x1 + 1 == 78 && batt.y2 - batt.y1 + 1 == 38);
 	}

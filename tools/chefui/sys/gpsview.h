@@ -13,6 +13,7 @@
 #include <stdint.h>
 
 #define GPS_SATS_MAX 64
+#define GPS_SATS_STALE_MS 10000	/* no full SKY for this long: the satellites are cleared */
 
 /* gpsd gnssid */
 enum gps_gnss { GNSS_GPS = 0, GNSS_SBAS = 1, GNSS_GALILEO = 2, GNSS_BEIDOU = 3, GNSS_QZSS = 5,

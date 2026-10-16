@@ -68,6 +68,7 @@ static struct {
 	bool watch;		/* the GPS page wants a lease and the view */
 	bool lease_sent;	/* "lease map" sent on this connection, not refused */
 	bool watching;		/* "watch" answered on this connection */
+	lv_timer_t *sats_stale;	/* no full SKY for GPS_SATS_STALE_MS: the satellites are cleared */
 } G;
 
 static int64_t mono_ms(void)
@@ -216,6 +217,9 @@ static void view_clear(void)
 {
 	int64_t lease = gps_view.lease_ms, first = gps_view.first_fix_ms;
 
+	if (G.sats_stale)
+		lv_timer_pause(G.sats_stale);
+
 	memset(&gps_view, 0, sizeof(gps_view));
 	gps_view.eph = gps_view.alt = gps_view.speed = gps_view.lat = gps_view.lon = NAN;
 	gps_view.hdop = gps_view.pdop = NAN;
@@ -229,6 +233,28 @@ static void lease_end(void)
 	gps_view.first_fix_ms = 0;
 }
 
+/* gpsd's DOP-only SKY lines keep the satellites of the last full one; without a full one for
+ * GPS_SATS_STALE_MS (the receiver lost its sky, gpsd stalled) the list goes, so the page never
+ * shows satellites that are no longer reported. */
+static void sats_stale_fired(lv_timer_t *t)
+{
+	lv_timer_pause(t);
+	if (gps_view.n_sats) {
+		gps_view.n_sats = 0;
+		sys_changed(SYS_GPS_VIEW);
+	}
+}
+
+static void sats_fresh(void)
+{
+	if (!G.sats_stale) {
+		G.sats_stale = lv_timer_create(sats_stale_fired, GPS_SATS_STALE_MS, NULL);
+	} else {
+		lv_timer_reset(G.sats_stale);
+		lv_timer_resume(G.sats_stale);
+	}
+}
+
 static void gpsd_line(char *line, void *user)
 {
 	int mode;
@@ -240,6 +266,8 @@ static void gpsd_line(char *line, void *user)
 			gps_view.first_fix_ms = mono_ms();
 		sys_changed(SYS_GPS_VIEW);
 	} else if (G.watch && !gps_parse_sky_view(line, &gps_view)) {
+		if (strstr(line, "\"satellites\":["))
+			sats_fresh();
 		sys_changed(SYS_GPS_VIEW);
 	}
 	if (!sys_gps_parse_tpv(line, &mode, &eph)) {
@@ -455,6 +483,8 @@ static void mgr_start(void)
 
 int sys_gps_start(const char *sock, int gpsd_port)
 {
+	if (G.sats_stale)
+		lv_timer_delete(G.sats_stale);
 	memset(&G, 0, sizeof(G));
 	snprintf(G.sock, sizeof(G.sock), "%s", sock ? sock : MGR_SOCK);
 	G.port = gpsd_port > 0 ? gpsd_port : GPSD_PORT;
@@ -471,6 +501,10 @@ int sys_gps_start(const char *sock, int gpsd_port)
 
 void sys_gps_stop(void)
 {
+	if (G.sats_stale) {
+		lv_timer_delete(G.sats_stale);
+		G.sats_stale = NULL;
+	}
 	G.running = false;
 	conn_cancel(&G.gpsd);
 	conn_cancel(&G.mgr);

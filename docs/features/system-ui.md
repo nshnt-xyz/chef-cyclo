@@ -179,10 +179,15 @@ captures `display-prompt-{dark,light}`); tests in `test-prompt`.
 
 **Status bar time.** The local time follows the 24-hour preference. In 12-hour
 mode the digits are `h:mm` and a 20 px `am`/`pm` marker sits under them in a
-column (64 px high inside the 96 px ear; the column is 44 px in 24-hour mode,
-so that geometry is unchanged). The marker raises the digits about 10 px
-toward the rounded panel corner; this is an intended deviation from the
-reference.
+column that stays 44 px high in both modes: the digits sit where 24-hour puts
+them and the marker hangs below them, inside the 96 px ear (an intended
+deviation from the reference). The bar's side padding is 36 px, the design's
+24 plus 12 for the panel's rounded corners: the first window run (2026-10-16)
+saw the minutes digit of the 12-hour clock cut by the corner when the marker had
+raised the digits about 10 px; the corner radius is about 89 to 105 px (from that
+observation), so the clock's ink corner stays inside an R=120 arc (115 px from its
+centre) and the left GPS glyph is within 1 px of one (121 px), well inside the
+measured 89 to 105.
 
 **Sound and haptics (P03)**: alert volume 0 to 100 % (a preference for the
 future ride app, default 60; it does not touch the backlight or ALSA), then
@@ -407,6 +412,12 @@ or GNSS stops, so nothing stale is shown before fresh reports arrive. The
 elapsed time ticks only while the page is seen. The position is never logged or written: a capture
 (`SIGUSR1`) shows "–" in its place. Indoors the modem sends no GSV, so
 gpsd has no SKY and the page shows 0 satellites until it sees the sky.
+gpsd 3.27 sends one full SKY (with the satellites array) followed by two DOP-only
+SKY lines (no `satellites` key) each second: a DOP-only line updates the DOPs and
+keeps the satellites of the last full one, a full line (even with an empty array)
+replaces them, and when no full SKY arrives for 10 s (`GPS_SATS_STALE_MS`) the
+satellites are cleared (the first window run showed the count reading 0 two thirds of
+the time before this).
 
 Left out by decision: the power mode (Precise / Balanced / Saver) until a
 mode is measured to save power.

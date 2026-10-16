@@ -160,16 +160,25 @@ static void set_glyph(lv_obj_t *label, const char *glyph, enum kit_ink ink)
 
 /* ------------------------------------------------------------ status bar */
 
+/* LVGL draws and invalidates an overflowing child only inside its parent's area grown by the
+ * parent's ext draw size: the am/pm marker hangs 20 px below the digits' column and its row. */
+static void marker_ext(lv_event_t *e)
+{
+	lv_event_set_ext_draw_size(e, 20);
+}
+
 void kit_statusbar_create(struct kit_statusbar *sb, lv_obj_t *parent)
 {
 	lv_obj_t *bar, *l, *r, *inner;
 
 	memset(sb, 0, sizeof(*sb));
-	/* height:96px; padding:0 24px; space-between; items centred */
+	/* height:96px; padding:0 36px (the design's 24 plus 12 for the panel's rounded corners:
+	 * the 2026-10-16 window run saw the minutes digit of the 12-hour clock cut); space-between;
+	 * items centred */
 	sb->obj = bar = kit_box(parent);
 	lv_obj_set_size(bar, lv_pct(100), KIT_STATUS_H);
 	lv_obj_set_pos(bar, 0, 0);
-	lv_obj_set_style_pad_hor(bar, 24, 0);
+	lv_obj_set_style_pad_hor(bar, KIT_STATUS_PAD_X, 0);
 	lv_obj_set_flex_flow(bar, LV_FLEX_FLOW_ROW);
 	lv_obj_set_flex_align(bar, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER,
 			      LV_FLEX_ALIGN_CENTER);
@@ -180,6 +189,9 @@ void kit_statusbar_create(struct kit_statusbar *sb, lv_obj_t *parent)
 	sb->wifi = kit_icon(l, &chefkit_icon_36, 36, KIT_INK_MUT, KIT_IC_WIFI_OFF);
 
 	r = flex_row(bar, 12);
+	lv_obj_set_overflow_visible(r, true);	/* the am/pm marker hangs below the digits */
+	lv_obj_add_event_cb(r, marker_ext, LV_EVENT_REFR_EXT_DRAW_SIZE, NULL);
+	lv_obj_refresh_ext_draw_size(r);
 	/* height:38px; min-width:78px; border 3; radius 12; padding 0 6px;
 	 * content centred, gap 2. The fill is absolute, battW % of the
 	 * padding box (inside the border). */
@@ -204,10 +216,15 @@ void kit_statusbar_create(struct kit_statusbar *sb, lv_obj_t *parent)
 	sb->batt_pct = kit_text(inner, &chefkit_bc600_32, 32, KIT_INK_FG, "--");
 	lv_obj_remove_style(sb->batt_pct, &kit_st.ink[KIT_INK_FG], 0);
 	/* Barlow Condensed 600 44, line-height 1 */
-	/* a column: the 44 px digits, and under them the 20 px am/pm marker
-	 * in 12-hour mode (hidden in 24-hour mode, which keeps the geometry) */
+	/* the 44 px digits, centred in the bar in both modes; the 20 px am/pm marker of the 12-hour
+	 * mode hangs below them (it does not move the digits, which sit where 24-hour puts
+	 * them, away from the rounded corner; the column stays 44 px high and the marker overflows it) and
+	 * ends inside the 96 px bar */
 	sb->time_col = kit_box(r);
-	lv_obj_set_size(sb->time_col, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+	lv_obj_set_size(sb->time_col, LV_SIZE_CONTENT, 44);	/* the digits' height in both modes; the marker flows below it */
+	lv_obj_set_overflow_visible(sb->time_col, true);	/* the marker hangs below the column */
+	lv_obj_add_event_cb(sb->time_col, marker_ext, LV_EVENT_REFR_EXT_DRAW_SIZE, NULL);
+	lv_obj_refresh_ext_draw_size(sb->time_col);
 	lv_obj_set_flex_flow(sb->time_col, LV_FLEX_FLOW_COLUMN);
 	lv_obj_set_flex_align(sb->time_col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END,
 			      LV_FLEX_ALIGN_END);

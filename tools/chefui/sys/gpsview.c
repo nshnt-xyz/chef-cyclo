@@ -73,13 +73,15 @@ int gps_parse_sky_view(const char *line, struct gps_view *v)
 	if (line[0] != '{' || !strstr(line, "\"class\":\"SKY\""))
 		return -1;
 	arr = strstr(line, "\"satellites\":[");
-	/* the DOPs come before the array; a SKY without satellites keeps them */
+	/* the DOPs come before the array. gpsd sends a DOP-only SKY (no satellites key) between
+	 * its full ones: it updates the DOPs and keeps the satellites of the last full SKY; a
+	 * SKY with the array, even an empty one, replaces them. */
 	v->hdop = json_num(line, arr ? arr : end, "hdop", &d) && d >= 0 ? d : NAN;
 	v->pdop = json_num(line, arr ? arr : end, "pdop", &d) && d >= 0 ? d : NAN;
 	v->sky = true;
-	v->n_sats = 0;
 	if (!arr)
 		return 0;
+	v->n_sats = 0;
 	p = arr + 14;
 	while (v->n_sats < GPS_SATS_MAX) {
 		const char *o = strchr(p, '{'), *c;
