@@ -2,7 +2,7 @@
 
 [Next-steps index](README.md) · [Current features](../features/README.md)
 
-Remaining integration and validation work, updated 2026-10-16 through system UI slice 2 M5. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
+Remaining integration and validation work, updated 2026-10-17 with ride app design rounds 1 and 2. Linked feature guides describe implemented behavior; candidate approaches must be checked when implementing.
 
 ## Button integration
 
@@ -57,6 +57,39 @@ Decided 2026-10-11 (implemented in slice 1 unless noted):
 - **Landscape** waits for a design pass that respects the notch on the short edge. L01 to L04 put content under it (not yet implemented).
 - The system UI app starts at boot and owns the panel.
 
+## Ride application design
+
+Rounds 1 and 2 of the ride app were designed in the same Claude Design project (synced 2026-10-17): `Ride Pre-ride.dc.html` (built from `PreRide.dc.html`) and `Ride In-ride.dc.html` (built from `RideScreen.dc.html`). They reuse the system UI contract above: 1080×2246 portrait, the 96 px status bar, Barlow, the Industry palette, Lucide icons and the glove target sizes. Each screen is drawn in dark, light and a new **sunlight and gloves** palette. As with the system screens, nothing is generated; every screen is rebuilt by hand on chefui.
+
+Pre-ride (R01 to R03, S01 to S03):
+
+- A 192 px "Ride" header with a Ready / Not ready tag, then three 216 px readiness rows: GPS (fix accuracy such as ±4 m or the search timer, satellites in use, or in use / seen while searching), heart rate (strap state, bpm and zone) and speed and cadence (connected check).
+- A battery card showing **riding time left** (for example 6 h 40 min) beside the percentage, "with GPS, 2 sensors and the screen at the current brightness". This needs an estimator built on powerd's measured draw and is new work.
+- **Hold to start**: a ring with a 28 px track that fills clockwise over the hold time (1.5 s default, tunable 0.5 to 3 s) and resets if released early. On completion: one haptic pulse, the disc fills with the accent, and recording starts. Touch only. While GPS has no fix the ring is a dashed outline that ignores touch, and it unlocks on a gpsd fix. The notes say 540 px but the component draws 510 px; settle this when building. Use `lv_arc`.
+
+Riding (round 2):
+
+- **Overview presets**, chosen by the rider in ride settings: Grid (six fields at 150 px: speed, distance, ride time, heart rate, cadence, climb), Hero (280 px speed over the ridden track, then four fields) or Stacked (three 280 px fields: speed, heart rate, ride time). Each field has a 40 to 48 px caps label and a secondary value such as the average or the HR zone. The ride settings page itself is not designed yet.
+- **Pages**: Overview, Laps, Climb and Map, stepped with the volume rocker or a horizontal swipe. A 240 px bottom bar shows the page name, page dots and two 192 px touch buttons, Lap (248 px wide) and Pause (at least 360 px). When paused, Pause becomes Resume with the accent fill and the values turn muted.
+- **Laps**: a current-lap card (280 px lap time, plus distance, average speed and average HR) above a table of earlier laps.
+- **Climb**: 280 px gradient, an elevation profile of the last 10 km, and climbed, descended and altitude. Its footnote takes elevation from the map's terrain data, so this page depends on the DEM in the map plan below.
+- **Map**: track only, with no tiles yet. Track-up rotation, a heading marker, a scale bar, a "No map tiles yet" pill, and speed and distance along the bottom.
+- **Banners**: 192 px, sliding over the top of the content while the data stays visible. Auto-paused ("Resumes when you move"), Paused ("Timer stopped · alerts quiet"), Lap (shown for 3 s with the previous lap's summary), HR zone (for example Z5, above the rider's Z4 ceiling) and low battery (14 %, the only warn-coloured banner, with the time left).
+- **Finish**: hold Power. A 540 px ring fills over the overlay ("Keep holding Power / Let go to keep riding"), and releasing cancels.
+- **Summary**: "Ride saved" with a "Waiting to upload" tag (the Wi-Fi Sync count), a track thumbnail, distance, ride time, average speed, time in each HR zone (Z1 to Z5 bars) and a Done button.
+
+Sunlight and gloves (S01 to S03, S10 to S13): the same states with no header or subtitles, 96 px labels, 280 px values, 6 px lines, a 640 px ring, no accent, and Lap and Pause 224 px tall. Only the Stacked overview is offered, with speed, heart rate and time. Banners are 240 px and inverted (fg fill), with short caps text such as PAUSED, LAP 4 or BATT 14%. The palette is near black on white: bg `#fbfbfc`, surface `#e7e7ea`, fg and accent `#000000`, muted `#2b2b2d`, lines `#d4d4d7`/`#1d1f20`, on-accent `#fbfbfc`, warn `oklch(0.45 0.14 45)`.
+
+Additions to the kit: Barlow Condensed 600 at 32 and 120 px; Lucide `heart-pulse`, `bike`, `check`, `play`, `pause`, `square`, `flag`, `mountain`, `navigation`, `navigation-2`, `battery-low` and `plus` (registration marks); a sunlight token set beside dark and light.
+
+Decisions needed before implementation:
+
+1. **Hold Power to finish needs press and release from buttond.** Today buttond only reports completed gestures, so a client cannot draw a ring that cancels on release. Options are a new hold-progress stream for a claimed `power.long`, or raw `power.down`/`power.up` events. While the recorder claims `power.long` the 3 s software power-off is suppressed. The finish hold must complete well before the PM660 S1 timer (6.7 s, hard reset at about 8.7 s).
+2. **Gloves versus touch-only controls.** The design makes start, Lap and Pause touch only, but the gloves requirement above wants every riding action on the side buttons. The earlier proposal (`power.double` for pause) is not in the design. Choose button paths for start, Lap and Pause, and decide what a short Power press does on ride pages (menus use it for Back or screen off).
+3. **Sunlight mode versus the Light theme.** The system UI decided that Light doubles as the sunlight theme under ALS Auto. The ride design adds a separate sunlight and gloves palette and layout. Decide whether it is a manual ride mode, an ALS step beyond Light, or both, and whether it also applies to the system pages.
+4. **Climb before the DEM ships.** Hide the Climb page and the climb field until map terrain data exists, or show smoothed GPS altitude labelled as such.
+5. **HR zones** need a max HR or zone table setting (for the zone label, the zone alert and the summary bars). It is not designed yet, and neither is ride settings (preset choice, auto-pause, alerts).
+
 ## Bike-computer application
 
 Inputs: gpsd ([GPS manager](../features/gps.md#use-gnss-gps-manager), [client integration](gps-and-time.md#client-integration)) for position/speed/track/altitude, BLE sensors through [blesensd](../features/bluetooth.md#ble-sensors) ([remaining validation](connectivity-and-sensors.md#ble-sensors): HR strap, speed/cadence, power), battery (`power_supply/battery`), side buttons ([button integration](ui-and-ride-app.md#button-integration)), touch ([UI stack](ui-and-ride-app.md#ui-stack)). Outputs: the panel through the chosen [UI stack](#ui-stack), vibrator/speaker ([audio](connectivity-and-sensors.md#audio)) for alerts.
@@ -67,9 +100,28 @@ Core: ride recording (GPX/FIT to [persistent storage](../features/storage.md)), 
 
 Opening the map acquires a temporary `map` lease from the GPS manager; leaving it releases that lease. Starting a ride starts or hands off to a recorder that owns a durable `ride` lease until the ride is explicitly ended, independent of the visible page and UI process lifetime. The modem shuts down after the manager's grace period only when neither lease remains.
 
-Order: (a) **UI first** — the data pages on the panel with touch/buttons on the chosen UI stack, driven by gpsd and the sensors, ride recording underneath; (b) **then a map source** — offline tiles or vector data on the writable storage ([persistent storage](../features/storage.md): OSM extracts, e.g. MBTiles/PMTiles or a raster tile cache pre-fetched over Wi-Fi/USB), rendered under the position with track-up rotation, then route following on top; no online map dependency on a ride; GPS altitude is noisy and there is no barometer, so take **elevation** from a DEM shipped with the map data (climb totals, gradient).
+Order: (a) **UI first** — the data pages on the panel with touch/buttons on the chosen UI stack, driven by gpsd and the sensors, ride recording underneath; (b) **then a map source** — offline tiles or vector data on the writable storage ([persistent storage](../features/storage.md): OSM extracts, e.g. MBTiles/PMTiles or a raster tile cache pre-fetched over Wi-Fi/USB), rendered under the position with track-up rotation, then route following on top; no online map dependency on a ride; GPS altitude is noisy and there is no barometer, so take **elevation** from a DEM shipped with the map data (climb totals, gradient). The map design is settled in [offline maps](#offline-maps) below.
 
 **Time zone**: chrony ([time synchronization](gps-and-time.md#time-synchronization)) gives UTC; the UI needs local time (tzdata or a fixed `TZ`). Written as an ordinary Linux app against gpsd/BlueZ and the chosen toolkit/input stack so it is testable on the host with replayed `nmea.log` from the ride runs.
+
+## Offline maps
+
+Decided 2026-10-17 and 2026-10-18 (evidence and sizes in the [offline maps research](../research/offline-maps.md)):
+
+- **Data**: OpenStreetMap as the Protomaps v4 vector basemap (PMTiles, MVT), used as-is. India has no cycle route network, and `surface` is tagged on only about 1 in 10 road kilometres, so our own tile build is not worth it. Elevation from Mapterhorn (Copernicus GLO-30) at z11.
+- **Regions**: the rider downloads Indian states and union territories only, from OSM `admin_level=4` outlines grown by a 10 km margin, always at full street detail (z15). One file per region under `/data/v1/maps`. Goa first: 13 MB map, 4.3 MB DEM.
+- **Download**: the phone cuts its own region from the newest Protomaps build over HTTP range requests (Goa: 57 requests, 14 MB). The official 54 MB `pmtiles` binary from `/data` first; our own resumable C extractor before large regions matter.
+- **Refresh**: on every Wi-Fi connect, if a newer daily build exists, and only when no ride is recording, the map is closed, the clock is valid, and battery and free space allow it. Each refresh is a whole-region download, swapped in only after verification. The DEM is fetched once per region.
+- **Rendering**: on the phone, in C: a PMTiles reader, an MVT decoder and LVGL vector drawing (ThorVG, not yet enabled in `lv_conf.h`). Track-up rotation with upright labels. Theming does not matter.
+
+**Next: the Goa render prototype.** Before any production code:
+
+1. Cut Goa (z15) and its z11 DEM on the host and copy them to the phone.
+2. A throwaway chefui program that reads the archive, decodes the MVT tiles for the densest view (Panaji at z15 and overzoomed to z17), and draws roads, water and land use with ThorVG, rotated for track-up.
+3. Measure on the phone: decode time, draw time and peak RAM per full-screen frame, with and without ThorVG. Compare with LVGL's line and triangle drawing if ThorVG is slow.
+4. Pass: a full redraw well under one second at 1 Hz GPS, with idle cost near zero between position updates. The result chooses the drawing path; implementation then goes to the herdr impl and review pair.
+
+Still to design: the Settings **Maps page** (browse states, sizes, download progress, update, delete) needs a round in the Claude Design project.
 
 ## Sensor integration
 
