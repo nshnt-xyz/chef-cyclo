@@ -1,0 +1,165 @@
+Idle power: the 198 mA regression, fblog out of boot, per-resident A/B
+2026-10-17. Phone on a RAM image (out/boot-idle.img), installed pair unchanged.
+Code change: commit 7ccc163. Evidence stays outside the repo (idle-power-20261017
+evidence directory: host/, live/, review/).
+
+1. Finding (live, installed pair 1bb8a700 + a2ca8337, up 13 h 37 min, panel off,
+   USB attached)
+- Load average a steady 5.0. Over 10 s: user 304 + sys 707 of 8000 jiffies busy
+  (8 CPUs, HZ 100), about 12.6 % of the machine, i.e. one core.
+- top: /usr/bin/fblog in state R at 12 % of the machine (one core); every other
+  process 0 to 1 %. /proc/<fblog>/stat: utime + stime about 48934 s of CPU in
+  about 49000 s of uptime; voluntary context switches 9, involuntary 546159.
+  fds: /dev/kmsg, /run/fb0.lock, /dev/fb0, no inotify fd (so it was in the main
+  loop, paused). /proc/<pid>/syscall read "running" 8 of 8 times.
+- Cause in tools/fblog/fblog.c next_timeout_ms(): while paused (a foreground
+  client holds the exclusive screen lock) tick() returns at the failed shared
+  lock try and never commits, so the last commit time never advances, the time
+  since the last commit passes the 1000 ms heartbeat and the timeout is 0
+  forever: poll(kmsg, 0) plus flock(LOCK_SH|LOCK_NB) in a tight loop. The cap
+  `if (paused && t > FB_LOCK_RETRY_MS)` only lowers a timeout, it never raises
+  0. The old unit test even expected 100 for next_timeout_ms(true, 0, true, 0).
+  It began when chef-settings started holding the screen from boot (system UI
+  slice 1, 2026-10-11).
+- SIGSTOP proof (USB attached, 25 x 1 Hz means of battery current_now, 3 s
+  settle, 3 cycles, negative = charging): fblog running -99.6, -55.0, -126.5 mA;
+  fblog stopped -190.2, -187.9, -190.9 mA. Stopping it raised the charge
+  current by 91, 133 and 64 mA (mean 96 mA). This explains the 2026-10-16
+  Phase A base of about 198 mA against about 95 mA on 2026-10-04.
+
+2. Fix (commit 7ccc163)
+- fblog is no longer started by the image (inittab line and mkinitramfs build
+  block removed). Its source stays in tools/fblog as a debug tool, run by hand.
+- fblog.c next_timeout_ms(): `if (paused) return FB_LOCK_RETRY_MS;` after the
+  until_retry_ms return; the later cap was deleted. test_fblog.c: line 514 now
+  expects FB_LOCK_RETRY_MS and two new checks (a borrow longer than the
+  heartbeat must not spin). Mutation check with the fix reverted: 5 of 2155
+  checks fail (including the three above); restored, 2155 of 2155 pass.
+- Crash-safe panel handover in the chefui screen layer (fbscreen.c): the marker
+  /run/fb0.lit is created before every UNBLANK and removed after every
+  successful POWERDOWN; a start that finds it power cycles the panel once
+  (POWERDOWN then UNBLANK) so the touch IC resumes. Reason: the last close of
+  fb0 powers the panel down behind the touch driver, and after a screen owner
+  died with the panel lit the next open logs "Touch is already resume" and
+  touch stays dead. Mutation checks (marker handling reverted two ways) fail
+  test-fbscreen (4 and 2 checks); restored, 193 of 193 pass.
+- Host results: make -C tools test OK (39 Python tests, 1 skipped; test-fblog
+  2155/2155); make -C tools/chefui test: test-fbscreen 193/193, test-chefui
+  325/325, all 15 test programs passed; device build of chef-settings and
+  chefui-demo ok.
+- RAM image (not installed): out/boot-idle.img
+  debf8eca003916dab25f1eb8666505f0e701977d13ab1cc26f1933db181d3534,
+  out/initramfs.cpio.lzma
+  09281b776b2f9c985ffd41f832b4b93759e3fa6530ff5a96507081e5d4197238.
+
+3. Live checks on the RAM image (before the visit)
+- V1 (fblog gone): 4 min after boot, busy 0.16 % of 23980 jiffies, top shows no
+  process above 1 %, no fblog.
+- V2 (restart cases, scripted, panel state read from wled): V2.1 start with the
+  screen lit; V2.2 kill -9 with the screen lit: the next start logs the
+  /run/fb0.lit "power cycling once" line and the panel is lit (wled 819, flag
+  absent); V2.3 TERM with the screen lit: the next start is lit with no power
+  cycle line (0 lines); V2.4a and V2.4b with the screen off (flag present): the
+  start is dark (wled 0). The settings file sha256 was identical before and
+  after V2 (f54f0bd2...).
+
+4. Touch check at the visit (touchcheck.sh, user tapping)
+- First start, 15:22 IST: refused at preflight ("screen is not on", wled 0).
+- First full run, 15:23 IST: step 2 FAIL by the recovery-line rule
+  (irq_delta 5, recovery_line 0, wled 819). Cause: the 30 s screen sleep fired
+  during the 8 s step 1 card, so the kill -9 hit a dark panel; the new owner saw
+  /run/fblog.off and started dark. The script did not check lit before the
+  kill. Not a product failure; the handover path was not exercised.
+- Fix: lit_gate before each kill (two 200 ms buzzes, then the card "Press the
+  power key briefly now", 20 s wait, then a recheck), lit_at_kill recorded.
+- Second run, 15:27 IST (script sha256 86d8610c07b6281f9fe1486bb0df503006fefd747427fb10bdb04dc12a60dea4):
+  step 2 kill -9 with the panel lit (wled 819, flag absent): irq_delta 6,
+  recovery_line 1 ("the previous screen owner died with the panel lit; power
+  cycling once so touch resumes" logged), wled 819: pass. Step 4 TERM with the
+  panel lit: irq_delta 3, wled 819, normal start with no power cycle; the
+  printed result was FAIL (recovery_line 1) only because since() read from the
+  first "step4 begin" marker in dmesg, left over from the 15:23 run, so its
+  window contained step 2's handover line. The true step 4 window has 0 such
+  lines (exit on signal 15, screen released, normal UNBLANK, touch ok). Judged
+  pass on both steps. since() now uses the last marker (not rerun).
+
+5. A/B: one resident stopped per block (idleab.sh d0aa9184, 15:29:54 IST start,
+   unplugged, screen off, Wi-Fi radio off, BT as booted)
+Sequence B0 GPS B1 SENS B2 UI B3 BTOFF B4 BTSTACK B5 BLE B6 ALL B7, 120 s per
+block (about 53 min with settles). Stopping a resident = bind-mounted sleep stub
+over its binary and TERM of the real process (init respawns the stub); restored
+afterwards. All 15 blocks valid (wled 0, usb off, no key or touch events, expected
+resident states, chef-settings fb0 closed in every block that has it). Battery
+97 to 95 %, 35.0 C at both ends. Positive = discharge.
+- Base blocks, mean mA: B0 101.8, B1 100.7, B2 100.7, B3 98.8, B4 100.2,
+  B5 99.4, B6 100.5, B7 100.7. Mean 100.36, sd of block means 0.90 mA, drift
+  -0.011 mA/min. Per-sample sd 14 to 19 mA in most blocks (rolling max 112 to 130).
+- Delta = block mean minus the mean of the two neighbouring bases (differences
+  against the previous and the next base in brackets):
+    GPS (gps-manager stopped)          99.7  -1.5  (-2.0, -1.0)
+    SENS (sensors-up, sensord)         99.0  -1.7  (-1.7, -1.7)
+    UI (chef-settings stopped)         99.1  -0.6  (-1.6, +0.3)
+    BTOFF (adapter powered off)        97.7  -1.9  (-1.2, -2.6)   sample sd 2.3
+    BTSTACK (bt-up, bluetoothd stopped) 103.5 +3.7  (+3.3, +4.1)
+    BLE (blesensd stopped)            100.7  +0.7  (+1.2, +0.1)
+    ALL (UI, GPS, SENS, BLE, BTSTACK)  102.9  +2.3  (+2.3, +2.2)
+- Sum of the five singles in ALL (GPS, SENS, UI, BTSTACK, BLE) = +0.5; measured
+  ALL +2.3 (difference 1.8 mA). CPU busy 0.23 to 0.36 % of the machine in every
+  block. BT settles 285 to 301 s (blesensd keeps its 300 s retry window).
+- Post equals pre on every item (settings sha, BT powered, blesensd one sensor,
+  gps-manager DISABLED, no abstub mounts, all stubs restored, no card left).
+- Settings sha: f54f0bd2... at the start of the day, fac59c34... at the visit
+  (the user changed settings while the phone was with them); the rule used was
+  pre equals post within the run.
+
+6. Conclusions (idle_coord)
+C1. The regression is fixed. Base idle is 100.4 mA against about 198 mA on
+    2026-10-16 and about 95 mA on 2026-10-04. The whole 98 mA came from fblog
+    spinning a core while chef-settings held the screen (SIGSTOP check 96 mA).
+    The remaining 5 mA against 2026-10-04 is not explained by any resident; it is
+    within day-to-day differences (other image, battery level and temperature,
+    a paired BLE sensor). Not chased.
+C2. No resident costs anything worth acting on: stopping gps-manager (DISABLED),
+    sensors-up, chef-settings (dark) or blesensd moves the mean by 0.6 to 1.7 mA,
+    1 to 2 times the base-block spread; consistent in sign on both sides for all but
+    UI (-1.6, +0.3); GPS and SENS lower it, BLE raises it slightly. Each is at
+    most about 2 mA.
+C3. Bluetooth powered on (adapter up, page scan, one bonded BLE sensor waiting)
+    costs about 2 mA (BTOFF -1.9 mA). It is the only condition that changes the
+    shape of the current: per-sample sd falls from 14..19 mA to 2.3 mA with the
+    adapter off, so the 1 Hz spikes are the controller's scan windows, cheap on
+    average.
+C4. Stopping the BT stack (btattach/bt-up and bluetoothd) while the adapter was
+    powered raises the draw by 3.7 mA (both neighbours +3.3/+4.1): with no host
+    stack the QCA controller stays awake. Powering the adapter off through BlueZ
+    (the settings switch) is the right way to save BT power; killing the stack
+    is not. Nothing in the product does the latter, so no change.
+C5. ALL (+2.3 mA) matches C4: the BTSTACK rise outweighs the small savings of
+    the rest (sum of singles +0.5, difference 1.8 mA, about 2 base sds). No
+    interaction worth a follow-up.
+C6. The idle floor of about 100 mA with the screen off is now the platform
+    itself, not our daemons (CPU busy 0.23 to 0.36 % in every block). The next
+    lever is below userspace (no system suspend today; CPU idle and the
+    remaining always-on rails): a separate investigation.
+
+7. Open items (not fixed here)
+O1. Since chef-settings is the last fb0 closer, closing fb0 with the panel
+    already off (8 exits in the visit boot) makes mdss_fb_release_all write
+    backlight 0 (DCS 0x51) to an off panel: a 0x51 DMA timeout costing about
+    0.2 s each time (kill -9 at 10209.08 and the other exits). One of the 8
+    (the TERM exit at 10540.22) also logged a kernel WARN in clk_branch_wait
+    (dsi byte clk enable -16). Display and touch came back fine every time.
+    Only on chef-settings exit (shutdown, crash, restart).
+O2. touchcheck.sh since() read from the first marker in dmesg, so a rerun in
+    the same boot measured the old window (false step 4 FAIL above). Fixed in the
+    evidence copy (last marker); the scripts are not in the repo.
+O3. The Wi-Fi radio was off before the run (the user's state since about 12:56
+    IST, together with sound and haptics changes) and the script left it off.
+
+8. Scripts (evidence directory, not in the repo)
+idleab.sh d0aa91849d6b564c6e2844f726eb255894f1f7eac40aac06c9279cfe44641c32,
+idleab-analyze.py b555b1c6a7700355f8b06a1abdb128918377adeb34ffd9cf677bf7cf94e703c8,
+touchcheck.sh as run 86d8610c07b6281f9fe1486bb0df503006fefd747427fb10bdb04dc12a60dea4
+(since() fix afterwards: efab94519cde5f63b6ba12a8db8b7f912110474ff22a4b0fb2315f9714ca7913).
+Pulled run: idle-final tar inner sha256 10629161d0d3e108eea06421f47088c469e0edb0e7b76a5545724725de695ba7.
+Reviewed by idle_review (chunks 1 and 2; scripts and the lit gate).
