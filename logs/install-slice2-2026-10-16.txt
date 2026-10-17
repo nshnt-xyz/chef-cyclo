@@ -1,0 +1,44 @@
+Install of system UI slices 1 and 2 on the phone, 2026-10-16
+
+Spec and brief: the coordinator's brief (slices 1 and 2 since the SSH install of 2026-10-11); procedure: logs/ssh-and-install-2026-10-10.txt
+sections 5 and 6 and docs/building.md "Installed layout". Evidence (outside the repository): ~/chef-cyclo-evidence/system-ui2-install-20261016/install.
+
+1. What was installed
+Built at a clean db76374 (image-info dirty 0) with SKIP_KERNEL=1 scripts/mkinstall.sh, kernel #22 unchanged (Image.gz-dtb 0cf2981c...):
+  system_a  out/system_a-1bb8a700.img  sha256 1bb8a700d98b7ef1b5a868d22ad5f7ed71864bb1407bfc6d1eb8c2ecbc765310
+            stamp 6a89d1dc56898438..., tree manifest 031b7c23...
+  boot_a    out/boot-stage1-a2ca8337.img (stage 1)  sha256 a2ca8337efa94d549f4c7bf48dbaa62d11270cb6f6113072af878fc92465fcc3
+  RAM image of the same tree: out/boot-ram-fc0c74a9.img (fc0c74a9a5312e042b0df565f6d2f329caf31cba7973670b57ae6ba19253913c)
+Against the installed pair (e73c8c54 + 034db212, commit 1fae453) the tree adds slice 1 and slice 2 (diff 1fae453..db76374: 227 files; the image carries
+3 new paths: image-info, blesensd, chef-settings), the package list is unchanged (111 packages, package-diff.txt), ssh-keys.py scan rc 0 on both
+staged trees, no .nmconnection file and the one baked authorized key (SHA256:GfWrmzAU...V9I). wlan-ko-sha256 in the stamp differs from the previous
+pair's, as between every earlier pair (qcacld is built in a fresh temp dir, its source is unchanged). ui_review cleared the diff, the artifacts and the RAM
+regression (review-install-diff.md, review-install-artifacts.md) before the coordinator's go.
+
+2. RAM regression (before flashing), boot-ram-fc0c74a9 at 16:32 and 16:34 UTC
+K6 backup first. Hub app up at 10.5 s; settings f54f0bd2 byte-identical with the same mtime (not rewritten); sensors-up/sensord up (smgr ready); gps-manager
+DISABLED; Wi-Fi connected to TP-Link_E975; Bluetooth powered; SSH over USB and over Wi-Fi; chef-reboot bootloader round trip: the 12 rows pending in boot 1
+(11 uevent rows and a tick, 11.9 to 71.6 s) are in log.csv once, then boot 2's start row; blesensd and chef-sshd ran in both boots.
+
+3. Installation (UTC; IST is +5:30: 22:08 to 22:11)
+16:38:48 left the RAM image fc0c74a9 with its own chef-reboot bootloader (detached); fastboot after 10 s; current-slot a; both images rehashed = cleared hashes
+16:39:10 fastboot flash system_a: sparse 1/1 OKAY, write OKAY 20.6 s (total 24.0 s)
+16:39:39 fastboot boot of the stage-1 image: "system_a build stamp matches; switch_root", ro system_a root (/dev/mmcblk0p67), /data ours, stamp sha 6a89d1dc..., image-info db76374 dirty 0, chef-settings/sensord/gps-manager/blesensd/chef-sshd running, settings f54f0bd2 (stage1-boot-check.txt)
+16:40:48 chef-reboot bootloader again (detached), fastboot after 10 s, rehash = cleared; 16:41:02 fastboot flash boot_a OKAY (0.47 s); fastboot reboot
+
+4. Installed regression and the user glance
+Installed regression (installed-regression.txt, uptime 56 s): bootreason reboot, slot _a, mode normal, root=/dev/mmcblk0p67 ro (norecovery), /data rw, BlueZ, NetworkManager and chrony binds on /data, stamp match, image-info db76374 dirty 0, chef-settings (hub app), sensors-up, sensord (smgr ready), gps-manager DISABLED, blesensd, chef-sshd/dropbear, powerd, buttond running; settings f54f0bd2 with the same mtime (not rewritten); wlan0 connected to TP-Link_E975; Bluetooth powered; abslot boot_a marked successful at 36.2 s (priority 3, active 1, retry 6, successful 1); write counters: every partition 0 except userdata (705); SSH over Wi-Fi works (installed-rb1-before.txt), fuser -m /data: no holder with an SSH session open (rc 1, no pid; measured on the installed pair after the reboots, install/fuser-check.txt, with a /proc scan: no open file under /data in any process). installed-rb1-before.txt shows "fuser rc=0": that rc is the pipe's `head`, not fuser's (the command was `fuser -m /data | head`), so it was not a holder.
+Ordinary reboot typed in an SSH session (installed-rb1-*): back with bootreason reboot, stamp match, e2fsck -p 0, the 7 rows pending before it in log.csv once, then the next start row, settings f54f0bd2.
+chef-reboot bootloader round trip (installed-crb-*): fastboot after 10 s, fastboot reboot, bootreason reboot, stamp match, e2fsck -p 0, the 9 pending rows in log.csv once then the next start row, settings f54f0bd2, write counters only userdata.
+Fallback pair kept in out/: system_a-e73c8c54 + boot-stage1-034db212 (1fae453), then 84a0baa4 + 6062f115, 799577b6 + e5b57eff; RAM image of this tree out/boot-ram-fc0c74a9.img.
+Package diff against e73c8c54: none; wlan-ko-sha256 differs from the installed pair as between every earlier pair (qcacld is built in a fresh temp dir, source unchanged).
+
+User glance (install/glance.txt, 22:15:30 IST): one ordinary reboot typed over SSH with the user watching the panel: the hub app started 6.7 s into the boot, the screen
+came on and the user, through the coordinator, confirmed the hub appeared on the panel by itself (the panel sleeps 30 s later as set).
+
+5. Found while clearing the install (not blockers)
+IC-1: ::shutdown runs chef-state shutdown (sensors-up, powerd, the timekeeper, chronyd; up to 1.8 s) and then chef-storage shutdown (/data read-only); chef-settings,
+blesensd and gps-manager are not stopped there, so their exit saves (the settings debounce and flush of up to 2 s, blesensd's 3 s, gps-manager's up to 3 s) run
+against a read-only /data: a settings change, GPS switch or BLE record change made in the last 2 to 3 s before a reboot or power-off is lost (the writes are
+atomic and sealed, so no file is corrupted; a writer holding settings.tmp at the remount could in theory make the read-only remount fail, milliseconds wide).
+Recorded in docs/next-steps/power-and-reliability.md.

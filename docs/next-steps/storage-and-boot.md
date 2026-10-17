@@ -2,7 +2,7 @@
 
 [Next-steps index](README.md) · [Boot and recovery](../features/boot.md) · [Persistent data](../features/storage.md) · [Original install plan](../archive/install-layout-handoff.md)
 
-Standalone boot, writable `/data` on `userdata` and the read-only root on `system_a` are complete. The installed layout passed the user's unplugged cold-boot, panel, buttons/touch and speaker checks on 2026-10-06. Bluetooth keys, NetworkManager profiles, crash records/boot history, RTC offset, chrony drift, batched power logs and magnetometer bias persist; `chef-reboot bootloader` saves state before returning to fastboot. The latest pair was installed 2026-10-11 ([build log](../build-log.md#2026-10-10-ssh-with-key-login)).
+Standalone boot, writable `/data` on `userdata` and the read-only root on `system_a` are complete. The installed pair since 2026-10-16 is `system_a` `1bb8a700` + `boot_a` `a2ca8337` (slice 1 and 2, commit db76374; [record](../../logs/install-slice2-2026-10-16.txt)); `e73c8c54` + `034db212` is the first fallback. The installed layout passed the user's unplugged cold-boot, panel, buttons/touch and speaker checks on 2026-10-06. Bluetooth keys, NetworkManager profiles, crash records/boot history, RTC offset, chrony drift, batched power logs and magnetometer bias persist; `chef-reboot bootloader` saves state before returning to fastboot. The latest pair was installed 2026-10-16 ([build log](../build-log.md#2026-10-16-system-ui-slices-1-and-2-installed)).
 
 ## Remaining
 
