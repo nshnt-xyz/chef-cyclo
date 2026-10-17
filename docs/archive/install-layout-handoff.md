@@ -36,8 +36,10 @@ in the current pair `system_a` `e73c8c54` (stamp `1e289bf2`) + `boot_a`
 `034db212` (commit 1fae453, kernel #22 unchanged). The [slice 1 and 2 install](../../logs/install-slice2-2026-10-16.txt)
 on 2026-10-16 put in `system_a` `1bb8a700` (stamp `6a89d1dc`) + `boot_a`
 `a2ca8337` (commit db76374, kernel #22 unchanged). The [idle fix install](../../logs/install-idle-2026-10-17.txt)
-on 2026-10-17 put in the current pair `system_a` `5f2d4247` (stamp `a823c449`) + `boot_a` `e35ad36d`
-(commit 64c4581, kernel #22 unchanged); `1bb8a700` + `a2ca8337` is the first fallback, then `e73c8c54` + `034db212`,
+on 2026-10-17 put in `system_a` `5f2d4247` (stamp `a823c449`) + `boot_a` `e35ad36d`
+(commit 64c4581, kernel #22 unchanged). The [Wi-Fi switch and backlight fix install](../../logs/install-wifi-bldcs-2026-10-17.txt)
+the same day put in the current pair `system_a` `2faf5f0e` (stamp `9de1a85e`) + `boot_a` `606bd269`
+(commit 882388d, kernel #23); `5f2d4247` + `e35ad36d` is the first fallback, then `1bb8a700` + `a2ca8337`, `e73c8c54` + `034db212`,
 `84a0baa4` + `6062f115` and `799577b6` + `e5b57eff`, all kept in `out/`.
 
 ## Decision (user, 2026-10-04)

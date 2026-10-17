@@ -67,7 +67,7 @@ checks passed on a RAM image; see the [slice 2 log](../../logs/system-ui-slice2-
 Guided keyboard join with a wrong then correct passphrase and two-tap Forget
 remain in the final guided batch.
 
-- **The Wi-Fi switch state is not persisted across reboots: fixed 2026-10-17.** `wifi-nm` now starts NetworkManager with `--state-file` on `/data/v1/networkmanager`, so `WirelessEnabled` survives a reboot; see the [log](../../logs/wifi-switch-and-bl-dcs-2026-10-17.txt). Not installed yet (RAM image only).
+- **The Wi-Fi switch state is not persisted across reboots: fixed 2026-10-17.** `wifi-nm` now starts NetworkManager with `--state-file` on `/data/v1/networkmanager`, so `WirelessEnabled` survives a reboot; see the [log](../../logs/wifi-switch-and-bl-dcs-2026-10-17.txt). Installed 2026-10-17 ([record](../../logs/install-wifi-bldcs-2026-10-17.txt)).
 
 Left out of the slice 2 pages and still to build:
 

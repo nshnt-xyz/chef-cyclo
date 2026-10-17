@@ -84,3 +84,4 @@ this change (same lines in system-ui2-m5-20261014) and BT stayed powered with bl
 
 8. Not done
  Not installed and not pushed. The installed pair (5f2d4247 + e35ad36d, kernel #22) still has both defects until a #23 install.
+ Installed later the same day: logs/install-wifi-bldcs-2026-10-17.txt

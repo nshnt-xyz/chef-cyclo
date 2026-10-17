@@ -1,0 +1,64 @@
+Install of the Wi-Fi switch persistence and last-close backlight fix on the phone, 2026-10-17
+
+Spec and brief: the coordinator's install brief (J1 to J6), which reuses the idle-fix install of earlier the same day (logs/install-idle-2026-10-17.txt) and its
+procedure (logs/install-slice2-2026-10-16.txt sections 1 to 4, logs/ssh-and-install-2026-10-10.txt sections 5 and 6, docs/building.md "Installed layout").
+Fix record: logs/wifi-switch-and-bl-dcs-2026-10-17.txt. Evidence (outside the repository): wifi-bldcs-20261017/install in the evidence directory. Times are IST
+(UTC+5:30) with UTC in brackets where the raw files use it. ram/k6-pre.tgz holds Wi-Fi profiles and BlueZ keys and stays out of the repository.
+
+1. What was installed
+Built at a clean 882388d (image-info dirty 0, kernel submodule 2528414af clean) with SKIP_KERNEL=1 scripts/mkinstall.sh on the existing out/kernel #23 build
+(Image.gz-dtb 3a907d00a7948a7670ab7ad1fd2e96b4ad0b970544ed4fc9c04db38d5a918443, checked before the build).
+  system_a  out/system_a-2faf5f0e.img  sha256 2faf5f0ea7aaf8dfc8d225cb48415da6cdbb10eb0f12dcc6b22b749be72cde1f
+            stamp 9de1a85e..., tree manifest d7271704..., wlan.ko 53ac1f1c...
+  boot_a    out/boot-stage1-606bd269.img (stage 1)  sha256 606bd26972875bc160337b80cda29438fdb40e3185232306e6b651affcef18cc
+  RAM image of the same tree: out/boot-ram-94227cbd.img (94227cbdada38b525ca4a74be50c88cdae3a8157d2a59de69bf72ce06a100779)
+Against the installed pair (5f2d4247 + e35ad36d, commit 64c4581, kernel #22) the tree adds 882388d (diff 64c4581..882388d: 14 files, outside docs and logs only
+wifi-nm, the kernel pointer and tools/tests/test_wifi_nm.py). The package list is unchanged (package-diff-none), ssh-keys.py scan rc 0 on both staged trees, no
+.nmconnection file, the one baked authorized key. Image tree diff vs 5f2d4247 (manifest-diff.txt): exactly /usr/bin/wifi-nm, /etc/chef/image-info and
+/lib/modules/wlan.ko.
+Kernel: the stamp's kernel-release is 4.4.192-cyclo+ in both pairs (#22 and #23 share the release string; the #N is not stamped), so the kernel change shows only as
+kernel-image-sha256 0cf2981c -> 3a907d00. Module.symvers is byte-identical between #22 and #23 (the DK1 patch exports nothing: module-symvers-sha256 is the same in both
+stamps), yet wlan.ko was rebuilt (hash 55e6b85c -> 53ac1f1c, 425 of 425 modversion CRCs equal out/kernel/Module.symvers, vermagic 4.4.192-cyclo+ SMP preempt
+mod_unload modversions aarch64). The kernel blob in boot-stage1-606bd269 and boot-ram-94227cbd is 3a907d00. The stage-1 ramdisk differs from e35ad36d's only in
+etc/chef/expected-stamp. Never touched: out/boot.img (mtime unchanged), boot-idle.img, boot-fix2.img, the fallbacks 5f2d4247 + e35ad36d and 1bb8a700 + a2ca8337
+(hashes-before.txt). idle_review cleared the diff, the artifacts and the RAM regression (J3) before the coordinator's final go.
+
+2. RAM regression (before flashing), boot-ram-94227cbd at 22:12:53 and 22:14:41 IST [16:42:53Z, 16:44:41Z]
+K6 backup first (ram/k6-pre.tgz, mode 600). #23; NetworkManager cmdline --state-file=/data/v1/networkmanager/NetworkManager.state; the radio came up DISABLED at both
+boots (the user's choice, persisted by the fix log's W5), wlan0 unavailable, operstate down, iw "Not connected.", 0 association lines in kmsg, state file
+WirelessEnabled=false unchanged (644 root, mtime 21:58:34 IST); settings fac59c34 byte-identical with the same mtime (12:56:44 IST); BT powered; blesensd 1 sensor;
+gps-manager DISABLED; sensors-up/sensord up; no fblog; dark, /run/fb0.lit absent, 0 "power cycling once"; 0 dma_comp/WARN/Call trace/clk_branch_wait; busy 0.15 and
+0.16 % over 10 s with the screen off; chef-reboot round trip: log.csv 4284 + 11 pending + start = 4296; SSH over USB. The radio was never turned on.
+
+3. Installation (IST; UTC in the raw log: 16:48 to 16:50)
+22:18:32 left the RAM image with its own chef-reboot bootloader (detached); fastboot after ~12 s; current-slot a; both images rehashed = cleared hashes
+22:18 fastboot flash system_a: sparse 1/1 OKAY, write OKAY 20.9 s (total 24.2 s; the "Invalid sparse file format" line is fastboot resparsing the raw image, benign)
+fastboot boot of the stage-1 image: uname -v "#23 SMP PREEMPT Sat Oct 17 21:45:05 IST 2026", "system_a build stamp matches; switch_root", ro system_a root
+(/dev/mmcblk0p67), /data ours, image-info 882388d dirty 0, build-stamp sha 9de1a85e = out stamp, residents running, no fblog, settings fac59c34 (stage1-boot-check.txt)
+22:20 chef-reboot bootloader again (detached), fastboot after ~10 s, rehash = cleared; fastboot flash boot_a OKAY (write 0.15 s); fastboot reboot at 22:20:35.
+
+4. Installed regression and the user glance
+Installed regression (installed-regression.txt, uptime 73 s; installed-regression-early14s.txt is a too-early read kept for the record): bootreason reboot, slot _a, mode
+normal, root=/dev/mmcblk0p67 ro (norecovery), /data rw, BlueZ, NetworkManager and chrony binds on /data, stamp match, image-info 882388d dirty 0, #23, boot_a marked
+successful, chef-settings, sensors-up, sensord (smgr ready), gps-manager DISABLED, blesensd, chef-sshd/dropbear, powerd, buttond running, no fblog, settings fac59c34
+same mtime, BT powered, NM with --state-file, radio disabled, wlan0 unavailable, 0 association lines, state file unchanged (sha 0d59d07d, mtime 21:58:34 IST), dark,
+0 power cycling lines, 0 dma_comp/WARN/Call trace/clk_branch_wait, busy 0.27 %, written sectors only on userdata (657).
+Ordinary reboot typed over SSH (installed-rb1-*): radio still disabled, file unchanged, rows 4329 + 18 pending + start = 4348, 0 bad kmsg lines, busy 0.13 %.
+chef-reboot bootloader round trip (installed-crb-*): fastboot after ~12 s, fastboot reboot; radio disabled, file unchanged, rows 4348 + 10 + 1 = 4359, busy 0.63 %,
+0 bad kmsg lines. Disk check: chef-storage boot's own line in /run/storage.log of that boot is "chef-storage: e2fsck -p exit=0 (60 s bound)"
+(crb-boot-storage-log-and-busy.txt, fuser-check.txt); the "e2fsck-n=0" in installed-crb-after.txt was an extra read-only e2fsck -n against the mounted /data with its
+output discarded, weak evidence, not the boot check. fuser -m /data with an SSH session open prints no holder and a /proc fd scan finds no process with an open file
+under /data (fuser-check.txt), so chef-storage shutdown's fuser sweep is not blocked by NetworkManager's state file. Raw /proc/stat lines for the crb boot are in
+crb-boot-storage-log-and-busy.txt (busy 0.13 % there). Observation: bluetooth "hci0 command 0x200c tx timeout" lines seen in the RAM boots of the fix log predate this
+change; not attributed to #23.
+Fallbacks kept in out/: system_a-5f2d4247 + boot-stage1-e35ad36d (64c4581, first), system_a-1bb8a700 + boot-stage1-a2ca8337 (db76374), then e73c8c54 + 034db212;
+the RAM image of this tree is out/boot-ram-94227cbd.img.
+
+User glance (glance.txt): one ordinary reboot typed over SSH at 23:34:53 IST [18:04:53Z] with the user watching the panel: chef-settings started 6.34 s into the
+boot, the screen came on at 6.35 s, the panel went off again at 56.49 s, 50 s after on (the 30 s sleep counts from the last input; no input was logged), the radio was disabled after boot (wlan0 unavailable), and the user, through
+the coordinator, confirmed at 23:36 IST that the settings hub appeared on the panel by itself.
+No Wi-Fi off step at the end: the radio was already off and its state is persisted.
+
+5. Found while installing (not blockers)
+None new. The W1 finding of the idle-fix install (the Wi-Fi switch not persisted across reboots) is closed by this install: the radio stayed disabled across the
+installed boot, an ordinary reboot and a chef-reboot round trip, with the state file unchanged.
