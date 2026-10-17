@@ -21,7 +21,11 @@ helper to root:messagebus mode4750 before starting the bus, reserves NM ownershi
 and starts one resident `gps-up` with init's `once` action. `wifi-nm` waits for its validated
 PID/start-time, readiness marker and QMUX socket before one firmware/module
 preparation attempt. NM is supervised independently; it never restarts the
-modem after failure. The modem stays resident even when Wi-Fi is idle; power consumption remains to be measured.
+modem after failure. `wifi-nm` starts NM with `--state-file`, which is
+`/data/v1/networkmanager/NetworkManager.state` when `chef-state ours` succeeds (else
+the tmpfs `/var/lib/NetworkManager/NetworkManager.state`). NM keeps `WirelessEnabled`
+(the Wi-Fi switch), `NetworkingEnabled` and `WWANEnabled` there, so all three persist
+across reboots; with no file yet NM starts enabled. The modem stays resident even when Wi-Fi is idle; power consumption remains to be measured.
 `/run/gps-up.log` holds shared support logs. Do not start another gps-up.
 
 Only wlan0 and Bluetooth devices (NM type `bt`, for PAN) are managed. USB,

@@ -288,7 +288,8 @@ coexists with the strict root stamp (tested). An old image without it shows
 ## Wi-Fi pages
 
 **Wi-Fi (P15, P16)**: a master switch (NetworkManager `WirelessEnabled`;
-it follows NM's answer, not the tap) with the state as its subtitle. Off,
+it follows NM's answer, not the tap; since 2026-10-17 it survives a
+reboot, see [Wi-Fi](wifi-ui.md)) with the state as its subtitle. Off,
 unavailable or without wlan0, the page shows an empty state instead of
 the list ("Wi-Fi is off", "Wi-Fi unavailable", "No Wi-Fi device"). On:
 

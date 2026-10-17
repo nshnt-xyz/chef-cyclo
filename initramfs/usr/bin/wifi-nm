@@ -17,4 +17,9 @@ chmod 700 /run/NetworkManager/system-connections
 wifi-prepare || fail 'firmware/module preparation failed'
 # Publish NM mode before the exec so diagnostic helpers cannot race its startup.
 touch /run/wifi-nm-mode
-exec /usr/sbin/NetworkManager --no-daemon
+# The Wi-Fi switch (NetworkManager's WirelessEnabled) lives in NM's state
+# file: on /data when it is ours, so it survives a reboot; else NM's
+# default in the tmpfs /var.
+state=/var/lib/NetworkManager/NetworkManager.state
+if /usr/bin/chef-state ours; then state=/data/v1/networkmanager/NetworkManager.state; fi
+exec /usr/sbin/NetworkManager --no-daemon --state-file="$state"

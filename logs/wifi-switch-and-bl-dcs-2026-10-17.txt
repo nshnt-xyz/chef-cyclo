@@ -1,0 +1,86 @@
+Wi-Fi switch persistence and last-close backlight DCS, 2026-10-17
+
+Two items left open by the idle task (docs/next-steps, 2026-10-17); the user asked to fix them the same day. Evidence (outside the repository):
+wifi-bldcs-20261017/{host,live,review} in the evidence directory. Times below are IST (UTC+5:30) unless a kmsg second is given. RAM image only: nothing
+installed, flashed or pushed.
+
+1. Causes
+W (the Wi-Fi switch). The switch (and nmcli radio wifi off) sets NetworkManager's WirelessEnabled. NetworkManager 1.52.2 keeps it in its state file,
+default /var/lib/NetworkManager/NetworkManager.state, and /var is a tmpfs seeded from the image at every boot, so the value was lost. On the installed pair
+the file read NetworkingEnabled=true WirelessEnabled=false WWANEnabled=true while the radio was off, and the next boot came up enabled.
+K (last close of fb0 with the panel off). mdss_fb_release_all() on the last release ran, before blanking, whatever the power state:
+  if (bl_shutdown_dcs) set_dcs_backlight(pdata, 0);  mdss_fb_set_backlight(mfd, 0);
+bl_shutdown_dcs is the Motorola DT bool qcom,mdss-dsi-bl-shutdown-dcs; set_dcs_backlight is mdss_dsi_panel_dcs_bl_ctrl(), which sends DCS 0x51 and then always
+msleeps 500 ms. When chef-settings had blanked the panel (FBIOBLANK POWERDOWN) and then exited or crashed, the DCS went to a powered-down DSI link: 8 exits in the
+visit boot showed "mdss_dsi_cmd_dma_tx(0): wait for dma_comp timed out" for cmd 0x51 (about 0.2 s), one (TERM) also a kernel WARN in clk_branch_wait (dsi byte
+clock enable -16) via mdss_fb_release_all -> mdss_dsi_panel_dcs_bl_ctrl -> mdss_dsi_cmdlist_commit -> mdss_dsi_clk_ctrl. That WARN exit was a TERM with the panel
+lit: chefui blanked the panel at exit (panel_off at 10539.965) and then the DCS went to the blanked panel; the exit took 1.0 s (signal 15 at 10539.91, "screen
+released" at 10540.93). An exit with the screen already off (idle-power v2 s1) took 0.71 s: exit 294.788283, timeout 294.990, released 295.494484. With the panel on at the last close (a crash with the panel lit) the DCS works as intended.
+
+2. Fixes
+DK1 (kernel, drivers/video/fbdev/msm/mdss_fb.c): the shutdown DCS is guarded with the panel power state,
+  if (bl_shutdown_dcs && mdss_fb_is_power_on(mfd)) set_dcs_backlight(pdata, 0);
+mdss_fb_set_backlight(mfd, 0) stays unconditional; nothing else changes and the config is unchanged. The lit case that stays is a crash or kill with the panel
+lit (and a kernel shutdown with an fd still open and lit), not a TERM: chefui blanks before it closes, so a TERM exit now takes the skip path.
+DW1 (initramfs/usr/bin/wifi-nm): touch /run/wifi-nm-mode, then
+  state=/var/lib/NetworkManager/NetworkManager.state
+  if /usr/bin/chef-state ours; then state=/data/v1/networkmanager/NetworkManager.state; fi
+  exec /usr/sbin/NetworkManager --no-daemon --state-file="$state"
+The state file is written by NM as a temp file plus rename in its directory, so it lives in the 0700 /data/v1/networkmanager directory (chef-storage binds only its
+system-connections subdirectory). NetworkingEnabled and WWANEnabled persist with it (intended). DW2: with no file NM starts enabled; no seeding. No chef-storage
+change, no settings change; the UI keeps following NM's answer. Docs: system-ui.md (Wi-Fi pages), wifi-ui.md (the wifi-nm start), storage.md (state list),
+display-and-touch.md (last-close note).
+
+3. Host tests
+tools/tests/test_wifi_nm.py: new behaviour test running the real tail of wifi-nm with chef-state and NetworkManager stubbed: "ours" exit 0 gives
+"--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state", exit 1 the /var path, --state-file is on the exec line; mutations (if dropped,
+--state-file dropped) fail; the existing order assertion stays. idle_review ran 8 file mutations of wifi-nm against it (all fail). Pass: test_wifi_nm, test_wifi,
+test_wifi_build, test_storage, test_stage1, test_chef_state, test_ssh, test_chef_reboot, make -C tools/chefui test (outputs in host/).
+
+4. Build note
+Kernel 4.4.192-cyclo+ #23 (built 21:45:05, Image.gz-dtb 3a907d00a7948a7670ab7ad1fd2e96b4ad0b970544ed4fc9c04db38d5a918443). The first RAM image,
+out/boot-fix2.img 99e586e5c60ad0a9d5cf16a0934435db68a1e6e80f19454665c9596e9364601c, was packed by mkboot.sh from a stale out/initramfs.cpio.lzma (built before the
+wifi-nm edit, since mkboot does not rebuild it); the first live boot showed NetworkManager without --state-file and the boot was discarded as evidence. After
+scripts/mkinitramfs.sh the image is 681f8746c28d3d6fa3d106f240547db03ef019ebae585b6e478897abc7006fe6 (idle_review verified from the image: kernel blob, ramdisk,
+wifi-nm byte-identical, wlan.ko modversions equal Module.symvers). All live results below are from 681f8746. Reminder: rebuild the initramfs before mkboot.
+
+5. Live: K checks (boot 21:52:45 IST [16:22:45Z], kmsg seconds; K6 backup first, live/ui-pre.tgz)
+Settings fac59c34 and mtime 12:56 IST unchanged through every boot. Script live/k.sh, one kmsg marker per step, each step sliced from its own last marker, each step
+starts from its own lit respawn.
+ K1 TERM, panel off after the 30 s sleep: no dma_comp/WARN/clk_branch_wait; "screen released" 2.9 ms after "exit on signal 15" (94.8658 to 94.8687; 0.71 s
+    before, v2 s1 of the idle task); respawn up dark ("lock acquired"). Only "Touch is already suspend" (the IC was already suspended; benign).
+ K2 kill -9, panel off: no timeout or WARN; the respawn took the lock (132.668).
+ K3 TERM, panel lit: skip path (chefui blanks first); no timeout or WARN; panel_off/dsi_off present; exit 140.8226 to "screen released" 141.1368 = 0.314 s (1.02 s before:
+    the lit TERM of the visit boot, touchcheck step 4).
+ K4 kill -9, panel lit (the unchanged DCS path): marker 150.736, overlay_release 151.253, mdss_dsi_panel_off 151.267 (0.53 s = DCS + 500 ms msleep), no timeout;
+    respawn "power cycling once so touch resumes", nvt_ts_suspend then nvt_ts_resume, no "Touch is already resume", wled 819.
+ Finish dark: flag created, TERM once; wled 0.
+ kmsg of the whole boot: 0 "dma_comp timed out", WARN, Call trace or clk_branch_wait lines (inside or outside the K windows).
+
+6. Live: W checks
+ W1 first boot: no state file yet (NM writes it lazily); NM cmdline "--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state"; radio enabled;
+    wlan0 connected to TP-Link_E975.
+ W2 nmcli radio wifi off: /data/v1/networkmanager/NetworkManager.state has WirelessEnabled=false (and NetworkingEnabled=true, WWANEnabled=true), mode 644, root,
+    mtime 21:55:42 IST [16:25:42Z] (w2.txt); /var/lib/NetworkManager has no state file; wlan0 unavailable. The directory mode 700 root is shown in w3-audit.txt.
+ W3 round trip (phone-boot.sh left the image with chef-reboot bootloader, fastboot, booted 21:56:06 IST [16:26:06Z]): nmcli radio WIFI disabled, wlan0
+    unavailable, file unchanged (same mtime). Because the first W3 capture was not auditable, W3 was redone on a second round trip (booted 22:04:24 IST
+    [16:34:24Z]) with live/w3-audit.sh, output live/w3-audit.txt: NM cmdline with --state-file; state file WirelessEnabled=false, 644 root, mtime 21:58:34 IST
+    (the W5 write), directory /data/v1/networkmanager 700 root; nmcli radio WIFI disabled; wlan0 unavailable, operstate down, 0 inet addresses, no wpa_supplicant
+    interface; iw dev wlan0 link "Not connected."; the only wlan0 kmsg line is "ADDRCONF(NETDEV_UP): wlan0: link is not ready" (no association line). NetworkManager
+    has no log sink on this image (/var/log holds only apk.log; --no-daemon logs to stderr only; none of its own lines reach kmsg, the "[NetworkManager]" kmsg lines are the wlan driver printing in its context), so the kmsg lines and iw are the association evidence.
+ W4 nmcli radio wifi on: file says true, wlan0 connected after 4 s. Round trip (booted 21:57:29 IST [16:27:29Z]): radio enabled, wlan0 connected by itself after 11 s.
+ W5 final: nmcli radio wifi off; file false; nmcli reads disabled.
+Regression, labeled script live/w5-reg.sh, output live/w5-reg-labeled.txt (final boot, 22:04 IST boot): Bluetooth Powered yes; blesensd up, records file with 1
+sensor; gps-manager DISABLED; sensord and sensors-up up; no fblog process or binary; /proc/stat busy 0.14 % over 10 s with the screen off (wled 0, fblog.off
+flag present, fb0.lit absent); settings sha fac59c34 with mtime 12:56:44 IST unchanged; 0 dma_comp/WARN/Call trace/clk_branch_wait lines in kmsg.
+Observation: boot 1 shows recurring "Bluetooth: hci0 command 0x200c/0x200b tx timeout" lines (LE scan enable/params; 54 to 133 s, one inside the K2 window). They predate
+this change (same lines in system-ui2-m5-20261014) and BT stayed powered with blesensd up, so do not attribute them to #23.
+
+7. Hashes
+ super diff (chunk 1) ac097be27a437092e352b2406673bb88bcdecd46285b0b982e7eb4e3c9bf121b; kernel diff 2d63cde2b1261d2c01364e0079ba52ba145f7d719acc8d56a6f4cc07d8e5c150
+ Image.gz-dtb 3a907d00a7948a7670ab7ad1fd2e96b4ad0b970544ed4fc9c04db38d5a918443; boot-fix2 681f8746c28d3d6fa3d106f240547db03ef019ebae585b6e478897abc7006fe6
+ (discarded first image 99e586e5c60ad0a9d5cf16a0934435db68a1e6e80f19454665c9596e9364601c); k.sh 728630f1388b1876036bd8ea9fcd67bbb4bab1f91aaf907450b39c6a3fa1d742
+ Phone left on the RAM image boot-fix2 with the radio off and chef-settings dark. Live scripts: k.sh, w3-audit.sh, w5-reg.sh (live/).
+
+8. Not done
+ Not installed and not pushed. The installed pair (5f2d4247 + e35ad36d, kernel #22) still has both defects until a #23 install.

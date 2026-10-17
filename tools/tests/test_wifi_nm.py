@@ -44,6 +44,30 @@ assert 'if [ -e /etc/NetworkManager/conf.d/90-chef.conf ] || [ -e /run/wifi-nm-m
 nm=(R/'initramfs/usr/bin/wifi-nm').read_text()
 assert nm.index('wifi-usb-guard ||') < nm.index('wifi-prepare ||') < nm.index('exec /usr/sbin/NetworkManager')
 print('test_wifi_nm: owner identity, dispatcher overlap/error, boot ownership PASS')
+
+# Run the real state-file tail of wifi-nm with chef-state and NetworkManager stubbed.
+def state_file_argv(tail, ours):
+    with tempfile.TemporaryDirectory() as t:
+        p = pathlib.Path(t)
+        (p/'chef-state').write_text('#!/bin/sh\n[ "$1" = ours ] && exit %d\nexit 2\n' % (0 if ours else 1))
+        (p/'nm').write_text('#!/bin/sh\nprintf "%s\\n" "$*" > "$ARGV"\n')
+        for f in ('chef-state', 'nm'): (p/f).chmod(0o755)
+        code = tail.replace('/usr/bin/chef-state', str(p/'chef-state')).replace('/usr/sbin/NetworkManager', str(p/'nm'))
+        subprocess.run(['sh', '-c', code], env=dict(os.environ, ARGV=str(p/'argv')), check=True)
+        return (p/'argv').read_text().strip()
+nm_text = (R/'initramfs/usr/bin/wifi-nm').read_text()
+tail = '# The Wi-Fi switch' + nm_text.split('# The Wi-Fi switch', 1)[1]
+assert state_file_argv(tail, True) == '--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state'
+assert state_file_argv(tail, False) == '--no-daemon --state-file=/var/lib/NetworkManager/NetworkManager.state'
+assert '--state-file="$state"' in tail.splitlines()[-1] and tail.splitlines()[-1].startswith('exec /usr/sbin/NetworkManager ')
+# Mutation: dropping the if must fail the "ours" assertion.
+mutant = tail.replace('if /usr/bin/chef-state ours; then', 'if false; then')
+assert mutant != tail and state_file_argv(mutant, True) != '--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state'
+# Mutation: dropping --state-file from the exec line must fail the exec-line assertion.
+mutant = tail.replace(' --state-file="$state"', '')
+assert state_file_argv(mutant, True) != '--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state'
+assert '--state-file' not in state_file_argv(mutant, True)
+print('test_wifi_nm: Wi-Fi switch state file selection and mutations PASS')
 # Exercise production account collision gates before privilege-dropping daemon setup.
 source=(R/'scripts/mkinitramfs.sh').read_text()
 account_gate=source.split('# Skipped apk account scripts:',1)[1].split('# gzip(1) itself reads $GZIP',1)[0]
