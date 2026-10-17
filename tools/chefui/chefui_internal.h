@@ -54,7 +54,7 @@ int64_t cu_now_ms(void);
 
 /* Test hooks: alternative paths, set before chefui_init(). NULL = keep. */
 struct cu_test_paths {
-	const char *fb, *lock, *flag, *backlight, *modes;
+	const char *fb, *lock, *flag, *lit, *backlight, *modes;
 	const char *input_dir;		/* instead of /dev/input */
 	const char *buttond_sock;
 	const char *kmsg;		/* instead of /dev/kmsg */

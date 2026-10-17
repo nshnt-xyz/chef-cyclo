@@ -38,7 +38,7 @@ struct cu_plan {
 	bool out_full;
 };
 
-/* Both pages stale, page 1 is the first back page (fblog shows page 0). */
+/* Both pages stale, page 1 is the first back page (the previous owner may show page 0). */
 void cu_plan_init(struct cu_plan *p, int32_t lw, int32_t lh, uint32_t yres);
 
 /* Forget both pages' content (after UNBLANK or reopening the fb). */

@@ -30,6 +30,7 @@ struct rec {
 	unsigned long req;
 	long arg;
 	bool flag;		/* flag present at the call */
+	bool lit;		/* /run/fb0.lit stand-in present at the call */
 	char bl[8];		/* backlight file content at the call */
 };
 
@@ -37,7 +38,8 @@ static struct rec g_rec[128];
 static int g_nrec;
 static int g_bpp = 32;		/* what FBIOGET_VSCREENINFO reports */
 static int g_fb_yres = FH;
-static char g_dir[64], g_fb[96], g_lock[96], g_flag[96], g_bl[96], g_modes[96];
+static bool g_fail_powerdown;	/* FBIOBLANK POWERDOWN returns EIO */
+static char g_dir[64], g_fb[96], g_lock[96], g_flag[96], g_lit[96], g_bl[96], g_modes[96];
 
 static void read_file(const char *path, char *buf, size_t cap)
 {
@@ -81,7 +83,12 @@ int __wrap_ioctl(int fd, unsigned long req, ...)
 		r->arg = req == FBIOBLANK ? (long)arg :
 			 req == FBIOPAN_DISPLAY ? (long)((struct fb_var_screeninfo *)arg)->yoffset : 0;
 		r->flag = access(g_flag, F_OK) == 0;
+		r->lit = access(g_lit, F_OK) == 0;
 		read_file(g_bl, r->bl, sizeof(r->bl));
+	}
+	if (req == FBIOBLANK && (long)arg == FB_BLANK_POWERDOWN && g_fail_powerdown) {
+		errno = EIO;
+		return -1;
 	}
 	if (req == FBIOGET_VSCREENINFO) {
 		struct fb_var_screeninfo v;
@@ -171,6 +178,7 @@ static void paths(struct cu_fbscreen *s)
 	s->p.fb = g_fb;
 	s->p.lock = g_lock;
 	s->p.flag = g_flag;
+	s->p.lit = g_lit;
 	s->p.backlight = g_bl;
 	s->p.modes = g_modes;
 }
@@ -182,7 +190,9 @@ static void fixture(void)
 	g_nrec = 0;
 	g_bpp = 32;
 	g_fb_yres = FH;
+	g_fail_powerdown = false;
 	unlink(g_flag);
+	unlink(g_lit);
 	write_file(g_bl, "");
 	write_file(g_modes, "U:64x40p-60\n");
 	fd = open(g_fb, O_RDWR | O_CREAT, 0600);
@@ -488,12 +498,109 @@ static void test_handoff_exec_fails(void)
 	cu_fb_shutdown(&s);
 }
 
+/* --- /run/fb0.lit (lit marker, 2026-10-17) --- */
+
+static void test_lit_marker(void)
+{
+	struct cu_fbscreen s;
+	bool dark;
+	char *argv[] = { "nope", NULL };
+	int u, d;
+
+	/* L1 fresh start: one UNBLANK, no POWERDOWN, marker there before it */
+	fixture();
+	paths(&s);
+	CHECK(cu_fb_start(&s, 96, &dark) == 0 && !dark);
+	CHECK(count(FBIOBLANK, FB_BLANK_UNBLANK) == 1 && count(FBIOBLANK, FB_BLANK_POWERDOWN) == 0);
+	CHECK(g_rec[find(FBIOBLANK, FB_BLANK_UNBLANK)].lit);
+	CHECK(access(g_lit, F_OK) == 0);
+
+	/* L3 screen_off removes it, screen_on creates it before its UNBLANK */
+	CHECK(cu_fb_screen_off(&s) == 0);
+	CHECK(access(g_lit, F_OK) != 0);
+	g_nrec = 0;
+	CHECK(cu_fb_screen_on(&s) == 0);
+	CHECK(count(FBIOBLANK, FB_BLANK_UNBLANK) == 1 && g_rec[find(FBIOBLANK, FB_BLANK_UNBLANK)].lit);
+	CHECK(access(g_lit, F_OK) == 0);
+
+	/* L4 shutdown with the screen on removes it */
+	cu_fb_shutdown(&s);
+	CHECK(access(g_lit, F_OK) != 0);
+
+	/* L4 a POWERDOWN that fails keeps it */
+	fixture();
+	paths(&s);
+	CHECK(cu_fb_start(&s, 96, &dark) == 0);
+	g_fail_powerdown = true;
+	cu_fb_shutdown(&s);
+	CHECK(access(g_lit, F_OK) == 0);
+	CHECK(!fb_is_open() && lock_free());
+
+	/* L2 stale marker, flag absent: POWERDOWN before UNBLANK, one each */
+	fixture();
+	write_file(g_lit, "");
+	paths(&s);
+	CHECK(cu_fb_start(&s, 96, &dark) == 0 && !dark);
+	u = find(FBIOBLANK, FB_BLANK_UNBLANK);
+	d = find(FBIOBLANK, FB_BLANK_POWERDOWN);
+	CHECK(d >= 0 && u > d);
+	CHECK(count(FBIOBLANK, FB_BLANK_UNBLANK) == 1 && count(FBIOBLANK, FB_BLANK_POWERDOWN) == 1);
+	CHECK(access(g_lit, F_OK) == 0);
+	cu_fb_shutdown(&s);
+
+	/* L5 stale marker, start dark: no ioctl, marker untouched; the first
+	 * screen_on cycles the panel */
+	fixture();
+	write_file(g_lit, "");
+	write_file(g_flag, "");
+	paths(&s);
+	CHECK(cu_fb_start(&s, 96, &dark) == 0 && dark);
+	CHECK(g_nrec == 0 && access(g_lit, F_OK) == 0);
+	CHECK(cu_fb_screen_on(&s) == 0);
+	u = find(FBIOBLANK, FB_BLANK_UNBLANK);
+	d = find(FBIOBLANK, FB_BLANK_POWERDOWN);
+	CHECK(d >= 0 && u > d);
+	CHECK(count(FBIOBLANK, FB_BLANK_UNBLANK) == 1 && count(FBIOBLANK, FB_BLANK_POWERDOWN) == 1);
+	CHECK(access(g_lit, F_OK) == 0);
+	cu_fb_shutdown(&s);
+
+	/* L6 stale marker, fb0 cannot be opened: marker kept */
+	fixture();
+	write_file(g_lit, "");
+	paths(&s);
+	s.p.fb = "/nonexistent/fb0";
+	CHECK(cu_fb_start(&s, 96, &dark) < 0);
+	CHECK(access(g_lit, F_OK) == 0 && lock_free());
+
+	/* L7 handoff exec failure from a lit screen: the close removed the
+	 * marker (so no recovery cycle), the restore recreates it */
+	fixture();
+	paths(&s);
+	CHECK(cu_fb_start(&s, 96, &dark) == 0);
+	g_nrec = 0;
+	CHECK(cu_fb_handoff_exec(&s, "/nonexistent/chefui-peer", argv, false) == -ENOENT);
+	CHECK(count(FBIOBLANK, FB_BLANK_POWERDOWN) == 1 && count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);
+	CHECK(g_rec[find(FBIOBLANK, FB_BLANK_UNBLANK)].lit);
+	CHECK(s.on && access(g_lit, F_OK) == 0);
+	cu_fb_shutdown(&s);
+
+	/* L7 dark variant: the marker stays absent */
+	fixture();
+	paths(&s);
+	CHECK(cu_fb_start(&s, 96, &dark) == 0 && cu_fb_screen_off(&s) == 0);
+	CHECK(cu_fb_handoff_exec(&s, "/nonexistent/chefui-peer", argv, false) == -ENOENT);
+	CHECK(!s.on && access(g_lit, F_OK) != 0);
+	cu_fb_shutdown(&s);
+	CHECK(access(g_lit, F_OK) != 0);
+}
+
 static void set_paths(const char *dir)
 {
 	snprintf(g_dir, sizeof(g_dir), "%s", dir);
 	snprintf(g_fb, sizeof(g_fb), "%s/fb0", g_dir);
 	snprintf(g_lock, sizeof(g_lock), "%s/fb0.lock", g_dir);
 	snprintf(g_flag, sizeof(g_flag), "%s/fblog.off", g_dir);
+	snprintf(g_lit, sizeof(g_lit), "%s/fb0.lit", g_dir);
 	snprintf(g_bl, sizeof(g_bl), "%s/brightness", g_dir);
 	snprintf(g_modes, sizeof(g_modes), "%s/modes", g_dir);
 }
@@ -520,9 +627,11 @@ int main(int argc, char **argv)
 	test_lock_busy();
 	test_handoff();
 	test_handoff_exec_fails();
+	test_lit_marker();
 	unlink(g_fb);
 	unlink(g_lock);
 	unlink(g_flag);
+	unlink(g_lit);
 	unlink(g_bl);
 	unlink(g_modes);
 	rmdir(dir);

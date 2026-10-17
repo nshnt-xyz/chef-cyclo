@@ -1,9 +1,8 @@
 #!/bin/sh
-# Show the Wi-Fi IPv4 address on the panel: one kmsg line, which fblog
-# paints, whenever wlan0 comes up or its DHCP lease changes, so the phone
-# can be found for SSH (docs/features/ssh.md). Runs after the overlap guard
-# (10-), so an address it refused is normally gone already. Never fails the
-# activation.
+# Log the Wi-Fi IPv4 address to kmsg: one line, whenever wlan0 comes up or
+# its DHCP lease changes, so the phone can be found for SSH
+# (docs/features/ssh.md). Runs after the overlap guard (10-), so an address
+# it refused is normally gone already. Never fails the activation.
 [ "${1:-}" = wlan0 ] || exit 0
 case "${2:-}" in up|dhcp4-change) ;; *) exit 0 ;; esac
 KMSG=${CHEF_WIFI_IP_KMSG:-/dev/kmsg}

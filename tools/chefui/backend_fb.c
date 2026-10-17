@@ -289,6 +289,7 @@ static int fb_init(const struct chefui_config *cfg, lv_display_t **disp, lv_inde
 	if (cu_paths.fb) F.fb.p.fb = cu_paths.fb;
 	if (cu_paths.lock) F.fb.p.lock = cu_paths.lock;
 	if (cu_paths.flag) F.fb.p.flag = cu_paths.flag;
+	if (cu_paths.lit) F.fb.p.lit = cu_paths.lit;
 	if (cu_paths.backlight) F.fb.p.backlight = cu_paths.backlight;
 	if (cu_paths.modes) F.fb.p.modes = cu_paths.modes;
 	F.input_dir = cu_paths.input_dir ? cu_paths.input_dir : "/dev/input";

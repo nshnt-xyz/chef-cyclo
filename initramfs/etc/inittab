@@ -35,17 +35,9 @@
 # /run/blesensd.sock
 # (`blesensd status|list|watch`); records via chef-state on /data/v1/blesens.
 ::respawn:/usr/bin/blesensd
-# On-device boot/probe output: paints /dev/kmsg on the panel, read-only, no
-# touch. Holds /dev/fb0 for the life of the boot (the panel is off otherwise).
-# /run/fblog.off is the system-wide screen-off flag: `touch /run/fblog.off;
-# kill $(pidof fblog)` idles it, removing the flag brings it back (fblog
-# watches for that). Do not kill after removal: it can blank a just-woken
-# daemon. Init respawn sees current flag if fblog is absent. It stays dark when a
-# foreground client (chefui) exits with the flag present.
-::respawn:/usr/bin/fblog
 # Side buttons: grabs the power/volume evdev nodes and publishes gestures on
 # /run/buttond.sock; with nothing claiming them a short power press toggles
-# the panel through the screen-off flag above, and power held 3 s (buzz
+# the screen-off flag /run/fblog.off (historical name), and power held 3 s (buzz
 # at 1.5 s, long buzz at 3 s) then released runs `poweroff` -- the orderly
 # way down through this init (::shutdown, SIGTERM to all, RB_POWER_OFF).
 # The PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look.
@@ -68,11 +60,12 @@
 # sensors-up's own lines: bounded by the rotation, about 512 KiB at most.
 ::respawn:/bin/sh -c 'f=/run/sensors-up.log; [ "$(stat -c %s $f 2>/dev/null || echo 0)" -gt 262144 ] && mv -f $f $f.1; SENSORD_ARGS= SENSORD_STDERR=/dev/null /usr/bin/sensors-up >> $f 2>&1; sleep 10'
 # The system UI (chef-settings: status bar, settings hub, Display page). It
-# takes the panel from fblog through /run/fb0.lock, claims power.short from
+# takes the panel through /run/fb0.lock, claims power.short from
 # buttond (Back on a page, screen off on the hub) and picks up
 # NetworkManager, BlueZ, gps-manager and /data whenever they appear. A boot
-# with /run/fblog.off present stays dark. When it dies or is stopped, fblog
-# shows the log screen until respawn takes the panel back; a failed start
+# with /run/fblog.off present stays dark. If it dies with the panel lit, the
+# next start power-cycles the panel once so touch resumes (/run/fb0.lit,
+# docs/features/ui-platform.md); a failed start
 # waits 5 s first. Settings: /data/v1/ui/settings (or /run/ui when /data is
 # not ours). See docs/features/system-ui.md.
 ::respawn:/usr/bin/chef-settings

@@ -21,6 +21,7 @@ void cu_fb_init(struct cu_fbscreen *s, cu_fb_log_fn log)
 	s->p.fb = CU_FB_PATH;
 	s->p.lock = FB_LOCK_PATH;
 	s->p.flag = CU_FB_FLAG_PATH;
+	s->p.lit = CU_FB_LIT_PATH;
 	s->p.backlight = CU_FB_BL_PATH;
 	s->p.modes = CU_FB_MODES_PATH;
 	s->log = log ? log : nolog;
@@ -89,6 +90,46 @@ static int flag_remove(struct cu_fbscreen *s)
 		return 0;
 	s->log("remove %s: %s", s->p.flag, strerror(errno));
 	return -errno;
+}
+
+static int lit_create(struct cu_fbscreen *s)
+{
+	int fd = open(s->p.lit, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+
+	if (fd < 0) {
+		int e = errno;
+
+		s->log("create %s: %s", s->p.lit, strerror(e));
+		return -e;
+	}
+	close(fd);
+	return 0;
+}
+
+static int lit_remove(struct cu_fbscreen *s)
+{
+	if (unlink(s->p.lit) == 0 || errno == ENOENT)
+		return 0;
+	s->log("remove %s: %s", s->p.lit, strerror(errno));
+	return -errno;
+}
+
+/* Like fb_powerdown_close(), but the lit marker goes only after a POWERDOWN
+ * that worked: a failed one leaves the panel lit behind the touch driver. */
+static void powerdown_close(struct cu_fbscreen *s)
+{
+	int r;
+
+	if (s->fb.fd < 0)
+		return;
+	fb_unmap(&s->fb);
+	r = fb_powerdown(&s->fb);
+	close(s->fb.fd);
+	s->fb.fd = -1;
+	if (r == 0)
+		(void)lit_remove(s);
+	else
+		s->log("FBIOBLANK POWERDOWN before close: %s (keeping %s)", strerror(-r), s->p.lit);
 }
 
 int cu_fb_write_backlight(struct cu_fbscreen *s)
@@ -190,6 +231,14 @@ int cu_fb_open(struct cu_fbscreen *s)
 	}
 	s->xres = v->xres;
 	s->yres = v->yres;
+	if (access(s->p.lit, F_OK) == 0) {
+		s->log("%s present: the previous screen owner died with the panel lit; "
+		       "power cycling once so touch resumes", s->p.lit);
+		r = fb_powerdown(&s->fb);
+		if (r)
+			s->log("FBIOBLANK POWERDOWN (recovery): %s", strerror(-r));
+	}
+	(void)lit_create(s);
 	r = fb_unblank(&s->fb);
 	if (r)
 		s->log("FBIOBLANK UNBLANK: %s", strerror(-r));
@@ -198,10 +247,10 @@ int cu_fb_open(struct cu_fbscreen *s)
 		s->log("mmap %s: %s", s->p.fb, strerror(-r));
 		goto fail;
 	}
-	s->front = 0;	/* unknown; fblog commits page 0 */
+	s->front = 0;	/* unknown until our first pan; a previous owner may have panned to either page */
 	return 0;
 fail:
-	fb_powerdown_close(&s->fb);	/* the open may have lit the panel */
+	powerdown_close(s);	/* the open may have lit the panel */
 	return r;
 }
 
@@ -270,6 +319,8 @@ int cu_fb_screen_off(struct cu_fbscreen *s)
 		r = fb_powerdown(&s->fb);
 		if (r)
 			s->log("FBIOBLANK POWERDOWN: %s", strerror(-r));
+		else
+			(void)lit_remove(s);
 	}
 	s->on = false;
 	(void)flag_create(s);
@@ -290,6 +341,7 @@ int cu_fb_screen_on(struct cu_fbscreen *s)
 			return r;
 		}
 	} else {
+		(void)lit_create(s);
 		r = fb_unblank(&s->fb);
 		if (r)
 			s->log("FBIOBLANK UNBLANK: %s", strerror(-r));
@@ -314,7 +366,7 @@ int cu_fb_brightness_set(struct cu_fbscreen *s, int level)
 
 void cu_fb_shutdown(struct cu_fbscreen *s)
 {
-	fb_powerdown_close(&s->fb);
+	powerdown_close(s);
 	s->on = false;
 	if (s->lockfd >= 0)
 		close(s->lockfd);
@@ -333,7 +385,7 @@ int cu_fb_handoff_exec(struct cu_fbscreen *s, const char *path, char *const argv
 		(void)flag_create(s);
 	else
 		(void)flag_remove(s);
-	fb_powerdown_close(&s->fb);
+	powerdown_close(s);
 	s->on = false;
 	snprintf(v, sizeof(v), "%d", s->lockfd);
 	if (fcntl(s->lockfd, F_SETFD, 0) < 0 || setenv(CU_FB_LOCK_ENV, v, 1) < 0) {

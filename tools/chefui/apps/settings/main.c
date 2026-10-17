@@ -1,7 +1,6 @@
 /*
  * chef-settings - the system UI app (status bar, settings hub, Display
- * page). Started at boot by inittab (respawn) and owns the panel; fblog
- * shows the log screen whenever it is not running. See
+ * page). Started at boot by inittab (respawn) and owns the panel. See
  * docs/features/system-ui.md.
  *
  *   chef-settings [--fake-state FILE]... [--page PAGE] [--theme dark|light|auto]
@@ -39,11 +38,10 @@
  * is read once at start and deleted, so the next respawn runs normally:
  * that is how a capture with --fake-state/--page/--theme runs under init.
  *
- * The log screen: `mkdir -p /run/chef-settings; touch /run/chef-settings/stop;
- * kill $(pidof chef-settings)` (the app also creates the directory at start).
+ * Holding the UI off the panel: `mkdir -p /run/chef-settings;
+ * touch /run/chef-settings/stop; kill $(pidof chef-settings)` (the app also creates the directory at start).
  * Started with that file present, the app waits (polling once a second)
- * without taking the panel, so fblog shows the log; removing the file
- * lets it start.
+ * without taking the panel; removing the file lets it start.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -309,7 +307,7 @@ static void args_file(struct opts *o)
 		early_log("one-shot options from %s", ARGS_FILE);
 }
 
-/* Before chefui_init(): fblog keeps the panel meanwhile. */
+/* Before chefui_init(): the panel is still as the bootloader or the previous owner left it. */
 static void wait_while_stopped(void)
 {
 	struct stat st;

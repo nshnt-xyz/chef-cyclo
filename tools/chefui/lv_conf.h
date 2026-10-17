@@ -47,7 +47,7 @@
 #define LV_USE_ASSERT_NULL   1
 #define LV_USE_ASSERT_MALLOC 1
 /* A failed assert must kill the process, not spin (LVGL's default is
- * while(1)): death releases /run/fb0.lock, so fblog takes the screen back
+ * while(1)): death releases /run/fb0.lock, so the next owner can take the screen
  * and honours the screen-off flag. */
 #define LV_ASSERT_HANDLER __builtin_abort();
 

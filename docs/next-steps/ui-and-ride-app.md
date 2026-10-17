@@ -18,7 +18,7 @@ This replaces the 2026-10-02 direction of DRM/KMS, a Wayland compositor and libi
 
 The shared platform layer is implemented and live accepted: display backend, own multitouch reader, buttond client, screen-state/handoff protocol, host SDL simulator and a demo application. Use the [UI platform guide](../features/ui-platform.md) for the application contract; the [archived design](../archive/ui-platform.md) retains acceptance checks. Touch requirements from the earlier plan carry over there: discovery by capability, scaling from the MT ABS ranges, slot lifecycle, dropped-event recovery, sleep/wake and consistent rotation. Physical gloves/rain behavior is still unmeasured.
 
-The menus' screen policy is implemented in the [system UI](../features/system-ui.md) (it owns screen power and brightness, auto-sleeps, `fblog` is the fallback and never wakes a screen left off). Still open for the ride application: its own policy on ride pages, and a UI restart must not interrupt recording.
+The menus' screen policy is implemented in the [system UI](../features/system-ui.md) (it owns screen power and brightness, auto-sleeps). Still open for the ride application: its own policy on ride pages, and a UI restart must not interrupt recording.
 
 Provide a **sunlight and gloves** mode: maximum backlight on request, a high-contrast, big-digit layout, and every riding action reachable from the side buttons because touch through gloves or rain is unreliable. Define always-on versus button-wake policy and the manual brightness override against Auto brightness (a drag while Auto is on is an offset today). Verify sleep/wake, process death, fallback, and clean shutdown before adding the full ride application.
 
@@ -55,7 +55,7 @@ Decided 2026-10-11 (implemented in slice 1 unless noted):
 - **Status bar**: no temperature (there is no ambient sensor).
 - **Local time**: a POSIX `TZ` setting, default `IST-5:30`, no tzdata.
 - **Landscape** waits for a design pass that respects the notch on the short edge. L01 to L04 put content under it (not yet implemented).
-- The system UI app starts at boot and owns the panel. `fblog` is the fallback.
+- The system UI app starts at boot and owns the panel.
 
 ## Bike-computer application
 

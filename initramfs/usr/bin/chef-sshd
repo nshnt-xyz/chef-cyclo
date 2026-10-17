@@ -23,7 +23,7 @@
 #      port forwarding; local -L stays, so the host can reach loopback
 #      services such as gpsd on 2947), -T 3 auth tries, -K 30 keepalive
 #      (only while a session is open), port 22 on all interfaces. It
-#      logs to stderr (-E), and each line goes to kmsg (so fblog shows it),
+#      logs to stderr (-E), and each line goes to kmsg (dmesg shows it),
 #      at most LOG_BURST lines per LOG_WINDOW s, with a count of the
 #      suppressed ones, so a Wi-Fi brute force cannot flood the panel.
 #      Successful logins ("Pubkey auth succeeded") always pass, outside the

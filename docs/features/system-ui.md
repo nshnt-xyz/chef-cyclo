@@ -8,8 +8,8 @@ round-1 system design ([design contract](../next-steps/ui-and-ride-app.md#system
 Slice 2 ([spec](../next-steps/system-ui-2-handoff.md)) adds the remaining
 pages milestone by milestone: Wi-Fi, GPS and Bluetooth sensors, and (M4) the four
 device pages below.
-It starts at boot and owns the panel; `fblog` shows the log screen whenever
-it is not running. Portrait only. Live-verified on a RAM image on 2026-10-11
+It starts at boot and owns the panel (there is no log screen; read the log
+with `dmesg` over USB telnet or SSH). Portrait only. Live-verified on a RAM image on 2026-10-11
 ([evidence](../../logs/system-ui-slice1-2026-10-11.txt)); not installed yet. Source: `tools/chefui/apps/settings/`
 (the app), `tools/chefui/kit/` (tokens, fonts, icons, widgets) and
 `tools/chefui/sys/` (state sources and the settings file).
@@ -539,22 +539,31 @@ theme, auto-sleep, zone). At shutdown init detaches `/data` before it
 signals processes, so a change made in the last 2 s before a shutdown is
 not saved.
 
-## Boot and the log screen
+## Boot and crash recovery
 
 inittab respawns `/usr/bin/chef-settings` after buttond and powerd. It takes
-the panel from fblog through the fb0 lock and tolerates NetworkManager,
+the panel through the fb0 lock and tolerates NetworkManager,
 BlueZ, gps-manager and `/data` appearing later (each source retries with
 backoff or follows D-Bus name changes). A boot that starts with
 `/run/fblog.off` stays dark. If `chefui_init()` fails the app sleeps 5 s
 before exiting so respawn does not spin. When it dies (`kill -9` included),
-the lock is released and fblog repaints the log until respawn takes the
-panel back.
+the lock is released and respawn takes the panel back.
 
-To read the log screen for longer:
+While the panel is lit the screen layer keeps a marker `/run/fb0.lit`
+(created before every UNBLANK, removed after every successful POWERDOWN). A
+clean exit or a screen-off removes it. If the app dies with the screen on,
+the kernel's last close of fb0 powers the panel down behind the touch driver,
+which would leave touch dead (see the TDDI gotcha in
+[display-and-touch.md](display-and-touch.md)); the next start finds the
+marker and power-cycles the panel once (about 0.5 s of black) so touch
+resumes. A boot, a start with the screen off and a clean restart need no
+cycle (`/run` is fresh at every boot).
+
+To keep the UI off the panel, for example to run another screen client:
 
 ```sh
 mkdir -p /run/chef-settings; touch /run/chef-settings/stop
-kill $(pidof chef-settings)                                    # fblog shows the log
+kill $(pidof chef-settings)                                    # the panel goes dark and stays dark
 rm /run/chef-settings/stop                                     # the UI comes back within 1 s
 ```
 

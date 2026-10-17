@@ -4,9 +4,9 @@
 
 ## Current behavior and source
 
-Display/touch and `fblog` handoff were live-verified on 2026-09-18. `tools/fbdev.h` owns the shared framebuffer contract and `tools/evdev.h` the shared evdev discovery and multitouch slot decoding; `tools/fbtouch.c` is the reference foreground client; `tools/fblog/fblog.c` is the background log viewer. The generated `font9x15.h` uses the public-domain X11 misc-fixed font and can be regenerated with `tools/fblog/mkfont.py`.
+Display/touch and the `fblog` handoff (the lock protocol, still used by `fbtouch` and the chefui apps) were live-verified on 2026-09-18. `tools/fbdev.h` owns the shared framebuffer contract and `tools/evdev.h` the shared evdev discovery and multitouch slot decoding; `tools/fbtouch.c` is the reference foreground client; `tools/fblog/fblog.c` is the background log viewer (a debug tool, not in the image). The generated `font9x15.h` uses the public-domain X11 misc-fixed font and can be regenerated with `tools/fblog/mkfont.py`.
 
-The image starts `fblog` from inittab. It displays userspace `/dev/kmsg` messages and kernel errors (`KERN_ERR` or worse), newest at the bottom, with kernel release, uptime, and battery percentage. It opens no input devices and does not respond to touch.
+The image does not run `fblog`; the [system UI](system-ui.md) owns the panel from boot. `fblog` stays as a debug tool, see [below](#fblog-debug-tool-not-in-the-image).
 
 ## Use
 
@@ -19,33 +19,38 @@ fbtouch show -t 60
 fbtouch bl 96
 ```
 
-`fbtouch show` borrows the display, draws a test pattern, and paints/logs touch contacts. On exit or death, `fblog` resumes, unblanks, and restores its backlight. `fbtouch bl` logs a marker that causes a commit; the 1 Hz heartbeat is the fallback for brightness writers that do not log.
+`fbtouch show` borrows the display, draws a test pattern, and paints/logs touch contacts. On exit or death a hand-run `fblog` resumes, unblanks, and restores its backlight. `fbtouch bl` logs a marker that causes a commit; the 1 Hz heartbeat is the fallback for brightness writers that do not log.
 
 ### The screen-off flag
 
 `/run/fblog.off` is the system-wide **"screen deliberately off"** flag. The path is historical and kept so existing scripts keep working; it is no longer specific to `fblog`. Everything that owns the screen follows it:
 
-- `fblog` started with the flag present idles without opening `/dev/fb0` (panel and touch IC stay powered down). While idle it sleeps on an inotify watch of `/run` and wakes only when an entry there is deleted or renamed away; once the flag is gone it starts drawing, or waits in the usual borrowed state if a foreground client holds the screen lock. If inotify is unavailable it rechecks every 250 ms and says so in kmsg.
-- When `fblog` resumes after a foreground client releases the screen lock, it checks the flag first. If the client left the screen off (it exited or was killed with the flag present), `fblog` does `FBIOBLANK POWERDOWN`, closes fb0 and idles as above instead of turning the panel back on.
 - Fullscreen [chefui](ui-platform.md) applications create the flag when they turn the screen off (after `POWERDOWN`) and remove it when they turn it on (before `UNBLANK`). Started with the flag present, they take the screen lock but do not open fb0 until their first screen-on. On exit they leave the flag as it is.
-- `buttond`'s default short power press creates the flag and signals fblog for screen-off; for screen-on it removes the flag only. The resident idle loop wakes through inotify or its 250 ms fallback. If fblog is absent or already exiting, init's next spawn observes the current flag; wake does not launch a second daemon.
+- `buttond`'s default short power press (used only while no chefui app has claimed `power.short`) creates the flag and signals a process named fblog if one runs; for screen-on it removes the flag only. With no fblog running it logs that and goes on: nothing redraws the panel, the system UI claims the press instead.
+- A hand-run `fblog` honours the flag: started with it present it idles without opening `/dev/fb0` (panel and touch IC stay powered down), sleeping on an inotify watch of `/run` (250 ms recheck if inotify is unavailable); when it resumes after a foreground client releases the screen lock it checks the flag first and, if the client left the screen off, does `FBIOBLANK POWERDOWN`, closes fb0 and idles.
 
-To idle the screen from the shell:
-
-```sh
-touch /run/fblog.off
-kill $(pidof fblog)
-```
-
-To wake it, remove the flag only. Do not signal after removal: that can terminate a just-woken fblog and blink the panel. If fblog is absent, its configured init respawn starts it with the current flag state; without supervision it must be started separately:
+The flag only takes effect when a screen owner starts (a running system UI does not watch it): create it before a restart to start dark, remove it to start lit.
 
 ```sh
-rm /run/fblog.off
+touch /run/fblog.off    # the next screen owner starts dark
+rm /run/fblog.off       # the next screen owner starts lit
 ```
 
-A short power-button press performs that toggle; while a chefui application runs, it claims the press and toggles the screen itself. The [system UI](system-ui.md) starts at boot and owns the panel; fblog shows the log screen whenever it is not running (see that guide for holding it off to read the log).
+A short power-button press is claimed by the system UI, which toggles the screen itself.
 
-Edit `fblog` arguments in the applicable `etc/inittab`: `-b` brightness (default 96), `-s` glyph scale (default 2, 59×68 cells), `-k` maximum kernel log level, or `-a` all kernel messages.
+### fblog (debug tool, not in the image)
+
+`tools/fblog/fblog.c` tails `/dev/kmsg` onto the panel: userspace lines, plus kernel errors (`KERN_ERR` or worse), newest at the bottom, with kernel release, uptime and battery percentage. It opens no input devices and does not respond to touch.
+
+The image has not started it since 2026-10-17: with the system UI holding the screen lock from boot it spun one core at 100 % (about 96 mA of battery current); the loop is fixed in the source (`next_timeout_ms()` rechecks the lock every 250 ms while paused). It is still built and host-tested by `make -C tools`. To use it on a debug boot, build it with the musl cross compiler, push it and start it detached:
+
+```sh
+toolchain/aarch64-musl/bin/aarch64-buildroot-linux-musl-gcc -Wall -Wextra -O2 -static -o out/fblog tools/fblog/fblog.c
+scripts/phone.py push out/fblog
+scripts/phone.py run 'setsid /run/push/fblog </dev/null >/dev/null 2>&1 & true'
+```
+
+Stop it with `kill $(pidof fblog)`. Arguments: `-b` brightness (default 96), `-s` glyph scale (default 2, 59×68 cells), `-k` maximum kernel log level, or `-a` all kernel messages. It yields the screen to any foreground client through `/run/fb0.lock`, so stop the system UI first (see [system-ui.md](system-ui.md)) to see its log.
 
 ## Read-only inventory
 
@@ -107,11 +112,11 @@ establish physical controller health.
 
 - **A backlight write only reaches the WLED at the next frame commit.** Write `/sys/class/leds/lcd-backlight/brightness` (the mdss LED, 0–255 → 1–4095; never `leds/wled` directly), then commit a frame. After a reopen the level is otherwise parked forever: the last close saved 0 as the level to restore, the unblank restored it and blocked updates "until the first kickoff", and `mdss_fb_update_backlight()` returns early with nothing to apply, so the block is never lifted. Symptom: DSI up, panel answers `0x9C`, screen black (`leds/wled/brightness` reads 0). Android's HWC commits continuously and never notices. Live-verified 2026-09-18.
 
-- **The touch IC is a TDDI on the panel's rails and is slaved to fb blank events**: `FBIOBLANK POWERDOWN`/`UNBLANK` through the fb core suspend/resume the NT36xxx driver (deep sleep, then bootloader reset + fw-reset wait); the last-close power-down does *not* go through the notifier, so the IC loses power while the driver still thinks it is awake, I2C fails (`CTP_I2C_READ error, ret=-3`, `/proc/nvt_fw_version` → `EAGAIN`) and the next open logs `Touch is already resume`, skips the reset, and delivers no events. Always `FBIOBLANK POWERDOWN` before the last close (`fbtouch` does). Never write `/proc/NVTflash` or any `doreflash`/`forcereflash` node: that programs the touch IC's flash.
+- **The touch IC is a TDDI on the panel's rails and is slaved to fb blank events**: `FBIOBLANK POWERDOWN`/`UNBLANK` through the fb core suspend/resume the NT36xxx driver (deep sleep, then bootloader reset + fw-reset wait); the last-close power-down does *not* go through the notifier, so the IC loses power while the driver still thinks it is awake, I2C fails (`CTP_I2C_READ error, ret=-3`, `/proc/nvt_fw_version` → `EAGAIN`) and the next open logs `Touch is already resume`, skips the reset, and delivers no events. Always `FBIOBLANK POWERDOWN` before the last close (`fbtouch` does). chefui apps record a lit panel in `/run/fb0.lit` and power-cycle once after a dead owner (see the [UI platform guide](ui-platform.md)); `fbtouch` does not, so after a crashed chefui app run `fbtouch show -c 5` once if you use fbtouch first. Never write `/proc/NVTflash` or any `doreflash`/`forcereflash` node: that programs the touch IC's flash.
 
-- **Two fb clients must not draw at once, and the second open does not unblank.** mdss_fb refcounts opens, so with `fblog` resident nothing else's `close()` is ever the last close — a foreground client's `FBIOBLANK POWERDOWN` still turns the panel off through the notifier, and the resident client has to `UNBLANK` again afterwards. `tools/fbdev.h` makes this a protocol: foreground (`fbtouch show`) takes `flock(LOCK_EX)` on `/run/fb0.lock` before opening fb0 (bounded 10 s wait, then a `lock: … held by another screen client` failure); background (`fblog`) takes `LOCK_SH|LOCK_NB` only for the milliseconds it draws and commits, treats `EWOULDBLOCK` as "screen borrowed" (stop drawing, munmap, retry every 250 ms) and resumes with UNBLANK + remap + redraw + backlight commit. Locks die with their holder, so a killed client hands the screen back by itself. Host-tested end to end in `tools/tests/test_fblog.c` and live-verified 2026-09-18 (fblog, live): pause 3 ms after the lock, resume 11 ms after the close with panel-on + touch resume, second mmap fine.
+- **Two fb clients must not draw at once, and the second open does not unblank.** mdss_fb refcounts opens, so with a resident second client (such as a hand-run `fblog`) nothing else's `close()` is ever the last close: a foreground client's `FBIOBLANK POWERDOWN` still turns the panel off through the notifier, and the resident client has to `UNBLANK` again afterwards. `tools/fbdev.h` makes this a protocol: foreground (`fbtouch show`) takes `flock(LOCK_EX)` on `/run/fb0.lock` before opening fb0 (bounded 10 s wait, then a `lock: … held by another screen client` failure); background (`fblog`) takes `LOCK_SH|LOCK_NB` only for the milliseconds it draws and commits, treats `EWOULDBLOCK` as "screen borrowed" (stop drawing, munmap, retry every 250 ms) and resumes with UNBLANK + remap + redraw + backlight commit. Locks die with their holder, so a killed client hands the screen back by itself. Host-tested end to end in `tools/tests/test_fblog.c` and live-verified 2026-09-18 (fblog, live): pause 3 ms after the lock, resume 11 ms after the close with panel-on + touch resume, second mmap fine.
 
-- **Don't read `/proc/nvt_fw_version` (or the `buildid`/`ic_ver` sysfs) while the panel is off** — i.e. whenever nothing holds `/dev/fb0` open, or after a `POWERDOWN`. The proc `open()` does live I2C reads (`nvt_get_fw_info()`), and with the TDDI on the powered-down panel rails that is four `i2c-msm-v2 … check core_clk` timeouts, 46 `BUS ERROR` lines, ten `CTP_I2C_*: error, ret=-3`, four `FW info is broken`, a fallback to `abs_x_max=1080, abs_y_max=2246` (only a more permissive IRQ-side clamp; the evdev range set at probe stays 720x1600), `PID=0000`, the NVT ESD check switched off until the next touch report, and `EAGAIN` to userspace. So `EAGAIN` there is the *normal* answer from a correctly suspended IC and by itself does not indicate the un-suspended power-loss case above; the sign of that case is `Touch is already resume` on the next open of a panel that had gone dark. (`Touch is already resume` on the very first open after boot is expected instead: the driver has been awake since probe and the cont-splash panel was never blanked.) Live-verified 2026-09-18, second boot.
+- **Don't read `/proc/nvt_fw_version` (or the `buildid`/`ic_ver` sysfs) while the panel is off**: i.e. whenever nothing holds `/dev/fb0` open, or after a `POWERDOWN`. The proc `open()` does live I2C reads (`nvt_get_fw_info()`), and with the TDDI on the powered-down panel rails that is four `i2c-msm-v2 … check core_clk` timeouts, 46 `BUS ERROR` lines, ten `CTP_I2C_*: error, ret=-3`, four `FW info is broken`, a fallback to `abs_x_max=1080, abs_y_max=2246` (only a more permissive IRQ-side clamp; the evdev range set at probe stays 720x1600), `PID=0000`, the NVT ESD check switched off until the next touch report, and `EAGAIN` to userspace. So `EAGAIN` there is the *normal* answer from a correctly suspended IC and by itself does not indicate the un-suspended power-loss case above; the sign of that case is `Touch is already resume` on the next open of a panel that had gone dark. (`Touch is already resume` on the very first open after boot is expected instead: the driver has been awake since probe and the cont-splash panel was never blanked.) Live-verified 2026-09-18, second boot.
 
 The panel is 1080×2246, but the replacement NT36525 touch controller reports 720×1600. Scale from evdev ABS ranges, never assume raw coordinates are panel pixels. Trim IDs identify the IC; live PID/buildid reads are not stable identity. See the [device reference](../device.md).
 

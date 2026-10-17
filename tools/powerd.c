@@ -61,7 +61,7 @@
  *                      one interval of ordinary rows is lost.
  *   shutdown-pending   written with the reason just before a shutdown
  * and "powerd: ..." kmsg lines for transitions only (plug/unplug, status,
- * warn/critical, throttle level, shutdown), which fblog shows on the panel.
+ * warn/critical, throttle level, shutdown), in kmsg.
  *
  * Policy (stock-derived defaults; every threshold overridable, overrides
  * are logged loudly as TEST OVERRIDE at start and listed in the state file):

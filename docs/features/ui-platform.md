@@ -163,12 +163,19 @@ POWERDOWNs, creates the flag, releases touch contacts and pauses rendering.
 Application timers/fds continue; animations pause best effort until screen-on.
 Screen-on removes the flag, UNBLANKs, writes brightness, resyncs touch and
 schedules a full redraw. Starting with the flag present takes the lock without
-opening fb0. Exit leaves the flag unchanged. Fblog honors it after a borrow and
-waits for removal with inotify, or a bounded polling fallback. Buttond's default
-wake removes the flag only; default off creates it before signalling fblog to
-blank and exit. If fblog is absent or exiting, its init respawn observes the
-current flag. Wake does not spawn a second daemon; without init supervision,
-fblog must be started separately.
+opening fb0. Exit leaves the flag unchanged. Buttond's default wake removes
+the flag only; default off creates it before signalling a process named fblog,
+if one runs (the image does not start fblog since 2026-10-17; a hand-run one
+honors the flag). With no chefui app running, nothing redraws the panel after
+a default toggle.
+
+`/run/fb0.lit` means the panel is lit: it is created before every UNBLANK
+and removed after every successful POWERDOWN (screen-off, clean exit, handoff
+close). A start that finds it (the previous owner died with the panel lit; its
+last close powered the panel down behind the touch driver) does one POWERDOWN
+before its UNBLANK so the touch driver suspends and resumes with its reset. A
+start with the flag present does nothing until its first screen-on, which then
+does the same check. `fbtouch` does not use the marker.
 
 `chefui_handoff_exec(path, argv, dark)` powers down and closes fb0, retains the
 lock across exec in `CHEFUI_LOCK_FD`, and lets the peer adopt it without an
@@ -218,7 +225,7 @@ animation costs about 2.4% CPU at 30 fps and 4.3% at 60 fps; full redraw at
 Host suites, independent review, archive verification and guided live checks are
 recorded in the [final acceptance record](../archive/ui-platform.md#final-acceptance-record-2026-10-03).
 
-Resolved live issue (2026-10-03): dark SIGKILL/default wake blinked because
+(Historical, fblog ran at boot then.) Resolved live issue (2026-10-03): dark SIGKILL/default wake blinked because
 buttond removed the flag, waking fblog, then sent SIGTERM and blanked it until
 init respawn. The integrated unlink-only wake correction above passes host
 inotify/fallback and next-respawn tests and independent review. The user confirmed

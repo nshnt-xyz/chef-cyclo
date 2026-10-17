@@ -2,8 +2,8 @@
 # Build out/initramfs.cpio.lzma: the Alpine rootfs from scripts/mkrootfs.sh
 # with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
 # the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
-# display/touch probe fbtouch, the on-device log screen fblog, the UI
-# platform demo chefui-demo, the gpsd feed nmea-broker, the GNSS demand
+# display/touch probe fbtouch, the UI platform demo
+# chefui-demo, the gpsd feed nmea-broker, the GNSS demand
 # manager gps-manager, the button daemon buttond, the battery daemon powerd
 # and the ADSP bring-up +
 # speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
@@ -312,18 +312,6 @@ done
 "$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/fbtouch" tools/fbtouch.c
 echo "built $ROOT/usr/bin/fbtouch"
 
-# Read-only boot/probe output screen (tools/fblog/fblog.c): tails /dev/kmsg
-# onto the panel through the same fbdev.h contract as fbtouch, never opens
-# an input device, yields the screen to `fbtouch show` via the advisory
-# /run/fb0.lock. Started from inittab (respawn); `touch /run/fblog.off` +
-# kill it to idle the panel. Font table tools/fblog/font9x15.h is generated
-# by tools/fblog/mkfont.py and committed, so the build needs no Pillow.
-for f in tools/fblog/fblog.c tools/fblog/font9x15.h tools/fbdev.h; do
-    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
-done
-"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/fblog" tools/fblog/fblog.c
-echo "built $ROOT/usr/bin/fblog"
-
 # gpsd feed (tools/nmea-broker.c): reads the qmicli LOC follower's stdout and
 # sends each valid NMEA sentence as one UDP datagram to gpsd on
 # 127.0.0.1:20175 (gpsd cannot read a FIFO; README next-steps item 7). The
@@ -384,8 +372,7 @@ echo "built $ROOT/usr/bin/chefui-demo"
 # The system UI app (tools/chefui/apps/settings, docs/features/system-ui.md):
 # status bar, settings hub and Display page on chefui, with NetworkManager
 # and BlueZ state over static basu (scripts/setup-toolchain.sh fetches it to
-# toolchain/basu). Started from inittab (respawn); owns the panel, fblog
-# shows the log screen whenever it is not running.
+# toolchain/basu). Started from inittab (respawn); owns the panel.
 install -m 755 tools/chefui/build/device/chef-settings "$ROOT/usr/bin/chef-settings"
 echo "built $ROOT/usr/bin/chef-settings"
 

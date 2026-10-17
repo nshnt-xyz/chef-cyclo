@@ -511,7 +511,10 @@ static void test_timing(void)
 	CHECK(next_timeout_ms(true, 100, false, 0) == 0);
 	/* paused: never sleep past the lock retry interval */
 	CHECK(next_timeout_ms(false, 0, true, 0) == FB_LOCK_RETRY_MS);
-	CHECK(next_timeout_ms(true, 0, true, 0) == 100);
+	CHECK(next_timeout_ms(true, 0, true, 0) == FB_LOCK_RETRY_MS);
+	/* a borrow longer than the heartbeat must not spin (2026-10-17) */
+	CHECK(next_timeout_ms(false, 5000, true, 0) == FB_LOCK_RETRY_MS);
+	CHECK(next_timeout_ms(true, 5000, true, 0) == FB_LOCK_RETRY_MS);
 	/* backing off: the retry deadline wins, even with lines pending */
 	CHECK(next_timeout_ms(true, 5000, false, 4000) == 4000);
 	CHECK(next_timeout_ms(false, 0, true, 7000) == 7000);

@@ -9,6 +9,10 @@
  * ("gps-up:"), fbtouch ("fbtouch:") and any probe that does
  * `echo "text" > /dev/kmsg` (or `some-cmd 2>&1 | tee /dev/kmsg`).
  *
+ * Not started by the image since 2026-10-17 (the system UI owns the panel
+ * from boot); kept as a debug tool: build it with the musl cross compiler
+ * and run it by hand, see docs/features/display-and-touch.md.
+ *
  * Policy: every userspace line (kmsg facility != 0, i.e. written through
  * /dev/kmsg) is shown; kernel-originated lines only at KERN_ERR (3) or
  * more severe by default (`-k LEVEL` raises/lowers that, `-a` shows all),
@@ -474,6 +478,10 @@ static unsigned retry_delay_ms(unsigned fails)
  * the last successful commit; until_retry_ms > 0 while backing off after
  * a failure (drawing is not attempted before then, kmsg is still drained
  * on POLLIN). Never negative, never 0 unless something is due now.
+ * While paused (a foreground client holds the screen) the loop only
+ * rechecks the lock, every FB_LOCK_RETRY_MS: nothing can commit then, so
+ * the commit deadline must not drive the timeout (it did, and a long
+ * borrow spun at 0 ms).
  */
 static int next_timeout_ms(bool dirty, long since_commit_ms, bool paused,
 			   long until_retry_ms)
@@ -482,11 +490,11 @@ static int next_timeout_ms(bool dirty, long since_commit_ms, bool paused,
 
 	if (until_retry_ms > 0)
 		return until_retry_ms > INT32_MAX ? INT32_MAX : (int)until_retry_ms;
+	if (paused)
+		return FB_LOCK_RETRY_MS;
 	t = (dirty ? FBLOG_REPAINT_MS : FBLOG_HEARTBEAT_MS) - since_commit_ms;
 	if (t < 0)
 		t = 0;
-	if (paused && t > FB_LOCK_RETRY_MS)
-		t = FB_LOCK_RETRY_MS;
 	return (int)t;
 }
 

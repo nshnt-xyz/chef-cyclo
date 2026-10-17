@@ -47,7 +47,7 @@ static unsigned g_pan_count;
 static int g_pan_brightness;
 
 static char g_self[300];
-static char D[64], P_FB[96], P_LOCK[96], P_FLAG[96], P_BL[96], P_MODES[96], P_INPUT[96],
+static char D[64], P_FB[96], P_LOCK[96], P_FLAG[96], P_LIT[96], P_BL[96], P_MODES[96], P_INPUT[96],
 	    P_EV[112], P_SOCK[96], P_LOG[96];
 
 /* ------------------------------------------------------- wrapped ioctl */
@@ -189,6 +189,7 @@ static void set_paths(const char *dir)
 	snprintf(P_FB, sizeof(P_FB), "%s/fb0", D);
 	snprintf(P_LOCK, sizeof(P_LOCK), "%s/fb0.lock", D);
 	snprintf(P_FLAG, sizeof(P_FLAG), "%s/fblog.off", D);
+	snprintf(P_LIT, sizeof(P_LIT), "%s/fb0.lit", D);
 	snprintf(P_BL, sizeof(P_BL), "%s/brightness", D);
 	snprintf(P_MODES, sizeof(P_MODES), "%s/modes", D);
 	snprintf(P_INPUT, sizeof(P_INPUT), "%s/input", D);
@@ -200,7 +201,7 @@ static void set_paths(const char *dir)
 static void use_paths(void)
 {
 	struct cu_test_paths p = {
-		.fb = P_FB, .lock = P_LOCK, .flag = P_FLAG, .backlight = P_BL, .modes = P_MODES,
+		.fb = P_FB, .lock = P_LOCK, .flag = P_FLAG, .lit = P_LIT, .backlight = P_BL, .modes = P_MODES,
 		.input_dir = P_INPUT, .buttond_sock = P_SOCK, .kmsg = "/dev/null",
 	};
 
@@ -214,6 +215,7 @@ static int fixture(void)
 	int fd;
 
 	unlink(P_FLAG);
+	unlink(P_LIT);
 	unlink(P_LOG);
 	unlink(P_SOCK);
 	write_file(P_BL, "");

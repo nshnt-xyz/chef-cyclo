@@ -38,7 +38,7 @@ Directories are root-owned and mode 0700; connection profile files are mode
 0600. NetworkManager continues using its existing keyfile path. Do not put
 pairing keys or Wi-Fi credentials in logs, Git, or shared evidence.
 Missing, foreign or corrupt storage falls back to RAM and records its reason
-in `/run/storage.log` and the kernel log, visible on the log screen.
+in `/run/storage.log` and the kernel log, readable with `dmesg`.
 `chef-storage status` shows the decision and mount status.
 
 The five-second journal commit interval bounds ordinary metadata transaction

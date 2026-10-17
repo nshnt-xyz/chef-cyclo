@@ -7,8 +7,8 @@
  * Contract (tools/fbdev.h, docs/features/display-and-touch.md):
  *  - LOCK_EX on /run/fb0.lock before fb0 is opened, held until after the
  *    final POWERDOWN + close; or adopt the lock fd a previous chefui
- *    process handed over in CHEFUI_LOCK_FD (no unlocked gap, so fblog
- *    cannot resume in between).
+ *    process handed over in CHEFUI_LOCK_FD (no unlocked gap, so another
+ *    screen client cannot take it in between).
  *  - open, FBIOBLANK UNBLANK, mmap; never FBIOPUT_VSCREENINFO (a format
  *    change power-cycles the panel outside the fb notifier and kills
  *    touch); require 32 bpp, R/G/B at 0/8/16, two pages.
@@ -24,6 +24,12 @@
  *   exit:  POWERDOWN, close, unlock; the flag is left as it is
  *   handoff: flag removed (or created for a dark handoff), POWERDOWN,
  *          close, lock fd kept open across exec in CHEFUI_LOCK_FD
+ *
+ * /run/fb0.lit: created before every UNBLANK, removed after every
+ * successful POWERDOWN. A start that finds it (the previous owner died with
+ * the panel lit; its last close powered the panel down behind the touch
+ * driver) does one POWERDOWN before its UNBLANK so the touch driver suspends
+ * and resumes with its reset.
  */
 #ifndef CHEFUI_FBSCREEN_H
 #define CHEFUI_FBSCREEN_H
@@ -36,6 +42,7 @@
 #define CU_FB_PATH       "/dev/fb0"
 #define CU_FB_MODES_PATH "/sys/class/graphics/fb0/modes"
 #define CU_FB_FLAG_PATH  "/run/fblog.off"
+#define CU_FB_LIT_PATH   "/run/fb0.lit"
 #define CU_FB_BL_PATH    "/sys/class/leds/lcd-backlight/brightness"
 #define CU_FB_LOCK_ENV   "CHEFUI_LOCK_FD"
 #define CU_FB_LOCK_WAIT_MS 10000
@@ -43,7 +50,7 @@
 typedef void (*cu_fb_log_fn)(const char *fmt, ...);
 
 struct cu_fb_paths {
-	const char *fb, *lock, *flag, *backlight, *modes;
+	const char *fb, *lock, *flag, *lit, *backlight, *modes;
 };
 
 struct cu_fbscreen {
