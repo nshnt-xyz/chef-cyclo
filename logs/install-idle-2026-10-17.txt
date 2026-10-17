@@ -1,0 +1,49 @@
+Install of the idle fix (fblog out of the image, /run/fb0.lit panel handover) on the phone, 2026-10-17
+
+Spec and brief: the coordinator's install brief (idle fix since the slice 2 install of 2026-10-16); procedure: logs/install-slice2-2026-10-16.txt
+sections 1 to 4, logs/ssh-and-install-2026-10-10.txt sections 5 and 6 and docs/building.md "Installed layout". Idle task record:
+logs/idle-power-2026-10-17.txt. Evidence (outside the repository): idle-power-20261017/install in the evidence directory.
+
+1. What was installed
+Built at a clean 64c4581 (image-info dirty 0) with SKIP_KERNEL=1 scripts/mkinstall.sh, kernel #22 unchanged (Image.gz-dtb 0cf2981c...):
+  system_a  out/system_a-5f2d4247.img  sha256 5f2d42476110403635a7d01cb0cfafdbc63f718ead3eaf145273558b32027776
+            stamp a823c449..., tree manifest 057ee74f...
+  boot_a    out/boot-stage1-e35ad36d.img (stage 1)  sha256 e35ad36d420607f9cf1cf691b353f1dd10d13948b804456849a27038eccc7af6
+  RAM image of the same tree: out/boot-ram-3da730e5.img (3da730e5e0ded795c935c5bd672f49766955a9ab386d89c1119c41d8c11f0778)
+Against the installed pair (1bb8a700 + a2ca8337, commit db76374) the tree adds c98f8f4, 7ccc163 and 64c4581 (diff db76374..64c4581: 31 files). The package list is
+unchanged (package-diff.txt empty), ssh-keys.py scan rc 0 on both staged trees, no .nmconnection file and the one baked authorized key (SHA256:GfWrmzAU...V9I).
+Image tree diff (8 paths): /usr/bin/fblog removed, /etc/inittab without the fblog line, /usr/bin/chef-settings and /usr/bin/chefui-demo (the chefui fbscreen
+change), /usr/bin/chef-sshd and /etc/NetworkManager/dispatcher.d/30-chef-wifi-ip (comment-only), /etc/chef/image-info, /lib/modules/wlan.ko (hash differs as
+between every earlier pair: qcacld is built in a fresh temp dir, its source is unchanged). /usr/bin/powerd is identical (comment-only source change).
+idle_review cleared the diff, the artifacts and the RAM regression (review-I3.md) before the coordinator's go.
+
+2. RAM regression (before flashing), boot-ram-3da730e5 at 11:11:46Z and 11:13:36Z
+K6 backup first. Hub app up at 11.1 s, screen off at 41.3 s (30 s sleep); no fblog process or file; /proc/stat busy 0.46 % over 10 s with the screen off;
+/run/fb0.lit absent while dark; no "power cycling once" line on a clean boot; settings fac59c34 byte-identical with the same mtime (not rewritten); sensors-up/
+sensord up; gps-manager DISABLED; Bluetooth powered; blesensd running; SSH over USB; chef-reboot bootloader round trip: the 11 rows pending in boot 1 are in
+log.csv once, then boot 2's start row. Wi-Fi: the radio came up ENABLED and wlan0 connected to the home AP in both boots although it was off on the previous boot
+(see section 5).
+
+3. Installation (UTC; IST is +5:30: 16:47 to 16:49)
+11:17:07 left the RAM image 3da730e5 with its own chef-reboot bootloader (detached); fastboot after 15 s; current-slot a; both images rehashed = cleared hashes
+11:17 fastboot flash system_a: sparse 1/1 OKAY, write OKAY 20.7 s (total 24.0 s)
+fastboot boot of the stage-1 image: "system_a build stamp matches; switch_root", ro system_a root (/dev/mmcblk0p67), /data ours, image-info 64c4581 dirty 0, chef-settings/sensors-up/sensord/gps-manager/blesensd/chef-sshd running, no fblog, settings fac59c34 (stage1-boot-check.txt)
+11:18:33 chef-reboot bootloader again (detached), fastboot reached at 11:18:45 (15 s), rehash = cleared; 11:18:51 fastboot flash boot_a OKAY (write 0.15 s); fastboot reboot
+
+4. Installed regression and the user glance
+Installed regression (installed-regression.txt, uptime 45 s): bootreason reboot, slot _a, mode normal, root=/dev/mmcblk0p67 ro (norecovery), /data rw, BlueZ, NetworkManager and chrony binds on /data, stamp match, image-info 64c4581 dirty 0, chef-settings (hub app), sensors-up, sensord (smgr ready), gps-manager DISABLED, blesensd, chef-sshd/dropbear, powerd, buttond running, no fblog (process or file); settings fac59c34 with the same mtime (2026-10-17 07:26:44 UTC, not rewritten); wlan0 connected to TP-Link_E975; Bluetooth powered; abslot boot_a marked successful at 36.1 s (priority 3, active 1, retry 6, successful 1); write counters: every partition 0 except userdata (377); busy 0.72 % of 8036 jiffies over 10 s with the screen off; /run/fb0.lit absent while dark; 0 power cycling lines. SSH over Wi-Fi works; fuser -m /data: no holder with an SSH session open, and a /proc scan found no process with an open file under /data (fuser-check.txt).
+Ordinary reboot typed over SSH (installed-rb1-*): back with bootreason reboot, stamp match, the 9 rows pending before it in log.csv once (3078 -> 3088 lines = 9 + the start row), settings fac59c34, busy 0.19 %, 0 power cycling lines.
+chef-reboot bootloader round trip (installed-crb-*): fastboot after 15 s, fastboot reboot, bootreason reboot, stamp match, e2fsck -p exit=0, the 12 pending rows in log.csv once (3088 -> 3101 lines = 12 + the start row), settings fac59c34, write counters only userdata (385), busy 0.47 %, 0 power cycling lines.
+Fallback pair kept in out/: system_a-1bb8a700 + boot-stage1-a2ca8337 (db76374), then e73c8c54 + 034db212, 84a0baa4 + 6062f115; RAM image of this tree out/boot-ram-3da730e5.img.
+Package diff against 1bb8a700: none; wlan-ko-sha256 differs (55e6b85c vs 98b34fb3) as between every earlier pair.
+
+User glance (install/glance.txt): one ordinary reboot typed over SSH with the user watching the panel: the hub app (chef-settings) started 6.1 s into the boot, the screen came on at
+6.13 s, and the user, through the coordinator, confirmed the settings hub appeared on the panel by itself (the panel slept again by 41 s as set).
+Last step: the Wi-Fi radio was turned off once with nmcli radio wifi off and read back "disabled" (wifi-off.txt), to leave the phone as the user had it.
+
+5. Found while installing (not blockers)
+W1: the Wi-Fi radio switch is not persisted across reboots. The settings switch sets NetworkManager's WirelessEnabled, which NetworkManager keeps in RAM
+(/var/lib/NetworkManager); /data/v1/networkmanager holds only the connections. After every boot the radio is enabled and wlan0 connects to the known network.
+Seen on both RAM boots of this install (the radio had been turned off on the previous boot) and again on the installed pair; the same code ran on 1bb8a700 (no NetworkManager change in the range), not observed there. Recorded in
+docs/next-steps/connectivity-and-sensors.md.
+Other: the chefui-demo binary is in the image diff because it links the same chefui fbscreen layer.

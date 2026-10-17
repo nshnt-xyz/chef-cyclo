@@ -67,6 +67,8 @@ checks passed on a RAM image; see the [slice 2 log](../../logs/system-ui-slice2-
 Guided keyboard join with a wrong then correct passphrase and two-tap Forget
 remain in the final guided batch.
 
+- **The Wi-Fi switch state is not persisted across reboots (found 2026-10-17).** The switch sets NetworkManager's `WirelessEnabled`, which NetworkManager keeps in RAM (`/var/lib/NetworkManager`, no `NetworkManager.state` on `/data`; `/data/v1/networkmanager` holds only the connections). After every boot the radio is enabled and wlan0 connects to the known network, so a radio turned off on purpose comes back on at the next reboot. Seen on both RAM boots of the idle fix install (the radio had been off on the previous boot) and on the installed pair. Fix to consider: persist the switch in the UI settings (or on `/data`) and apply it at start before NetworkManager scans. Evidence: [install log](../../logs/install-idle-2026-10-17.txt) section 5.
+
 Left out of the slice 2 pages and still to build:
 
 - **Wi-Fi Sync** (ride upload, maps and routes update, rides waiting) and the
