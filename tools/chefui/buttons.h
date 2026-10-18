@@ -1,7 +1,7 @@
 /*
  * buttons.h - buttond client (/run/buttond.sock, protocol in
- * tools/buttond.c's header) and gesture dispatch. No LVGL: covered by
- * tests/test_buttons.c over a real AF_UNIX listener.
+ * tools/buttond/buttond.c's header) and gesture dispatch. No LVGL: covered
+ * by tests/test_buttons.c over a real AF_UNIX listener.
  *
  * On connect every configured gesture is claimed ("claim G\n");
  * power.short is always among them, power.long only if the application

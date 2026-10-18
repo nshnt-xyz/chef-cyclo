@@ -24,7 +24,7 @@ Paths below are relative to the repository root.
 | `tools/chefui/`, `third_party/lvgl/` | [UI platform](features/ui-platform.md): `libchefui` (LVGL v9.6 on the MDSS fbdev: shadow copy and page flips, multitouch reader, buttond client, screen lock/flag/handoff), the `chefui-demo` verification app, the SDL2 host build and host tests; LVGL is a submodule pinned to v9.6.0. |
 | `tools/chefui/apps/settings/`, `tools/chefui/kit/`, `tools/chefui/sys/` | [System UI](features/system-ui.md) app `chef-settings` (status bar, settings hub and pages), the UI kit (tokens, fonts, icons, widgets) and the state sources and settings file. |
 | `tools/fbtouch.c`, `tools/fblog/` | [Display/touch probe and on-device log screen](features/display-and-touch.md); generated public-domain X11 font included. |
-| `tools/buttond.c` | [Button gesture daemon](features/buttons-and-power-off.md) and socket client. |
+| `tools/buttond/` | [Button gesture daemon](features/buttons-and-power-off.md) and socket client. Host tests in `tools/buttond/tests/`. |
 | `tools/powerd.c` | [Battery daemon](features/battery-and-charging.md): low-battery/over-temperature shutdown, charge throttle, `/run/power` state and log, `powerd status`. |
 | `tools/gps-manager.c` | [GNSS demand manager](features/gps.md#use-gnss-gps-manager): leases on `/run/gps-manager.sock` run the LOC session, gpsd and the NMEA pipeline. |
 | `tools/blesensd/`, `scripts/ble-sensor-emu.py` | [BLE sensors](features/bluetooth.md#ble-sensors): `blesensd`, the one owner of heart rate, cycling power and speed/cadence sensors (BlueZ over static basu), and the emulated sensors on the PC used to test it. |

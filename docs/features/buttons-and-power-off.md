@@ -4,7 +4,7 @@
 
 ## Current behavior
 
-`tools/buttond.c` runs from the baseline `rootfs-overlay/etc/inittab`. It exclusively grabs the power/volume evdev devices (`qpnp_pon`, observed as event0; `gpio-keys`, observed as event6), discovers them by key capabilities through the shared `tools/evdev.h` (`/dev/input/event*` in numeric order, `evdev_key_mask`), and skips ABS devices so touch remains available.
+`tools/buttond/buttond.c` runs from the baseline `rootfs-overlay/etc/inittab`. It exclusively grabs the power/volume evdev devices (`qpnp_pon`, observed as event0; `gpio-keys`, observed as event6), discovers them by key capabilities through the shared `tools/evdev.h` (`/dev/input/event*` in numeric order, `evdev_key_mask`), and skips ABS devices so touch remains available.
 
 - Short power press toggles the screen using the system-wide screen-off flag `/run/fblog.off`: off creates the flag then sends SIGTERM to a process named fblog if one runs (the image does not start fblog since 2026-10-17; with none, buttond logs that and goes on); on removes it only. With no chefui app running, a short press therefore only toggles the flag and nothing redraws the panel. A running [chefui](ui-platform.md) application claims `power.short` and toggles the screen itself (same flag). Since 2026-10-11 the [system UI](system-ui.md) runs from boot and holds that claim: Power goes Back on its pages and turns the screen off on the hub, so buttond's own toggle applies only while no chefui application runs.
 - Hold power: a short buzz at 1.5 seconds arms shutdown; release before 3 seconds to cancel. After the long buzz at 3 seconds, release to run `sync` and orderly `poweroff`.
@@ -36,6 +36,6 @@ Unplug USB if the phone should stay off: the cable powers it back on after shutd
 
 ## Modify and verify
 
-Run `make -C tools test`; `tools/tests/test_buttond.c` covers gestures, socket claims, dispatch, screen toggling, and shutdown arm/cancel/release using injected actions. These tests do not power off the host. Rebuild the baseline initramfs and boot image.
+Run `make -C tools/buttond test`; `tools/buttond/tests/test_buttond.c` covers gestures, socket claims, dispatch, screen toggling, and shutdown arm/cancel/release using injected actions. These tests do not power off the host. Rebuild the baseline initramfs and boot image.
 
 Live checks require a person at the phone: toggle both ways, watch volume/chord events, claim/release a gesture, cancel an armed shutdown, then verify shutdown on release after the second buzz. Stream evidence to the host before shutdown because phone RAM will be lost. See the [2026-09-19 build-log entries](../build-log.md) for results and [UI/recorder integration](../next-steps/ui-and-ride-app.md) for remaining work.

@@ -2,17 +2,17 @@
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
 # qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
 # log screen fblog (fblog/), the gpsd feed nmea-broker, the GNSS demand
-# manager gps-manager, the side-button gesture daemon buttond, the battery
-# daemon powerd, the WAV tone generator wavtone and atomic TAS2560
-# calibration-control writer tas2560-send-cal (for the speaker test,
-# rootfs-overlay/usr/bin/speaker-test-tone), the Wi-Fi helpers wlan-fw and
-# wifi-psk, the A/B slot marker abslot, rtc-edge, the freestanding
-# Bluetooth helper btprobe, and their host tests. `make test` also runs the
-# host tests of the scripts under rootfs-overlay/ (gps-up's selection logic,
-# audio-up, chef-state, chef-reboot, SSH, storage, stage 1). The modem
-# services in tools/rmtfs/, tools/servreg-locator/, tools/tftp/ and the
-# sensors daemon tools/sensord/ have their own Makefiles; the top-level
-# Makefile runs them all.
+# manager gps-manager, the battery daemon powerd, the WAV tone generator
+# wavtone and atomic TAS2560 calibration-control writer tas2560-send-cal
+# (for the speaker test, rootfs-overlay/usr/bin/speaker-test-tone), the
+# Wi-Fi helpers wlan-fw and wifi-psk, the A/B slot marker abslot, rtc-edge,
+# the freestanding Bluetooth helper btprobe, and their host tests. `make
+# test` also runs the host tests of the scripts under rootfs-overlay/
+# (gps-up's selection logic, audio-up, chef-state, chef-reboot, SSH,
+# storage, stage 1). The modem services in tools/rmtfs/,
+# tools/servreg-locator/, tools/tftp/, the sensors daemon tools/sensord/
+# and the button daemon tools/buttond/ have their own Makefiles; the
+# top-level Makefile runs them all.
 #
 #   make                 host build: build/host/ (fblog is host-only, a
 #                        debug tool that is not packed)
@@ -34,13 +34,13 @@ D := build/device
 INCLUDES := -I. -Iqrtr -I$(H)/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := $(addprefix $(H)/,irsc qmuxd-lite fbtouch fblog nmea-broker gps-manager buttond powerd wavtone \
+BIN := $(addprefix $(H)/,irsc qmuxd-lite fbtouch fblog nmea-broker gps-manager powerd wavtone \
        tas2560-send-cal wifi-psk abslot rtc-edge)
 VENDOR_OBJ := $(H)/qmi.o $(H)/logging.o
 TEST_BIN := $(addprefix $(H)/tests/,test-qmux test-msmipc test-evdev test-fbtouch test-fblog \
-            test-nmea-broker test-gps-manager test-buttond test-powerd test-wavtone \
+            test-nmea-broker test-gps-manager test-powerd test-wavtone \
             test-tas2560-send-cal test-wlan-fw)
-DEVICE_BIN := btprobe wifi-psk wlan-fw irsc qmuxd-lite fbtouch nmea-broker gps-manager buttond \
+DEVICE_BIN := btprobe wifi-psk wlan-fw irsc qmuxd-lite fbtouch nmea-broker gps-manager \
               abslot rtc-edge powerd wavtone tas2560-send-cal
 
 .PHONY: all test test-shell test-wifi clean device install-device
@@ -142,10 +142,11 @@ $(H)/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
 # ioctl() is wrapped so the daemon's borrow/resume/idle path runs against a
-# temporary file standing in for fb0.
-$(H)/tests/test-fblog: tests/test_fblog.c buttond.c fblog/fblog.c fblog/font9x15.h fbdev.h evdev.h
+# temporary file standing in for fb0. The test also includes
+# buttond/buttond.c, which finds evdev.h through -I.
+$(H)/tests/test-fblog: tests/test_fblog.c buttond/buttond.c fblog/fblog.c fblog/font9x15.h fbdev.h evdev.h
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS) -Wl,--wrap=ioctl
+	$(CC) $(CFLAGS) -I. -o $@ $< $(LDFLAGS) -Wl,--wrap=ioctl
 
 # gpsd feed (nmea-broker.c): qmicli follower stdout -> one UDP datagram per
 # valid NMEA sentence to gpsd on loopback, optional tee/log, set-once clock
@@ -185,27 +186,6 @@ $(H)/tests/test-gps-manager: tests/test_gps-manager.c gps-manager.c
 $(D)/gps-manager: gps-manager.c
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ gps-manager.c
-
-# Side-button gesture daemon (buttond.c): grabs the qpnp_pon/gpio-keys evdev
-# nodes, turns presses into short/double/long/chord gestures, publishes them
-# on /run/buttond.sock to claimants, by default toggles the panel (fblog's
-# /run/fblog.off protocol) on an unclaimed power.short and powers off
-# cleanly (sync + busybox `poweroff`) when power is held 3 s and released.
-# Started from inittab (respawn). Only libc's <linux/input.h> (device
-# discovery through the header-only evdev.h). The test includes the .c
-# with BUTTOND_NO_MAIN and drives the server over socketpairs with an
-# injected log/kill and a temp flag file.
-$(H)/buttond: buttond.c evdev.h
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-$(H)/tests/test-buttond: tests/test_buttond.c buttond.c evdev.h
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-$(D)/buttond: buttond.c evdev.h
-	@mkdir -p $(@D)
-	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ buttond.c
 
 # Battery daemon (powerd.c, docs/features/battery-and-charging.md):
 # BatteryService low-battery warn/critical and over-temperature clean
@@ -343,7 +323,6 @@ test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge test-displa
 	$(H)/tests/test-fblog
 	$(H)/tests/test-nmea-broker
 	$(H)/tests/test-gps-manager
-	$(H)/tests/test-buttond
 	$(H)/tests/test-powerd
 	$(H)/tests/test-wavtone
 	$(H)/tests/test-tas2560-send-cal

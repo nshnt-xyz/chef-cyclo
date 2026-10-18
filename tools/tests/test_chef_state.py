@@ -1161,7 +1161,7 @@ class ChefState(unittest.TestCase):
         self.assertLess(r.index("/usr/bin/chef-state shutdown"), r.index("/usr/bin/chef-storage shutdown"))
         # buttond and powerd go down through init (::shutdown), as `reboot`
         # and `poweroff` from a shell do
-        for src in ("tools/buttond.c", "tools/powerd.c"):
+        for src in ("tools/buttond/buttond.c", "tools/powerd.c"):
             self.assertIn('execlp("poweroff", "poweroff"', (ROOT / src).read_text(), src)
         # chef-state's fallback flush uses inittab's powerd log dir and -L
         powerd = [l for l in inittab if "/usr/bin/powerd -l" in l]

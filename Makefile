@@ -14,7 +14,7 @@
 # start with SIGINT and SIGQUIT ignored, which the chef-reboot tests
 # depend on not being.
 
-COMPONENTS := tools tools/rmtfs tools/servreg-locator tools/tftp tools/sensord tools/blesensd tools/chefui
+COMPONENTS := tools tools/rmtfs tools/servreg-locator tools/tftp tools/sensord tools/blesensd tools/buttond tools/chefui
 SUITES := $(COMPONENTS) scripts/tests
 LOGS := build/test-logs
 # Nothing is written into the source tree, not even Python's bytecode cache.

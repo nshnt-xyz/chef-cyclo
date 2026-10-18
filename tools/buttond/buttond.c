@@ -85,8 +85,8 @@
  * The pure parts (gesture recognizer, gesture names, claim registry,
  * protocol line handling, dispatch, the screen toggle and the power-off
  * state machine with injected paths/hooks) are separated from the
- * syscalls and covered by tools/tests/test_buttond.c, which includes this
- * file with BUTTOND_NO_MAIN and never powers anything off.
+ * syscalls and covered by tools/buttond/tests/test_buttond.c, which
+ * includes this file with BUTTOND_NO_MAIN and never powers anything off.
  */
 #define _GNU_SOURCE
 #include <dirent.h>

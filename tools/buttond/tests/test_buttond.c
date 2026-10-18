@@ -1,16 +1,17 @@
-/* Host tests for tools/buttond.c: the gesture recognizer (short on release
- * when doubles are not armed, double/single with the tap window when they
- * are, long at the hold threshold from the tick and from a late release,
- * chords in both press orders, ignored releases/repeats, deadlines), the
- * gesture name table, the claim registry and its double-arming, the line
- * protocol over real socketpairs (partial lines, bad input, dead peers),
- * dispatch to claimants/watchers vs. the built-in default, the screen
- * toggle against a temp flag file with an injected kill, and the power-off
- * state machine (arm at long, cancel on early release or re-press, READY
- * buzz, act on release, claimed/-p 0 variants) with an injected poweroff
- * and a temp vibrator file. buttond.c is included with BUTTOND_NO_MAIN; no
- * evdev device, socket path or process is touched and nothing powers off.
- * Build/run: see tools/Makefile ("make test").
+/* Host tests for tools/buttond/buttond.c: the gesture recognizer (short on
+ * release when doubles are not armed, double/single with the tap window
+ * when they are, long at the hold threshold from the tick and from a late
+ * release, chords in both press orders, ignored releases/repeats,
+ * deadlines), the gesture name table, the claim registry and its
+ * double-arming, the line protocol over real socketpairs (partial lines,
+ * bad input, dead peers), dispatch to claimants/watchers vs. the built-in
+ * default, the screen toggle against a temp flag file with an injected
+ * kill, and the power-off state machine (arm at long, cancel on early
+ * release or re-press, READY buzz, act on release, claimed/-p 0 variants)
+ * with an injected poweroff and a temp vibrator file. buttond.c is
+ * included with BUTTOND_NO_MAIN; no evdev device, socket path or process
+ * is touched and nothing powers off. Build/run: see tools/buttond/Makefile
+ * ("make test").
  */
 #include <stdio.h>
 #include <stdlib.h>

@@ -26,7 +26,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
-#include "../buttond.c"
+#include "../buttond/buttond.c"
 #pragma GCC diagnostic pop
 #undef kmsg_note
 #undef g_stop

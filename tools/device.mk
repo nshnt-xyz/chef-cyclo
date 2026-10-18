@@ -1,9 +1,10 @@
 # Shared phone-build settings, included by every component Makefile
 # (tools/, tools/rmtfs, tools/servreg-locator, tools/tftp, tools/sensord,
-# tools/blesensd, tools/chefui) after it sets REPO_ROOT. Each component
-# builds its phone binaries into build/device/ with `make device` and
-# installs them with `make install-device DESTDIR=...`; the repository's
-# top-level Makefile runs both for all of them (scripts/mkinitramfs.sh).
+# tools/blesensd, tools/buttond, tools/chefui) after it sets REPO_ROOT.
+# Each component builds its phone binaries into build/device/ with `make
+# device` and installs them with `make install-device DESTDIR=...`; the
+# repository's top-level Makefile runs both for all of them
+# (scripts/mkinitramfs.sh).
 #
 # DEVICE_CC: the static musl aarch64 cross compiler fetched by
 # scripts/setup-toolchain.sh. DEVICE_CFLAGS: the one flag set every musl
