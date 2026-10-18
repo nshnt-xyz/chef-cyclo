@@ -53,7 +53,7 @@ Speaker protection is unavailable and was abandoned on 2026-09-26. The permanent
 
 `speaker-test-tone` leaves protection controls alone by default. Its `-p` option remains a best-effort diagnostic: it reads saved Rdc from a read-only persist mount and submits calibration atomically with `tas2560-send-cal` during a running stream. Failure cannot fail otherwise-clean playback. A successful write or `FF_MODULE` readback does not prove protection: the recorded `DISABLE` values came from zeroed DSP error replies.
 
-The probe tools `spk-protect-probe`, `afe-topology-cal`, `tert-tx-hold`, and `afe-debug` remain diagnostics. Their one-boot topology changes and FastRPC hazards are documented in the [investigation record](../research/speaker-protection.md#speaker-protection-abandoned-2026-09-26). Do not start TERT_MI2S_TX from production code.
+The speaker-protection probe tools `spk-protect-probe`, `afe-topology-cal`, `tert-tx-hold`, `afe-debug` and the host decoder `acdb-afe-topology.py` are no longer in the image or on `main`: they live on the `experiment/speaker-protection` branch (at `08e1ec9`, where they still build). Their one-boot topology changes and FastRPC hazards are documented in the [investigation record](../research/speaker-protection.md#speaker-protection-abandoned-2026-09-26). Do not start TERT_MI2S_TX from production code.
 
 ### tinyplay must use mmap (`-M`)
 

@@ -10,7 +10,7 @@ Paths below are relative to the repository root.
 | `kernel-config/chef-cyclo.config` | Project fragment appended to Motorola's three-part config stack. |
 | `stock/partitions/` | Verified stock backups; includes irreplaceable device-unique partitions. See [device reference](device.md). |
 | `stock/twrp-3.7.0_9-0-chef.img`, `stock/twrp-*.txt` | Verified recovery image and stock-kernel observations. |
-| `initramfs/` | Alpine overlay: `/init`, users, service configuration, `bt-up`, `gps-up`, [`audio-up`/`speaker-test-tone`](features/audio.md) and the speaker-protection experiment scripts `spk-protect-probe`/`afe-debug`. |
+| `initramfs/` | Alpine overlay: `/init`, users, service configuration, `bt-up`, `gps-up`, and [`audio-up`/`speaker-test-tone`](features/audio.md). |
 | `tools/btprobe.c` | Freestanding power/UART/HCI helper for [Bluetooth](features/bluetooth.md). |
 | `tools/fbdev.h` | Shared framebuffer lifecycle, advisory screen-lock and screen-off flag contract. |
 | `tools/chefui/`, `third_party/lvgl/` | [UI platform](features/ui-platform.md): `libchefui` (LVGL v9.6 on the MDSS fbdev: shadow copy and page flips, multitouch reader, buttond client, screen lock/flag/handoff), the `chefui-demo` verification app, the SDL2 host build and host tests; LVGL is a submodule pinned to v9.6.0. |
@@ -29,11 +29,11 @@ Paths below are relative to the repository root.
 | `tools/nmea-broker.c` | Checksum-filtered UDP feed to gpsd, optional logging/tee, initial GPS clock step. See [GPS](features/gps.md). |
 | `tools/wavtone.c` | Deterministic PCM WAV sine-tone generator for the speaker test. See [Audio](features/audio.md). |
 | `tools/tas2560-send-cal.c` | Atomic writer for the TAS2560's write-only five-integer calibration control. |
-| `tools/afe-topology-cal.c`, `tools/tert-tx-hold.c`, `tools/acdb-afe-topology.py` | Speaker-protection experiment helpers: resident AFE topology installer, resident TERT_MI2S_TX hostless holder, read-only stock ACDB topology decoder. See [Audio](features/audio.md). |
 | `tools/tests/`, component Makefiles | Host verification for helpers and lifecycle scripts. |
 | `scripts/` | Toolchain setup, kernel environment, rootfs/initramfs/boot packing, Chef loader-budget check, live-test drivers (`phone-boot.sh`, `phone.py`, see [live testing](live-testing.md)), SSH key setup and gates (`ssh-setup.sh`, `ssh-keys.py`, see [SSH](features/ssh.md)). |
 | `secrets/` | Gitignored host-specific inputs: `secrets/ssh/authorized_keys`, the public keys baked into every image ([SSH](features/ssh.md)). |
 | `logs/` | Captured device evidence; GPS trace archives may be intentionally gitignored. |
 | `toolchain/` | Gitignored GCC 4.9, musl cross compiler, boot tools, Alpine keys and package cache. |
 | `out/` | Generated kernel, rootfs, initramfs, and boot images. |
+| Branches `experiment/speaker-protection`, `experiment/drm` | Shelved experiments, removed from `main` on 2026-10-18 and kept where they still build (both at `08e1ec9`): the speaker-protection probe (`spk-protect-probe`, `afe-debug`, `afe-topology-cal`, `tert-tx-hold`, `acdb-afe-topology.py`, see [Audio](features/audio.md)) and the DRM route (`scripts/build-drm-experiment.sh`, `scripts/build-drm-diagnostic-initramfs.sh`, `kernel-config/drm-helper-namespace.patch`, see [DRM bring-up](research/drm-bringup.md)). |
 | `docs/` | Current feature/build guides, remaining work in `next-steps/`, completed plans in `archive/`, investigations in `research/`, and chronological build log. |

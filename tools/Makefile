@@ -5,9 +5,7 @@
 # the GNSS demand manager gps-manager, the side-button gesture daemon
 # buttond, the battery daemon powerd, the WAV tone generator wavtone
 # and atomic TAS2560 calibration-control writer tas2560-send-cal
-# (for the speaker test, initramfs/usr/bin/speaker-test-tone), the two
-# resident speaker-protection experiment helpers afe-topology-cal and
-# tert-tx-hold (for initramfs/usr/bin/spk-protect-probe), and their
+# (for the speaker test, initramfs/usr/bin/speaker-test-tone), and their
 # host tests. Does not touch btprobe.c
 # or build anything under scripts/, initramfs/ -- those are built/wired into
 # the boot image by scripts/mkinitramfs.sh. `make test` does read (but not
@@ -37,11 +35,11 @@ INCLUDES := -I. -Iqrtr -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
 BIN := irsc qmuxd-lite fbtouch fblog/fblog nmea-broker gps-manager buttond powerd wavtone tas2560-send-cal \
-       afe-topology-cal tert-tx-hold wifi-psk abslot rtc-edge
+       wifi-psk abslot rtc-edge
 VENDOR_OBJ := qmi.o logging.o
 TEST_BIN := tests/test-qmux tests/test-msmipc tests/test-evdev tests/test-fbtouch tests/test-fblog \
             tests/test-nmea-broker tests/test-gps-manager tests/test-buttond tests/test-powerd tests/test-wavtone \
-            tests/test-tas2560-send-cal tests/test-afe-topology-cal tests/test-tert-tx-hold tests/test-wlan-fw
+            tests/test-tas2560-send-cal tests/test-wlan-fw
 
 .PHONY: all test test-shell test-wifi clean
 
@@ -175,30 +173,6 @@ tas2560-send-cal: tas2560-send-cal.c
 tests/test-tas2560-send-cal: tests/test_tas2560_send_cal.c tas2560-send-cal.c
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-# AFE topology installer for the speaker-protection experiment
-# (afe-topology-cal.c): one AUDIO_SET_CALIBRATION of AFE_TOPOLOGY_CAL_TYPE
-# on /dev/msm_audio_cal, then resident until SIGTERM (the kernel frees the
-# block when the last fd closes). The message layout is spelled out in the
-# source (the vendor UAPI header is not userspace-clean), so the tool
-# itself builds with plain libc; the test includes that header through the
-# vendor include paths, with the two shims it needs, to check the layout,
-# cal-type index and ioctl number against it byte for byte.
-afe-topology-cal: afe-topology-cal.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-tests/test-afe-topology-cal: tests/test_afe_topology_cal.c afe-topology-cal.c
-	$(CC) $(ALL_CFLAGS) -Wno-cpp -o $@ $< $(LDFLAGS)
-
-# TERT_MI2S_TX holder (tert-tx-hold.c): opens/configures/starts the
-# kernel's "TERT MI2S_TX Hostless" capture PCM so AFE port 0x1005 comes
-# up, resident until SIGTERM, then DROP + close. Only libc's
-# <sound/asound.h>; the test injects open/ioctl/wait/close.
-tert-tx-hold: tert-tx-hold.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-tests/test-tert-tx-hold: tests/test_tert_tx_hold.c tert-tx-hold.c
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
 tests/test-wlan-fw: tests/test_wlan_fw.c wlan-fw.c qmux.c qmux.h msmipc.h
 	$(CC) $(ALL_CFLAGS) -Wno-cpp -o $@ tests/test_wlan_fw.c qmux.c $(LDFLAGS)
 
@@ -240,8 +214,6 @@ test: $(TEST_BIN) test-shell wifi-psk abslot rtc-edge test-display-inventory
 	./tests/test-powerd
 	./tests/test-wavtone
 	./tests/test-tas2560-send-cal
-	./tests/test-afe-topology-cal
-	./tests/test-tert-tx-hold
 	./tests/test-wlan-fw
 	python3 tests/test_wifi.py
 	python3 tests/test_wifi_psk.py
@@ -264,10 +236,7 @@ test-shell: powerd gps-manager nmea-broker
 	sh tests/test_gps-manager.sh
 	sh tests/test_audio-up.sh
 	sh tests/test_speaker-test-tone.sh
-	sh tests/test_afe-debug.sh
-	sh tests/test_spk-protect-probe.sh
-	sh tests/test_acdb-afe-topology.sh
 
 clean:
 	rm -f *.o irsc qmuxd-lite fbtouch fblog/fblog nmea-broker gps-manager buttond powerd wavtone \
-		tas2560-send-cal afe-topology-cal tert-tx-hold wifi-psk abslot rtc-edge $(TEST_BIN)
+		tas2560-send-cal wifi-psk abslot rtc-edge $(TEST_BIN)

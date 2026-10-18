@@ -7,8 +7,7 @@
 # manager gps-manager, the button daemon buttond, the battery daemon powerd
 # and the ADSP bring-up +
 # speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
-# TAS2560 calibration-control writer), the speaker-protection experiment
-# (afe-debug, spk-protect-probe, afe-topology-cal, tert-tx-hold) and the
+# TAS2560 calibration-control writer) and the
 # sensors bring-up (sensors-up, sensord and its registry map) on top.
 #
 # SSH (docs/features/ssh.md): the public keys in secrets/ssh/authorized_keys
@@ -132,7 +131,6 @@ ln -s /run/NetworkManager/resolv.conf "$ROOT/etc/resolv.conf"
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up "$ROOT"/usr/bin/chef-storage \
     "$ROOT"/usr/bin/chef-state "$ROOT"/usr/bin/chef-reboot "$ROOT"/usr/bin/chef-sshd \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
-    "$ROOT"/usr/bin/afe-debug "$ROOT"/usr/bin/spk-protect-probe \
     "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \
     "$ROOT"/usr/bin/sensors-compass-run "$ROOT"/usr/bin/display-touch-inventory
 
@@ -424,27 +422,6 @@ echo "built $ROOT/usr/bin/wavtone"
 "$MUSLCC" -Wall -Wextra -O2 -static \
     -o "$ROOT/usr/bin/tas2560-send-cal" tools/tas2560-send-cal.c
 echo "built $ROOT/usr/bin/tas2560-send-cal"
-
-# Speaker-protection experiment (docs/features/audio.md, "Why FF stays
-# DISABLE"): spk-protect-probe (initramfs/usr/bin, chmod'd above, with
-# afe-debug) drives speaker-test-tone under two resident helpers --
-# afe-topology-cal (tools/afe-topology-cal.c: installs the stock AFE
-# topology 0x000112FC for the speaker port through /dev/msm_audio_cal and
-# holds the fd, since the kernel frees the block on last close) and
-# tert-tx-hold (tools/tert-tx-hold.c: starts the TERT MI2S_TX hostless
-# capture so AFE port 0x1005 is up). Both use only libc + kernel UAPI,
-# static musl; fail closed on either source missing, same as the block
-# above. Neither is started by anything in inittab.
-for f in tools/afe-topology-cal.c tools/tert-tx-hold.c \
-         initramfs/usr/bin/afe-debug initramfs/usr/bin/spk-protect-probe; do
-    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
-done
-"$MUSLCC" -Wall -Wextra -O2 -static \
-    -o "$ROOT/usr/bin/afe-topology-cal" tools/afe-topology-cal.c
-echo "built $ROOT/usr/bin/afe-topology-cal"
-"$MUSLCC" -Wall -Wextra -O2 -static \
-    -o "$ROOT/usr/bin/tert-tx-hold" tools/tert-tx-hold.c
-echo "built $ROOT/usr/bin/tert-tx-hold"
 
 # Sensors (tools/sensord/sensord.c, docs/next-steps/sensors-plan.md):
 # sensord is the REG2 registry server + SMGR client behind
