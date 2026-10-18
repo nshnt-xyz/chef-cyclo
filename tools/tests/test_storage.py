@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import unittest
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / 'initramfs/usr/bin/chef-storage'
+SCRIPT = ROOT / 'rootfs-overlay/usr/bin/chef-storage'
 
 class Storage(unittest.TestCase):
     shell = ["bash"]
@@ -252,7 +252,7 @@ class Ext4(unittest.TestCase):
             with image.open('r+b') as f: f.truncate(64*1024*1024)
             # Extract the actual format invocation's feature string.
             features=SCRIPT.read_text().split('mke2fs -t ext4 -O ')[1].split()[0]
-            env={**os.environ,'MKE2FS_CONFIG':str(ROOT/'initramfs/etc/chef/mke2fs.conf')}
+            env={**os.environ,'MKE2FS_CONFIG':str(ROOT/'rootfs-overlay/etc/chef/mke2fs.conf')}
             subprocess.run(['mke2fs','-q','-t','ext4','-O',features,'-b','4096','-I','256','-m','1','-F','-L','chefdata','-E','nodiscard,lazy_itable_init=0,lazy_journal_init=0',str(image)],env=env,check=True)
             subprocess.run(['mke2fs','-q','-t','ext4','-O',features,'-b','4096','-I','256','-m','1','-F','-L','chefdata','-E','nodiscard,lazy_itable_init=0,lazy_journal_init=0',str(image)],env=env,stdin=subprocess.DEVNULL,check=True)
             result=subprocess.run(['dumpe2fs','-h',str(image)],text=True,capture_output=True,check=True).stdout

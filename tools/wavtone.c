@@ -2,7 +2,7 @@
  * wavtone - writes a deterministic PCM S16_LE sine-wave WAV file
  * (chef-cyclo).
  *
- * initramfs/usr/bin/speaker-test-tone needs a test tone tinyplay can push
+ * rootfs-overlay/usr/bin/speaker-test-tone needs a test tone tinyplay can push
  * straight to the TAS2560 speaker path; tinyalsa's tinyplay only reads WAV
  * files (no synth mode), so this writes one, to /run, at the sample
  * rate/channel count the TERT_MI2S_RX backend actually runs

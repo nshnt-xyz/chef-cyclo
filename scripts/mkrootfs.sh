@@ -3,7 +3,7 @@
 # telnetd/udhcpd), dbus, BlueZ, qmicli and gpsd. apk only unpacks archives, so the host's
 # static x86_64 apk does the job with --no-scripts; whatever the skipped
 # post-install scripts would have done (users, machine-id) is provided by the
-# initramfs/ overlay instead. The package cache lives under toolchain/ so a
+# rootfs-overlay/ overlay instead. The package cache lives under toolchain/ so a
 # rebuild can reuse the local cache.
 set -eu
 cd "$(dirname "$0")/.."
@@ -20,7 +20,7 @@ CACHE=$PWD/toolchain/apk/cache
 #
 # tinyalsa (audio, docs/features/audio.md): community, 2.0.0-r4, 270 KB,
 # libc-only -- tinymix/tinyplay/tinycap/tinypcminfo, the userspace side of
-# initramfs/usr/bin/audio-up and speaker-test-tone. Not alsa-utils: that
+# rootfs-overlay/usr/bin/audio-up and speaker-test-tone. Not alsa-utils: that
 # pulls ncurses/fftw/dialog, ~6 MB, for tools we don't need (amixer/aplay
 # have no functional advantage here over tinymix/tinyplay). tinymix's
 # control names match stock's mixer_paths.xml verbatim.

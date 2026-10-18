@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build out/initramfs.cpio.lzma: the Alpine rootfs from scripts/mkrootfs.sh
-# with the initramfs/ overlay (init, inittab, users, the bring-up scripts,
+# with the rootfs-overlay/ overlay (init, inittab, users, the bring-up scripts,
 # service configuration), our own binaries (the top-level Makefile's device
 # build: btprobe, the GPS/QMI helpers, the daemons, probes and the UI apps;
 # what each one is and why it is packed is beside its Makefile rule), the
@@ -61,18 +61,18 @@ set -- out/rootfs/etc/apk/keys/*.pub
 # Reject a future overlay ID collision rather than ambiguously drop privileges.
 awk -F: '$1=="chrony" {n++; if($3!=102 || $4!=102) bad=1}
            $3==102 && $1!="chrony" {bad=1}
-           END {exit (n!=1 || bad)}' initramfs/etc/passwd || { echo 'invalid/colliding chrony account' >&2; exit 1; }
+           END {exit (n!=1 || bad)}' rootfs-overlay/etc/passwd || { echo 'invalid/colliding chrony account' >&2; exit 1; }
 awk -F: '$1=="chrony" {n++; if($3!=102) bad=1}
            $3==102 && $1!="chrony" {bad=1}
-           END {exit (n!=1 || bad)}' initramfs/etc/group || { echo 'invalid/colliding chrony group' >&2; exit 1; }
+           END {exit (n!=1 || bad)}' rootfs-overlay/etc/group || { echo 'invalid/colliding chrony group' >&2; exit 1; }
 
 # Only the dedicated bus identity may execute the setuid activation helper.
 awk -F: '$1=="messagebus" {n++; if($3!=101 || $4!=101) bad=1}
            ($3==101 || $4==101) && $1!="messagebus" {bad=1}
-           END {exit (n!=1 || bad)}' initramfs/etc/passwd || { echo 'invalid/colliding bus account' >&2; exit 1; }
+           END {exit (n!=1 || bad)}' rootfs-overlay/etc/passwd || { echo 'invalid/colliding bus account' >&2; exit 1; }
 awk -F: '$1=="messagebus" {n++; if($3!=101 || $4!="") bad=1}
            $3==101 && $1!="messagebus" {bad=1}
-           END {exit (n!=1 || bad)}' initramfs/etc/group || { echo 'invalid/colliding bus group' >&2; exit 1; }
+           END {exit (n!=1 || bad)}' rootfs-overlay/etc/group || { echo 'invalid/colliding bus group' >&2; exit 1; }
 
 # gzip(1) itself reads $GZIP as options, so take the opt-out and unset it.
 USE_GZIP=${GZIP:-}
@@ -115,7 +115,7 @@ cp -a out/rootfs/. "$ROOT"/
 mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
          "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus "$ROOT"/var/lib/bluetooth
 install -d -m 755 "$ROOT"/data "$ROOT"/firmware "$ROOT"/factory
-cp -a initramfs/. "$ROOT"/
+cp -a rootfs-overlay/. "$ROOT"/
 # Busybox applet links at build time (read-only root at runtime).
 scripts/link-applets.sh "$ROOT"
 # NetworkManager (rc-manager=unmanaged) keeps its resolver file in /run.
@@ -124,7 +124,7 @@ ln -s /run/NetworkManager/resolv.conf "$ROOT/etc/resolv.conf"
 # cp -a keeps the checkout's modes, which follow the user's umask. NM's
 # dispatcher refuses group/other-writable scripts, so a umask-002 checkout
 # silently disabled the overlap guard and chrony refresh: strip those bits.
-(cd initramfs && find . -mindepth 1 ! -type l -print0) | (cd "$ROOT" && xargs -0 chmod go-w)
+(cd rootfs-overlay && find . -mindepth 1 ! -type l -print0) | (cd "$ROOT" && xargs -0 chmod go-w)
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up "$ROOT"/usr/bin/chef-storage \
     "$ROOT"/usr/bin/chef-state "$ROOT"/usr/bin/chef-reboot "$ROOT"/usr/bin/chef-sshd \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \

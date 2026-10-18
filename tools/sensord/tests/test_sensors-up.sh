@@ -1,5 +1,5 @@
 #!/bin/sh
-# Host test for initramfs/usr/bin/sensors-up's persist handling and
+# Host test for rootfs-overlay/usr/bin/sensors-up's persist handling and
 # helpers. SENSORS_UP_SELFTEST=1 makes the script return after defining
 # its functions. mount/umount/cp are replaced by shell functions (they
 # take precedence over PATH here, on the host's sh), so the test sees
@@ -7,7 +7,7 @@
 # The live ADSP/sensord part is covered by the live run only.
 set -u
 cd "$(dirname "$0")/../../.."
-SCRIPT=initramfs/usr/bin/sensors-up
+SCRIPT=rootfs-overlay/usr/bin/sensors-up
 [ -r "$SCRIPT" ] || { echo "cannot find $SCRIPT" >&2; exit 1; }
 
 T=$(mktemp -d /tmp/sensors-up-test.XXXXXX)
@@ -345,7 +345,7 @@ grep -q '9>&- &' "$SCRIPT" || bad "sensord start does not close fd 9"
 
 # --- the inittab wrapper bounds the log (D10) ------------------------------
 # The real wrapper line from inittab runs with its paths swapped for $T and a fake sensors-up.
-wl=$(grep "^::respawn:/bin/sh -c '.*sensors-up" initramfs/etc/inittab)
+wl=$(grep "^::respawn:/bin/sh -c '.*sensors-up" rootfs-overlay/etc/inittab)
 [ -n "$wl" ] || bad "no sensors-up respawn line in inittab"
 wcmd=${wl#::respawn:/bin/sh -c \'}
 wcmd=${wcmd%\'}

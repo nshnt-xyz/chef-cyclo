@@ -1,7 +1,7 @@
 # sensord: SSC sensors daemon (REG2 server + SMGR client + socket API),
 # see sensord.c's file header and docs/features/sensors.md. On the phone it
 # is the REG2 registry server + SMGR client behind /run/sensord.sock,
-# started by initramfs/usr/bin/sensors-up (manual opt-in, not in inittab);
+# started by rootfs-overlay/usr/bin/sensors-up (manual opt-in, not in inittab);
 # same transport/codec as servreg-locator.
 #
 #   make                 host build: build/host/sensord and the host tool

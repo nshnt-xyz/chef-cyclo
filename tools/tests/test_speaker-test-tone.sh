@@ -1,5 +1,5 @@
 #!/bin/sh
-# Host regression test for initramfs/usr/bin/speaker-test-tone: argument
+# Host regression test for rootfs-overlay/usr/bin/speaker-test-tone: argument
 # validation/clamping (via SPEAKER_TEST_TONE_SELFTEST=1, same sourcing
 # hook pattern as tools/tests/test_audio-up.sh), and the full mixer/
 # playback flow run as a real subprocess against a fake /proc/asound tree
@@ -9,7 +9,7 @@
 # the mixer route being reset on exit even when tinyplay fails.
 set -eu
 cd "$(dirname "$0")/../.."
-SCRIPT=initramfs/usr/bin/speaker-test-tone
+SCRIPT=rootfs-overlay/usr/bin/speaker-test-tone
 [ -r "$SCRIPT" ] || { echo "cannot find $SCRIPT" >&2; exit 1; }
 
 TMPROOT=$(mktemp -d /tmp/speaker-test-tone-test.XXXXXX)

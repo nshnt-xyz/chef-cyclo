@@ -1,5 +1,5 @@
 #!/bin/sh
-# Host regression test for initramfs/usr/bin/gps-up's active-slot EFS
+# Host regression test for rootfs-overlay/usr/bin/gps-up's active-slot EFS
 # selection logic: part(), part_size_bytes(), active_slot(), resolve_fsg().
 #
 # gps-up sources these against real /sys/block/mmcblk0 and /proc/cmdline;
@@ -9,7 +9,7 @@
 # defining its functions instead of running the modem bring-up.
 set -eu
 cd "$(dirname "$0")/../.."
-GPS_UP=initramfs/usr/bin/gps-up
+GPS_UP=rootfs-overlay/usr/bin/gps-up
 [ -r "$GPS_UP" ] || { echo "cannot find $GPS_UP" >&2; exit 1; }
 
 TMPROOT=$(mktemp -d /tmp/gps-up-test.XXXXXX)
@@ -125,7 +125,7 @@ want=$(printf '%s' /firmware/image | od -An -tx1 | tr -d ' \n')
 eq "set_firmware_path writes exactly /firmware/image, byte for byte (no trailing newline)" "$want" "$got"
 
 # --- server_present(): DUMP_SERVERS override added so audio-up's symmetric
-# "who already serves 0x40" check (initramfs/usr/bin/audio-up) can be
+# "who already serves 0x40" check (rootfs-overlay/usr/bin/audio-up) can be
 # exercised the same way on both sides without a device; gps-up itself uses
 # the real path by default (unchanged behavior). ---
 DUMP_SERVERS="$TMPROOT/dump_servers-present"

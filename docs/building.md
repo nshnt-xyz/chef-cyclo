@@ -20,7 +20,7 @@ scripts/setup-toolchain.sh   # once: fetches AOSP GCC 4.9 aarch64 into toolchain
 chef_defconfig               # sdm660-perf_defconfig + moto-sdm660.config + moto-sdm660-chef.config + chef-cyclo.config -> out/kernel/.config
 kmake -j$(nproc)             # Image.gz-dtb comes out in out/kernel/arch/arm64/boot/
 scripts/mkrootfs.sh          # Alpine aarch64 musl/busybox/dbus/BlueZ -> out/rootfs (once, or after changing the package list)
-scripts/mkinitramfs.sh       # out/rootfs + initramfs/ overlay + make device + firmware -> out/initramfs.cpio.lzma
+scripts/mkinitramfs.sh       # out/rootfs + rootfs-overlay/ overlay + make device + firmware -> out/initramfs.cpio.lzma
 scripts/mkboot.sh            # -> out/boot.img (header values from stock boot_a.img)
 fastboot boot out/boot.img   # nothing is flashed; a reboot runs what boot_a holds
 ```
@@ -31,7 +31,7 @@ The kernel config combines stock Android's `sdm660-perf_defconfig`, `moto-sdm660
 
 `mkrootfs.sh` builds an Alpine aarch64 root with musl, BusyBox, D-Bus, BlueZ, QMI tools, gpsd, tinyalsa, wpa_supplicant, iw, e2fsprogs/e2fsprogs-extra, dropbear and the OpenSSH SFTP server ([SSH](features/ssh.md), added 2026-10-10) and the [Wi-Fi UI/diagnostic utilities](features/wifi-ui.md). Rerun it when the package list changes; roots created before the 2026-09-19 gpsd addition, or before the same-day tinyalsa addition, need rebuilding.
 
-`mkinitramfs.sh` overlays `initramfs/` and builds and installs our own binaries with `make -j"$(nproc)" device` and `make install-device DESTDIR=out/initramfs-root` (see [one build](#one-build-make-device-and-make-test) below). GPS requires RMTFS, IRSC, SERVREG-LOCATOR, TFTP/RFS, and QMUX support. A failed build, a missing persist seed, a rootfs without gpsd, or a rootfs without tinymix/tinyplay abort image generation. `fbtouch`, the [UI platform](features/ui-platform.md) demo `chefui-demo` (baseline image only; built by `make -C tools/chefui device` against the LVGL submodule), `nmea-broker`, `buttond`, the [audio helpers](features/audio.md) `audio-up`/`speaker-test-tone`/`wavtone`/`tas2560-send-cal`, the [sensors](features/sensors.md) bring-up `sensors-up` and daemon `sensord`, and `abslot`, which inittab runs 30 s into each boot to mark `boot_a` successful in the GPT ([A/B slot flags](features/boot.md#ab-slot-flags)), are also packed. `fblog` stays in `tools/fblog/` as a debug tool (built and tested by `make -C tools` into `tools/build/host/fblog`, not packed). The sensors registry map `/usr/share/sensord/sns_reg.map` is generated at build time by `tools/sns-reg-map.py` from `sensors.qti` in `stock/partitions/vendor_a.img` (read with debugfs); if that fails the build only warns, and the image then has no map and `sensors-up` refuses to start. The shelved speaker-protection probe and the DRM experiment builds are not on `main`; they live on the `experiment/speaker-protection` and `experiment/drm` branches.
+`mkinitramfs.sh` overlays `rootfs-overlay/` and builds and installs our own binaries with `make -j"$(nproc)" device` and `make install-device DESTDIR=out/initramfs-root` (see [one build](#one-build-make-device-and-make-test) below). GPS requires RMTFS, IRSC, SERVREG-LOCATOR, TFTP/RFS, and QMUX support. A failed build, a missing persist seed, a rootfs without gpsd, or a rootfs without tinymix/tinyplay abort image generation. `fbtouch`, the [UI platform](features/ui-platform.md) demo `chefui-demo` (baseline image only; built by `make -C tools/chefui device` against the LVGL submodule), `nmea-broker`, `buttond`, the [audio helpers](features/audio.md) `audio-up`/`speaker-test-tone`/`wavtone`/`tas2560-send-cal`, the [sensors](features/sensors.md) bring-up `sensors-up` and daemon `sensord`, and `abslot`, which inittab runs 30 s into each boot to mark `boot_a` successful in the GPT ([A/B slot flags](features/boot.md#ab-slot-flags)), are also packed. `fblog` stays in `tools/fblog/` as a debug tool (built and tested by `make -C tools` into `tools/build/host/fblog`, not packed). The sensors registry map `/usr/share/sensord/sns_reg.map` is generated at build time by `tools/sns-reg-map.py` from `sensors.qti` in `stock/partitions/vendor_a.img` (read with debugfs); if that fails the build only warns, and the image then has no map and `sensors-up` refuses to start. The shelved speaker-protection probe and the DRM experiment builds are not on `main`; they live on the `experiment/speaker-protection` and `experiment/drm` branches.
 
 `mkboot.sh` uses the stock `boot_a.img` header values and the built kernel/initramfs. `fastboot boot` runs an image once; installing one is `fastboot flash boot_a` (procedure in [standalone boot](features/boot.md#procedure-as-run)). A normal reboot runs whatever `boot_a` holds; see [device recovery](device.md#stock-backups-and-recovery).
 
@@ -90,7 +90,7 @@ After boot, connect through [USB networking](features/usb-networking.md). The ba
 
 - **AOSP GCC 4.9 prebuilt:** `gcc`/`g++` are python2 wrapper scripts → symlink to the UUID-named real drivers (`setup-toolchain.sh`).
 
-- **Rootfs from Alpine without qemu:** the host's x86_64 `apk.static` populates an aarch64 root with `--arch aarch64 --usermode --no-scripts`. Skipped post-install scripts mean no busybox applet links (`scripts/link-applets.sh` makes them at build time from the packages' own `etc/busybox-paths.d` lists, since the installed root is read-only), no `messagebus` user (in `initramfs/etc/passwd`), no setuid D-Bus launch helper mode (`scripts/mksystem.sh` sets `root:messagebus 4750` under fakeroot; `/init` sets it on the writable RAM root) and no D-Bus machine-id (`dbus-uuidgen --ensure` in `/init`, on the tmpfs `/var`). `telnetd`/`udhcpd` live in `busybox-extras`.
+- **Rootfs from Alpine without qemu:** the host's x86_64 `apk.static` populates an aarch64 root with `--arch aarch64 --usermode --no-scripts`. Skipped post-install scripts mean no busybox applet links (`scripts/link-applets.sh` makes them at build time from the packages' own `etc/busybox-paths.d` lists, since the installed root is read-only), no `messagebus` user (in `rootfs-overlay/etc/passwd`), no setuid D-Bus launch helper mode (`scripts/mksystem.sh` sets `root:messagebus 4750` under fakeroot; `/init` sets it on the writable RAM root) and no D-Bus machine-id (`dbus-uuidgen --ensure` in `/init`, on the tmpfs `/var`). `telnetd`/`udhcpd` live in `busybox-extras`.
 
 - **DTB targets** are relative to `arch/arm64/boot/dts`: `kmake qcom/sdm636-chef-evt.dtb`.
 
@@ -166,7 +166,7 @@ written; promoting an image to the baseline stays a separate decision.
   packed agree.
 - **`scripts/mkstage1.sh`** packs `stage1/init`, busybox and busybox-extras
   with the musl loader and their applet links, `btprobe`, the shared USB
-  gadget helper (`initramfs/usr/lib/chef/usb-gadget.sh`) and the expected
+  gadget helper (`rootfs-overlay/usr/lib/chef/usb-gadget.sh`) and the expected
   stamp. `STAGE1_EXPECTED_STAMP=FILE OUT=out/stage1-x.cpio.gz` builds a
   ramdisk with another expected stamp (the rescue test image).
 

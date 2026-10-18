@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host tests for initramfs/usr/bin/chef-state (bash and busybox ash).
+"""Host tests for rootfs-overlay/usr/bin/chef-state (bash and busybox ash).
 
 Everything device-facing is a stub: mountpoint, mount, umount, chronyc,
 rtc-edge, pidof and a busybox-like timeout (its watchdog daemonizes with
@@ -31,7 +31,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "initramfs/usr/bin/chef-state"
+SCRIPT = ROOT / "rootfs-overlay/usr/bin/chef-state"
 POWERD = ROOT / "tools/build/host/powerd"  # host build (make -C tools)
 NS = 10**9
 BOOT_ID = "58cf29ac-5b1a-4c4e-9d19-5742e1808633"
@@ -1151,7 +1151,7 @@ class ChefState(unittest.TestCase):
         self.assertIn("power_flush_rc=1", self.kmsg)
 
     def test_every_orderly_shutdown_path_runs_chef_state(self):
-        inittab = (ROOT / "initramfs/etc/inittab").read_text().splitlines()
+        inittab = (ROOT / "rootfs-overlay/etc/inittab").read_text().splitlines()
         shutdown = [l for l in inittab if l.startswith("::shutdown:")]
         self.assertEqual(shutdown[0], "::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown")
         self.assertEqual(shutdown[1], "::shutdown:/usr/bin/chef-storage shutdown")

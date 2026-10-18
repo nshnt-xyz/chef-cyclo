@@ -16,7 +16,7 @@ Audio on this SoC runs on the ADSP (Hexagon DSP), not the application processor.
 
 ## Components and lifecycle
 
-`initramfs/usr/bin/audio-up`:
+`rootfs-overlay/usr/bin/audio-up`:
 
 1. Mounts the active slot's `modem_$SLOT` partition read-only at `/firmware` — the ADSP firmware (`adsp.mdt`/`adsp.b00`..`b21`) lives on the *modem* partition, next to the modem's own firmware, and `gps-up` already knows how to find and mount it. If `gps-up` already has `/firmware` mounted, `audio-up` reuses it and never unmounts it; if `audio-up` mounts it first, `gps-up` does the same in reverse — see both scripts' "audio-up also needs" / "gps-up may already have this mounted" comments for the exact symmetry. Neither script tears down a mount it doesn't own.
 2. Sets `/sys/module/firmware_class/parameters/path` to `/firmware/image` with `printf` (no trailing newline — the same `param_set_copystring()` gotcha documented in `gps-up`'s `set_firmware_path`).
@@ -28,7 +28,7 @@ Audio on this SoC runs on the ADSP (Hexagon DSP), not the application processor.
 
 Manual opt-in only (not in inittab), same policy as `gps-up`: run `audio-up &` from the telnet shell.
 
-`initramfs/usr/bin/speaker-test-tone` plays a short sine tone out of the TAS2560 loudspeaker once the card is up. `tools/wavtone.c` (`wavtone`) generates the WAV file it hands to tinyalsa's `tinyplay`.
+`rootfs-overlay/usr/bin/speaker-test-tone` plays a short sine tone out of the TAS2560 loudspeaker once the card is up. `tools/wavtone.c` (`wavtone`) generates the WAV file it hands to tinyalsa's `tinyplay`.
 
 ## Speaker path and mixer controls
 

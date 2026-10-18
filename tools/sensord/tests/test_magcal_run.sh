@@ -1,5 +1,5 @@
 #!/bin/sh
-# Host test for initramfs/usr/bin/sensors-magcal-run: the real script with
+# Host test for rootfs-overlay/usr/bin/sensors-magcal-run: the real script with
 # second-long steps, against build/host/tests/sensord-fake (main sensord
 # serving REG2, plus the script's own -R helpers) and
 # build/host/tests/fake_smgr as the ADSP (SMGR and QMAG_CAL). Checks the
@@ -14,7 +14,7 @@ T=$(mktemp -d /tmp/snsm.XXXXXX)
 export SENSORD_FAKE_IPC="$T/ipc"
 mkdir -p "$SENSORD_FAKE_IPC" "$T/out"
 SOCK="$T/sock"
-RUN=../../initramfs/usr/bin/sensors-magcal-run
+RUN=../../rootfs-overlay/usr/bin/sensors-magcal-run
 FAILS=0
 SPID=
 FPID=

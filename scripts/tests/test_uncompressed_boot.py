@@ -239,7 +239,7 @@ class MkinstallPackOnlyTests(unittest.TestCase):
                      "mkkernel-uncompressed.py", "link-applets.sh"]:
             (r / "scripts").mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO / "scripts" / name, r / "scripts" / name)
-        for rel in ["stage1/init", "initramfs/etc/udhcpd.conf", "initramfs/usr/lib/chef/usb-gadget.sh"]:
+        for rel in ["stage1/init", "rootfs-overlay/etc/udhcpd.conf", "rootfs-overlay/usr/lib/chef/usb-gadget.sh"]:
             (r / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(REPO / rel, r / rel)
         (r / "toolchain").mkdir()

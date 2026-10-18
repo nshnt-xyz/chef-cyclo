@@ -113,7 +113,7 @@ Since 2026-10-06 (`chef-state`, `tools/rtc-edge.c`; [handoff](../archive/state-p
 
 `chef-storage boot` creates `crash`, `time`, `power`, `sensors` and `ssh` (the [SSH](ssh.md) host key; root, 0700) and `chrony` (`chrony:chrony`, 0700) after the BlueZ and NetworkManager binds, and binds `chrony` on `/var/lib/chrony`. A failure there is logged and leaves the other binds in place. A failed chrony bind leaves its tmpfs directory; a missing or foreign `/data` gives all consumers their RAM paths. On an owned but unwritable `/data`, state saves are skipped or fail with a log line; powerd falls back if creating its log directory fails, and keeps its pending rows on `/run` (bounded, oldest dropped) while flushing them fails.
 
-Common rules, all in `initramfs/usr/bin/chef-state`:
+Common rules, all in `rootfs-overlay/usr/bin/chef-state`:
 
 - **Ours only.** Nothing is read from or written to `/data` unless `chef-state ours` holds: `/data` is a mount point and `/data/chef-layout` reads `chef-cyclo-data-v1`. Otherwise every consumer runs from `/run` as before, with one log line, and `/run/chef-time` says `source=none reason=ram-only`.
 - **Atomic, checked files.** `rtc-offset` and `mag-group-2980` are short text files whose last line is `sha256` of the lines before. They are written as a temp file in the same directory, fsynced, renamed and the directory fsynced, under a per-kind lock on `/run`. On read, the version, line layout, checksum and ranges are checked; a file that fails is ignored with a `chef-state: ... ignoring ...` kmsg line, never trusted and never fatal.

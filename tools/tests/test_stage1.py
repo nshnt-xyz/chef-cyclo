@@ -310,16 +310,16 @@ class Stage2(unittest.TestCase):
     """The stage-2 /init runs on the read-only system_a root: no root writes."""
 
     def test_no_root_writes(self):
-        init = (ROOT / 'initramfs/init').read_text()
+        init = (ROOT / 'rootfs-overlay/init').read_text()
         for forbidden in ('--install', 'sed -i', '/etc/udhcpd.conf'):
             self.assertNotIn(forbidden, init)
         # A failed `.` would end PID 1; the gadget helper is guarded.
         self.assertIn('if [ -r /usr/lib/chef/usb-gadget.sh ] && . /usr/lib/chef/usb-gadget.sh; then', init)
         self.assertLess(init.index('mount --move /run/.var /var'), init.index('dbus-uuidgen --ensure'))
         self.assertIn('mount -t tmpfs -o mode=700 tmpfs /root', init)
-        inittab = (ROOT / 'initramfs/etc/inittab').read_text()
+        inittab = (ROOT / 'rootfs-overlay/etc/inittab').read_text()
         self.assertIn('udhcpd -f /run/udhcpd.conf', inittab)
-        gadget = (ROOT / 'initramfs/usr/lib/chef/usb-gadget.sh').read_text()
+        gadget = (ROOT / 'rootfs-overlay/usr/lib/chef/usb-gadget.sh').read_text()
         self.assertIn('/etc/udhcpd.conf > /run/udhcpd.conf', gadget)
         self.assertNotIn('sed -i', gadget)
 

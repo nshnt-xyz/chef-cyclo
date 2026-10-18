@@ -197,12 +197,13 @@ if [ -z "$MODEM_PART" ]; then
 	log "$MODEM_LABEL partition not found, aborting"
 	exit 1
 fi
-# audio-up (initramfs/usr/bin/audio-up) also needs /firmware (adsp.mdt/b00..b21
-# live on the same modem partition) and keeps it mounted for the ADSP's whole
-# boot, so whichever of the two scripts runs second must not shadow-mount over
-# the first's, and must not tear the other's mount down on exit. FIRMWARE_MOUNTED
-# only tracks *this* process's own mount; if /firmware is already a mountpoint
-# (audio-up got there first) it is left at 0 and cleanup() never unmounts it.
+# audio-up (rootfs-overlay/usr/bin/audio-up) also needs /firmware
+# (adsp.mdt/b00..b21 live on the same modem partition) and keeps it mounted for
+# the ADSP's whole boot, so whichever of the two scripts runs second must not
+# shadow-mount over the first's, and must not tear the other's mount down on
+# exit. FIRMWARE_MOUNTED only tracks *this* process's own mount; if /firmware
+# is already a mountpoint (audio-up got there first) it is left at 0 and
+# cleanup() never unmounts it.
 if mountpoint -q /firmware 2>/dev/null; then
 	log "/firmware already mounted (by audio-up or a previous run); reusing it, will not unmount on exit"
 else

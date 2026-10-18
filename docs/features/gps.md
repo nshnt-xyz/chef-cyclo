@@ -10,7 +10,7 @@ The clean standard-NetworkManager baseline verifies one shared resident modem ow
 
 ## Components and lifecycle
 
-`initramfs/usr/bin/gps-up` starts the modem dependencies, exposes `/run/qmux_socket`, and owns cleanup. Its helpers are:
+`rootfs-overlay/usr/bin/gps-up` starts the modem dependencies, exposes `/run/qmux_socket`, and owns cleanup. Its helpers are:
 
 - `tools/msmipc.{c,h}`, `tools/qrtr/`: AF_MSM_IPC adaptation and QMI support.
 - `tools/irsc.c`: opens the IPC-router security gate before clients send.
@@ -99,7 +99,7 @@ Treat setting a mode as one-way: once anything sets `online` (or `low-power`) we
 
 ## Broker, time, and client behavior
 
-gpsd is packaged in the rootfs and runs as `nobody`. Keep its client listener loopback-only (no `-G`). `initramfs/init` must configure `lo`; without it gpsd bind and broker sends fail.
+gpsd is packaged in the rootfs and runs as `nobody`. Keep its client listener loopback-only (no `-G`). `rootfs-overlay/init` must configure `lo`; without it gpsd bind and broker sends fail.
 
 The broker sends one `$…*hh\r\n` UDP datagram per checksum-verified sentence to 127.0.0.1:20175. It discards position-report blocks, chatter, and invalid checksums. A FIFO is unsuitable for this feed because gpsd treats non-tty files as replay and stops at EOF. UDP tolerates independent process restarts but packets sent without a listener are lost.
 
@@ -107,7 +107,7 @@ The broker sends one `$…*hh\r\n` UDP datagram per checksum-verified sentence t
 
 ### GPS time
 
-chrony (client-only, no UDP server or command listener) owns the wall clock, and GPS is one of its sources: while a lease keeps gpsd running, gpsd puts the NMEA time into NTP SHM unit 0 and chronyd reads it as `refclock SHM 0 refid GPS` (`initramfs/etc/chrony/chrony.conf`). So the broker keeps `-n`. This needs `CONFIG_SYSVIPC=y` (added 2026-10-04; before that `shmget` returned `ENOSYS`). `mkinitramfs.sh` and `mkboot.sh` refuse a kernel without it, because chronyd exits when it cannot attach a configured SHM segment.
+chrony (client-only, no UDP server or command listener) owns the wall clock, and GPS is one of its sources: while a lease keeps gpsd running, gpsd puts the NMEA time into NTP SHM unit 0 and chronyd reads it as `refclock SHM 0 refid GPS` (`rootfs-overlay/etc/chrony/chrony.conf`). So the broker keeps `-n`. This needs `CONFIG_SYSVIPC=y` (added 2026-10-04; before that `shmget` returned `ENOSYS`). `mkinitramfs.sh` and `mkboot.sh` refuse a kernel without it, because chronyd exits when it cannot attach a configured SHM segment.
 
 - **Segments.** Units 0 and 1 are root-only (0600). chronyd attaches unit 0 at startup, before it drops to the `chrony` user. gpsd 3.27.3 attaches units 0 to 11 (`NTPSHMSEGS`, two per device slot) in `ntpshm_context_init()` while still root, then drops to `nobody` and keeps the mappings. Its UDP device uses the first, unit 0. Whichever of the two starts first creates unit 0. When gpsd stops, chrony clears the sample's valid flag after each read, so the source just goes unreachable. gpsd also creates NTP1 (0600), NTP2 to NTP11 (0666) and its export segment `0x47505344` (0666, 38504 bytes). Nobody removes any of these, so they persist after gpsd exits (`nattch` 0) and are reused by the next gpsd; they are harmless. The export segment holds the current fix and is world-readable, the same exposure as gpsd's 127.0.0.1:2947 listener. That is fine on this single-user device, but count it wherever positions are handled. Check with `ipcs -m`: `0x4e545030` root 600, `nattch` 1 idle, 2 while gpsd runs.
 - **When samples flow.** After more than 3 fixes, gpsd ships one sample a second. It latches `CLOCK_REALTIME` on the first timed sentence of each burst: the modem delivers 4 GSV, GGA, VTG, RMC and GSA within about 1 ms, so that is the GGA after the GSVs. The 1970 boot clock does not stop the samples. On the NTP-disciplined clock the bursts arrived about 6 ms after the second. Against NTP the latched time was 13 ms late, with 0.15 to 0.7 ms standard deviation, hence `offset 0.013` and `precision 1e-3`. That NTP ran over Wi-Fi to pool servers that disagreed with each other by up to 55 ms. A cross-check against the USB host gave 13.8 ms, but the host is itself only within about ±80 ms of UTC. So the offset is calibrated to tens of ms of absolute accuracy, not better. With no PPS, treat GPS as a coarse source for the boot step and offline holdover, not a precision reference.

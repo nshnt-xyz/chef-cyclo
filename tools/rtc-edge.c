@@ -1,6 +1,6 @@
 /*
  * rtc-edge: wall clock against the PMIC RTC at sub-second precision, for
- * chef-state (initramfs/usr/bin/chef-state, docs/features/storage.md).
+ * chef-state (rootfs-overlay/usr/bin/chef-state, docs/features/storage.md).
  *
  * The PM660 RTC (rtc0, qpnp_rtc) is write-disabled and only exposes whole
  * seconds (`since_epoch`, counting from battery connect), and busybox

@@ -12,7 +12,7 @@ class SysvipcGateTests(unittest.TestCase):
     it cannot attach the segment, so the build refuses a kernel without it."""
 
     def test_config_fragment_backs_the_shm_refclock(self):
-        chrony = (REPO / "initramfs/etc/chrony/chrony.conf").read_text()
+        chrony = (REPO / "rootfs-overlay/etc/chrony/chrony.conf").read_text()
         fragment = (REPO / "kernel-config/chef-cyclo.config").read_text().splitlines()
         self.assertIn("refclock SHM 0 ", chrony)
         self.assertIn("CONFIG_SYSVIPC=y", fragment)
@@ -28,7 +28,7 @@ class SysvipcGateTests(unittest.TestCase):
             (tree / "scripts/mkinitramfs.sh").write_text((REPO / "scripts/mkinitramfs.sh").read_text())
             (tree / "out").mkdir()
             (tree / "out/rootfs").symlink_to(REPO / "out/rootfs")
-            (tree / "initramfs").symlink_to(REPO / "initramfs")
+            (tree / "rootfs-overlay").symlink_to(REPO / "rootfs-overlay")
             kconfig = tree / ".config"
             kconfig.write_text("CONFIG_RD_LZMA=y\n# CONFIG_SYSVIPC is not set\n")
             for gz in ("", "1"):

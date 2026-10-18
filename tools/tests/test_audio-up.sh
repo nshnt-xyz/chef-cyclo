@@ -1,6 +1,6 @@
 #!/bin/sh
-# Host regression test for initramfs/usr/bin/audio-up's selection/wait logic:
-# part(), active_slot(), set_firmware_path() (copied from gps-up, same
+# Host regression test for rootfs-overlay/usr/bin/audio-up's selection/wait
+# logic: part(), active_slot(), set_firmware_path() (copied from gps-up, same
 # behavior), server_present()/wait_for_server() (the 0x40 symmetry check),
 # find_subsys(), boot_adsp(), card_ready()/wait_for_card(), pcm_mm1_device().
 #
@@ -11,7 +11,7 @@
 # manual review and live verification only -- see docs/features/audio.md.
 set -eu
 cd "$(dirname "$0")/../.."
-AUDIO_UP=initramfs/usr/bin/audio-up
+AUDIO_UP=rootfs-overlay/usr/bin/audio-up
 [ -r "$AUDIO_UP" ] || { echo "cannot find $AUDIO_UP" >&2; exit 1; }
 
 TMPROOT=$(mktemp -d /tmp/audio-up-test.XXXXXX)

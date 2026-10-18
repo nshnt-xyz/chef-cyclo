@@ -8,7 +8,7 @@
   or directory are refused.
 - scripts/ssh-keys.py scan: private key text, raw key blobs and host-key
   file names are found; ELF files carrying PEM strings are not flagged.
-- initramfs/usr/bin/chef-sshd under bash and BusyBox ash, with stubs for
+- rootfs-overlay/usr/bin/chef-sshd under bash and BusyBox ash, with stubs for
   dropbearkey (a "key" is a file starting VALID), dropbear (records its
   arguments, writes -E style log lines, exits), chef-state, chown, sync and
   sleep (bound as shell functions too, since BusyBox ash may prefer its own
@@ -39,8 +39,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 KEYS = ROOT / "scripts/ssh-keys.py"
-SSHD = ROOT / "initramfs/usr/bin/chef-sshd"
-DISPATCH = ROOT / "initramfs/etc/NetworkManager/dispatcher.d/30-chef-wifi-ip"
+SSHD = ROOT / "rootfs-overlay/usr/bin/chef-sshd"
+DISPATCH = ROOT / "rootfs-overlay/etc/NetworkManager/dispatcher.d/30-chef-wifi-ip"
 HAVE_KEYGEN = shutil.which("ssh-keygen") is not None
 
 
@@ -434,7 +434,7 @@ class Dispatcher(unittest.TestCase):
 
 class Wiring(unittest.TestCase):
     def test_inittab(self):
-        lines = (ROOT / "initramfs/etc/inittab").read_text().splitlines()
+        lines = (ROOT / "rootfs-overlay/etc/inittab").read_text().splitlines()
         self.assertEqual(lines[2], "::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 "
                          "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'")
         self.assertEqual(lines.count("::respawn:/usr/bin/chef-sshd"), 1)
@@ -447,12 +447,12 @@ class Wiring(unittest.TestCase):
         if not shells_file.exists():
             self.skipTest("out/rootfs not built")
         shells = {l.strip() for l in shells_file.read_text().splitlines() if l.strip() and not l.startswith("#")}
-        users = [l.split(":") for l in (ROOT / "initramfs/etc/passwd").read_text().splitlines() if l.strip()]
+        users = [l.split(":") for l in (ROOT / "rootfs-overlay/etc/passwd").read_text().splitlines() if l.strip()]
         self.assertEqual([u[0] for u in users if u[6] in shells], ["root"])
-        self.assertFalse((ROOT / "initramfs/etc/shells").exists())
+        self.assertFalse((ROOT / "rootfs-overlay/etc/shells").exists())
 
     def test_storage_makes_ssh_dir(self):
-        self.assertIn("for dir in crash time power sensors ssh; do", (ROOT / "initramfs/usr/bin/chef-storage").read_text())
+        self.assertIn("for dir in crash time power sensors ssh; do", (ROOT / "rootfs-overlay/usr/bin/chef-storage").read_text())
 
     def test_build(self):
         rootfs = (ROOT / "scripts/mkrootfs.sh").read_text()

@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import unittest
 
-SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "initramfs/usr/bin/display-touch-inventory"
+SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "rootfs-overlay/usr/bin/display-touch-inventory"
 
 
 class InventoryTest(unittest.TestCase):

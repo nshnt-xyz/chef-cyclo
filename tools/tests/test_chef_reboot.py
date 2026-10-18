@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host tests for initramfs/usr/bin/chef-reboot (bash and busybox ash).
+"""Host tests for rootfs-overlay/usr/bin/chef-reboot (bash and busybox ash).
 
 chef-state, chef-storage and btprobe are stubs on PATH; a successful btprobe
 SIGKILLs the helper, as reboot(2) would (no exit trap runs). Signals to PID 1
@@ -27,7 +27,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "initramfs/usr/bin/chef-reboot"
+SCRIPT = ROOT / "rootfs-overlay/usr/bin/chef-reboot"
 
 STUB = r'''#!/bin/sh
 name=${0##*/}
@@ -298,7 +298,7 @@ class ChefReboot(unittest.TestCase):
         self.assertGreater(v["WATCHDOG_SECS"], 1 + v["STATE_SECS"] + v["STORAGE_SECS"] + v["SYNC_SECS"] + 2 + 10)
         self.assertGreaterEqual(v["STATE_SECS"], 5 + 1 + 1)  # timeout -k 1 5
         self.assertIn("timeout -k 1 5 chef-state shutdown", text)
-        inittab = (ROOT / "initramfs/etc/inittab").read_text()
+        inittab = (ROOT / "rootfs-overlay/etc/inittab").read_text()
         self.assertIn("::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown", inittab)
 
     def test_callers(self):

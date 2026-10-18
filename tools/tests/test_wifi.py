@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-source = (Path(__file__).resolve().parents[2] / 'initramfs/usr/bin/wifi-dhcp').read_text()
+source = (Path(__file__).resolve().parents[2] / 'rootfs-overlay/usr/bin/wifi-dhcp').read_text()
 with tempfile.TemporaryDirectory(prefix='wifi-test-') as directory:
     root = Path(directory)
     (root / 'wifi').mkdir()
@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='wifi-test-') as directory:
 print('Wi-Fi DHCP routing, USB overlap, failure propagation: PASS')
 
 # Exercise the actual session resolver save/restore blocks for both boot states.
-up = (Path(__file__).resolve().parents[2] / 'initramfs/usr/bin/wifi-up').read_text()
+up = (Path(__file__).resolve().parents[2] / 'rootfs-overlay/usr/bin/wifi-up').read_text()
 save = up[up.index('if [ -e /etc/resolv.conf ]; then'):up.index("printf 'ctrl_interface=")]
 restore = up[up.index('    if [ -f "$RUN/resolv.conf" ]; then'):up.index('    rm -rf "$RUN"')]
 with tempfile.TemporaryDirectory(prefix='wifi-resolver-test-') as directory:

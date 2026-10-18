@@ -13,7 +13,7 @@
 # lifetime (PIL re-reads it on any subsystem-restart recovery). See
 # docs/features/audio.md.
 #
-# gps-up (initramfs/usr/bin/gps-up) mounts the same /firmware and may run a
+# gps-up (rootfs-overlay/usr/bin/gps-up) mounts the same /firmware and may run a
 # servreg-locator of its own; whichever of audio-up/gps-up runs second must
 # not shadow-mount over or start a redundant locator for the first -- see the
 # "audio-up also needs" comments in gps-up for its half of this symmetry.

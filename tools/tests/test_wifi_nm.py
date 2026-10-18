@@ -2,8 +2,8 @@
 """Host ownership and actual dispatcher regressions without network privileges."""
 import os, pathlib, socket, subprocess, tempfile
 R = pathlib.Path(__file__).resolve().parents[2]
-lib = R / 'initramfs/usr/lib/chef/modem-owner.sh'
-dispatch = R / 'initramfs/etc/NetworkManager/dispatcher.d/10-chef-usb-overlap'
+lib = R / 'rootfs-overlay/usr/lib/chef/modem-owner.sh'
+dispatch = R / 'rootfs-overlay/etc/NetworkManager/dispatcher.d/10-chef-usb-overlap'
 with tempfile.TemporaryDirectory() as t:
     p = pathlib.Path(t); (p/'ready').touch()
     sock = socket.socket(socket.AF_UNIX); sock.bind(str(p/'socket'))
@@ -37,11 +37,11 @@ with tempfile.TemporaryDirectory() as t:
     result=subprocess.run(['sh',str(dispatch),'wlan0','up'],env=dict(env,ADDR='192.168.0.1/24',IP_FAIL='1'))
     assert result.returncode and (p/'calls').exists()
 # Mode reservation precedes init concurrency; manual refuses the marker.
-init=(R/'initramfs/init').read_text()
+init=(R/'rootfs-overlay/init').read_text()
 assert init.index('touch /run/wifi-nm-mode') < init.index('exec /sbin/init')
-manual=(R/'initramfs/usr/bin/wifi-up').read_text()
+manual=(R/'rootfs-overlay/usr/bin/wifi-up').read_text()
 assert 'if [ -e /etc/NetworkManager/conf.d/90-chef.conf ] || [ -e /run/wifi-nm-mode ] || pidof NetworkManager' in manual
-nm=(R/'initramfs/usr/bin/wifi-nm').read_text()
+nm=(R/'rootfs-overlay/usr/bin/wifi-nm').read_text()
 assert nm.index('wifi-usb-guard ||') < nm.index('wifi-prepare ||') < nm.index('exec /usr/sbin/NetworkManager')
 print('test_wifi_nm: owner identity, dispatcher overlap/error, boot ownership PASS')
 
@@ -55,7 +55,7 @@ def state_file_argv(tail, ours):
         code = tail.replace('/usr/bin/chef-state', str(p/'chef-state')).replace('/usr/sbin/NetworkManager', str(p/'nm'))
         subprocess.run(['sh', '-c', code], env=dict(os.environ, ARGV=str(p/'argv')), check=True)
         return (p/'argv').read_text().strip()
-nm_text = (R/'initramfs/usr/bin/wifi-nm').read_text()
+nm_text = (R/'rootfs-overlay/usr/bin/wifi-nm').read_text()
 tail = '# The Wi-Fi switch' + nm_text.split('# The Wi-Fi switch', 1)[1]
 assert state_file_argv(tail, True) == '--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state'
 assert state_file_argv(tail, False) == '--no-daemon --state-file=/var/lib/NetworkManager/NetworkManager.state'
@@ -74,8 +74,8 @@ account_gate=source.split('# Skipped apk account scripts:',1)[1].split('# gzip(1
 # Restore the first comment line removed by split.
 account_gate='# Skipped apk account scripts:'+account_gate
 with tempfile.TemporaryDirectory() as t:
-    d=pathlib.Path(t)/'initramfs/etc';d.mkdir(parents=True)
-    passwd=(R/'initramfs/etc/passwd').read_text();group=(R/'initramfs/etc/group').read_text()
+    d=pathlib.Path(t)/'rootfs-overlay/etc';d.mkdir(parents=True)
+    passwd=(R/'rootfs-overlay/etc/passwd').read_text();group=(R/'rootfs-overlay/etc/group').read_text()
     def check(pw,gr):
         (d/'passwd').write_text(pw);(d/'group').write_text(gr)
         return subprocess.run(['sh','-c',account_gate],cwd=t,capture_output=True).returncode
@@ -111,7 +111,7 @@ print('test_wifi_nm: network-only coldplug and fail-closed readiness PASS')
 # Execute real metadata setup without invoking privileged host chown/chmod.
 # system_a carries the mode from the build (verify only, no writes); the RAM
 # cpio is root-owned and gets chown/chmod; any failure leaves the bus off.
-init=(R/'initramfs/init').read_text()
+init=(R/'rootfs-overlay/init').read_text()
 setup=init.split('HELPER=/usr/libexec/dbus-daemon-launch-helper\n',1)[1].split('log "starting',1)[0]
 setup='HELPER=/usr/libexec/dbus-daemon-launch-helper\n'+setup
 with tempfile.TemporaryDirectory() as t:
@@ -134,7 +134,7 @@ with tempfile.TemporaryDirectory() as t:
 print('test_wifi_nm: strict D-Bus helper setup and failure gating PASS')
 
 # Run the real link-time refresh hook with bounded-command and chronyc stubs.
-refresh=R/'initramfs/etc/NetworkManager/dispatcher.d/20-chef-chrony-refresh'
+refresh=R/'rootfs-overlay/etc/NetworkManager/dispatcher.d/20-chef-chrony-refresh'
 with tempfile.TemporaryDirectory() as t:
     p=pathlib.Path(t);b=p/'bin';b.mkdir()
     (b/'busybox').write_text('#!/bin/sh\nprintf "%s\n" "$*" >> "$TIMEOUT_CALLS"\n[ "$1" = timeout ] && [ "$2" = 5 ] || exit 2\nshift 2; exec "$@"\n')

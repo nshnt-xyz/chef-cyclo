@@ -1,6 +1,6 @@
 #!/bin/sh
 # Plays a short sine test tone out of the TAS2560 loudspeaker (chef-cyclo),
-# once audio-up (initramfs/usr/bin/audio-up) has the ADSP and the ALSA card
+# once audio-up (rootfs-overlay/usr/bin/audio-up) has the ADSP and the ALSA card
 # up. Sets the TERT_MI2S_RX -> MultiMedia1 mixer route and a conservative
 # DAC volume, writes a WAV tone with tools/wavtone.c's wavtone, plays it
 # with tinyalsa's tinyplay in mmap mode, and always resets the mixer route

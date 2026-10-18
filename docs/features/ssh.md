@@ -4,7 +4,7 @@
 
 ## Current behavior
 
-`dropbear` listens on port 22, IPv4 and IPv6, on every interface (USB 172.16.42.1, Wi-Fi, Bluetooth PAN) and accepts public-key logins only. It runs from inittab under `initramfs/usr/bin/chef-sshd` (`::respawn:`). The passwordless busybox `telnetd` on 172.16.42.1 (inittab line 3) is unchanged: it stays the recovery shell over USB.
+`dropbear` listens on port 22, IPv4 and IPv6, on every interface (USB 172.16.42.1, Wi-Fi, Bluetooth PAN) and accepts public-key logins only. It runs from inittab under `rootfs-overlay/usr/bin/chef-sshd` (`::respawn:`). The passwordless busybox `telnetd` on 172.16.42.1 (inittab line 3) is unchanged: it stays the recovery shell over USB.
 
 - **Keys that may log in** (to any account with a login shell, which today is only root: every other account's shell is outside `/etc/shells`, and a host test keeps it so) are baked into the image as `/etc/chef/ssh/authorized_keys` from the gitignored host file `secrets/ssh/authorized_keys`. dropbear reads them there (`-D /etc/chef/ssh`); it checks that the file and every directory up to `/` are owned by root and not writable by group or others. `/root` is an empty tmpfs that `/init` mounts, so nothing is copied at boot, and SSH works the same on RAM-only boots and after a wiped `/data`.
 - **No password logins at all** (`-s`). root's password is empty in `/etc/shadow`; with `-s` dropbear offers only `publickey`, and without `-B` it never accepts a blank password. Three auth tries per connection (`-T 3`).
@@ -45,7 +45,7 @@ PHONE_SSH=192.168.0.116 scripts/phone.py push build/tool -d /run/test
 
 ## Modify and verify
 
-Files: `initramfs/usr/bin/chef-sshd`, `initramfs/etc/inittab`, `initramfs/usr/bin/chef-storage` (creates `/data/v1/ssh`), `initramfs/etc/NetworkManager/dispatcher.d/30-chef-wifi-ip`, `initramfs/etc/profile.d/chef-session.sh`, `scripts/ssh-keys.py`, `scripts/ssh-setup.sh`, `scripts/phone.py`, `scripts/mkrootfs.sh`, `scripts/mkinitramfs.sh`, `scripts/mksystem.sh`. Host tests: `tools/tests/test_ssh.py` (in `make -C tools test`; `chef-sshd` under bash and BusyBox ash).
+Files: `rootfs-overlay/usr/bin/chef-sshd`, `rootfs-overlay/etc/inittab`, `rootfs-overlay/usr/bin/chef-storage` (creates `/data/v1/ssh`), `rootfs-overlay/etc/NetworkManager/dispatcher.d/30-chef-wifi-ip`, `rootfs-overlay/etc/profile.d/chef-session.sh`, `scripts/ssh-keys.py`, `scripts/ssh-setup.sh`, `scripts/phone.py`, `scripts/mkrootfs.sh`, `scripts/mkinitramfs.sh`, `scripts/mksystem.sh`. Host tests: `tools/tests/test_ssh.py` (in `make -C tools test`; `chef-sshd` under bash and BusyBox ash).
 
 Live checks: key login over Wi-Fi gives a root shell; password, empty-password and wrong-key attempts are refused; telnet over USB unchanged; `scp` and `sftp` copy a file; the host key fingerprint is the same after a reboot; `phone.py --ssh` works with the USB cable out; the panel shows the Wi-Fi address; `fuser -m /data` does not list dropbear; a `reboot` from an SSH session completes every shutdown hook.
 

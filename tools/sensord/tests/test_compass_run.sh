@@ -1,5 +1,5 @@
 #!/bin/sh
-# Host test for initramfs/usr/bin/sensors-compass-run: the real script with
+# Host test for rootfs-overlay/usr/bin/sensors-compass-run: the real script with
 # second-long steps, against build/host/tests/sensord-fake (main sensord
 # serving REG2, plus the script's -R -V helper with ROTVEC=1) and
 # build/host/tests/fake_smgr as the ADSP (SMGR, ROTATION_VECTOR, and a
@@ -15,7 +15,7 @@ T=$(mktemp -d /tmp/snsr.XXXXXX)
 export SENSORD_FAKE_IPC="$T/ipc"
 mkdir -p "$SENSORD_FAKE_IPC" "$T/out"
 SOCK="$T/sock"
-RUN=../../initramfs/usr/bin/sensors-compass-run
+RUN=../../rootfs-overlay/usr/bin/sensors-compass-run
 FAILS=0
 SPID=
 FPID=

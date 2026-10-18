@@ -2,7 +2,7 @@
 # chef-cyclo stage-1 /init: the small ramdisk in the boot image
 # (scripts/mkstage1.sh). It finds the read-only root filesystem on system_a,
 # checks it is ours and was built for this kernel, mounts it read-only and
-# switch_roots to its /init (initramfs/init). If anything is wrong it stays
+# switch_roots to its /init (rootfs-overlay/init). If anything is wrong it stays
 # here with a rescue shell on USB networking (telnet 172.16.42.1, as the
 # normal image), so the host can still reach the phone without fastboot;
 # `btprobe restart bootloader` from that shell reaches fastboot.
