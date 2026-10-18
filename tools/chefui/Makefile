@@ -60,6 +60,12 @@ HDRS := chefui.h chefui_internal.h copy.h plan.h touch.h buttons.h fbscreen.h lv
 
 DEV_LIB_SRCS := chefui.c backend_fb.c backends_device.c $(PURE)
 HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
+# Shared code from ../common/ (the JSON line reader buttons.c parses
+# buttond with), compiled into each configuration's libchefui as
+# build/<config>/common/*.o.
+COMMON_SRCS := json.c
+HDRS += ../common/json.h
+common_objs = $(patsubst %.c,$(B)/$(1)/common/%.o,$(COMMON_SRCS))
 
 # System UI kit + state sources (libchefkit) and the chef-settings app.
 FONT_SRCS := $(sort $(wildcard kit/fonts/chefkit_*.c))
@@ -125,7 +131,11 @@ $(B)/device/%.o: %.c $(HDRS)
 	@mkdir -p $(dir $@)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) $(SECTIONS) $(LV_DEFS) $(INC) -c -o $@ $<
 
-$(B)/device/libchefui.a: $(patsubst %.c,$(B)/device/%.o,$(DEV_LIB_SRCS))
+$(B)/device/common/%.o: ../common/%.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(DEVICE_CC) $(DEVICE_CFLAGS) $(SECTIONS) -c -o $@ $<
+
+$(B)/device/libchefui.a: $(patsubst %.c,$(B)/device/%.o,$(DEV_LIB_SRCS)) $(call common_objs,device)
 	rm -f $@; $(DEVICE_AR) rcs $@ $^
 
 $(B)/device/chefui-demo: $(B)/device/demo.o $(B)/device/libchefui.a $(B)/device/liblvgl.a
@@ -158,7 +168,11 @@ $(B)/host/%.o: %.c $(HDRS)
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(CHEF_WARN) $(OPT) $(LV_DEFS) -DCHEFUI_SDL=1 $(SDL_CFLAGS) $(INC) -c -o $@ $<
 
-$(B)/host/libchefui-host.a: $(patsubst %.c,$(B)/host/%.o,$(HOST_LIB_SRCS))
+$(B)/host/common/%.o: ../common/%.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(CHEF_WARN) $(OPT) -c -o $@ $<
+
+$(B)/host/libchefui-host.a: $(patsubst %.c,$(B)/host/%.o,$(HOST_LIB_SRCS)) $(call common_objs,host)
 	rm -f $@; $(HOST_AR) rcs $@ $^
 
 $(B)/host/chefui-demo: $(B)/host/demo.o $(B)/host/libchefui-host.a $(B)/host/liblvgl.a
@@ -196,9 +210,9 @@ $(T)/test-touch: tests/test_touch.c touch.c copy.c touch.h copy.h ../evdev.h tes
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_touch.c touch.c copy.c -Wl,--wrap=ioctl
 
-$(T)/test-buttons: tests/test_buttons.c buttons.c buttons.h tests/check.h
+$(T)/test-buttons: tests/test_buttons.c buttons.c buttons.h ../common/json.c ../common/json.h tests/check.h
 	@mkdir -p $(T)
-	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_buttons.c buttons.c
+	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_buttons.c buttons.c ../common/json.c
 
 $(T)/test-fbscreen: tests/test_fbscreen.c fbscreen.c fbscreen.h ../fbdev.h tests/check.h
 	@mkdir -p $(T)
@@ -209,9 +223,14 @@ $(T)/chefui/%.o: %.c $(HDRS)
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -c -o $@ $<
 
-$(T)/test-chefui: tests/test_chefui.c tests/check.h $(patsubst %.c,$(T)/chefui/%.o,$(DEV_LIB_SRCS)) $(T)/liblvgl.a
+$(T)/common/%.o: ../common/%.c $(HDRS)
+	@mkdir -p $(dir $@)
+	$(HOST_CC) $(TEST_CFLAGS) -c -o $@ $<
+
+$(T)/test-chefui: tests/test_chefui.c tests/check.h $(patsubst %.c,$(T)/chefui/%.o,$(DEV_LIB_SRCS)) \
+		$(call common_objs,test) $(T)/liblvgl.a
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -o $@ tests/test_chefui.c \
-		$(patsubst %.c,$(T)/chefui/%.o,$(DEV_LIB_SRCS)) $(T)/liblvgl.a -lm -Wl,--wrap=ioctl
+		$(patsubst %.c,$(T)/chefui/%.o,$(DEV_LIB_SRCS)) $(call common_objs,test) $(T)/liblvgl.a -lm -Wl,--wrap=ioctl
 
 # System UI: kit, sources, settings and app on fakeloop (no chefui loop,
 # no display hardware). Sanitized like the rest.

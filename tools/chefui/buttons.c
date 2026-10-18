@@ -8,6 +8,9 @@
 #include <unistd.h>
 
 #include "buttons.h"
+#include "common/json.h"
+
+#define CU_BTN_PROTO 1
 
 static void nolog(const char *fmt, ...)
 {
@@ -100,17 +103,33 @@ bool cu_buttons_dispatch(struct cu_buttons *b, const char *gesture)
 	return false;
 }
 
+/* One JSON line from buttond: gestures are dispatched, errors logged, a
+ * hello's proto checked; "ok", "status" and any type this client does
+ * not know need nothing. */
 static void handle_line(struct cu_buttons *b, char *line)
 {
-	size_t n = strlen(line);
+	struct json_obj o;
+	char type[16], gesture[CU_BTN_NAME_MAX];
+	long proto;
 
-	while (n && (line[n - 1] == '\r' || line[n - 1] == ' '))
-		line[--n] = '\0';
-	if (strncmp(line, "event ", 6) == 0 && line[6])
-		cu_buttons_dispatch(b, line + 6);
-	else if (strncmp(line, "err", 3) == 0)
+	if (json_parse(&o, line, strlen(line))) {
+		b->log("buttond: unreadable line: %.80s", line);
+		return;
+	}
+	if (!json_get_string(&o, "type", type, sizeof(type)))
+		return;
+	if (strcmp(type, "gesture") == 0) {
+		if (json_get_string(&o, "gesture", gesture, sizeof(gesture)) && gesture[0])
+			cu_buttons_dispatch(b, gesture);
+	} else if (strcmp(type, "error") == 0) {
 		b->log("buttond: %s", line);
-	/* "ok ..." acknowledgements need nothing */
+	} else if (strcmp(type, "hello") == 0) {
+		if ((!json_get_long(&o, "proto", &proto) || proto != CU_BTN_PROTO) && !b->proto_warned) {
+			b->proto_warned = true;
+			b->log("buttond: unknown protocol in %s (this client speaks proto %d); carrying on",
+			       line, CU_BTN_PROTO);
+		}
+	}
 }
 
 void cu_buttons_feed(struct cu_buttons *b, const char *data, size_t n)

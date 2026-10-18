@@ -143,10 +143,13 @@ $(H)/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h
 
 # ioctl() is wrapped so the daemon's borrow/resume/idle path runs against a
 # temporary file standing in for fb0. The test also includes
-# buttond/buttond.c, which finds evdev.h through -I.
-$(H)/tests/test-fblog: tests/test_fblog.c buttond/buttond.c fblog/fblog.c fblog/font9x15.h fbdev.h evdev.h
+# buttond/buttond.c, which finds evdev.h and common/ through -I., and links
+# the common/ sources buttond is built with.
+BUTTOND_COMMON := common/chef_log.c common/linesrv.c common/json.c
+$(H)/tests/test-fblog: tests/test_fblog.c buttond/buttond.c fblog/fblog.c fblog/font9x15.h fbdev.h evdev.h \
+		$(BUTTOND_COMMON) $(BUTTOND_COMMON:.c=.h)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I. -o $@ $< $(LDFLAGS) -Wl,--wrap=ioctl
+	$(CC) $(CFLAGS) -I. -o $@ $< $(BUTTOND_COMMON) $(LDFLAGS) -Wl,--wrap=ioctl
 
 # gpsd feed (nmea-broker.c): qmicli follower stdout -> one UDP datagram per
 # valid NMEA sentence to gpsd on loopback, optional tee/log, set-once clock

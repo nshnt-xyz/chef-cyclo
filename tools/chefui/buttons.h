@@ -6,9 +6,13 @@
  * On connect every configured gesture is claimed ("claim G\n");
  * power.short is always among them, power.long only if the application
  * asks (buttond's power-off default must keep working), and the
- * Power+VolDown chord is never claimed. Replies ("ok ...", "err ...") and
- * events ("event G") are parsed across partial reads. When buttond goes
- * away the client reconnects with a 1 s backoff and claims again.
+ * Power+VolDown chord is never claimed. buttond's lines are JSON objects
+ * (proto 1, docs/features/buttons-and-power-off.md), read across partial
+ * reads with ../common/json.h: {"type":"gesture","gesture":"G"} is
+ * dispatched, "error" lines are logged, a hello with another proto is
+ * logged once, and "ok", "status" and unknown types or members are
+ * ignored. When buttond goes away the client reconnects with a 1 s
+ * backoff and claims again.
  *
  * Dispatch: the application's callback sees every gesture first; when it
  * does not report the gesture handled, power.short falls back to the
@@ -41,6 +45,7 @@ struct cu_buttons {
 	int64_t next_try_ms;		/* reconnect deadline, CLOCK_MONOTONIC */
 	unsigned long connects;
 	unsigned long closes;		/* cu_buttons_close() calls */
+	bool proto_warned;		/* an unknown proto was logged */
 
 	cu_btn_app_cb app_cb;
 	void *app_user;

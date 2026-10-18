@@ -21,14 +21,12 @@
 
 /* Integrated flag protocol: real buttond defaults drive the fblog idle loop. */
 #define BUTTOND_NO_MAIN
-#define kmsg_note buttond_kmsg_note
 #define g_stop buttond_g_stop
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #include "../buttond/buttond.c"
 #pragma GCC diagnostic pop
-#undef kmsg_note
 #undef g_stop
 
 
@@ -916,9 +914,8 @@ static void test_buttond_fblog_wake_protocol(void)
 		protocol_child = child;
 		protocol_signals = 0;
 		protocol_flag = f.flag;
-		server_init(&buttons, 1500, 300);
+		CHECK(server_init(&buttons, 1500, 300, protocol_log) == 0);
 		buttons.off_path = f.flag;
-		buttons.log = protocol_log;
 		buttons.kill_comm = protocol_kill;
 		CHECK(protocol_read(ready[0], 'r'));
 		CHECK(screen_toggle(&buttons) == 0);
@@ -939,6 +936,7 @@ static void test_buttond_fblog_wake_protocol(void)
 		CHECK(idle_until_flag_gone(&f.d) == 0);
 		CHECK(tick(&f.d) == 0 && f.d.fb_open && !f.d.idle);
 		CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);
+		server_fini(&buttons);
 		dfix_done(&f);
 	}
 }

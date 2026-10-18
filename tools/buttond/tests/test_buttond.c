@@ -310,27 +310,55 @@ static void test_names(void)
 
 /* ---- server: claims and protocol ---- */
 
+#define HELLO "{\"type\":\"hello\",\"daemon\":\"buttond\",\"proto\":1}\n"
+
 struct peer {
-	struct client *c;
+	struct linesrv_client *c;
 	int fd;		/* our end */
 };
 
+/* One poll round of the server's sockets. */
+static void pump(struct server *s)
+{
+	struct pollfd pfd[1 + BUTTOND_MAX_CLIENTS];
+	int n = linesrv_pollfds(s->srv, pfd, 1 + BUTTOND_MAX_CLIENTS);
+
+	if (poll(pfd, (nfds_t)n, 0) > 0)
+		linesrv_handle(s->srv, pfd, n);
+}
+
+/* A connected client; the hello is the first thing it reads. */
 static struct peer connect_peer(struct server *s)
 {
 	struct peer p;
+	char buf[128];
 	int sv[2];
 
 	CHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
 	p.fd = sv[0];
-	p.c = server_add_client(s, sv[1]);
+	p.c = linesrv_adopt(s->srv, sv[1]);
 	CHECK(p.c != NULL);
+	recv_line(p.fd, buf, sizeof(buf));
+	CHECK(strcmp(buf, HELLO) == 0);
 	return p;
 }
 
 static void say(struct server *s, struct peer *p, const char *text)
 {
 	CHECK(send(p->fd, text, strlen(text), 0) == (ssize_t)strlen(text));
-	server_client_input(s, p->c);
+	pump(s);
+}
+
+/* Send TEXT and expect exactly REPLY back. */
+static void ask(struct server *s, struct peer *p, const char *text, const char *reply)
+{
+	char buf[1024];
+
+	say(s, p, text);
+	recv_line(p->fd, buf, sizeof(buf));
+	CHECK(strcmp(buf, reply) == 0);
+	if (strcmp(buf, reply))
+		fprintf(stderr, "  %s-> %s", text, buf);
 }
 
 static void test_server_claims(void)
@@ -339,68 +367,73 @@ static void test_server_claims(void)
 	struct peer a, b;
 	char buf[512];
 
-	server_init(&s, 1500, 300);
-	s.log = test_log;
+	CHECK(server_init(&s, 1500, 300, test_log) == 0);
 	s.kill_comm = test_kill;
 	CHECK(s.off_path && strcmp(s.off_path, "/run/fblog.off") == 0);
 
 	a = connect_peer(&s);
-	say(&s, &a, "claim power.long\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok claim power.long\n") == 0);
+	ask(&s, &a, "claim power.long\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.long\"}\n");
 	CHECK(server_claim_count(&s, GES_POWER_LONG) == 1);
 	CHECK(!s.recog.double_armed[BTN_POWER]);
 
-	say(&s, &a, "claim power.double\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok claim power.double\n") == 0);
+	ask(&s, &a, "claim power.double\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.double\"}\n");
 	CHECK(s.recog.double_armed[BTN_POWER]);
 	CHECK(!s.recog.double_armed[BTN_VOLUP]);
 
-	say(&s, &a, "claim nope\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "err unknown gesture nope\n") == 0);
-	say(&s, &a, "claim\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "err unknown gesture \n") == 0);
-	say(&s, &a, "frobnicate x\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "err unknown command frobnicate\n") == 0);
+	ask(&s, &a, "claim nope\n",
+	    "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"unknown gesture\",\"gesture\":\"nope\"}\n");
+	ask(&s, &a, "release nope\n",
+	    "{\"type\":\"error\",\"cmd\":\"release\",\"reason\":\"unknown gesture\",\"gesture\":\"nope\"}\n");
+	ask(&s, &a, "claim\n", "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"bad arguments\"}\n");
+	ask(&s, &a, "claim power.short volup.short\n",
+	    "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"bad arguments\"}\n");
+	CHECK(server_claim_count(&s, GES_POWER_SHORT) == 0);	/* extra words: nothing claimed */
+	ask(&s, &a, "release\n", "{\"type\":\"error\",\"cmd\":\"release\",\"reason\":\"bad arguments\"}\n");
+	ask(&s, &a, "watch now\n", "{\"type\":\"error\",\"cmd\":\"watch\",\"reason\":\"bad arguments\"}\n");
+	ask(&s, &a, "status all\n", "{\"type\":\"error\",\"cmd\":\"status\",\"reason\":\"bad arguments\"}\n");
+	ask(&s, &a, "a b c d e f g h i j\n", "{\"type\":\"error\",\"cmd\":\"a\",\"reason\":\"unknown command\"}\n");
+	ask(&s, &a, "claim 1 2 3 4 5 6 7 8 9\n", "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"bad arguments\"}\n");
+	ask(&s, &a, "frobnicate x\n", "{\"type\":\"error\",\"cmd\":\"frobnicate\",\"reason\":\"unknown command\"}\n");
+	/* echoed words are escaped and cut at 32 bytes */
+	ask(&s, &a, "fr\"ob\\x\x01\n",
+	    "{\"type\":\"error\",\"cmd\":\"fr\\\"ob\\\\x\\u0001\",\"reason\":\"unknown command\"}\n");
+	ask(&s, &a, "claim 0123456789abcdef0123456789abcdefXYZ\n",
+	    "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"unknown gesture\","
+	    "\"gesture\":\"0123456789abcdef0123456789abcdef\"}\n");
+	ask(&s, &a, "\xc3\xa9t\x7f\n", "{\"type\":\"error\",\"cmd\":\"??t?\",\"reason\":\"unknown command\"}\n");
 	say(&s, &a, "\n");			/* empty line: ignored */
+	CHECK(recv_line(a.fd, buf, sizeof(buf)) < 0);
+	say(&s, &a, " \t \r\n");		/* so is a blank one */
 	CHECK(recv_line(a.fd, buf, sizeof(buf)) < 0);
 
 	/* status */
-	say(&s, &a, "status\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok status power=up volup=up voldown=up long_ms=1500 double_ms=300 "
-			  "poweroff_hold_ms=1500 poweroff=idle claims=power.double:1,power.long:1 watchers=0\n") == 0);
+	ask(&s, &a, "status\n",
+	    "{\"type\":\"status\",\"buttons\":{\"power\":\"up\",\"volup\":\"up\",\"voldown\":\"up\"},"
+	    "\"long_ms\":1500,\"double_ms\":300,\"poweroff_hold_ms\":1500,\"poweroff\":\"idle\","
+	    "\"claims\":{\"power.double\":1,\"power.long\":1},\"watchers\":0}\n");
 
 	/* a second claimant, then release/disconnect bookkeeping */
 	b = connect_peer(&s);
-	say(&s, &b, "claim power.double\nwatch\n");	/* two lines in one recv */
-	recv_line(b.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok claim power.double\nok watch\n") == 0);
+	ask(&s, &b, "claim power.double\nwatch\n",	/* two lines in one recv */
+	    "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.double\"}\n{\"type\":\"ok\",\"cmd\":\"watch\"}\n");
 	CHECK(server_claim_count(&s, GES_POWER_DOUBLE) == 2);
-	say(&s, &a, "release power.double\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok release power.double\n") == 0);
+	ask(&s, &a, "release power.double\n", "{\"type\":\"ok\",\"cmd\":\"release\",\"gesture\":\"power.double\"}\n");
 	CHECK(server_claim_count(&s, GES_POWER_DOUBLE) == 1);
 	CHECK(s.recog.double_armed[BTN_POWER]);	/* b still holds it */
-	say(&s, &a, "release power.double\n");	/* releasing twice is fine */
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok release power.double\n") == 0);
+	/* releasing twice is fine */
+	ask(&s, &a, "release power.double\n", "{\"type\":\"ok\",\"cmd\":\"release\",\"gesture\":\"power.double\"}\n");
 
 	s.recog.b[BTN_POWER].down = true;
-	say(&s, &b, "status\n");
-	recv_line(b.fd, buf, sizeof(buf));
-	CHECK(strstr(buf, "power=down volup=up") != NULL);
-	CHECK(strstr(buf, "claims=power.double:1,power.long:1 watchers=1") != NULL);
+	ask(&s, &b, "status\n",
+	    "{\"type\":\"status\",\"buttons\":{\"power\":\"down\",\"volup\":\"up\",\"voldown\":\"up\"},"
+	    "\"long_ms\":1500,\"double_ms\":300,\"poweroff_hold_ms\":1500,\"poweroff\":\"idle\","
+	    "\"claims\":{\"power.double\":1,\"power.long\":1},\"watchers\":1}\n");
 	s.recog.b[BTN_POWER].down = false;
 
 	/* peer b goes away: its claims vanish and doubles disarm */
 	close(b.fd);
-	server_client_input(&s, b.c);
-	CHECK(b.c->fd == -1);
+	pump(&s);
+	CHECK(linesrv_fd(b.c) == -1);
 	CHECK(server_claim_count(&s, GES_POWER_DOUBLE) == 0);
 	CHECK(!s.recog.double_armed[BTN_POWER]);
 	CHECK(server_claim_count(&s, GES_POWER_LONG) == 1);
@@ -410,33 +443,35 @@ static void test_server_claims(void)
 	CHECK(recv_line(a.fd, buf, sizeof(buf)) < 0);
 	say(&s, &a, "im volup.sho");
 	CHECK(recv_line(a.fd, buf, sizeof(buf)) < 0);
-	say(&s, &a, "rt\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok claim volup.short\n") == 0);
+	ask(&s, &a, "rt\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"volup.short\"}\n");
 	/* CRLF and extra whitespace tolerated */
-	say(&s, &a, "claim  voldown.long \r\n");
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "ok claim voldown.long\n") == 0);
+	ask(&s, &a, "claim  voldown.long \r\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"voldown.long\"}\n");
 
 	/* an overlong line is rejected once and its tail discarded up to the
 	 * newline, so the next command is not corrupted by the leftovers */
 	memset(buf, 'x', 300);
 	buf[300] = '\0';
-	say(&s, &a, buf);
-	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "err line too long\n") == 0);
-	server_client_input(&s, a.c);		/* the rest of the x's */
+	ask(&s, &a, buf, "{\"type\":\"error\",\"reason\":\"line too long\"}\n");
+	pump(&s);				/* the rest of the x's */
+	pump(&s);
 	CHECK(recv_line(a.fd, buf, sizeof(buf)) < 0);
 	say(&s, &a, "yyy\nstatus\n");		/* end of the bad line, then a good one */
 	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strncmp(buf, "ok status", 9) == 0);
+	CHECK(strncmp(buf, "{\"type\":\"status\",", 17) == 0);
 	CHECK(strchr(buf, '\n') == buf + strlen(buf) - 1);	/* exactly one reply */
+	/* 127 bytes before the newline still fit */
+	memset(buf, ' ', 127);
+	memcpy(buf + 127 - 6, "status", 6);
+	strcpy(buf + 127, "\n");
+	say(&s, &a, buf);
+	recv_line(a.fd, buf, sizeof(buf));
+	CHECK(strncmp(buf, "{\"type\":\"status\",", 17) == 0);
 
 	close(a.fd);
-	server_drop_client(&s, a.c);
+	linesrv_drop(a.c);
 	CHECK(server_claim_count(&s, GES_POWER_LONG) == 0);
 
-	/* the client table is bounded */
+	/* the client table is bounded: the 17th gets an error and is closed */
 	{
 		struct peer ps[BUTTOND_MAX_CLIENTS];
 		int sv[2], i;
@@ -444,14 +479,64 @@ static void test_server_claims(void)
 		for (i = 0; i < BUTTOND_MAX_CLIENTS; i++)
 			ps[i] = connect_peer(&s);
 		CHECK(socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == 0);
-		CHECK(server_add_client(&s, sv[1]) == NULL);
+		CHECK(linesrv_adopt(s.srv, sv[1]) == NULL);
+		recv_line(sv[0], buf, sizeof(buf));
+		CHECK(strcmp(buf, "{\"type\":\"error\",\"reason\":\"too many clients\"}\n") == 0);
+		CHECK(recv(sv[0], buf, 1, 0) == 0);	/* then closed */
+		CHECK(strcmp(last_log(), "client limit (16) reached, refusing") == 0);
 		close(sv[0]);
-		close(sv[1]);
 		for (i = 0; i < BUTTOND_MAX_CLIENTS; i++) {
 			close(ps[i].fd);
-			server_drop_client(&s, ps[i].c);
+			linesrv_drop(ps[i].c);
 		}
 	}
+	server_fini(&s);
+}
+
+/* A claimant that stops reading is dropped once its queue is full, and
+ * the default for its gesture comes back. */
+static void test_server_slow_claimant(void)
+{
+	struct server s;
+	struct peer a;
+	char dir[] = "/tmp/buttond-test-XXXXXX";
+	char off[128], buf[128];
+	int i, early, sz = 1;
+
+	CHECK(mkdtemp(dir) != NULL);
+	snprintf(off, sizeof(off), "%s/fblog.off", dir);
+	CHECK(server_init(&s, 1500, 300, test_log) == 0);
+	s.kill_comm = test_kill;
+	s.off_path = off;
+
+	a = connect_peer(&s);
+	ask(&s, &a, "claim power.short\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.short\"}\n");
+	setsockopt(linesrv_fd(a.c), SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz));
+	for (i = 0, early = 0; i < 100000 && linesrv_fd(a.c) >= 0; i++) {
+		if (access(off, F_OK) == 0)
+			early++;		/* claimed: no toggle yet */
+		server_dispatch(&s, GES_POWER_SHORT, 0);
+	}
+	CHECK(early == 0);
+	CHECK(linesrv_fd(a.c) == -1);
+	CHECK(i > BUTTOND_OUTQ / 45);		/* the queue took its share first */
+	CHECK(server_claim_count(&s, GES_POWER_SHORT) == 0);
+	/* the dropping dispatch itself already fell back to the default */
+	CHECK(access(off, F_OK) == 0);
+	CHECK(strstr(last_log(), "screen off") != NULL);
+	g_killed[0] = '\0';
+	server_dispatch(&s, GES_POWER_SHORT, 0);
+	CHECK(access(off, F_OK) != 0 && strstr(last_log(), "screen on") != NULL);
+	/* what it did get was whole lines */
+	{
+		const char *ev = "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n";
+
+		recv_line(a.fd, buf, strlen(ev) + 1);
+		CHECK(strcmp(buf, ev) == 0);
+	}
+	close(a.fd);
+	server_fini(&s);
+	rmdir(dir);
 }
 
 /* ---- server: dispatch and defaults ---- */
@@ -468,8 +553,7 @@ static void test_server_dispatch(void)
 	CHECK(mkdtemp(dir) != NULL);
 	snprintf(off, sizeof(off), "%s/fblog.off", dir);
 
-	server_init(&s, 1500, 300);
-	s.log = test_log;
+	CHECK(server_init(&s, 1500, 300, test_log) == 0);
 	s.kill_comm = test_kill;
 	s.off_path = off;
 
@@ -519,7 +603,7 @@ static void test_server_dispatch(void)
 	g_killed[0] = '\0';
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "event power.short\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n") == 0);
 	CHECK(g_killed[0] == '\0' && access(off, F_OK) != 0);
 	CHECK(strcmp(last_log(), "power.short -> 1 claimant") == 0);
 	/* unclaimed gestures do not reach a plain claimant */
@@ -532,15 +616,15 @@ static void test_server_dispatch(void)
 	recv_line(w.fd, buf, sizeof(buf));
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	recv_line(w.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "event power.short\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n") == 0);
 	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "event power.short\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n") == 0);
 	CHECK(g_killed[0] == '\0');		/* still claimed by a */
 	close(a.fd);
-	server_client_input(&s, a.c);		/* a is gone */
+	pump(&s);				/* a is gone */
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	recv_line(w.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "event power.short\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n") == 0);
 	CHECK(strcmp(g_killed, "fblog/15") == 0 && access(off, F_OK) == 0);	/* default is back */
 	unlink(off);
 
@@ -549,12 +633,12 @@ static void test_server_dispatch(void)
 	say(&s, &a, "claim volup.long\n");
 	recv_line(a.fd, buf, sizeof(buf));
 	close(a.fd);
-	CHECK(a.c->fd >= 0);
+	CHECK(linesrv_fd(a.c) >= 0);
 	server_dispatch(&s, GES_VOLUP_LONG, 0);
-	CHECK(a.c->fd == -1);
+	CHECK(linesrv_fd(a.c) == -1);
 	CHECK(strcmp(last_log(), "volup.long unclaimed: no default") == 0);
 	recv_line(w.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "event volup.long\n") == 0);	/* the watcher saw it */
+	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"volup.long\"}\n") == 0);	/* the watcher saw it */
 
 	/* end to end through the recognizer: two events in one drain */
 	recog_key(&s.recog, BTN_POWER, 1, 0);
@@ -563,12 +647,14 @@ static void test_server_dispatch(void)
 	recog_key(&s.recog, BTN_VOLUP, 0, 150);
 	server_drain(&s, 0);
 	recv_line(w.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "event power.short\nevent volup.short\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n"
+			  "{\"type\":\"gesture\",\"gesture\":\"volup.short\"}\n") == 0);
 	CHECK(access(off, F_OK) == 0);
 	unlink(off);
 
 	close(w.fd);
-	server_drop_client(&s, w.c);
+	linesrv_drop(w.c);
+	server_fini(&s);
 	rmdir(dir);
 }
 
@@ -586,8 +672,7 @@ static void test_server_poweroff(void)
 	snprintf(vib, sizeof(vib), "%s/vibrator", dir);
 	CHECK(vib_read(vib) == -1);		/* creates the empty node */
 
-	server_init(&s, 1500, 300);
-	s.log = test_log;
+	CHECK(server_init(&s, 1500, 300, test_log) == 0);
 	s.kill_comm = test_kill;
 	s.poweroff = test_poweroff;
 	s.vib_path = vib;
@@ -665,7 +750,8 @@ static void test_server_poweroff(void)
 	server_drain(&s, 41500);
 	say(&s, &a, "status\n");
 	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strstr(buf, "power=down") != NULL && strstr(buf, "poweroff_hold_ms=1500 poweroff=armed") != NULL);
+	CHECK(strstr(buf, "\"power\":\"down\"") != NULL &&
+	      strstr(buf, "\"poweroff_hold_ms\":1500,\"poweroff\":\"armed\"") != NULL);
 	recog_key(&s.recog, BTN_POWER, 0, 41600);
 	server_drain(&s, 41600);
 	server_tick(&s, 41600);
@@ -680,14 +766,14 @@ static void test_server_poweroff(void)
 	server_tick(&s, 51500);
 	CHECK(s.po_state == PO_IDLE);
 	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "event power.long\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.long\"}\n") == 0);
 	CHECK(vib_read(vib) == -1);
 	recog_key(&s.recog, BTN_POWER, 0, 55000);
 	server_drain(&s, 55000);
 	server_tick(&s, 55000);
 	CHECK(g_poweroffs == 1);
 	close(a.fd);
-	server_drop_client(&s, a.c);
+	linesrv_drop(a.c);
 
 	/* -p 0: the default only logs */
 	s.poweroff_hold_ms = 0;
@@ -716,6 +802,7 @@ static void test_server_poweroff(void)
 	CHECK(s.po_state == PO_IDLE && g_poweroffs == 1);
 
 	unlink(vib);
+	server_fini(&s);
 	rmdir(dir);
 }
 
@@ -728,6 +815,7 @@ int main(void)
 	test_recog_edges();
 	test_names();
 	test_server_claims();
+	test_server_slow_claimant();
 	test_server_dispatch();
 	test_server_poweroff();
 	printf("test-buttond: %d/%d checks passed\n", g_tests - g_failures, g_tests);

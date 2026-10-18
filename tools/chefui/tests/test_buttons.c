@@ -1,7 +1,8 @@
 /* Host tests for buttons.c over a real AF_UNIX listener standing in for
- * buttond: claims sent on connect, partial-line parsing, reconnect and
- * re-claim after the server closes, the default power.short toggle versus
- * an application override. */
+ * buttond: claims sent on connect, JSON line parsing across partial reads
+ * (gestures, errors, the hello's proto, unknown types and members, bad
+ * lines), reconnect and re-claim after the server closes, the default
+ * power.short toggle versus an application override. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <stdarg.h>
@@ -16,6 +17,19 @@
 #include "../buttons.h"
 
 static char g_dir[64], g_sock[128];
+
+#define HELLO "{\"type\":\"hello\",\"daemon\":\"buttond\",\"proto\":1}\n"
+#define EV(g) "{\"type\":\"gesture\",\"gesture\":\"" g "\"}\n"
+
+static void feed(struct cu_buttons *b, const char *s)
+{
+	cu_buttons_feed(b, s, strlen(s));
+}
+
+static bool send_str(int fd, const char *str)
+{
+	return write(fd, str, strlen(str)) == (ssize_t)strlen(str);
+}
 
 static int listen_at(const char *path)
 {
@@ -121,16 +135,17 @@ static void test_partial_lines(void)
 	reset();
 	cu_buttons_init(&b, g_sock, NULL, logf_);
 	b.app_cb = app_cb;
-	cu_buttons_feed(&b, "ok claim power.short\nev", 23);
+	feed(&b, HELLO "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.short\"}\n{\"type\":\"ges");
 	CHECK(g_events[0] == '\0');
-	cu_buttons_feed(&b, "ent power.sh", 12);
+	feed(&b, "ture\",\"gesture\":\"power.sh");
 	CHECK(g_events[0] == '\0');
-	cu_buttons_feed(&b, "ort\nevent volup.short\r\nerr unknown gesture x\n", 45);
+	feed(&b, "ort\"}\n" EV("volup.short") "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"unknown gesture\",\"gesture\":\"x\"}\r\n");
 	CHECK(strcmp(g_events, "power.short;volup.short;") == 0);
-	CHECK(strstr(g_log, "err unknown gesture x") != NULL);
+	CHECK(strstr(g_log, "\"reason\":\"unknown gesture\"") != NULL);
+	CHECK(strstr(g_log, "protocol") == NULL);	/* proto 1 is ours */
 	/* byte by byte */
 	{
-		const char *m = "event voldown.long\n";
+		const char *m = EV("voldown.long");
 		size_t i;
 
 		for (i = 0; m[i]; i++)
@@ -139,11 +154,60 @@ static void test_partial_lines(void)
 	CHECK(strcmp(g_events, "power.short;volup.short;voldown.long;") == 0);
 	/* an over-long line is dropped up to its newline, the next one works */
 	memset(big, 'x', sizeof(big));
-	cu_buttons_feed(&b, "event ", 6);
+	feed(&b, "{\"type\":\"gesture\",\"gesture\":\"");
 	cu_buttons_feed(&b, big, sizeof(big));
-	cu_buttons_feed(&b, "\nevent power.double\n", 20);
+	feed(&b, "\"}\n" EV("power.double"));
 	CHECK(strcmp(g_events, "power.short;volup.short;voldown.long;power.double;") == 0);
 	CHECK(b.inlen == 0);
+}
+
+static void test_json_lines(void)
+{
+	struct cu_buttons b;
+
+	reset();
+	cu_buttons_init(&b, g_sock, NULL, logf_);
+	b.app_cb = app_cb;
+	/* unknown types and members, ok and status: ignored */
+	feed(&b, "{\"type\":\"hold\",\"gesture\":\"power.long\",\"ms\":800}\n"
+		 "{\"gesture\":\"power.short\"}\n"
+		 "{\"type\":\"ok\",\"cmd\":\"watch\"}\n"
+		 "{\"type\":\"status\",\"buttons\":{\"power\":\"up\"},\"claims\":{},\"watchers\":0}\n"
+		 "{\"type\":\"dropped\",\"count\":3}\n");
+	CHECK(g_events[0] == '\0' && g_log[0] == '\0');
+	/* members in any order, extra members, whitespace */
+	feed(&b, "{ \"gesture\" : \"volup.long\", \"type\" : \"gesture\", \"t\":12.5, \"x\":[1,{}] }\n");
+	CHECK(strcmp(g_events, "volup.long;") == 0);
+	/* a gesture line without a usable gesture does nothing */
+	feed(&b, "{\"type\":\"gesture\"}\n{\"type\":\"gesture\",\"gesture\":\"\"}\n"
+		 "{\"type\":\"gesture\",\"gesture\":7}\n"
+		 "{\"type\":\"gesture\",\"gesture\":\"0123456789012345678901234567\"}\n");
+	CHECK(strcmp(g_events, "volup.long;") == 0);
+	/* escapes are decoded */
+	feed(&b, "{\"type\":\"gesture\",\"gesture\":\"power\\u002eshort\"}\n");
+	CHECK(strcmp(g_events, "volup.long;power.short;") == 0);
+	/* not JSON (the old text protocol, garbage): logged, nothing dispatched */
+	feed(&b, "event volup.short\n{\"type\":\"gesture\",\"gesture\":\"power.short\"} x\n");
+	CHECK(strcmp(g_events, "volup.long;power.short;") == 0);
+	CHECK(strstr(g_log, "unreadable line: event volup.short") != NULL);
+	CHECK(strstr(g_log, "unreadable line: {\"type\"") != NULL);
+
+	/* a proto this client does not know: logged once, and it carries on */
+	g_log[0] = '\0';
+	feed(&b, "{\"type\":\"hello\",\"daemon\":\"buttond\",\"proto\":2}\n" EV("volup.short"));
+	CHECK(strstr(g_log, "unknown protocol") != NULL && strstr(g_log, "\"proto\":2") != NULL);
+	CHECK(strcmp(g_events, "volup.long;power.short;volup.short;") == 0);
+	g_log[0] = '\0';
+	feed(&b, "{\"type\":\"hello\",\"daemon\":\"buttond\",\"proto\":2}\n");
+	feed(&b, "{\"type\":\"hello\",\"daemon\":\"buttond\"}\n");
+	CHECK(g_log[0] == '\0');		/* once per client, also across reconnects */
+	feed(&b, HELLO);
+	CHECK(g_log[0] == '\0');
+
+	/* a missing proto counts as unknown for a fresh client */
+	cu_buttons_init(&b, g_sock, NULL, logf_);
+	feed(&b, "{\"type\":\"hello\",\"daemon\":\"buttond\"}\n");
+	CHECK(strstr(g_log, "unknown protocol") != NULL);
 }
 
 static void test_reconnect(void)
@@ -159,7 +223,7 @@ static void test_reconnect(void)
 	CHECK(cu_buttons_connect(&b, 1000) == 0);
 	s = accept(l, NULL, NULL);
 	read_all(s, buf, sizeof(buf));
-	CHECK(write(s, "ok claim power.short\nevent volup.short\n", 39) == 39);
+	CHECK(send_str(s, HELLO "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.short\"}\n" EV("volup.short")));
 	cu_buttons_input(&b, 1000);
 	CHECK(strcmp(g_events, "volup.short;") == 0);
 
@@ -187,7 +251,7 @@ static void test_reconnect(void)
 	s = accept(l, NULL, NULL);
 	read_all(s, buf, sizeof(buf));
 	CHECK(strcmp(buf, "claim power.short\nclaim volup.short\n") == 0);
-	CHECK(write(s, "event power.short\n", 18) == 18);
+	CHECK(send_str(s, HELLO EV("power.short")));
 	cu_buttons_input(&b, 4100);
 	CHECK(strcmp(g_events, "volup.short;power.short;") == 0);
 	cu_buttons_close(&b);
@@ -224,7 +288,7 @@ static void test_default_toggle(void)
 
 	/* also through the socket path */
 	g_handle = false;
-	cu_buttons_feed(&b, "event power.short\n", 18);
+	feed(&b, EV("power.short"));
 	CHECK(g_defaults == 3);
 }
 
@@ -249,11 +313,11 @@ static void test_close_inside_callback(void)
 	cu_buttons_init(&b, g_sock, NULL, NULL);
 	b.app_cb = closing_cb;
 	g_closing = &b;
-	cu_buttons_feed(&b, "event power.short\nevent volup.short\npartial", 44);
+	feed(&b, EV("power.short") EV("volup.short") "{\"type\":");
 	CHECK(strcmp(g_events, "power.short;") == 0);	/* the rest went with the link */
 	CHECK(b.inlen == 0);
 	b.app_cb = app_cb;
-	cu_buttons_feed(&b, "event voldown.short\n", 20);
+	feed(&b, EV("voldown.short"));
 	CHECK(strcmp(g_events, "power.short;voldown.short;") == 0);
 }
 
@@ -265,6 +329,7 @@ int main(void)
 	snprintf(g_sock, sizeof(g_sock), "%s/buttond.sock", g_dir);
 	test_claims_on_connect();
 	test_partial_lines();
+	test_json_lines();
 	test_reconnect();
 	test_default_toggle();
 	test_close_inside_callback();

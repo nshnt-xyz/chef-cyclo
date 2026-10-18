@@ -9,17 +9,34 @@
  * evdev layer hands every event to every reader, so this daemon is the
  * single owner of those devices (EVIOCGRAB) and publishes gestures on a
  * Unix stream socket, /run/buttond.sock, in the same lease shape the GPS
- * manager uses:
+ * manager uses. Requests are words, one line each; every line buttond
+ * sends is one JSON object with a "type" member (the shared envelope of
+ * docs/features/local-sockets.md, served by tools/common/linesrv.c), proto
+ * 1, written down in docs/features/buttons-and-power-off.md:
  *
- *   client -> buttond    claim power.long        (repeatable)
- *                        release power.long
- *                        watch                   (see every gesture; does
- *                                                 not suppress defaults)
- *                        status
- *   buttond -> client    ok claim power.long | err unknown gesture x | ...
- *                        event power.long        (one line per gesture)
+ *   (connect)          {"type":"hello","daemon":"buttond","proto":1}
+ *   claim G            {"type":"ok","cmd":"claim","gesture":"G"}
+ *   release G          {"type":"ok","cmd":"release","gesture":"G"}
+ *                      (also when G was not claimed)
+ *   watch              {"type":"ok","cmd":"watch"}  (every gesture from now
+ *                      on; suppresses no default)
+ *   status             {"type":"status","buttons":{"power":"up",...},
+ *                      "long_ms":1500,"double_ms":300,"poweroff_hold_ms":1500,
+ *                      "poweroff":"idle|armed|ready","claims":{"G":N,...},
+ *                      "watchers":N}
+ *   event              {"type":"gesture","gesture":"power.long"} to every
+ *                      claimant of G and every watcher
+ *   errors             {"type":"error","cmd":"claim","reason":"unknown
+ *                      gesture","gesture":"x"}, {...,"reason":"bad
+ *                      arguments"}, {"type":"error","cmd":"x","reason":
+ *                      "unknown command"} (an echoed word is its first 32
+ *                      bytes, JSON-escaped), and from the library "line too
+ *                      long" (over 127 bytes) and "too many clients" (the
+ *                      17th connection, then closed)
  *
- * A claim lives on the connection: when the client dies its claims vanish
+ * Empty lines are ignored and a CR before the newline is stripped. A
+ * client that lets its 4096-byte output queue overflow is dropped. A
+ * claim lives on the connection: when the client dies its claims vanish
  * and the built-in default for that gesture resumes. The ride recorder,
  * not the UI, is meant to claim "power.long -> finish ride" for the same
  * reason it holds the durable `ride` GPS lease.
@@ -78,9 +95,12 @@
  *   -o  fblog idle flag (default /run/fblog.off)
  *   -V  vibrator (default /sys/class/timed_output/vibrator/enable, ms)
  *   -G  do not EVIOCGRAB the devices (shared, for experiments)
- *   -v  echo the kmsg notes to stderr as well
- * Client mode, for the telnet shell:
- *   buttond status | watch | claim GESTURE...   (streams events until ^C)
+ *   -v  echo the log lines to stderr as well
+ * Client mode, for the shell (the hello is never printed):
+ *   buttond status            the status line; exit 0, or 1 on an error
+ *                             reply or no connection
+ *   buttond watch             then every later line raw, one JSON object
+ *   buttond claim GESTURE...  per line, until EOF or ^C
  *
  * The pure parts (gesture recognizer, gesture names, claim registry,
  * protocol line handling, dispatch, the screen toggle and the power-off
@@ -104,13 +124,15 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/reboot.h>
-#include <sys/un.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <linux/input.h>
 
 #include "evdev.h"
+#include "common/chef_log.h"
+#include "common/json.h"
+#include "common/linesrv.h"
 
 #define BUTTOND_SOCK_PATH  "/run/buttond.sock"
 #define BUTTOND_OFF_PATH   "/run/fblog.off"
@@ -122,30 +144,12 @@
 #define BUTTOND_BUZZ_READY_MS 300
 #define BUTTOND_MAX_DEVS   4
 #define BUTTOND_MAX_CLIENTS 16
-#define BUTTOND_LINE_MAX   128
+#define BUTTOND_LINE_MAX   128	/* a request line, its newline included */
+#define BUTTOND_OUTQ       4096	/* per-client output queue */
+#define BUTTOND_PROTO      1
+#define BUTTOND_ECHO_MAX   32	/* bytes of a bad word echoed in an error */
 
-static bool g_verbose;
 static volatile sig_atomic_t g_stop;
-
-static void kmsg_note(const char *fmt, ...)
-{
-	char buf[256];
-	va_list ap;
-	int fd, n;
-
-	va_start(ap, fmt);
-	n = vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	if (n < 0)
-		return;
-	if (g_verbose)
-		fprintf(stderr, "buttond: %s\n", buf);
-	fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
-	if (fd < 0)
-		return;
-	dprintf(fd, "buttond: %s\n", buf);
-	close(fd);
-}
 
 /* ------------------------------------------------------------ buttons */
 
@@ -395,19 +399,17 @@ static int recog_deadline_ms(const struct recog *r, int64_t now)
 
 /* ------------------------------------------------- clients and claims */
 
+/* buttond's own state per connection, indexed by the linesrv slot. */
 struct client {
-	int fd;			/* -1 = free slot */
 	bool watch;
-	bool discarding;	/* overlong line: drop bytes up to the next newline */
 	uint32_t claims;	/* bit per enum gesture */
-	char in[BUTTOND_LINE_MAX];
-	size_t inlen;
 };
 
 enum poweroff_state { PO_IDLE, PO_ARMED, PO_READY };
 
 struct server {
 	struct recog recog;
+	struct linesrv *srv;
 	struct client clients[BUTTOND_MAX_CLIENTS];
 	const char *off_path;
 	const char *vib_path;
@@ -423,21 +425,43 @@ struct server {
 
 static int kill_by_comm(const char *comm, int sig);
 static void system_poweroff(struct server *s);
+static void on_connect(struct linesrv *srv, struct linesrv_client *c);
+static void on_line(struct linesrv *srv, struct linesrv_client *c, int argc, char **argv);
+static void on_close(struct linesrv *srv, struct linesrv_client *c);
 
-static void server_init(struct server *s, unsigned long_ms, unsigned double_ms)
+/* LOG NULL = chef_log; the socket library logs through it too. 0, or
+ * -ENOMEM. */
+static int server_init(struct server *s, unsigned long_ms, unsigned double_ms,
+		       void (*log)(const char *fmt, ...))
 {
-	int i;
+	struct linesrv_config cfg = {
+		.max_clients = BUTTOND_MAX_CLIENTS,
+		.line_max = BUTTOND_LINE_MAX,
+		.outq_size = BUTTOND_OUTQ,
+		.on_connect = on_connect,
+		.on_line = on_line,
+		.on_close = on_close,
+		.ctx = s,
+		.log = log ? log : chef_log,
+	};
 
 	memset(s, 0, sizeof(*s));
 	recog_init(&s->recog, long_ms, double_ms);
-	for (i = 0; i < BUTTOND_MAX_CLIENTS; i++)
-		s->clients[i].fd = -1;
 	s->off_path = BUTTOND_OFF_PATH;
 	s->vib_path = BUTTOND_VIB_PATH;
 	s->poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;
-	s->log = kmsg_note;
+	s->log = cfg.log;
 	s->kill_comm = kill_by_comm;
 	s->poweroff = system_poweroff;
+	s->srv = linesrv_new(&cfg);
+	return s->srv ? 0 : -ENOMEM;
+}
+
+/* Every client closed (claims released), the socket path unlinked. */
+static void server_fini(struct server *s)
+{
+	linesrv_close_all(s->srv);
+	s->srv = NULL;
 }
 
 static int server_claim_count(const struct server *s, enum gesture g)
@@ -445,7 +469,7 @@ static int server_claim_count(const struct server *s, enum gesture g)
 	int i, n = 0;
 
 	for (i = 0; i < BUTTOND_MAX_CLIENTS; i++)
-		if (s->clients[i].fd >= 0 && (s->clients[i].claims & (1u << g)))
+		if (linesrv_client_at(s->srv, i) && (s->clients[i].claims & (1u << g)))
 			n++;
 	return n;
 }
@@ -460,59 +484,26 @@ static void server_rearm(struct server *s)
 			server_claim_count(s, gesture_of((enum button)b, KIND_DOUBLE)) > 0;
 }
 
-static struct client *server_add_client(struct server *s, int fd)
+static struct client *client_of(struct server *s, struct linesrv_client *c)
 {
-	int i;
-
-	for (i = 0; i < BUTTOND_MAX_CLIENTS; i++) {
-		struct client *c = &s->clients[i];
-
-		if (c->fd >= 0)
-			continue;
-		memset(c, 0, sizeof(*c));
-		c->fd = fd;
-		return c;
-	}
-	return NULL;
+	return &s->clients[linesrv_slot(c)];
 }
 
-static void server_drop_client(struct server *s, struct client *c)
+static void on_connect(struct linesrv *srv, struct linesrv_client *c)
 {
-	if (c->fd >= 0)
-		close(c->fd);
-	c->fd = -1;
-	c->claims = 0;
-	c->watch = false;
+	struct server *s = linesrv_ctx(srv);
+
+	memset(client_of(s, c), 0, sizeof(struct client));
+	linesrv_sendf(c, "{\"type\":\"hello\",\"daemon\":\"buttond\",\"proto\":%d}\n", BUTTOND_PROTO);
+}
+
+/* Exactly once per connection, whatever ended it: its claims go. */
+static void on_close(struct linesrv *srv, struct linesrv_client *c)
+{
+	struct server *s = linesrv_ctx(srv);
+
+	memset(client_of(s, c), 0, sizeof(struct client));
 	server_rearm(s);
-}
-
-static int client_send(struct client *c, const char *line)
-{
-	size_t len = strlen(line), off = 0;
-
-	while (off < len) {
-		ssize_t n = send(c->fd, line + off, len - off, MSG_NOSIGNAL | MSG_DONTWAIT);
-
-		if (n < 0) {
-			if (errno == EINTR)
-				continue;
-			return -errno;	/* EAGAIN too: a client that does not read is dropped */
-		}
-		off += (size_t)n;
-	}
-	return 0;
-}
-
-static void client_reply(struct server *s, struct client *c, const char *fmt, ...)
-{
-	char buf[BUTTOND_LINE_MAX * 2];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	if (client_send(c, buf))
-		server_drop_client(s, c);
 }
 
 static void server_status_line(const struct server *s, char *buf, size_t len)
@@ -520,11 +511,12 @@ static void server_status_line(const struct server *s, char *buf, size_t len)
 	size_t off = 0;
 	int i, n = 0;
 
-	off += (size_t)snprintf(buf + off, len - off, "ok status");
+	off += (size_t)snprintf(buf + off, len - off, "{\"type\":\"status\",\"buttons\":{");
 	for (i = 0; i < BTN_COUNT; i++)
-		off += (size_t)snprintf(buf + off, len - off, " %s=%s", button_names[i],
-					s->recog.b[i].down ? "down" : "up");
-	off += (size_t)snprintf(buf + off, len - off, " long_ms=%u double_ms=%u poweroff_hold_ms=%u poweroff=%s claims=",
+		off += (size_t)snprintf(buf + off, len - off, "%s\"%s\":\"%s\"", i ? "," : "",
+					button_names[i], s->recog.b[i].down ? "down" : "up");
+	off += (size_t)snprintf(buf + off, len - off,
+				"},\"long_ms\":%u,\"double_ms\":%u,\"poweroff_hold_ms\":%u,\"poweroff\":\"%s\",\"claims\":{",
 				s->recog.long_ms, s->recog.double_ms, s->poweroff_hold_ms,
 				s->po_state == PO_IDLE ? "idle" : s->po_state == PO_ARMED ? "armed" : "ready");
 	for (i = 0; i < GES_COUNT; i++) {
@@ -532,87 +524,60 @@ static void server_status_line(const struct server *s, char *buf, size_t len)
 
 		if (!k)
 			continue;
-		off += (size_t)snprintf(buf + off, len - off, "%s%s:%d", n++ ? "," : "",
+		off += (size_t)snprintf(buf + off, len - off, "%s\"%s\":%d", n++ ? "," : "",
 					gesture_names[i], k);
 	}
-	if (!n)
-		off += (size_t)snprintf(buf + off, len - off, "-");
 	for (i = 0, n = 0; i < BUTTOND_MAX_CLIENTS; i++)
-		if (s->clients[i].fd >= 0 && s->clients[i].watch)
+		if (linesrv_client_at(s->srv, i) && s->clients[i].watch)
 			n++;
-	snprintf(buf + off, len - off, " watchers=%d\n", n);
+	snprintf(buf + off, len - off, "},\"watchers\":%d}\n", n);
 }
 
-/* One complete request line from a client (no trailing newline). */
-static void server_handle_line(struct server *s, struct client *c, char *line)
+/* One request, already split into words by the library. */
+static void on_line(struct linesrv *srv, struct linesrv_client *c, int argc, char **argv)
 {
-	char *cmd, *arg, *save = NULL;
+	struct server *s = linesrv_ctx(srv);
+	struct client *cl = client_of(s, c);
+	const char *cmd = argv[0];
+	char esc[BUTTOND_ECHO_MAX * 6 + 1];
 
-	cmd = strtok_r(line, " \t\r", &save);
-	if (!cmd)
-		return;
-	arg = strtok_r(NULL, " \t\r", &save);
 	if (strcmp(cmd, "claim") == 0 || strcmp(cmd, "release") == 0) {
-		int g = arg ? gesture_from_name(arg) : -1;
+		int g;
 
+		if (argc != 2) {
+			linesrv_sendf(c, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"bad arguments\"}\n", cmd);
+			return;
+		}
+		g = gesture_from_name(argv[1]);
 		if (g < 0) {
-			client_reply(s, c, "err unknown gesture %s\n", arg ? arg : "");
+			json_escape_n(esc, sizeof(esc), argv[1], BUTTOND_ECHO_MAX);
+			linesrv_sendf(c, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"unknown gesture\",\"gesture\":\"%s\"}\n",
+				      cmd, esc);
 			return;
 		}
 		if (cmd[0] == 'c')
-			c->claims |= 1u << g;
+			cl->claims |= 1u << g;
 		else
-			c->claims &= ~(1u << g);
+			cl->claims &= ~(1u << g);
 		server_rearm(s);
-		client_reply(s, c, "ok %s %s\n", cmd, gesture_names[g]);
-	} else if (strcmp(cmd, "watch") == 0) {
-		c->watch = true;
-		client_reply(s, c, "ok watch\n");
-	} else if (strcmp(cmd, "status") == 0) {
-		char buf[512];
+		linesrv_sendf(c, "{\"type\":\"ok\",\"cmd\":\"%s\",\"gesture\":\"%s\"}\n", cmd, gesture_names[g]);
+	} else if (strcmp(cmd, "watch") == 0 || strcmp(cmd, "status") == 0) {
+		char buf[768];
 
-		server_status_line(s, buf, sizeof(buf));
-		client_reply(s, c, "%s", buf);
-	} else {
-		client_reply(s, c, "err unknown command %s\n", cmd);
-	}
-}
-
-/* Buffer bytes from a client fd and hand complete lines over. */
-static void server_client_input(struct server *s, struct client *c)
-{
-	ssize_t n;
-	char *nl;
-
-	n = recv(c->fd, c->in + c->inlen, sizeof(c->in) - 1 - c->inlen, MSG_DONTWAIT);
-	if (n == 0 || (n < 0 && errno != EAGAIN && errno != EINTR)) {
-		server_drop_client(s, c);
-		return;
-	}
-	if (n < 0)
-		return;
-	c->inlen += (size_t)n;
-	c->in[c->inlen] = '\0';
-	while ((nl = memchr(c->in, '\n', c->inlen))) {
-		size_t used = (size_t)(nl - c->in) + 1;
-
-		*nl = '\0';
-		if (c->discarding)
-			c->discarding = false;	/* the tail of a rejected line */
-		else
-			server_handle_line(s, c, c->in);
-		if (c->fd < 0)
+		if (argc != 1) {
+			linesrv_sendf(c, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"bad arguments\"}\n", cmd);
 			return;
-		memmove(c->in, c->in + used, c->inlen - used);
-		c->inlen -= used;
-		c->in[c->inlen] = '\0';
-	}
-	if (c->discarding) {
-		c->inlen = 0;
-	} else if (c->inlen == sizeof(c->in) - 1) {
-		client_reply(s, c, "err line too long\n");
-		c->inlen = 0;
-		c->discarding = true;
+		}
+		if (cmd[0] == 'w') {
+			cl->watch = true;
+			linesrv_sendf(c, "{\"type\":\"ok\",\"cmd\":\"watch\"}\n");
+			return;
+		}
+		server_status_line(s, buf, sizeof(buf));
+		linesrv_send(c, buf, strlen(buf));
+	} else {
+		json_escape_n(esc, sizeof(esc), cmd, BUTTOND_ECHO_MAX);
+		linesrv_sendf(c, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"unknown command\"}\n", esc);
 	}
 }
 
@@ -758,19 +723,18 @@ static void server_default_action(struct server *s, enum gesture g, int64_t now)
 static void server_dispatch(struct server *s, enum gesture g, int64_t now)
 {
 	char line[64];
-	int i, claimed = 0;
+	int i, n, claimed = 0;
 
-	snprintf(line, sizeof(line), "event %s\n", gesture_names[g]);
+	n = snprintf(line, sizeof(line), "{\"type\":\"gesture\",\"gesture\":\"%s\"}\n", gesture_names[g]);
 	for (i = 0; i < BUTTOND_MAX_CLIENTS; i++) {
-		struct client *c = &s->clients[i];
-		bool claims = (c->claims & (1u << g)) != 0;
+		struct linesrv_client *c = linesrv_client_at(s->srv, i);
+		bool claims = (s->clients[i].claims & (1u << g)) != 0;
 
-		if (c->fd < 0 || !(claims || c->watch))
+		if (!c || !(claims || s->clients[i].watch))
 			continue;
-		if (client_send(c, line)) {
-			server_drop_client(s, c);
+		/* a client that does not take it is dropped, claims and all */
+		if (linesrv_send(c, line, (size_t)n))
 			continue;
-		}
 		if (claims)
 			claimed++;
 	}
@@ -859,6 +823,8 @@ static void system_poweroff(struct server *s)
 
 #ifndef BUTTOND_NO_MAIN
 
+static bool g_verbose;
+
 static int64_t now_ms(void)
 {
 	struct timespec ts;
@@ -939,7 +905,7 @@ static int keydev_scan_one(int fd, const char *path, void *arg)
 
 	if (rc) {
 		if (rc != -ENODEV)
-			kmsg_note("%s: %s (skipped)", path, strerror(-rc));
+			chef_log("%s: %s (skipped)", path, strerror(-rc));
 		return EVDEV_SCAN_REJECT;
 	}
 	return ++c->n < c->max ? EVDEV_SCAN_KEEP : EVDEV_SCAN_KEEP_STOP;
@@ -952,51 +918,6 @@ static int keydev_scan(struct keydev *kds, int max, bool grab)
 	if (max <= 0)
 		return 0;
 	return evdev_scan("/dev/input", keydev_scan_one, &c);
-}
-
-static int sock_listen(const char *path)
-{
-	struct sockaddr_un sa;
-	int fd;
-
-	if (strlen(path) >= sizeof(sa.sun_path))
-		return -ENAMETOOLONG;
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-	if (fd < 0)
-		return -errno;
-	memset(&sa, 0, sizeof(sa));
-	sa.sun_family = AF_UNIX;
-	strcpy(sa.sun_path, path);
-	unlink(path);
-	if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0 || listen(fd, 8) < 0) {
-		int err = errno;
-
-		close(fd);
-		return -err;
-	}
-	return fd;
-}
-
-static int sock_connect(const char *path)
-{
-	struct sockaddr_un sa;
-	int fd;
-
-	if (strlen(path) >= sizeof(sa.sun_path))
-		return -ENAMETOOLONG;
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-	if (fd < 0)
-		return -errno;
-	memset(&sa, 0, sizeof(sa));
-	sa.sun_family = AF_UNIX;
-	strcpy(sa.sun_path, path);
-	if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-		int err = errno;
-
-		close(fd);
-		return -err;
-	}
-	return fd;
 }
 
 static void on_signal(int sig)
@@ -1012,47 +933,85 @@ static void usage(void)
 		"       buttond [-S SOCK] status | watch | claim GESTURE...\n");
 }
 
-/* Client mode: send the request lines, then print everything that comes back. */
+/* The "type" of one daemon line, or "" when it has none. */
+static const char *line_type(const char *line, size_t len, char *buf, size_t buflen)
+{
+	struct json_obj o;
+
+	if (json_parse(&o, line, len) || !json_get_string(&o, "type", buf, buflen))
+		buf[0] = '\0';
+	return buf;
+}
+
+/* Client mode: send the request lines, then print what comes back, one
+ * JSON object per line, without the hello. */
 static int client_main(const char *sock_path, int argc, char **argv)
 {
-	int fd = sock_connect(sock_path);
-	char buf[512];
-	int i;
+	bool claim = strcmp(argv[0], "claim") == 0, status = strcmp(argv[0], "status") == 0;
+	char buf[4096], type[16];
+	size_t len = 0;
+	int fd, i;
 
+	if (claim ? argc < 2 : !status && strcmp(argv[0], "watch") != 0) {
+		usage();
+		return 64;
+	}
+	fd = linesrv_connect(sock_path);
 	if (fd < 0) {
 		fprintf(stderr, "buttond: connect %s: %s\n", sock_path, strerror(-fd));
 		return 1;
 	}
-	if (strcmp(argv[0], "claim") == 0) {
-		if (argc < 2) {
-			usage();
-			return 64;
-		}
-		for (i = 1; i < argc; i++) {
-			snprintf(buf, sizeof(buf), "claim %s\n", argv[i]);
-			if (write(fd, buf, strlen(buf)) < 0)
-				return 1;
-		}
-	} else if (strcmp(argv[0], "status") == 0 || strcmp(argv[0], "watch") == 0) {
-		snprintf(buf, sizeof(buf), "%s\n", argv[0]);
-		if (write(fd, buf, strlen(buf)) < 0)
+	/* MSG_NOSIGNAL: a connection buttond refused (too many clients) is an
+	 * error message and exit 1, not death by SIGPIPE */
+	for (i = claim ? 1 : 0; i < (claim ? argc : 1); i++) {
+		snprintf(buf, sizeof(buf), claim ? "claim %s\n" : "%s\n", argv[i]);
+		if (send(fd, buf, strlen(buf), MSG_NOSIGNAL) < 0) {
+			fprintf(stderr, "buttond: send to %s: %s\n", sock_path, strerror(errno));
+			close(fd);
 			return 1;
-	} else {
-		usage();
-		return 64;
+		}
 	}
 	for (;;) {
-		ssize_t n = read(fd, buf, sizeof(buf));
+		ssize_t n = read(fd, buf + len, sizeof(buf) - len);
+		char *nl;
 
 		if (n <= 0)
 			break;
-		if (fwrite(buf, 1, (size_t)n, stdout) != (size_t)n)
-			break;
-		fflush(stdout);
-		if (strcmp(argv[0], "status") == 0 && memchr(buf, '\n', (size_t)n))
-			break;
+		len += (size_t)n;
+		while ((nl = memchr(buf, '\n', len))) {
+			size_t used = (size_t)(nl - buf) + 1;
+
+			line_type(buf, used - 1, type, sizeof(type));
+			if (status && strcmp(type, "status") == 0) {
+				fwrite(buf, 1, used, stdout);
+				close(fd);
+				return 0;
+			}
+			if (status && strcmp(type, "error") == 0) {
+				fwrite(buf, 1, used, stderr);
+				close(fd);
+				return 1;
+			}
+			if (!status && strcmp(type, "hello") != 0) {
+				if (fwrite(buf, 1, used, stdout) != used)
+					goto out;
+				fflush(stdout);
+			}
+			memmove(buf, buf + used, len - used);
+			len -= used;
+		}
+		if (len == sizeof(buf)) {	/* no line is this long: pass it on */
+			if (!status)
+				fwrite(buf, 1, len, stdout);
+			len = 0;
+		}
 	}
+out:
 	close(fd);
+	if (status) {
+		fprintf(stderr, "buttond: no status reply\n");
+		return 1;
+	}
 	return 0;
 }
 
@@ -1066,7 +1025,7 @@ int main(int argc, char **argv)
 	unsigned long_ms = BUTTOND_LONG_MS, double_ms = BUTTOND_DOUBLE_MS;
 	unsigned poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;
 	bool grab = true;
-	int nexplicit = 0, ndev = 0, lfd, opt, i;
+	int nexplicit = 0, ndev = 0, nsrv, rc, opt, i;
 
 	while ((opt = getopt(argc, argv, "i:l:d:p:S:o:V:Gv")) != -1) {
 		switch (opt) {
@@ -1099,7 +1058,12 @@ int main(int argc, char **argv)
 	signal(SIGTERM, on_signal);
 	signal(SIGPIPE, SIG_IGN);
 
-	server_init(&s, long_ms, double_ms);
+	chef_log_init("buttond", g_verbose);
+	if (server_init(&s, long_ms, double_ms, NULL)) {
+		chef_log("out of memory; exiting in 5 s");
+		sleep(5);
+		return 1;
+	}
 	s.off_path = off_path;
 	s.vib_path = vib_path;
 	s.poweroff_hold_ms = poweroff_hold_ms;
@@ -1109,19 +1073,19 @@ int main(int argc, char **argv)
 			int rc = keydev_open(&kds[ndev], explicit[i], grab);
 
 			if (rc)
-				kmsg_note("%s: %s (skipped)", explicit[i], strerror(-rc));
+				chef_log("%s: %s (skipped)", explicit[i], strerror(-rc));
 			else
 				ndev++;
 		}
 	} else {
 		ndev = keydev_scan(kds, BUTTOND_MAX_DEVS, grab);
 		if (ndev < 0) {
-			kmsg_note("scan /dev/input: %s", strerror(-ndev));
+			chef_log("scan /dev/input: %s", strerror(-ndev));
 			ndev = 0;
 		}
 	}
 	if (!ndev) {
-		kmsg_note("no button device found; exiting in 5 s");
+		chef_log("no button device found; exiting in 5 s");
 		sleep(5);	/* keeps a respawning init from spinning */
 		return 1;
 	}
@@ -1129,38 +1093,30 @@ int main(int argc, char **argv)
 		char desc[160];
 
 		keydev_describe(&kds[i], desc, sizeof(desc));
-		kmsg_note("%s %s", grab ? "grabbed" : "reading", desc);
+		chef_log("%s %s", grab ? "grabbed" : "reading", desc);
 	}
 
-	lfd = sock_listen(sock_path);
-	if (lfd < 0) {
-		kmsg_note("listen %s: %s; exiting in 5 s", sock_path, strerror(-lfd));
+	rc = linesrv_listen(s.srv, sock_path);
+	if (rc < 0) {
+		chef_log("listen %s: %s; exiting in 5 s", sock_path, strerror(-rc));
 		sleep(5);
 		return 1;
 	}
 	if (poweroff_hold_ms)
-		kmsg_note("ready: %s, long %u ms, double %u ms, power.short toggles the screen via %s, power held %u ms then released powers off",
+		chef_log("ready: %s, long %u ms, double %u ms, power.short toggles the screen via %s, power held %u ms then released powers off",
 			  sock_path, long_ms, double_ms, off_path, long_ms + poweroff_hold_ms);
 	else
-		kmsg_note("ready: %s, long %u ms, double %u ms, power.short toggles the screen via %s, power-off default disabled",
+		chef_log("ready: %s, long %u ms, double %u ms, power.short toggles the screen via %s, power-off default disabled",
 			  sock_path, long_ms, double_ms, off_path);
 
 	while (!g_stop) {
 		struct pollfd pfd[BUTTOND_MAX_DEVS + 1 + BUTTOND_MAX_CLIENTS];
-		struct client *cmap[BUTTOND_MAX_CLIENTS];
-		int n = 0, nclients = 0, rc;
 
 		for (i = 0; i < ndev; i++)
-			pfd[n++] = (struct pollfd){ .fd = kds[i].fd, .events = POLLIN };
-		pfd[n++] = (struct pollfd){ .fd = lfd, .events = POLLIN };
-		for (i = 0; i < BUTTOND_MAX_CLIENTS; i++) {
-			if (s.clients[i].fd < 0)
-				continue;
-			cmap[nclients++] = &s.clients[i];
-			pfd[n++] = (struct pollfd){ .fd = s.clients[i].fd, .events = POLLIN };
-		}
+			pfd[i] = (struct pollfd){ .fd = kds[i].fd, .events = POLLIN };
+		nsrv = linesrv_pollfds(s.srv, pfd + ndev, 1 + BUTTOND_MAX_CLIENTS);
 
-		rc = poll(pfd, (nfds_t)n, server_deadline_ms(&s, now_ms()));
+		rc = poll(pfd, (nfds_t)(ndev + nsrv), server_deadline_ms(&s, now_ms()));
 		if (rc < 0 && errno != EINTR)
 			break;
 		if (g_stop)
@@ -1176,7 +1132,7 @@ int main(int argc, char **argv)
 			if (len < 0 && (errno == EAGAIN || errno == EINTR))
 				continue;
 			if (len <= 0) {
-				kmsg_note("%s: read: %s; exiting for a respawn", kds[i].path,
+				chef_log("%s: read: %s; exiting for a respawn", kds[i].path,
 					  len ? strerror(errno) : "EOF");
 				g_stop = 1;
 				break;
@@ -1197,17 +1153,8 @@ int main(int argc, char **argv)
 		}
 		if (g_stop)
 			break;
-		if (pfd[ndev].revents & POLLIN) {
-			int cfd = accept4(lfd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
-
-			if (cfd >= 0 && !server_add_client(&s, cfd)) {
-				kmsg_note("client limit (%d) reached, refusing", BUTTOND_MAX_CLIENTS);
-				close(cfd);
-			}
-		}
-		for (i = 0; i < nclients; i++)
-			if (pfd[ndev + 1 + i].revents & (POLLIN | POLLERR | POLLHUP))
-				server_client_input(&s, cmap[i]);
+		if (rc > 0)
+			linesrv_handle(s.srv, pfd + ndev, nsrv);
 
 		{
 			int64_t now = now_ms();
@@ -1218,12 +1165,8 @@ int main(int argc, char **argv)
 		}
 	}
 
-	kmsg_note("exiting");
-	for (i = 0; i < BUTTOND_MAX_CLIENTS; i++)
-		if (s.clients[i].fd >= 0)
-			close(s.clients[i].fd);
-	close(lfd);
-	unlink(sock_path);
+	chef_log("exiting");
+	server_fini(&s);
 	for (i = 0; i < ndev; i++)
 		close(kds[i].fd);	/* releases the grab */
 	return 0;

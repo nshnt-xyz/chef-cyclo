@@ -243,13 +243,29 @@ static int listen_sock(void)
 	return fd;
 }
 
+/* buttond's lines (proto 1), as the fake below sends them */
+#define BTN_HELLO "{\"type\":\"hello\",\"daemon\":\"buttond\",\"proto\":1}\n"
+#define BTN_CLAIMED "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.short\"}\n"
+#define BTN_SHORT "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n"
+
+static bool send_str(int fd, const char *str)
+{
+	return write(fd, str, strlen(str)) == (ssize_t)strlen(str);
+}
+
+/* A connection to the fake buttond: it says hello first, as buttond does
+ * (best effort: some scenarios accept a client that has already gone). */
 static int accept_timeout(int l, int ms)
 {
 	struct pollfd p = { .fd = l, .events = POLLIN };
+	int fd;
 
 	if (poll(&p, 1, ms) <= 0)
 		return -1;
-	return accept4(l, NULL, NULL, SOCK_CLOEXEC);
+	fd = accept4(l, NULL, NULL, SOCK_CLOEXEC);
+	if (fd >= 0)
+		(void)!send(fd, BTN_HELLO, strlen(BTN_HELLO), MSG_NOSIGNAL | MSG_DONTWAIT);
+	return fd;
 }
 
 static void read_quiet(int fd, char *buf, size_t cap, int ms)
@@ -546,14 +562,14 @@ static void test_dark_start_toggle_restart(void)
 	CHECK(!lock_free());
 
 	/* power.short: on. Flag removed before the first open's UNBLANK */
-	CHECK(write(s, "ok claim power.short\nevent power.short\n", 39) == 39);
+	CHECK(send_str(s, BTN_CLAIMED BTN_SHORT));
 	CHECK(log_wait("PAN", 2000));
 	CHECK(access(P_FLAG, F_OK) != 0);
 	read_file(P_LOG, log, sizeof(log));
 	CHECK(strncmp(log, "GETV 0 0\nGETF 0 0\nUNBLANK 0 0\n", 30) == 0);
 
 	/* power.short again: off. POWERDOWN with the flag still absent, then the flag */
-	CHECK(write(s, "event power.short\n", 18) == 18);
+	CHECK(send_str(s, BTN_SHORT));
 	CHECK(log_wait("POWERDOWN 4 0", 2000));
 	sleep_ms(400);				/* label keeps changing while off */
 	CHECK(access(P_FLAG, F_OK) == 0);
@@ -566,9 +582,9 @@ static void test_dark_start_toggle_restart(void)
 	CHECK(s2 >= 0);
 	read_quiet(s2, claims, sizeof(claims), 100);
 	CHECK(strcmp(claims, "claim power.short\n") == 0);
-	CHECK(write(s2, "event power.short\n", 18) == 18);	/* on again over the new link */
+	CHECK(send_str(s2, BTN_SHORT));	/* on again over the new link */
 	CHECK(log_wait("UNBLANK 0 0\nPAN", 2000));
-	CHECK(write(s2, "event power.short\n", 18) == 18);	/* and off */
+	CHECK(send_str(s2, BTN_SHORT));	/* and off */
 	sleep_ms(200);
 
 	/* clean exit with the screen off: flag stays, nothing turned on */
@@ -695,7 +711,7 @@ static void test_screen_off_from_handlers(void)
 	tap(fifo, 180, 800);			/* button A (x 10..49) */
 	CHECK(log_wait("POWERDOWN 4 0", 2000));
 	sleep_ms(150);
-	CHECK(write(s, "event power.short\n", 18) == 18);	/* back on */
+	CHECK(send_str(s, BTN_SHORT));	/* back on */
 	CHECK(log_wait("UNBLANK 0 0\nPAN", 2000));
 	sleep_ms(100);
 	tap(fifo, 540, 800);			/* button B (x 70..109) */
