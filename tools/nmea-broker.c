@@ -24,19 +24,21 @@
  *            (so `qmicli ... | nmea-broker -t > follow.fifo` leaves a raw
  *            capture of the follower stream untouched);
  *   -l FILE  append "<uptime> <sentence>" for every forwarded sentence,
- *            so gpsd's output can be diffed against the raw stream
- *            (README 7.4).
+ *            so gpsd's output can be diffed against the raw stream.
  *
  * Clock: the initramfs boots with a 1970 wallclock. From the first RMC with
  * status 'A' that carries both a time and a date, and only while the system
  * year is still below 2000, the broker calls settimeofday() -- exactly once
  * per process, never again, and never when the clock already looks sane
- * (chrony, README item 8, will own the clock later; this is the stop-gap so
- * gpsd stops warning about bogus system time and local timestamps mean
- * something). The RMC date/time is validated field by field and rejected
- * outright if it decodes to before 2020-01-01 (a week-rollover or garbage
- * date must not be written to the clock). -n disables the clock step. No
- * hwclock, no RTC write, ever.
+ * (the stop-gap so gpsd stops warning about bogus system time and local
+ * timestamps mean something). The RMC date/time is validated field by field
+ * and rejected outright if it decodes to before 2020-01-01 (a week-rollover
+ * or garbage date must not be written to the clock). -n disables the clock
+ * step. In the shipped image chrony owns the clock (gpsd's SHM refclock,
+ * docs/features/gps.md "GPS time") and gps-manager starts the broker with
+ * -n, as does the documented manual pipeline, so the step is left for a
+ * broker started by hand without -n and for the tests. No hwclock, no RTC
+ * write, ever.
  *
  * Usage: nmea-broker [-a ADDR] [-p PORT] [-t] [-l FILE] [-n] [-v]
  *   -a  gpsd UDP address (default 127.0.0.1)

@@ -3,7 +3,7 @@
  *
  * Charging itself is entirely in the kernel we share with stock Android
  * (qpnp-smb2 + the Motorola mmi heartbeat temperature zones + qpnp-fg-gen3,
- * see docs/next-steps/battery-and-charging-plan.md). Stock userspace adds
+ * see docs/features/battery-and-charging.md). Stock userspace adds
  * three small policy layers, and this daemon is the combined clone of them:
  *
  *   BatteryService (framework)  low-battery warning at 15 %, critical at

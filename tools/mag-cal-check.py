@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Magnetometer calibration check for sensord captures (host only; stdlib
-+ numpy). docs/next-steps/sensors-plan.md section 7 is the experiment
++ numpy). docs/research/sensors.md section 7 is the experiment
 this analyses; sensors-magcal-run on the phone records the input.
 
     python3 tools/mag-cal-check.py DIR [--steps FILE] [--spin NAME] [--json OUT]

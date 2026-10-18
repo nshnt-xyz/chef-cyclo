@@ -1,5 +1,5 @@
 /* msmipc: libqrtr-compatible transport on AF_MSM_IPC. See msmipc.h and
- * gps-userspace-handoff.md sections 1-2 for the protocol background.
+ * docs/features/gps.md for the protocol background.
  *
  * Deliberate departures from a literal port of linux-msm's lib/qrtr.c,
  * each noted at its call site below:
@@ -221,9 +221,9 @@ int qrtr_decode(struct qrtr_packet *dest, void *buf, size_t len,
 		const struct sockaddr_qrtr *sq)
 {
 	/* AF_MSM_IPC has no synthetic control port distinct from data
-	 * traffic (no BYE/NEW_SERVER/DEL_CLIENT packets arrive this way --
-	 * see gps-userspace-handoff.md 2.1); everything a client or server
-	 * receives is application data, even a 0-length one (defensive only:
+	 * traffic (no BYE/NEW_SERVER/DEL_CLIENT packets arrive this way);
+	 * everything a client or server receives is application data, even
+	 * a 0-length one (defensive only:
 	 * qrtr_recvfrom()/qrtr_recv() never hand this function a len of 0). */
 	dest->type = QRTR_TYPE_DATA;
 	dest->node = sq->sq_node;

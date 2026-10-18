@@ -3,6 +3,8 @@
 # from the caller (scripts/mkinitramfs.sh sets them for the musl aarch64
 # cross toolchain and points -I at ../msmipc.h); this Makefile only adds to
 # them, the same shape as tools/servreg-locator/Makefile.
+# REPORT.md below is the report in the local 2026-09-17 stock-read evidence
+# directory (stock-root-read-fable-<timestamp>); it is not in the repository.
 #
 # Native (host) build + tests:
 #   make && make test

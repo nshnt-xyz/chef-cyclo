@@ -4,6 +4,10 @@
  * uses to walk a wsize window (REPORT.md 8.1 point 7 calls this out
  * explicitly: "block-number wrap"). Pure buffers throughout -- no sockets,
  * no AF_MSM_IPC. Build/run: see Makefile ("make test").
+ *
+ * REPORT.md is the report in the local 2026-09-17 stock-read evidence
+ * directory (stock-root-read-fable-<timestamp>); it is not in the
+ * repository.
  */
 #include <stdio.h>
 #include <string.h>

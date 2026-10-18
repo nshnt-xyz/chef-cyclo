@@ -3,8 +3,9 @@
  * /dev/fb0 (fbtouch, fblog, the chefui UI platform). Header-only, static functions,
  * no libc beyond ioctl/mmap/flock so it links freestanding-ish under musl.
  *
- * The 4.4 MDSS driver (mdss_fb.c) has two live-verified quirks (README
- * gotchas, fbtouch.c header) that make the order of operations binding:
+ * The 4.4 MDSS driver (mdss_fb.c) has two live-verified quirks
+ * (docs/features/display-and-touch.md, fbtouch.c header) that make the
+ * order of operations binding:
  *
  *   open           -> first open unblanks the panel, last close powers it
  *                     down and zeroes the backlight (mdss_fb_release_all)

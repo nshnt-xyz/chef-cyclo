@@ -2,6 +2,10 @@
  * Opcodes and error codes are RFC 1350 §5 verbatim (same values upstream
  * linux-msm/tqftpserv uses); the size limits below are this daemon's own,
  * tightened from upstream's per REPORT.md 8.1 point 5.
+ *
+ * REPORT.md is the report in the local 2026-09-17 stock-read evidence
+ * directory (stock-root-read-fable-<timestamp>); it is not in the
+ * repository.
  */
 #ifndef CHEF_CYCLO_TFTP_H
 #define CHEF_CYCLO_TFTP_H

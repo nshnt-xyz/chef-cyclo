@@ -14,6 +14,10 @@
  * memcpy at an explicit offset) -- same shape, applied per named file
  * instead of per partition, with an added whole-table size cap (§8.1 point
  * 5's "bounded RAM shadow size").
+ *
+ * REPORT.md is the report in the local 2026-09-17 stock-read evidence
+ * directory (stock-root-read-fable-<timestamp>); it is not in the
+ * repository.
  */
 #ifndef CHEF_CYCLO_TFTP_RAMFS_H
 #define CHEF_CYCLO_TFTP_RAMFS_H

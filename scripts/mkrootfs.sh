@@ -13,7 +13,7 @@ APK=toolchain/apk/apk.static
 ALPINE=${ALPINE:-https://dl-cdn.alpinelinux.org/alpine/v3.24}
 ROOT=out/rootfs
 CACHE=$PWD/toolchain/apk/cache
-# gpsd (README next-steps item 7): 3.27.3-r1, /usr/sbin/gpsd + libgps.so.32,
+# gpsd: 3.27.3-r1, /usr/sbin/gpsd + libgps.so.32,
 # pulls libcap2 + libstdc++ (+libgcc); 551 KB apk, 1.2 MB installed. Fed over
 # loopback UDP by tools/nmea-broker.c. No gpsd-clients (3.7 MB, ncurses):
 # verify with busybox nc on 2947 instead.

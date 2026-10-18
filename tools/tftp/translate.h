@@ -8,6 +8,10 @@
  * (a fixed, already-known firmware directory; RAM-only writes; a closed set
  * of allowed prefixes). See tftpserv.c's file header for the full list of
  * deviations from upstream.
+ *
+ * REPORT.md is the report in the local 2026-09-17 stock-read evidence
+ * directory (stock-root-read-fable-<timestamp>); it is not in the
+ * repository.
  */
 #ifndef CHEF_CYCLO_TFTP_TRANSLATE_H
 #define CHEF_CYCLO_TFTP_TRANSLATE_H

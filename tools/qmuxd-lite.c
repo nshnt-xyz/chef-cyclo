@@ -1,10 +1,10 @@
 /* qmuxd-lite: bridges stock Alpine qmi-utils (libqmi, unmodified) to the
  * vendor kernel's AF_MSM_IPC QMI transport. Listens on a unix stream socket
  * whose path must contain "qmux_socket" (libqmi's own requirement for
- * picking the QMUX transport, see gps-userspace-handoff.md 2.4) and speaks
- * raw QMUX to any number of concurrent qmicli-style clients; service 0
- * (CTL) is answered locally (2.5), every other service is a thin relay to
- * one AF_MSM_IPC socket per allocated CID (3.4).
+ * picking the QMUX transport) and speaks raw QMUX to any number of
+ * concurrent qmicli-style clients; service 0 (CTL) is answered locally,
+ * every other service is a thin relay to one AF_MSM_IPC socket per
+ * allocated CID.
  *
  * All protocol logic (framing, TLVs, CTL responses, CID bookkeeping) lives
  * in qmux.c/qmux.h and is unit-tested there without any of the I/O in this

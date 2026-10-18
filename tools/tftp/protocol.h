@@ -5,6 +5,10 @@
  * tqftpserv could at least loop back to itself on any Linux host).
  * tftpserv.c's send/parse wrappers add the socket I/O and allowlist calls
  * around these.
+ *
+ * REPORT.md is the report in the local 2026-09-17 stock-read evidence
+ * directory (stock-root-read-fable-<timestamp>); it is not in the
+ * repository.
  */
 #ifndef CHEF_CYCLO_TFTP_PROTOCOL_H
 #define CHEF_CYCLO_TFTP_PROTOCOL_H

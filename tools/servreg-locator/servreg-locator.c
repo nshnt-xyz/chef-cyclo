@@ -4,19 +4,19 @@
  * Why this exists: this device's modem firmware runs a servreg_locator
  * client that blocks the Hexagon "dog" startup-grace timer until it either
  * gets a GET_DOMAIN_LIST response or the timer's 40 s grace period expires,
- * at which point the modem raises ERR_FATAL (see README's 2026-09-16 (dog
- * timeout) entry and the two research reports it summarizes). Stock
- * Android runs a locator (`/vendor/bin/pd-mapper`) before PIL for exactly
- * this reason; this file is the minimal, from-scratch, Alpine-side
- * equivalent, serving the same *.jsn domain descriptors stock's pd-mapper
- * reads, so the modem's very first boot-time QMI exchange succeeds instead
- * of stalling. It answers only the two requests this modem firmware and
- * this kernel's own client are confirmed to send (INDICATION_REGISTER,
+ * at which point the modem raises ERR_FATAL (see docs/build-log.md's
+ * 2026-09-17 (dog timeout) entry and the two research reports it
+ * summarizes). Stock Android runs a locator (`/vendor/bin/pd-mapper`) before
+ * PIL for exactly this reason; this file is the minimal, from-scratch,
+ * Alpine-side equivalent, serving the same *.jsn domain descriptors stock's
+ * pd-mapper reads, so the modem's very first boot-time QMI exchange succeeds
+ * instead of stalling. It answers only the two requests this modem firmware
+ * and this kernel's own client are confirmed to send (INDICATION_REGISTER,
  * GET_DOMAIN_LIST), best-effort-acks the crash-report message (PFR) the
- * firmware strings show it capable of sending, and NACKs anything else
- * with QMI_ERR_NOT_SUPPORTED instead of leaving a caller to time out --
- * see servreg_loc.h and jsn.h for the wire/file format details and gps-up
- * for how this fits into modem bring-up (started after rmtfs, before
+ * firmware strings show it capable of sending, and NACKs anything else with
+ * QMI_ERR_NOT_SUPPORTED instead of leaving a caller to time out -- see
+ * servreg_loc.h and jsn.h for the wire/file format details and gps-up for
+ * how this fits into modem bring-up (started after rmtfs, before
  * /dev/subsys_modem is opened; gps-up fails closed if this doesn't publish
  * 0x40 in time).
  *

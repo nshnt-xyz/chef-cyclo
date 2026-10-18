@@ -200,24 +200,24 @@ done
 # GPS/QMI userspace helpers (musl aarch64, real libc unlike btprobe's
 # freestanding build): rmtfs, servreg-locator and tftp-server are ours;
 # msmipc.c/irsc.c/qmuxd-lite.c/qmux.c and the vendored tools/qrtr/ are the
-# protocol transport (see GPS section of README.md for the interface).
+# protocol transport (see docs/features/gps.md for the interface).
 # gps-up is included in this image, so all five helpers are mandatory:
 # never emit a bootable GPS script without its RMTFS, IRSC,
 # SERVREG-LOCATOR, TFTP-SERVER and QMUX counterparts. servreg-locator is
 # the userspace SERVREG_LOC (pd-mapper) server that answers the modem's
 # boot-time domain-list lookup -- see
-# tools/servreg-locator/servreg-locator.c's file header and the README's
-# 2026-09-16 (dog timeout) entry for why it exists. tftp-server is the
-# bounded TFTP/RFS server (service 0x1000) the 2026-09-17 stock-read probe
-# found the locator alone doesn't replace -- see tools/tftp/tftpserv.c's
-# file header, REPORT.md 8.1 in the stock-read evidence dir, and the
-# README's 2026-09-17 (stock read + TFTP/RFS) entry. Its RAM shadow is
-# seeded below, at build time, from the persist partition -- see the block
-# right after this one. msmipc.h pulls in the vendor kernel's verbatim
-# <linux/msm_ipc.h>, which needs both uapi/ (for the header itself) and the
-# plain include/ (for <linux/compiler.h> etc. it pulls in transitively) --
-# using make headers_install output instead would avoid the kernel-headers
-# warning, but isn't worth it for two headers.
+# tools/servreg-locator/servreg-locator.c's file header and
+# docs/build-log.md's 2026-09-17 (dog timeout) entry for why it exists.
+# tftp-server is the bounded TFTP/RFS server (service 0x1000) the 2026-09-17
+# stock-read probe found the locator alone doesn't replace -- see
+# tools/tftp/tftpserv.c's file header, REPORT.md 8.1 in the stock-read
+# evidence dir, and docs/build-log.md's 2026-09-17 (stock read + TFTP/RFS)
+# entry. Its RAM shadow is seeded below, at build time, from the persist
+# partition -- see the block right after this one. msmipc.h pulls in the
+# vendor kernel's verbatim <linux/msm_ipc.h>, which needs both uapi/ (for the
+# header itself) and the plain include/ (for <linux/compiler.h> etc. it pulls
+# in transitively) -- using make headers_install output instead would avoid
+# the kernel-headers warning, but isn't worth it for two headers.
 MUSLCC=toolchain/aarch64-musl/bin/aarch64-buildroot-linux-musl-gcc
 QRTR_DIR=tools/qrtr
 KHDR="-I kernel/include/uapi -I kernel/include"
@@ -312,7 +312,7 @@ echo "built $ROOT/usr/bin/fbtouch"
 
 # gpsd feed (tools/nmea-broker.c): reads the qmicli LOC follower's stdout and
 # sends each valid NMEA sentence as one UDP datagram to gpsd on
-# 127.0.0.1:20175 (gpsd cannot read a FIFO; README next-steps item 7). The
+# 127.0.0.1:20175 (gpsd cannot read a FIFO). The
 # rootfs must carry gpsd itself (scripts/mkrootfs.sh's package list) or the
 # broker has nothing to feed -- fail closed on either half missing. Manual
 # opt-in from the telnet shell like gps-up; not in inittab until live-verified.
@@ -347,8 +347,8 @@ echo "built $ROOT/usr/bin/blesensd"
 # gpio-keys evdev nodes, publishes short/double/long/chord gestures on
 # /run/buttond.sock to whoever claims them, and by default toggles the panel
 # on a short power press through fblog's /run/fblog.off protocol and powers
-# off cleanly (sync + busybox `poweroff`) when power is held 3 s and released
-# (README next-steps item 14). Started from inittab (respawn). Only libc's
+# off cleanly (sync + busybox `poweroff`) when power is held 3 s and released.
+# Started from inittab (respawn). Only libc's
 # <linux/input.h> (device discovery through the header-only tools/evdev.h),
 # so no kernel include paths.
 for f in tools/buttond.c tools/evdev.h; do
@@ -423,7 +423,7 @@ echo "built $ROOT/usr/bin/wavtone"
     -o "$ROOT/usr/bin/tas2560-send-cal" tools/tas2560-send-cal.c
 echo "built $ROOT/usr/bin/tas2560-send-cal"
 
-# Sensors (tools/sensord/sensord.c, docs/next-steps/sensors-plan.md):
+# Sensors (tools/sensord/sensord.c, docs/features/sensors.md):
 # sensord is the REG2 registry server + SMGR client behind
 # /run/sensord.sock, started by initramfs/usr/bin/sensors-up (manual
 # opt-in, not in inittab). Same transport/codec as servreg-locator.

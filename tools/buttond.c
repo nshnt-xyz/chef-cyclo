@@ -1,5 +1,5 @@
 /*
- * buttond - side-button gesture daemon for chef-cyclo (README item 14).
+ * buttond - side-button gesture daemon for chef-cyclo.
  *
  * The phone has three physical buttons and two evdev devices for them:
  * `qpnp_pon` (PMIC, KEY_POWER 116 and the RESIN line as KEY_VOLUMEDOWN 114)
@@ -9,7 +9,7 @@
  * evdev layer hands every event to every reader, so this daemon is the
  * single owner of those devices (EVIOCGRAB) and publishes gestures on a
  * Unix stream socket, /run/buttond.sock, in the same lease shape the GPS
- * manager (README 7.5) uses:
+ * manager uses:
  *
  *   client -> buttond    claim power.long        (repeatable)
  *                        release power.long
@@ -53,7 +53,8 @@
  *   everything else is only logged for now (power menu = UI work).
  *
  * Why release, why 3 s: the PM660's own PON block was read on 2026-09-19
- * (registers 0x840.., see the README entry): the power key alone hard-
+ * (registers 0x840.., see the 2026-09-19 (power-off, live) entry in
+ * docs/build-log.md): the power key alone hard-
  * resets the PMIC after S1 6720 ms + S2 2000 ms = ~8.7 s held, with no
  * bark interrupt wired to the kernel, so software gets no warning; the
  * RESIN (voldown) and KPDPWR+RESIN combo resets are disabled there. KPDPWR

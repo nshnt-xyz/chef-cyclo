@@ -1,6 +1,6 @@
 /* irsc: unblock the AF_MSM_IPC IPC-router security gate for the whole
  * system (must run once as root before any QMI client sendto(), see
- * gps-userspace-handoff.md 2.2 and msmipc_irsc() in msmipc.c). Idempotent.
+ * docs/features/gps.md and msmipc_irsc() in msmipc.c). Idempotent.
  *
  * Usage: irsc   (no arguments; exit 0 on success)
  */

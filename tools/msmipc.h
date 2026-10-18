@@ -1,6 +1,6 @@
 /* msmipc: libqrtr-compatible transport on the vendor kernel's AF_MSM_IPC
  * (net/ipc_router) socket family, in place of net/qrtr (absent on this
- * kernel/4.4 tree -- see gps-userspace-handoff.md sections 1-2).
+ * kernel/4.4 tree -- see docs/features/gps.md).
  *
  * qrtr/libqrtr.h declares the qrtr_open/sendto/recvfrom/... API that
  * msmipc.c implements on top of AF_MSM_IPC. This header adds the pieces

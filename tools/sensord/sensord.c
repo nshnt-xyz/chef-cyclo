@@ -1,7 +1,7 @@
 /*
  * sensord - on-board sensors (accelerometer, gyroscope, magnetometer,
- * ambient light, proximity) for chef-cyclo. See docs/next-steps/
- * sensors-plan.md for the research behind every choice here.
+ * ambient light, proximity) for chef-cyclo. See docs/research/
+ * sensors.md for the research behind every choice here.
  *
  * On SDM636 the sensor core (Qualcomm "SMGR", its drivers and fusion
  * algorithms) runs inside the ADSP that audio-up boots. The ADSP talks
@@ -33,8 +33,8 @@
  *     live run can turn it on if the DSP is seen looking it up.
  *  4. Optional (-Q) QMAG_CAL client, SAM service 0x140 instance 0x3201 on
  *     the ADSP: the DSP's dynamic hard-iron calibration of the
- *     magnetometer, for the calibration check in docs/next-steps/
- *     sensors-plan.md section 7. While magn is in use (claimed by a
+ *     magnetometer, for the calibration check in docs/research/
+ *     sensors.md section 7. While magn is in use (claimed by a
  *     client, or internally by the heading channel) it queries the
  *     algorithm attributes (0x24, once per daemon) and enables the
  *     algorithm (0x02); it logs every report (0x05: bias, accuracy) and
@@ -42,7 +42,7 @@
  *     status, and disables it (0x03) when magn is no longer used, when
  *     SMGR is lost and on exit. Off by default: production behaviour is
  *     unchanged without the flag.
- *  5. The compass (docs/next-steps/sensors-plan.md section 8): a virtual
+ *  5. The compass (docs/research/sensors.md section 8): a virtual
  *     "heading" channel. Claiming it claims accel 50 Hz, anglvel 50 Hz and
  *     magn 20 Hz internally (the same refcounts and rate max as client
  *     claims) and runs compass.c on their samples; heading lines go out
@@ -185,8 +185,8 @@
 #define SENSORD_GET_TIMEOUT_MS	5000
 #define SENSORD_MAX_PENDING	8
 #define SENSORD_DSP_HZ		32768
-/* What claiming "heading" claims internally (docs/next-steps/
- * sensors-plan.md section 8), and its output limit. */
+/* What claiming "heading" claims internally (docs/research/
+ * sensors.md section 8), and its output limit. */
 #define SENSORD_HEADING_IMU_HZ	50
 #define SENSORD_HEADING_MAG_HZ	20
 #define SENSORD_HEADING_MAX_HZ	50

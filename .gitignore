@@ -11,8 +11,8 @@ out/
 toolchain/
 
 # Ride and GPS captures can contain exact GPS coordinates. Keep the raw
-# archives as local evidence only; commit the redacted README summary and
-# text diagnostics.
+# archives as local evidence only; commit the redacted summary in
+# docs/build-log.md and the text diagnostics under logs/.
 logs/ride-live-test-*.tgz
 logs/gpsd-live-test-*.tgz
 

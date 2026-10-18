@@ -22,14 +22,14 @@
  * shows the kernel release, uptime, battery level and how many records
  * the ring overran while we were behind.
  *
- * Framebuffer contract (fbdev.h, live-verified quirks in the README's
- * gotchas): open, FBIOBLANK UNBLANK, mmap, draw, FBIOPAN_DISPLAY, stay
- * resident; write lcd-backlight then commit; heartbeat-commit once a
- * second while idle so an external `fbtouch bl N` lands (in practice the
- * `fbtouch: backlight N` kmsg note itself triggers the repaint commit, so
- * it lands in ~30 ms; the heartbeat is the fallback for a writer that
- * logs nothing); FBIOBLANK POWERDOWN before the last close
- * (SIGTERM/SIGINT).
+ * Framebuffer contract (fbdev.h, live-verified quirks in
+ * docs/features/display-and-touch.md): open, FBIOBLANK UNBLANK, mmap,
+ * draw, FBIOPAN_DISPLAY, stay resident; write lcd-backlight then commit;
+ * heartbeat-commit once a second while idle so an external `fbtouch bl N`
+ * lands (in practice the `fbtouch: backlight N` kmsg note itself triggers
+ * the repaint commit, so it lands in ~30 ms; the heartbeat is the fallback
+ * for a writer that logs nothing); FBIOBLANK POWERDOWN before the last
+ * close (SIGTERM/SIGINT).
  *
  * Coexistence with `fbtouch show` (which draws its own screen): fbdev.h's
  * advisory screen lock. fblog takes the shared lock only while it draws

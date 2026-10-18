@@ -47,6 +47,10 @@
  *     firmware directory if this check weren't here first. Applied
  *     uniformly to the RAM prefixes too, even though ramfs.c has no such
  *     footgun, so one rule covers every prefix.
+ *
+ * REPORT.md is the report in the local 2026-09-17 stock-read evidence
+ * directory (stock-root-read-fable-<timestamp>); it is not in the
+ * repository.
  */
 #include <errno.h>
 #include <fcntl.h>

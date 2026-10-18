@@ -84,7 +84,7 @@ set_firmware_path() {
 	# (drivers/base/firmware_class.c's fw_get_filesystem_firmware()). echo's
 	# trailing \n would land in the middle of the constructed path and make
 	# every direct-load lookup miss, even for firmware that is really there
-	# -- see the 2026-09-16 (live, fix) README entry. The sibling
+	# -- see the 2026-09-16 (live, fix) entry in docs/build-log.md. The sibling
 	# /sys/class/firmware/timeout write just below in the main flow does not
 	# have this problem: it's parsed with simple_strtol(), which stops at the
 	# first non-digit byte and tolerates a trailing \n fine.
@@ -258,7 +258,7 @@ if ! irsc; then
 fi
 
 # -r: RAM-shadowed writes only. Non-negotiable until EFS writes are reviewed
-# and the user explicitly okays them (see README GPS section).
+# and the user explicitly okays them (see docs/features/gps.md).
 # -S "$SLOT": required for fsg. There is no unsuffixed fsg partition on this
 # device (only fsg_a/fsg_b), so storage_open()'s unsuffixed lookup for "fsg"
 # always misses and its fallback appends slot_suffix; -S is what tells it
@@ -282,10 +282,11 @@ fi
 # servreg-locator answers the modem's own boot-time service-registry lookup
 # (QMI service 0x40, instance 0x101 -- dump_servers prints it as
 # 0x00000040). Without it the modem's Hexagon "dog" startup-grace timer
-# fires ERR_FATAL ~40s after Power/Clock ready (see README's 2026-09-16 (dog
-# timeout) entry). Fixing the +40.02s ERR_FATAL required this, but the
-# 2026-09-17 (stock read + TFTP/RFS) probe showed it alone was not
-# sufficient -- see tftp-server below, also required and also fail-closed.
+# fires ERR_FATAL ~40s after Power/Clock ready (see docs/build-log.md's
+# 2026-09-17 (dog timeout) entry). Fixing the +40.02s ERR_FATAL required
+# this, but the 2026-09-17 (stock read + TFTP/RFS) probe showed it alone was
+# not sufficient -- see tftp-server below, also required and also
+# fail-closed.
 #
 # audio-up also needs a servreg-locator (it serves the ADSP's own
 # /firmware/image/adspua.jsn descriptor for the kernel audio PDR's service
@@ -316,8 +317,8 @@ fi
 # stock Android's own tftp_server serves two WRQs
 # (/readwrite/mot_rfs/imei_sv, /readwrite/server_check.txt) within 0.3s of
 # Power/Clock-ready, interleaved with the RMTFS reads above (see REPORT.md
-# in the 2026-09-17 stock-read evidence and the README's 2026-09-17 (stock
-# read + TFTP/RFS) log entry). RAM-shadow only, seeded read-only at build
+# in the 2026-09-17 stock-read evidence and docs/build-log.md's 2026-09-17
+# (stock read + TFTP/RFS) entry). RAM-shadow only, seeded read-only at build
 # time -- see scripts/mkinitramfs.sh; never opens the persist partition or
 # any block device at runtime. Fails closed exactly like RMTFS and
 # servreg-locator above.

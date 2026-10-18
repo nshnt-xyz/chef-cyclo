@@ -116,7 +116,7 @@ eq "resolve_fsg b (control: still resolves on its own slot)" "fsg_b mmcblk0p5" "
 # trimming) and lands in the middle of "%s/%s" with the firmware name in
 # fw_get_filesystem_firmware(), so a real firmware file the kernel could
 # otherwise find directly is never located -- see the 2026-09-16 (live,
-# fix) README entry for the on-device failure this caused. ---
+# fix) entry in docs/build-log.md for the on-device failure this caused. ---
 FW_PATH_NODE="$TMPROOT/fw-class-path"
 : > "$FW_PATH_NODE"
 set_firmware_path

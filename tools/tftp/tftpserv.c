@@ -1,12 +1,12 @@
 /* tftp-server: bounded TFTP/RFS server for this device's modem, service
  * 0x1000 version 1 (wire instance field 0x00000001, i.e. QMI instance 0 --
  * see tftp_open_and_publish() below for why) on AF_MSM_IPC -- see REPORT.md
- * 8.1 for the full specification this implements and README.md's
- * 2026-09-17 (stock read + TFTP/RFS) log entry for why it exists (the modem's very first
- * boot-time RFS transactions, ~0.12-0.28s after Power/Clock-ready, are TFTP
- * WRQs to /readwrite/mot_rfs/imei_sv and /readwrite/server_check.txt; stock
- * Android serves them with its own tftp_server, and nothing on this project
- * did until now).
+ * 8.1 for the full specification this implements and docs/build-log.md's
+ * 2026-09-17 (stock read + TFTP/RFS) entry for why it exists (the modem's
+ * very first boot-time RFS transactions, ~0.12-0.28s after
+ * Power/Clock-ready, are TFTP WRQs to /readwrite/mot_rfs/imei_sv and
+ * /readwrite/server_check.txt; stock Android serves them with its own
+ * tftp_server, and nothing on this project did until now).
  *
  * This is a structural port of upstream linux-msm/tqftpserv (BSD-3-Clause,
  * see LICENSE) onto this vendor kernel's AF_MSM_IPC transport, the same way
@@ -75,7 +75,7 @@
  *    and one at close (result, bytes), per REPORT.md 8.1 point 5; -v adds
  *    a line per packet.
  *
- * Round 1 review (stock-read-fable, /tmp/tftp-review-round1.md) found ten
+ * Round 1 review (stock-read-fable) found ten
  * further issues, each fixed at its own call site (search this file and
  * translate.c/protocol.c for "Round 1 review F<N>"): F1 the published
  * instance was wrong (wire field 0x101 instead of stock's 0x001); F2/F5

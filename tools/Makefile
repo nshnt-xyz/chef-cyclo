@@ -10,7 +10,7 @@
 # or build anything under scripts/, initramfs/ -- those are built/wired into
 # the boot image by scripts/mkinitramfs.sh. `make test` does read (but not
 # build) initramfs/usr/bin/gps-up, to run its host-testable selection logic
-# alongside the rest of the GPS test suite (see gps-userspace-handoff.md).
+# alongside the rest of the GPS test suite (see docs/features/gps.md).
 # tools/rmtfs/ and tools/servreg-locator/ each have their own Makefile and
 # `test` target (`make -C tools/rmtfs test`, `make -C tools/servreg-locator
 # test`) and are deliberately not folded into this one's -- run all three to
@@ -21,8 +21,8 @@
 #   make && make test
 #
 # Cross build for the phone (aarch64, musl): once a musl aarch64 toolchain
-# exists under toolchain/ (see gps-userspace-handoff.md 3.1 -- provisioning
-# it is scripts/setup-toolchain.sh's job, not this Makefile's), do:
+# exists under toolchain/ (see docs/building.md -- provisioning it is
+# scripts/setup-toolchain.sh's job, not this Makefile's), do:
 #   make clean && make CC=<toolchain>/bin/aarch64-linux-musl-gcc LDFLAGS=-static
 # CFLAGS/LDFLAGS are plain make variables, not "+="-only, so they can be
 # overridden wholesale on the command line same as above.

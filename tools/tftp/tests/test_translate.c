@@ -4,6 +4,10 @@
  * semantics. No sockets, no AF_MSM_IPC -- pure filesystem + memory, same
  * shape as tools/servreg-locator/tests/test_jsn.c. Build/run: see
  * Makefile ("make test").
+ *
+ * REPORT.md is the report in the local 2026-09-17 stock-read evidence
+ * directory (stock-root-read-fable-<timestamp>); it is not in the
+ * repository.
  */
 #include <errno.h>
 #include <fcntl.h>

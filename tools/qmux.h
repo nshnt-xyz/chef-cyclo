@@ -1,8 +1,8 @@
 /* qmux: QMUX framing, QMI SDU header codec, TLV helpers, CTL-service (0)
  * emulation and the CID allocation table used by qmuxd-lite.
  *
- * This is the "only new protocol code" the GPS bridge needs (see
- * gps-userspace-handoff.md 3.4) and is deliberately split out from
+ * This is the only new protocol code the GPS bridge needs (see
+ * docs/features/gps.md) and is deliberately split out from
  * qmuxd-lite.c's socket/poll loop: everything declared here is a pure
  * function of its inputs (no fds, no blocking calls) so it can be exercised
  * by host unit tests without a real AF_MSM_IPC socket or a live modem --
@@ -132,7 +132,7 @@ ssize_t tlv_put_result(uint8_t *out, size_t cap, uint16_t result, uint16_t error
 int tlv_find(const uint8_t *tlvs, size_t len, uint8_t type,
 	     const uint8_t **val, size_t *val_len);
 
-/* ---- CTL (service 0) emulation, per gps-userspace-handoff.md 2.5 ---- */
+/* ---- CTL (service 0) emulation ---- */
 
 #define QMI_CTL_MSG_SET_INSTANCE_ID   0x0020
 #define QMI_CTL_MSG_GET_VERSION_INFO  0x0021

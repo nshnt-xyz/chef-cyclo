@@ -1,5 +1,5 @@
 /* compass: tilt-compensated heading, see compass.h and
- * docs/next-steps/sensors-plan.md section 8.
+ * docs/research/sensors.md section 8.
  *
  * Filter: Mahony-style complementary attitude filter on a quaternion.
  *  - The gyro propagates the attitude between samples (midpoint rate,

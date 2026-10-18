@@ -3,6 +3,10 @@
  * (BSD-3-Clause, see LICENSE), extended with the plain RFC 2349 "timeout"
  * option and a real "append" flag -- see tftpserv.c's file header for the
  * full list of behavioral differences from upstream.
+ *
+ * REPORT.md is the report in the local 2026-09-17 stock-read evidence
+ * directory (stock-root-read-fable-<timestamp>); it is not in the
+ * repository.
  */
 #include <errno.h>
 #include <stdio.h>

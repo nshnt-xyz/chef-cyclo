@@ -1,5 +1,5 @@
 #!/bin/sh
-# Guided compass capture (docs/next-steps/sensors-plan.md section 8):
+# Guided compass capture (docs/research/sensors.md section 8):
 # announces each step on the panel through /dev/kmsg and the vibrator,
 # records sensord's heading channel and its raw inputs under
 # /run/sensortest/compass-<stamp>/, and prints a one-line summary.

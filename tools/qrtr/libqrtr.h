@@ -13,9 +13,8 @@
  * real <linux/qrtr.h> on this target, struct sockaddr_qrtr below is our own
  * transport-agnostic stand-in (family/node/port only, no on-wire meaning) --
  * it is filled in by qrtr_recvfrom()/msmipc.c, not read directly off a
- * socket. See tools/msmipc.c and the GPS handoff doc (scratchpad
- * gps-userspace-handoff.md) sections 2.1-2.3 for the real AF_MSM_IPC address
- * shape (struct sockaddr_msm_ipc).
+ * socket. See tools/msmipc.c and the vendor kernel's <linux/msm_ipc.h> for
+ * the real AF_MSM_IPC address shape (struct sockaddr_msm_ipc).
  */
 #ifndef _QRTR_LIB_H_
 #define _QRTR_LIB_H_
@@ -172,7 +171,7 @@ ssize_t qmi_encode_message(struct qrtr_packet *pkt, int type, int msg_id,
 
 /* One-shot IPC-router security gate (msmipc.c). Every AF_MSM_IPC sendmsg()
  * blocks in the kernel until this has run once, from a euid-0 process,
- * anywhere on the system, since boot -- see gps-userspace-handoff.md 2.2. */
+ * anywhere on the system, since boot -- see docs/features/gps.md. */
 int msmipc_irsc(void);
 
 #define QRTR_NODE_BCAST 0xffffffffu

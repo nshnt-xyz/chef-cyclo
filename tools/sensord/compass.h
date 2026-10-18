@@ -1,5 +1,5 @@
 /* compass: tilt-compensated heading from accelerometer, gyroscope and
- * magnetometer samples (docs/next-steps/sensors-plan.md section 8). Pure:
+ * magnetometer samples (docs/research/sensors.md section 8). Pure:
  * no I/O, no clock, no allocation; sensord feeds it the SMGR samples it
  * publishes, tools/sensord/compass-replay feeds it recorded captures.
  *

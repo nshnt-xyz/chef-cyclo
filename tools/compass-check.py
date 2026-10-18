@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Compass check for sensord captures (host only; stdlib + numpy).
-docs/next-steps/sensors-plan.md section 8 is the plan; the guided
+docs/research/sensors.md section 8 is the plan; the guided
 sensors-compass-run on the phone records the input.
 
     python3 tools/compass-check.py DIR [--ref DEG] [--replay] [--replay-bin PATH]

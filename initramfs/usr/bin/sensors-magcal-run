@@ -1,5 +1,5 @@
 #!/bin/sh
-# Guided magnetometer calibration capture (docs/next-steps/sensors-plan.md
+# Guided magnetometer calibration capture (docs/research/sensors.md
 # section 7): announces each step on the panel through /dev/kmsg and the
 # vibrator, records sensord JSON lines under
 # /run/sensortest/magcal-<stamp>/, and prints a one-line summary. Analyse
