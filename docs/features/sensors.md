@@ -254,7 +254,7 @@ On the host, `python3 tools/compass-check.py DIR --ref BEARING [--replay] [--cal
   - In still, calibrated steps our heading and the ADSP rotation vector agree within about 0.5 to 2 deg; use the rotation vector (`-V`) as a second opinion if the heading looks wrong.
   Evidence: `logs/compass-live-test-2026-10-01-*`.
 - **Not in inittab yet.** Start by hand. Adding it needs an idle and streaming power measurement first.
-- **No D-Bus facade.** There is no `net.hadess.SensorProxy` (iio-sensor-proxy) interface; add one only when a consumer needs it.
+- **No D-Bus facade yet.** There is no `net.hadess.SensorProxy` (iio-sensor-proxy) interface; it is planned in [standard interfaces](../next-steps/standard-interfaces.md#1-standard-interfaces-from-our-hardware-daemons).
 - The DSP's fusion and gesture algorithms (SAM: motion detect, tap, step counter) are not exposed; its rotation vector is, as a diagnostic (`-V`).
 - Registry writes from the DSP other than group 2980 are lost on reboot (the `/run` copy only, by design; persist is never written).
 

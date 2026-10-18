@@ -1,0 +1,102 @@
+# Standard interfaces
+
+[Next-steps index](README.md) · [Current features](../features/README.md) · [UI and ride app](ui-and-ride-app.md)
+
+Goal, set 2026-10-18: the system should work with hardware and with other programs the way a standard Linux install (Ubuntu, Arch, Alpine) does, wherever the vendor kernel allows it. Ordinary Linux software should find our services through the interfaces it already knows.
+
+## Where we stand (review of 2026-10-18)
+
+**Already standard.** The base is Alpine, and these run as on a desktop: NetworkManager, wpa_supplicant and nl80211, BlueZ (PAN, HID, A2DP through PipeWire, mesh), chrony, eudev, D-Bus, gpsd on port 2947 (any gpsd client works), dropbear with SFTP, and `apk add`. The kernel's battery (`power_supply`), evdev input, ALSA, Wi-Fi, Bluetooth, RTC and USB gadget interfaces are the standard ones. The UI talks to NetworkManager over D-Bus, blesensd talks to BlueZ over D-Bus (both through basu), apps get GPS from gpsd's JSON socket, time status comes from `chronyc`, and Wi-Fi events reach scripts through NetworkManager's dispatcher.
+
+**Fixed by the vendor 4.4 kernel** (permanent without a mainline port, which is not planned): fbdev instead of DRM/KMS, the backlight under `/sys/class/leds/lcd-backlight` instead of `/sys/class/backlight`, the vibrator as Android `timed_output` instead of input force feedback, AF_MSM_IPC instead of AF_QIPCRTR (hence `msmipc`, rmtfs, tftp, servreg-locator, qmuxd-lite), and sensors inside the ADSP behind QMI instead of IIO.
+
+**Our own choices, which this plan addresses:**
+
+| Concern | Ubuntu / Arch | Here |
+|---|---|---|
+| Service APIs | Named D-Bus services: discoverable, property-change signals, access policy | 4 private Unix sockets (`buttond`, `gps-manager`, `sensord`, `blesensd`) in two message formats, with no discovery |
+| Hardware services | UPower, iio-sensor-proxy, logind sees the power key, feedbackd | `powerd`, `sensord` and `buttond` on private interfaces; `buttond` grabs the keys exclusively (`EVIOCGRAB`); the vibrator is a sysfs file |
+| Start order and readiness | systemd dependencies, activation, `sd_notify` | Marker files (`/run/udev-ready`, `dbus-helper-ready`, `wifi-usb-guard-ready`, `bt-powered`, `wifi/dhcp.ready` and others) polled with `sleep` loops in `inittab` |
+| Supervision | The service manager restarts everything | `inittab` respawn, plus daemons supervising their own helpers (`sensors-up` runs `sensord`, `gps-manager` runs gpsd and qmicli, `blesensd` runs `chef-state`) |
+| Screen ownership | logind seat and session, DRM master | `/run/fb0.lock`, the `/run/fblog.off` and `/run/fb0.lit` flags and a lock fd handed across `exec` in `CHEFUI_LOCK_FD` |
+| Signalling a process | `systemctl kill` on a unit | `buttond` scans `/proc` and SIGTERMs anything named `fblog` |
+| Logs | journald or syslog | Everything writes to `/dev/kmsg`, plus files under `/run` |
+| Shared settings | dconf, or a D-Bus service | `chef-settings` owns a file; the recorder will need its alert settings |
+| `/run` layout | One directory per package | About 40 names directly under `/run` |
+| Exclusive access | logind, unit conflicts | `flock` files (`gps-up.lock`, `audio-up.lock`, `sensors-up.lock`); acceptable, kept |
+
+Items 2 and 3 change what the ride app connects to (buttond for the Hold to finish events, gps-manager for the `ride` lease, blesensd for the sensors, the settings for alerts) and how the recorder is started, so they go before [ride slice 1](ui-and-ride-app.md#ride-application-design).
+
+## Order
+
+Decided 2026-10-18. Each step is one herdr impl/review pair with its own handoff.
+
+1. **Build and tree cleanup** (section 0 below). Not a compatibility item, but every later step adds files to the build (the shared library in four daemons, basu in `sensord`, the recorder), and today each binary is wired twice with flags that disagree.
+2. **buttond**: onto the shared library from section 2, JSON lines, and the hold-progress events for Hold to finish. Needs ride decisions 1 and 2 (Hold to finish, side-button mapping) in the [ride plan](ui-and-ride-app.md#ride-application-design).
+3. **Clients for the recorder**: the gpsd, gps-manager and blesensd clients split from LVGL with the shared JSON reader; `gps-manager` switches to JSON lines in the same step (section 2).
+4. **OpenRC** (section 3), so the recorder starts as an OpenRC service. Touches the boot path: its own live verification.
+5. **Ride slice 1.**
+
+Then, off the ride app's path and in any order: the rest of section 1 (UPower, `net.hadess.SensorProxy`, key and vibrator passthrough), section 4, section 5, `blesensd` and `sensord` onto the shared library, and the large-file splits. The [Goa map render prototype](ui-and-ride-app.md#offline-maps) is independent and can run beside any step.
+
+## 0. Build and tree cleanup
+
+Found in the code review of 2026-10-18. No behavior change.
+
+- **One build.** About 25 phone binaries are compiled by hand-written `$MUSLCC` lines in `scripts/mkinitramfs.sh` while the host tests use 7 Makefiles; only chefui builds its phone binaries through `make`. The flags have drifted: 4 binaries use `-Werror`, the modem helpers (rmtfs, irsc, qmuxd-lite, servreg-locator, tftp) skip `-Wextra`, `sensord` passes `-Wno-cpp`. Every phone binary was rebuilt with uniform `-Wall -Wextra` on 2026-10-18 with zero warnings and `-Wno-cpp` is not needed, so no code fixes are expected. Give each component's Makefile a `device` target (as `tools/chefui` has) with one flag set including `-Werror`, and reduce `mkinitramfs.sh` to `make` plus `install`. Host objects and test binaries go to a build directory, not the source tree (chefui already uses `build/`).
+- **One `make test`** at the top that runs every suite (`tools`, `tools/rmtfs`, `tools/servreg-locator`, `tools/tftp`, `tools/sensord`, `tools/blesensd`, `tools/chefui`, `scripts/tests`) in parallel. Run serially on 2026-10-18 they all passed in 624 s (sensord 251 s, `tools` 199 s); the shell tests hold about 220 s of fixed `sleep`s, 34 of them in `test_gps-manager.sh`.
+- **Remove the experiments.** Speaker protection was dropped on 2026-09-26 but `afe-topology-cal`, `tert-tx-hold`, `spk-protect-probe` and `afe-debug` still ship in every image, beside `acdb-afe-topology.py` and their tests. The DRM route was shelved on 2026-10-03 but `scripts/build-drm-experiment.sh`, `scripts/build-drm-diagnostic-initramfs.sh` and `kernel-config/drm-helper-namespace.patch` remain. Decided 2026-10-18: each moves to its own branch, `experiment/speaker-protection` and `experiment/drm`, both created at `08e1ec9` (the last main commit that has them, where each still builds as it did), and step 1 removes them from main. The kernel's DRM helper namespacing (`64fa801`) stays on the kernel branch: it only affects DRM builds. Their records also stay in [research](../research/README.md).
+- **Dangling references.** 25 references in code point to docs that do not exist: `gps-userspace-handoff.md` (11), `sensors-plan.md` (12, with and without `docs/next-steps/`), `battery-and-charging-plan.md` (1) and `tmp/tftp-review-round1.md` (1). Bring [repository layout](../repository-layout.md) up to date (it lacks blesensd, gps-manager, the settings app, abslot, rtc-edge, wifi-psk, wlan-fw, `stage1/` and the chef-state, chef-storage and chef-reboot scripts).
+- **Rename `initramfs/` to `rootfs-overlay/`** (decided 2026-10-18). The directory is the overlay laid over the Alpine base: the `system_a` root in the installed layout (where `stage1/` is the real initramfs) and the ramdisk of `boot-ram.img`. `rootfs-overlay` is Buildroot's term for exactly this and fits both images; plain `rootfs/` was rejected because `out/rootfs/` is already the Alpine base from `scripts/mkrootfs.sh`. Only the directory changes: `scripts/mkinitramfs.sh`, `out/initramfs-root` and `out/initramfs.cpio.*` keep their names (they do produce the RAM image's initramfs). It is its own commit inside step 1, the rename and path updates only (about 140 references in about 45 files), separate from the build changes. Historical files (`docs/archive/`, `docs/research/`, `logs/`, about 15) keep the old path; [repository layout](../repository-layout.md) notes the old name.
+
+Acceptance: `make test` passes; the staged image holds the same files as before apart from the removed experiments (compare the file lists, and the binaries' sizes for unexpected changes); a RAM image boots to the status bar with buttons, touch, Wi-Fi, GPS lease and sensors working.
+
+Later, when the code is next touched (not part of step 1): regroup the flat `tools/` (own directories for `buttond`, `powerd` and `gps-manager` like `sensord`; shared modem code and headers in `tools/common/`; host-only analysis scripts in `scripts/analysis/`), split `sensord.c` (3445 lines), `blesensd.c` (2963), `gps-manager.c` (2310) and `powerd.c` (1822), a shell helper library in `/usr/lib/chef` for the 11 copies of `log()` and the copied `find_subsys`, `card_ready`, `server_present` and `child_running`, an `adsp-up` separate from `audio-up` (with the [ADSP lifecycle](power-and-reliability.md#adsp-lifecycle-and-power)), and grouping `logs/` (215 files in one directory).
+
+## 1. Standard interfaces from our hardware daemons
+
+Keep the hardware code; offer the interface a standard program looks for beside our own.
+
+- **Battery: UPower.** The kernel's `power_supply` class is standard, so UPower should work installed as it is. Check that it only reads (`powerd` stays the owner of the shutdown and throttle policy) and what it costs at idle. Acceptance: `upower -d` shows the battery's percentage, state and rate; idle current is unchanged within the [A/B method](power-and-reliability.md#suspend-and-idle-power).
+- **Sensors: `net.hadess.SensorProxy` from `sensord`.** The iio-sensor-proxy interface: `ClaimLight`/`ReleaseLight` with `LightLevel` and `LightLevelUnit`, `ClaimAccelerometer` with `AccelerometerOrientation`, and `net.hadess.SensorProxy.Compass` with `CompassHeading`. A claim maps onto a `sensord` claim held for the caller's bus name and released on `NameOwnerChanged`, so sensors stay powered only while claimed, as today. This replaces the "no D-Bus facade until a consumer needs it" deferral in the [sensors guide](../features/sensors.md). Decide whether it lives inside `sensord` (basu, as blesensd does) or as a small bridge client of `/run/sensord.sock`. Acceptance: `monitor-sensor` (iio-sensor-proxy's client) shows light, orientation and heading; a client killed with `kill -9` releases its claim.
+- **Power key for standard consumers.** `buttond` keeps its exclusive grab (gesture claims and the power-off safety depend on it) but passes unclaimed keys on through a uinput device, so standard tools see `KEY_POWER` and the volume keys. Decide which keys are passed and when: never while a claim holds them, and never `power.long`, which stays buttond's shutdown path.
+- **Vibrator as input force feedback.** A uinput device with `FF_RUMBLE` that drives `timed_output`, so feedbackd and ordinary programs can buzz it. `buttond` and the system UI keep their direct path or move onto the same device.
+
+## 2. Our own contracts: one documented protocol
+
+Contracts without a standard equivalent stay on private sockets: GPS leases, gesture claims and fast sensor sample streams. Moving them onto D-Bus is not planned: if `dbus-daemon` restarts, every client loses its bus name, and a ride's `ride` lease would go with it (desktops do not support restarting it either). Private sockets are also normal on Ubuntu (gpsd, PipeWire, Wayland); the gaps are that ours are not uniform and not written down.
+
+- **One format: JSON lines.** `sensord` and `blesensd` already use it. `buttond` (`ok claim power.short`, `err ...`, `event ...`) and `gps-manager` (`ok lease ...`, `state ...`, `acq ...`) switch to it. Every client changes with them: `chefui/buttons.c`, `chefui/sys/gps.c`, the daemons' built-in command-line clients (`buttond watch`, `gps-manager hold`), the host tests and the live-test scripts. `buttond` changes first, together with the hold-progress events the [Hold to finish](ui-and-ride-app.md#ride-application-design) decision needs.
+- **One written contract** per socket in its feature guide: commands, replies, events, errors, claim and lease lifetime (released when the connection closes), and versioning (a `hello` line with a protocol version, as `sensord` sends).
+- **Shared code.** A small library under `tools/common/` for the server side (listen, client table, line reassembly, buffered output with the slow-client limit, the command tokenizer, logging), replacing the copies in the four daemons; `buttond` moves first, the others when next changed. One shared JSON line reader for clients, replacing the `strstr` parsing in `chefui/sys/alsclient.c` and `gps.c` and the small parser in `blesens.c`.
+- **Clients usable outside LVGL.** The ride recorder runs without LVGL (a UI restart must not interrupt recording), so the gpsd, gps-manager and blesensd clients split into a pure part (read lines, track state, decide when to reconnect) and a thin chefui wrapper, as `gpsview.c` and `als.c` already are.
+
+Acceptance: every socket's contract is written down; all four daemons and their clients pass their host tests on the shared library; one JSON reader serves chefui and the recorder.
+
+## 3. OpenRC for start order, readiness and supervision
+
+Alpine itself runs busybox init as PID 1 with OpenRC started from `inittab` (`openrc sysinit`, `boot`, `default`). Do the same:
+
+- Each `inittab` service becomes an OpenRC service under `supervise-daemon`, with `need`/`after` dependencies instead of marker files and `sleep` loops. The logic now written inline in `inittab` moves into the service files: powerd's choice between `/data` and `/run`, the `sensors-up` log rotation, chronyd's directory setup, and bluetoothd's BNEP firewall rule and D-Bus wait.
+- Daemons stop supervising their own long-running helpers where OpenRC can do it (`sensors-up` and `sensord` first). Short-lived helpers spawned on demand (`gps-manager`'s pipeline, `blesensd`'s `chef-state` calls) stay as they are.
+- Check what readiness signalling the OpenRC version in Alpine 3.24 supports before relying on it; where it does not, readiness stays with the consumer (retry with backoff, as the chefui sources already do).
+- Keep: the passwordless USB telnet as the recovery shell, started independently of OpenRC so a broken service tree still leaves it reachable; the `::shutdown` order (`chef-state shutdown`, then `chef-storage shutdown`, then `umount`); `abslot`'s 30 s mark; stage-1 untouched.
+
+Acceptance: `rc-status` lists every service; `rc-service <name> stop|start|restart` works for each without side effects on the others; a service killed with `kill -9` is restarted; boot to a lit status bar is no slower (measure against the current image); idle current unchanged; clean shutdown and `chef-reboot bootloader` unchanged.
+
+## 4. Screen handover: keep it, tidy it
+
+Without DRM there is no standard screen-ownership mechanism, so the `fb0.lock` protocol stays ([display guide](../features/display-and-touch.md), [UI platform](../features/ui-platform.md)).
+
+- Move its files under `/run/chef/`: `fb0.lock`, `fb0.lit`, and the screen-off flag renamed from `fblog.off` (a historical name) to `screen-off`. Users: `tools/fbdev.h`, `chefui/fbscreen.h`, `buttond.c`, `fblog/fblog.c`, `fbtouch.c`, `inittab` and their tests.
+- Remove `buttond`'s `/proc` scan that SIGTERMs processes named `fblog`: fblog is no longer in the image. If fblog is kept as a tool, it watches the flag itself.
+
+Acceptance: screen off/on through a short power press with and without `chef-settings` running, the panel handover across an `exec`, and the panel power-cycle after a crash with the panel lit all behave as before.
+
+## 5. Smaller items
+
+- **`/run/chef/`** for our runtime files: markers, logs, locks and sockets (sockets keep a compatibility symlink for one release if anything outside the repo uses them).
+- **syslog.** Run busybox `syslogd` (RAM ring, `logread`) and have our daemons log through `syslog(3)` from the shared library; `/dev/kmsg` stays for what must survive into pstore or runs before syslog (stage-1, `/init`, shutdown). Decide whether any log persists on `/data`.
+- **Settings as a contract for other readers.** The file format is already documented in the [system UI guide](../features/system-ui.md#settings). Add the rules for a second reader such as the recorder (alert volume, alert sounds, haptics, quiet when paused): `chef-settings` stays the only writer; readers notice changes with inotify on the directory (the writer renames over the file) and apply the same checks (version, ranges, checksum, defaults on a bad file).
+- **`tzdata`.** Install it and keep the zone as `Asia/Kolkata`, with the POSIX string as the fallback when the zone file is missing; the Time and date page keeps its behavior.
+- **Daemon users.** Run the daemons that do not need root under their own users, with the device and socket permissions they need (udev rules for device nodes).

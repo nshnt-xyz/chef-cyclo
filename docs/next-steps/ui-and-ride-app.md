@@ -82,7 +82,7 @@ Sunlight and gloves (S01 to S03, S10 to S13): the same states with no header or 
 
 Additions to the kit: Barlow Condensed 600 at 32 and 120 px; Lucide `heart-pulse`, `bike`, `check`, `play`, `pause`, `square`, `flag`, `mountain`, `navigation`, `navigation-2`, `battery-low` and `plus` (registration marks); a sunlight token set beside dark and light.
 
-Decisions needed before implementation:
+Ride slice 1 follows steps 1 to 4 of the [standard interfaces order](standard-interfaces.md#order) (build cleanup, buttond, recorder clients, OpenRC). Decisions needed before implementation:
 
 1. **Hold Power to finish needs press and release from buttond.** Today buttond only reports completed gestures, so a client cannot draw a ring that cancels on release. Options are a new hold-progress stream for a claimed `power.long`, or raw `power.down`/`power.up` events. While the recorder claims `power.long` the 3 s software power-off is suppressed. The finish hold must complete well before the PM660 S1 timer (6.7 s, hard reset at about 8.7 s).
 2. **Gloves versus touch-only controls.** The design makes start, Lap and Pause touch only, but the gloves requirement above wants every riding action on the side buttons. The earlier proposal (`power.double` for pause) is not in the design. Choose button paths for start, Lap and Pause, and decide what a short Power press does on ride pages (menus use it for Back or screen off).
