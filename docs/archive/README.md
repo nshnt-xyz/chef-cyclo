@@ -18,4 +18,4 @@ Archived during the 2026-10-11 documentation review. These files preserve origin
 | [Persistence follow-up](state-persistence-followup-handoff.md) | Power log batching and bounded state shutdown installed 2026-10-08. |
 | [Return to bootloader](reboot-bootloader-handoff.md) | State-saving helper verified 2026-10-10; installed 2026-10-11. |
 | [SSH and install](ssh-and-install-handoff.md) | Key-only SSH and updated pair installed 2026-10-11, including the userdata mount-sweep fix. |
-| [Build and tree cleanup](build-cleanup-handoff.md) | Standard interfaces step 1 done 2026-10-18: experiments off main, one build through make, one parallel `make test`, reproducible `wlan.ko`, `initramfs/` renamed `rootfs-overlay/`; RAM image live verified, not installed. |
+| [Build and tree cleanup](build-cleanup-handoff.md) | Standard interfaces step 1 done 2026-10-18: experiments off main, one build through make, one parallel `make test`, reproducible `wlan.ko`, `initramfs/` renamed `rootfs-overlay/`; RAM image live verified; installed as `8b8cddf0` + `41dca3ff`. |

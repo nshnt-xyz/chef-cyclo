@@ -156,8 +156,8 @@ written; promoting an image to the baseline stays a separate decision.
   image back: label, feature list, block count, `e2fsck -fn`, the stamp and
   the helper's owner and mode. For a given staged tree the image is
   byte-for-byte reproducible (`E2FSPROGS_FAKE_TIME`, UUID and hash seed from
-  the manifest); a full rebuild is not, because the Wi-Fi module embeds its
-  build time.
+  the manifest), and since 2026-10-18 a full rebuild in the same checkout
+  is too (`wlan.ko` has a fixed build path and the pinned commit's date).
 - **The stamp** (`scripts/chef-stamp.py`) names the kernel release and the
   SHA-256 of `Image.gz-dtb`, `Module.symvers`, `wlan.ko` (whose vermagic must
   match the release) and the tree manifest. Stage 1 compares it byte for byte

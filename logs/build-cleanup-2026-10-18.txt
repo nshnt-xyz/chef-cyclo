@@ -73,3 +73,39 @@ Live check (RAM boot, 2026-10-18, about 20:18 to 20:40 IST)
     3/4 Storage row opens: pass
     4/4 GPS page shows searching: pass
   Returned to the installed image with reboot.
+
+Install (2026-10-18, about 20:45 to 20:53 IST [15:15 to 15:23Z]), on the user's go-ahead
+  ef0b058 pushed to origin/main first (08e1ec9..ef0b058).
+  Built at a clean ef0b058 (image-info dirty 0) with SKIP_KERNEL=1
+  scripts/mkinstall.sh on the existing kernel #23 (Image.gz-dtb 3a907d00...).
+    system_a  out/system_a-8b8cddf0.img
+              sha256 8b8cddf0fc7d3ebcd3150f80a09b637a1759473a17028b5bb91b58dca032c269
+              stamp 56950ad0..., wlan.ko 6f1c2a15..., tree manifest 3e87edbe...
+    boot_a    out/boot-stage1-41dca3ff.img
+              sha256 41dca3ff61a6e17cac7cc5117612127fed26dfdf42d4f725fd9905d486da8702
+    RAM image of the same tree: out/boot-ram-c02232cc.img
+  Staged tree vs the live-checked ca43cff1 tree: identical except
+  /etc/chef/image-info (so wlan.ko is reproducible across a full
+  rebuild). Manifest vs installed 2faf5f0e: exactly the 4 removed
+  experiments, image-info, wlan.ko, chef-settings, chefui-demo, 7
+  comment-only scripts and 19 helper modes 775 -> 755. Stamp differs in
+  wlan-ko-sha256 and tree-manifest-sha256 only.
+  Backup first: /data/v1 state (BlueZ, NM, settings, GPS, sensors, SSH,
+  time) pulled to the evidence dir, mode 600, not in the repository.
+  chef-reboot bootloader (detached); current-slot a; hashes rechecked;
+  fastboot flash system_a OKAY (write 20.9 s); fastboot boot of the
+  stage-1 image: "system_a build stamp matches; switch_root", stamp
+  56950ad0 equal to out, /data mounted, no rescue; chef-reboot
+  bootloader again; fastboot flash boot_a OKAY; fastboot reboot.
+  Installed regression at 82 s: #23, bootreason reboot, slot _a, mode
+  normal, / = mmcblk0p67 ro norecovery, /data rw, image-info ef0b058
+  dirty 0, boot_a successful=1, all residents running, settings
+  fac59c34, NetworkManager.state and gps/enabled byte-identical to
+  before (radio disabled, GPS disabled, the user's choices), experiments
+  absent, helpers 755, 0 Call trace/WARN/dma_comp/clk_branch_wait.
+  Ordinary reboot: back by itself (fresh boot about 15:22:23Z,
+  bootreason reboot), same image, residents up, radio disabled, 0 bad
+  kmsg lines. (A first `reboot` over phone.py did not take effect at
+  once; the host clock showed the check had read the old boot.)
+  Fallbacks in out/: 2faf5f0e + 606bd269 (882388d, first), then
+  5f2d4247 + e35ad36d, 1bb8a700 + a2ca8337, e73c8c54 + 034db212.

@@ -229,5 +229,5 @@ image `ca43cff1` matched the baseline apart from the listed exceptions
 and passed the live check with the user (status bar, power button,
 touch, Wi-Fi, GPS lease, sensors). Record:
 [build cleanup log](../../logs/build-cleanup-2026-10-18.txt).
-Not installed: the installed pair stays `2faf5f0e` + `606bd269` until
-a later step installs a new one.
+Installed the same day on the user's go-ahead: `system_a` `8b8cddf0` +
+`boot_a` `41dca3ff` (commit ef0b058), see the log.
