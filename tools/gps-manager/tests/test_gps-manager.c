@@ -1,14 +1,15 @@
-/* Host tests for tools/gps-manager.c: the core state machine through fake
- * operations that record every step/spawn/signal/save in a trace (ordered
- * bring-up and teardown, lease counting and grace, leases changing mid
- * STARTING and during STOPPING, failures, backoff, the fast-failure streak
- * and its reset, parking and retry, silence, owner loss/replacement and the
- * 2 s owner poll, stale CIDs from a previous instance, leaked releases, a
- * missing bridge, step timeouts and kill escalation), the line protocol over
- * real socketpairs (per-connection leases, connection death, errors, watch,
- * a watcher that does not read), the state-file record and the /proc and
- * owner checks against a fake tree. gps-manager.c is included with
- * GPSMGR_NO_MAIN; nothing is forked. Build/run: see tools/Makefile.
+/* Host tests for tools/gps-manager/gps-manager.c: the core state machine
+ * through fake operations that record every step/spawn/signal/save in a
+ * trace (ordered bring-up and teardown, lease counting and grace, leases
+ * changing mid STARTING and during STOPPING, failures, backoff, the
+ * fast-failure streak and its reset, parking and retry, silence, owner
+ * loss/replacement and the 2 s owner poll, stale CIDs from a previous
+ * instance, leaked releases, a missing bridge, step timeouts and kill
+ * escalation), the line protocol over real socketpairs (per-connection
+ * leases, connection death, errors, watch, a watcher that does not read),
+ * the state-file record and the /proc and owner checks against a fake tree.
+ * gps-manager.c is included with GPSMGR_NO_MAIN; nothing is forked.
+ * Build/run: see tools/gps-manager/Makefile.
  */
 #include <stdio.h>
 #include <stdlib.h>

@@ -118,10 +118,9 @@
  *
  * The core (state machine with injected operations), the lease server, the
  * owner check and the state-file parser are separated from the process
- * plumbing and covered by tools/tests/test_gps-manager.c, which includes
- * this file with GPSMGR_NO_MAIN; tools/tests/test_gps-manager.sh runs the
- * real binary with stub qmicli/gpsd, the real nmea-broker, kill -9 and a
- * respawn.
+ * plumbing and covered by tests/test_gps-manager.c, which includes this
+ * file with GPSMGR_NO_MAIN; tests/test_gps-manager.sh runs the real binary
+ * with stub qmicli/gpsd, the real nmea-broker, kill -9 and a respawn.
  */
 #define _GNU_SOURCE
 #include <errno.h>

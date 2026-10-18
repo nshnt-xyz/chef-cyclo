@@ -1,17 +1,17 @@
 # Builds this directory's new GPS transport/protocol code -- msmipc
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
 # qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
-# log screen fblog (fblog/), the gpsd feed nmea-broker, the GNSS demand
-# manager gps-manager, the battery daemon powerd, the WAV tone generator
-# wavtone and atomic TAS2560 calibration-control writer tas2560-send-cal
-# (for the speaker test, rootfs-overlay/usr/bin/speaker-test-tone), the
-# Wi-Fi helpers wlan-fw and wifi-psk, the A/B slot marker abslot, rtc-edge,
-# the freestanding Bluetooth helper btprobe, and their host tests. `make
-# test` also runs the host tests of the scripts under rootfs-overlay/
-# (gps-up's selection logic, audio-up, chef-state, chef-reboot, SSH,
-# storage, stage 1). The modem services in tools/rmtfs/,
-# tools/servreg-locator/, tools/tftp/, the sensors daemon tools/sensord/
-# and the button daemon tools/buttond/ have their own Makefiles; the
+# log screen fblog (fblog/), the gpsd feed nmea-broker, the battery daemon
+# powerd, the WAV tone generator wavtone and atomic TAS2560
+# calibration-control writer tas2560-send-cal (for the speaker test,
+# rootfs-overlay/usr/bin/speaker-test-tone), the Wi-Fi helpers wlan-fw and
+# wifi-psk, the A/B slot marker abslot, rtc-edge, the freestanding
+# Bluetooth helper btprobe, and their host tests. `make test` also runs the
+# host tests of the scripts under rootfs-overlay/ (gps-up's selection
+# logic, audio-up, chef-state, chef-reboot, SSH, storage, stage 1). The
+# modem services in tools/rmtfs/, tools/servreg-locator/, tools/tftp/, the
+# sensors daemon tools/sensord/, the button daemon tools/buttond/ and the
+# GNSS demand manager tools/gps-manager/ have their own Makefiles; the
 # top-level Makefile runs them all.
 #
 #   make                 host build: build/host/ (fblog is host-only, a
@@ -34,13 +34,13 @@ D := build/device
 INCLUDES := -I. -Iqrtr -I$(H)/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := $(addprefix $(H)/,irsc qmuxd-lite fbtouch fblog nmea-broker gps-manager powerd wavtone \
+BIN := $(addprefix $(H)/,irsc qmuxd-lite fbtouch fblog nmea-broker powerd wavtone \
        tas2560-send-cal wifi-psk abslot rtc-edge)
 VENDOR_OBJ := $(H)/qmi.o $(H)/logging.o
 TEST_BIN := $(addprefix $(H)/tests/,test-qmux test-msmipc test-evdev test-fbtouch test-fblog \
-            test-nmea-broker test-gps-manager test-powerd test-wavtone \
+            test-nmea-broker test-powerd test-wavtone \
             test-tas2560-send-cal test-wlan-fw)
-DEVICE_BIN := btprobe wifi-psk wlan-fw irsc qmuxd-lite fbtouch nmea-broker gps-manager \
+DEVICE_BIN := btprobe wifi-psk wlan-fw irsc qmuxd-lite fbtouch nmea-broker \
               abslot rtc-edge powerd wavtone tas2560-send-cal
 
 .PHONY: all test test-shell test-wifi clean device install-device
@@ -170,25 +170,6 @@ $(H)/tests/test-nmea-broker: tests/test_nmea-broker.c nmea-broker.c
 $(D)/nmea-broker: nmea-broker.c
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ nmea-broker.c
-
-# GNSS demand manager (gps-manager.c, docs/features/gps.md): leases on
-# /run/gps-manager.sock drive the LOC CID/session, gpsd and the follower |
-# nmea-broker pipeline on top of gps-up's shared modem, and stop them after
-# the last release. Never touches gps-up. Started from inittab (respawn).
-# Plain libc. The test includes the .c with GPSMGR_NO_MAIN and drives the
-# core through fake operations; tests/test_gps-manager.sh runs the binary
-# with stub qmicli/gpsd, the real nmea-broker, kill -9 and a respawn.
-$(H)/gps-manager: gps-manager.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-$(H)/tests/test-gps-manager: tests/test_gps-manager.c gps-manager.c
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-$(D)/gps-manager: gps-manager.c
-	@mkdir -p $(@D)
-	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ gps-manager.c
 
 # Battery daemon (powerd.c, docs/features/battery-and-charging.md):
 # BatteryService low-battery warn/critical and over-temperature clean
@@ -325,7 +306,6 @@ test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge test-displa
 	$(H)/tests/test-fbtouch
 	$(H)/tests/test-fblog
 	$(H)/tests/test-nmea-broker
-	$(H)/tests/test-gps-manager
 	$(H)/tests/test-powerd
 	$(H)/tests/test-wavtone
 	$(H)/tests/test-tas2560-send-cal
@@ -345,10 +325,9 @@ test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge test-displa
 # gps-up (rootfs-overlay/) selection-logic regression; not a build product of
 # this directory, but this is the natural place to run it alongside the
 # rest of the GPS test suite. See tests/test_gps-up.sh.
-test-shell: $(H)/powerd $(H)/gps-manager $(H)/nmea-broker
+test-shell: $(H)/powerd
 	sh tests/test_powerd.sh
 	sh tests/test_gps-up.sh
-	sh tests/test_gps-manager.sh
 	sh tests/test_audio-up.sh
 	sh tests/test_speaker-test-tone.sh
 
