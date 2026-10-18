@@ -14,14 +14,14 @@ USB networking, standard NetworkManager WPA2 Wi-Fi, Bluetooth tooling, GPS fixes
 
 ## Start here
 
-- [Build and boot](docs/building.md) — prerequisites, commands, rebuilding, and build troubleshooting.
-- [Feature guides](docs/features/README.md) — use, modify, and test the working subsystems.
-- [Next steps](docs/next-steps/README.md) — remaining work and dependencies.
-- [Completed plans](docs/archive/README.md) — historical implementation handoffs and acceptance checklists.
-- [Research records](docs/research/README.md) — completed investigations, design decisions, and experiment findings.
-- [Live testing](docs/live-testing.md) — boot an image and drive the phone from scripts (`scripts/phone-boot.sh`, `scripts/phone.py`).
-- [Device reference](docs/device.md) — hardware, backups, and boot behavior.
-- [Build log](docs/build-log.md) — dated experiments, fixes, measurements, and verification evidence.
+- [Build and boot](docs/building.md): prerequisites, commands, rebuilding, and build troubleshooting.
+- [Feature guides](docs/features/README.md): use, modify, and test the working subsystems.
+- [Next steps](docs/next-steps/README.md): remaining work and dependencies.
+- [Completed plans](docs/archive/README.md): historical implementation handoffs and acceptance checklists.
+- [Research records](docs/research/README.md): completed investigations, design decisions, and experiment findings.
+- [Live testing](docs/live-testing.md): boot an image and drive the phone from scripts (`scripts/phone-boot.sh`, `scripts/phone.py`).
+- [Device reference](docs/device.md): hardware, backups, and boot behavior.
+- [Build log](docs/build-log.md): dated experiments, fixes, measurements, and verification evidence.
 
 ## Operating constraints
 
@@ -33,11 +33,11 @@ The USB shell is passwordless root at `telnet 172.16.42.1`; scripts drive it thr
 
 ## Repository
 
-- `kernel/`, `kernel-config/` — Motorola Linux 4.4.192 tree and project configuration.
+- `kernel/`, `kernel-config/`: Motorola Linux 4.4.192 tree and project configuration.
 - `rootfs-overlay/`: the image's overlay (init, inittab, helper scripts, config).
-- `third_party/lvgl` — LVGL v9.6.0 submodule for the UI platform (`tools/chefui/`).
-- `tools/`, `scripts/` — device helpers, host tests, and image builds.
-- `stock/`, `logs/` — stock backups and development evidence; some artifacts are local-only.
-- `docs/` — guides, plans, and history.
+- `third_party/lvgl`: LVGL v9.6.0 submodule for the UI platform (`tools/chefui/`).
+- `tools/`, `scripts/`: device helpers, host tests, and image builds.
+- `stock/`, `logs/`: stock backups and development evidence; some artifacts are local-only.
+- `docs/`: guides, plans, and history.
 
 See the [full repository layout](docs/repository-layout.md) for individual components.
