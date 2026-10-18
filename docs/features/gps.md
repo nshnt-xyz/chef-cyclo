@@ -19,13 +19,13 @@ The clean standard-NetworkManager baseline verifies one shared resident modem ow
 - `tools/tftp/`: bounded TFTP/RFS service with read-only firmware and a RAM-backed writable namespace seeded from the stock persist backup at build time.
 - `tools/qmux.{c,h}`, `tools/qmuxd-lite.c`: the bridge used by stock Alpine `qmicli`.
 - `tools/nmea-broker.c`: follower stdout to checksum-verified NMEA UDP datagrams for gpsd.
-- `tools/gps-manager/gps-manager.c`: leases on `/run/gps-manager.sock` run the LOC session, gpsd and the follower/broker pipeline on demand ([below](#use-gnss-gps-manager)).
+- `tools/gps-manager/` (`main.c`, with the state machine in `core.c`, the lease server in `server.c`, the owner check and state file in `owner.c` and the command-line client in `cli.c`): leases on `/run/gps-manager.sock` run the LOC session, gpsd and the follower/broker pipeline on demand ([below](#use-gnss-gps-manager)).
 
 The modem needs both service-registry and TFTP/RFS support to survive startup. `gps-up` does not automatically restart a crashed modem. Do not run competing owners or reopen the modem repeatedly after failure; retain evidence and reboot.
 
 ## Use GNSS: gps-manager
 
-`tools/gps-manager/gps-manager.c` (inittab `::respawn:`) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `gps-up` and never changes the modem's operating mode. Idle, it only listens on `/run/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
+`gps-manager` (`tools/gps-manager/`, inittab `::respawn:`) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `gps-up` and never changes the modem's operating mode. Idle, it only listens on `/run/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
 
 ```sh
 gps-manager hold map          # lease and stream state lines until killed (kinds: map, ride)
@@ -147,7 +147,7 @@ Write modem sysfs control values without a trailing newline where required: the 
 
 ## Modify and verify
 
-Run `make -C tools test` (which includes the GPS startup shell suite), plus the relevant component suites: `make -C tools/rmtfs test`, `make -C tools/servreg-locator test`, `make -C tools/tftp test`, and `make -C tools/gps-manager test` for the GPS manager. The tests cover transport/bridge framing, storage offsets, slot validation and lifecycle safeguards, service replies, bounded TFTP behavior, broker filtering/framing/time handling, and the GPS manager: `tools/gps-manager/tests/test_gps-manager.c` drives its state machine through fake operations (order, leases and grace, failures, backoff and parking, owner loss, stale CIDs, timeouts) and `tools/gps-manager/tests/test_gps-manager.sh` runs the binary with stub qmicli/gpsd and the real broker through a full cycle, `kill -9` and a respawn, and the switch with a stub `chef-state` (disable while leased, the saved value read back after a respawn, new leases refused, a hanging `gps-load`). Rebuild rootfs if packages change, then initramfs and boot image.
+Run `make -C tools test` (which includes the GPS startup shell suite), plus the relevant component suites: `make -C tools/rmtfs test`, `make -C tools/servreg-locator test`, `make -C tools/tftp test`, and `make -C tools/gps-manager test` for the GPS manager. The tests cover transport/bridge framing, storage offsets, slot validation and lifecycle safeguards, service replies, bounded TFTP behavior, broker filtering/framing/time handling, and the GPS manager: `tools/gps-manager/tests/test_gps-manager.c` (linking `core.c`, `server.c` and `owner.c`, also under ASan/UBSan) drives its state machine through fake operations (order, leases and grace, failures, backoff and parking, owner loss, stale CIDs, timeouts) and `tools/gps-manager/tests/test_gps-manager.sh` runs the binary with stub qmicli/gpsd and the real broker through a full cycle, `kill -9` and a respawn, and the switch with a stub `chef-state` (disable while leased, the saved value read back after a respawn, new leases refused, a hanging `gps-load`). Rebuild rootfs if packages change, then initramfs and boot image.
 
 Live checks: modem survives startup, services are discovered, QMUX answers, LOC starts, outdoor NMEA/gpsd fixes agree, and teardown leaves no owned helpers. Capture image hashes and logs; preserve the no-writes-to-EFS/persist policy and verify it with appropriate evidence. Precise GPS archives may exist only locally; the public history retains redacted summaries.
 
