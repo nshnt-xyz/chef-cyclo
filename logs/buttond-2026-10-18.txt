@@ -65,4 +65,41 @@ Live check (RAM boot, 2026-10-18, about 23:08 to 23:12 IST)
   minus uptime), image-info ef0b058 dirty 0, buttond 0d7d52c9 on the
   old text protocol as expected.
 
-Not installed. Next: step 3 (gps-manager and the client side).
+
+Install (2026-10-18, about 23:14 to 23:20 IST [17:44 to 17:50Z]), on the user's go-ahead
+  3ca4a5f pushed to origin/main first (f9d42d0..3ca4a5f).
+  Built at a clean 3ca4a5f (image-info dirty 0) with SKIP_KERNEL=1
+  scripts/mkinstall.sh on the existing kernel #23 (Image.gz-dtb 3a907d00...).
+    system_a  out/system_a-188b83e6.img
+              sha256 188b83e630d8aaeb22c94b10249d965f1510c2334028d52573b52f45ac4f47f3
+              stamp 9e2c9550..., wlan.ko 6f1c2a15... (unchanged)
+    boot_a    out/boot-stage1-c5ed4d0e.img
+              sha256 c5ed4d0e3513663dfae3f8b61e7b971a75486c5227d18b21895f04135541791b
+    RAM image of the same tree: out/boot-ram-40bb3ef9.img
+  Manifest vs installed 8b8cddf0: same 1503 paths; only image-info,
+  buttond (89953f05), chef-settings (e41a8799) and chefui-demo
+  (bda5cae2) differ, the three binaries equal to the live-checked
+  3e5ba485 tree.
+  Backup first: /data/v1 state (BlueZ, NM, settings, GPS, sensors, SSH,
+  time, chrony, blesens) pulled to the evidence dir, mode 600, not in
+  the repository.
+  chef-reboot bootloader (detached); current-slot a; hashes rechecked;
+  fastboot flash system_a OKAY (write 21.0 s); fastboot boot of the
+  stage-1 image: "system_a build stamp matches; switch_root", stamp
+  9e2c9550, /data mounted, no rescue; chef-reboot bootloader again;
+  fastboot flash boot_a OKAY; fastboot reboot.
+  Installed regression at 63 s: #23, bootreason reboot, slot _a, mode
+  normal, / = mmcblk0p67 ro norecovery, /data rw, image-info 3ca4a5f
+  dirty 0, boot_a successful=1, all residents running, settings
+  fac59c34, NetworkManager.state and gps/enabled byte-identical to
+  before (radio disabled, GPS disabled, the user's choices), buttond
+  89953f05 answering status in JSON. kmsg: no Call trace, WARN,
+  dma_comp or clk_branch_wait (only stage 1's usual "unable to open an
+  initial console").
+  Ordinary reboot: fresh boot (host clock minus uptime: 14 s after the
+  command), bootreason reboot, same image, residents up, radio disabled,
+  boot_a successful=1.
+  Fallbacks in out/: 8b8cddf0 + 41dca3ff (ef0b058, first), then
+  2faf5f0e + 606bd269, 5f2d4247 + e35ad36d.
+
+Next: step 3 (gps-manager and the client side).

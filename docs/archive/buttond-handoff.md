@@ -275,4 +275,5 @@ status` and `watch` in JSON, a `kill -9`ed claimer's claim released at
 once, Back on a settings page, screen off and on from the hub through
 chef-settings' claim, and a power hold armed and cancelled. The check
 used a temporary claimer instead of stopping chef-settings. Record:
-[buttond log](../../logs/buttond-2026-10-18.txt). Not installed.
+[buttond log](../../logs/buttond-2026-10-18.txt). Installed the same day on the
+user's go-ahead: `system_a` `188b83e6` + `boot_a` `c5ed4d0e` (commit 3ca4a5f), see the log.
