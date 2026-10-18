@@ -3,7 +3,7 @@
 import hashlib
 from pathlib import Path
 import subprocess
-helper = Path(__file__).resolve().parents[1] / 'wifi-psk'
+helper = Path(__file__).resolve().parents[1] / 'build/host/wifi-psk'
 for ssid, password in [('IEEE', b'password'), ('x' * 32, b'p' * 63), ('a"\\b', b'12345678'), ('network', bytes(range(33, 65)))]:
     result = subprocess.run([str(helper), ssid], input=password+b'\n', capture_output=True, check=True)
     expected = hashlib.pbkdf2_hmac('sha1', password, ssid.encode(), 4096, 32).hex()

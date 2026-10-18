@@ -20,7 +20,7 @@ scripts/setup-toolchain.sh   # once: fetches AOSP GCC 4.9 aarch64 into toolchain
 chef_defconfig               # sdm660-perf_defconfig + moto-sdm660.config + moto-sdm660-chef.config + chef-cyclo.config -> out/kernel/.config
 kmake -j$(nproc)             # Image.gz-dtb comes out in out/kernel/arch/arm64/boot/
 scripts/mkrootfs.sh          # Alpine aarch64 musl/busybox/dbus/BlueZ -> out/rootfs (once, or after changing the package list)
-scripts/mkinitramfs.sh       # out/rootfs + initramfs/ overlay + helpers + firmware -> out/initramfs.cpio.lzma
+scripts/mkinitramfs.sh       # out/rootfs + initramfs/ overlay + make device + firmware -> out/initramfs.cpio.lzma
 scripts/mkboot.sh            # -> out/boot.img (header values from stock boot_a.img)
 fastboot boot out/boot.img   # nothing is flashed; a reboot runs what boot_a holds
 ```
@@ -31,7 +31,7 @@ The kernel config combines stock Android's `sdm660-perf_defconfig`, `moto-sdm660
 
 `mkrootfs.sh` builds an Alpine aarch64 root with musl, BusyBox, D-Bus, BlueZ, QMI tools, gpsd, tinyalsa, wpa_supplicant, iw, e2fsprogs/e2fsprogs-extra, dropbear and the OpenSSH SFTP server ([SSH](features/ssh.md), added 2026-10-10) and the [Wi-Fi UI/diagnostic utilities](features/wifi-ui.md). Rerun it when the package list changes; roots created before the 2026-09-19 gpsd addition, or before the same-day tinyalsa addition, need rebuilding.
 
-`mkinitramfs.sh` overlays `initramfs/` and cross-builds the device helpers. GPS requires RMTFS, IRSC, SERVREG-LOCATOR, TFTP/RFS, and QMUX support. Missing mandatory sources, failed cross-builds, a missing persist seed, a rootfs without gpsd, or a rootfs without tinymix/tinyplay abort image generation. `fbtouch`, the [UI platform](features/ui-platform.md) demo `chefui-demo` (baseline image only; built by `make -C tools/chefui device` against the LVGL submodule), `nmea-broker`, `buttond`, the [audio helpers](features/audio.md) `audio-up`/`speaker-test-tone`/`wavtone`/`tas2560-send-cal`, the [sensors](features/sensors.md) bring-up `sensors-up` and daemon `sensord`, and `abslot`, which inittab runs 30 s into each boot to mark `boot_a` successful in the GPT ([A/B slot flags](features/boot.md#ab-slot-flags)), are also packed. `fblog` stays in `tools/fblog/` as a debug tool (built and tested by `make -C tools`, not packed). The sensors registry map `/usr/share/sensord/sns_reg.map` is generated at build time by `tools/sns-reg-map.py` from `sensors.qti` in `stock/partitions/vendor_a.img` (read with debugfs); if that fails the build only warns, and the image then has no map and `sensors-up` refuses to start. The shelved speaker-protection probe and the DRM experiment builds are not on `main`; they live on the `experiment/speaker-protection` and `experiment/drm` branches.
+`mkinitramfs.sh` overlays `initramfs/` and builds and installs our own binaries with `make -j"$(nproc)" device` and `make install-device DESTDIR=out/initramfs-root` (see [one build](#one-build-make-device-and-make-test) below). GPS requires RMTFS, IRSC, SERVREG-LOCATOR, TFTP/RFS, and QMUX support. A failed build, a missing persist seed, a rootfs without gpsd, or a rootfs without tinymix/tinyplay abort image generation. `fbtouch`, the [UI platform](features/ui-platform.md) demo `chefui-demo` (baseline image only; built by `make -C tools/chefui device` against the LVGL submodule), `nmea-broker`, `buttond`, the [audio helpers](features/audio.md) `audio-up`/`speaker-test-tone`/`wavtone`/`tas2560-send-cal`, the [sensors](features/sensors.md) bring-up `sensors-up` and daemon `sensord`, and `abslot`, which inittab runs 30 s into each boot to mark `boot_a` successful in the GPT ([A/B slot flags](features/boot.md#ab-slot-flags)), are also packed. `fblog` stays in `tools/fblog/` as a debug tool (built and tested by `make -C tools` into `tools/build/host/fblog`, not packed). The sensors registry map `/usr/share/sensord/sns_reg.map` is generated at build time by `tools/sns-reg-map.py` from `sensors.qti` in `stock/partitions/vendor_a.img` (read with debugfs); if that fails the build only warns, and the image then has no map and `sensors-up` refuses to start. The shelved speaker-protection probe and the DRM experiment builds are not on `main`; they live on the `experiment/speaker-protection` and `experiment/drm` branches.
 
 `mkboot.sh` uses the stock `boot_a.img` header values and the built kernel/initramfs. `fastboot boot` runs an image once; installing one is `fastboot flash boot_a` (procedure in [standalone boot](features/boot.md#procedure-as-run)). A normal reboot runs whatever `boot_a` holds; see [device recovery](device.md#stock-backups-and-recovery).
 
@@ -61,15 +61,18 @@ To check without packaging, run
 - Helper or baseline overlay change: rebuild the initramfs and boot image.
 - Rootfs package change: rebuild rootfs, initramfs, and boot image.
 
-Run the relevant host tests before packing changed helpers:
+### One build: `make device` and `make test`
+
+Every binary of ours is built by its component's Makefile (`tools/`, `tools/rmtfs`, `tools/servreg-locator`, `tools/tftp`, `tools/sensord`, `tools/blesensd`, `tools/chefui`), and the top-level `Makefile` runs them all. Each component writes only under its own `build/`: `build/host/` for the host build and its tests (chefui: `build/host/` and `build/test/`), `build/device/` for the phone. The phone build uses one flag set for every musl binary, `-std=gnu11 -Wall -Wextra -Werror -O2 -static`, from `tools/device.mk` (which also holds `DEVICE_CC`, the musl cross compiler); `btprobe` keeps its freestanding Android GCC build (`BTCC` in `tools/Makefile`), and only chefui strips. The host builds use `-Werror` too. No build reads `kernel/include`: the one vendor header we need, `<linux/msm_ipc.h>`, is copied into each `build/<config>/include/` (the raw `uapi/linux/types.h` warns in userspace; see `tools/device.mk`).
 
 ```sh
-make -C tools test
-make -C tools/rmtfs test
-make -C tools/servreg-locator test
-make -C tools/tftp test
-make -C tools/chefui test
+make -j"$(nproc)" device                      # every phone binary
+make install-device DESTDIR=out/initramfs-root   # into DESTDIR/usr/bin, mode 755 (mkinitramfs.sh does both)
+make test                                     # all 8 host test suites in parallel
+make clean
 ```
+
+`make test` runs the suites (`tools`, `tools/rmtfs`, `tools/servreg-locator`, `tools/tftp`, `tools/sensord`, `tools/blesensd`, `tools/chefui` and `scripts/tests`) in parallel, writes each suite's output to `build/test-logs/<suite>.log`, prints one pass or FAIL line per suite with its wall time and exits non-zero if any failed. It takes about as long as the slowest suite, `tools/sensord` (about 4.5 minutes), most of it the fixed `sleep`s of the shell tests. A single suite runs as before, for example `make -C tools test` or `make tools/sensord.test` (with its log in `build/test-logs/`).
 
 `make -C tools test` includes `tests/test_abslot.py` (synthetic GPT images), the GPS startup, audio-up and speaker-test-tone shell suites. For a focused script change, run `sh tools/tests/test_gps-up.sh`, `sh tools/tests/test_audio-up.sh` or `sh tools/tests/test_speaker-test-tone.sh` directly. Component-specific tests and live verification expectations are linked from each feature guide. The storage suite additionally requires host BusyBox (ash), e2fsprogs and GNU timeout. Host success does not imply live device verification. Record image hashes, device results, and evidence paths in the [build log](build-log.md).
 

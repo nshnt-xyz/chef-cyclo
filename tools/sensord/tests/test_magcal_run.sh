@@ -1,12 +1,13 @@
 #!/bin/sh
 # Host test for initramfs/usr/bin/sensors-magcal-run: the real script with
-# second-long steps, against tests/sensord-fake (main sensord serving REG2,
-# plus the script's own -R helpers) and tests/fake_smgr as the ADSP (SMGR
-# and QMAG_CAL). Checks the calibration selects on the wire, QMAG_CAL on
-# and off, the files and steps the host analysis expects, that the
-# helpers are gone and the main sensord untouched afterwards, and that
-# tools/mag-cal-check.py reads the result (constant fake samples: it must
-# not crash on degenerate data). Run from tools/sensord (make test does).
+# second-long steps, against build/host/tests/sensord-fake (main sensord
+# serving REG2, plus the script's own -R helpers) and
+# build/host/tests/fake_smgr as the ADSP (SMGR and QMAG_CAL). Checks the
+# calibration selects on the wire, QMAG_CAL on and off, the files and steps
+# the host analysis expects, that the helpers are gone and the main sensord
+# untouched afterwards, and that tools/mag-cal-check.py reads the result
+# (constant fake samples: it must not crash on degenerate data). Run from
+# tools/sensord (make test does).
 set -u
 
 T=$(mktemp -d /tmp/snsm.XXXXXX)
@@ -44,7 +45,7 @@ wait_for() {
 script_env() {
 	n=$1
 	shift
-	echo SENSORD="$PWD/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/$n" \
+	echo SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/$n" \
 		KMSG="$T/kmsg-$n" VIB="$T/vib-$n" SENSORS_UP_LOG="$T/none" NOW_CMD="$T/now" \
 		FACE_S=0.4 FIG8_S=1 QFIG8_S=2 TURN_S=1 GAP_S=0 COUNT_S=1 HELPER_WAIT=40 "$@"
 }
@@ -80,11 +81,11 @@ abort() {
 	pgrep -f "$AD" >/dev/null && fail "$1: helper or capture left: $(pgrep -af "$AD")"
 	pgrep -f "$RUN" >/dev/null && fail "$1: script or poller left: $(pgrep -af "$RUN")"
 	sleep 0.5
-	./tests/sensord-fake -S "$SOCK" list | grep -q '"claims":[1-9]' && fail "$1: claims left on the main sensord"
+	./build/host/tests/sensord-fake -S "$SOCK" list | grep -q '"claims":[1-9]' && fail "$1: claims left on the main sensord"
 	grep -q "DONE" "$T/run-$1.txt" && fail "$1: carried on after TERM"
 }
 
-./tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
+./build/host/tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
 # run through a path unique to this test, so the leftover checks only
 # see this test's own processes
 ln -s "$PWD/$RUN" "$T/magcal-run"
@@ -104,15 +105,15 @@ printf '#!/bin/sh\nexec python3 -c "import time; print(\\"%%.3f\\" %% time.monot
 chmod +x "$T/now"
 
 # no sensord yet: refuses before doing anything
-if env SENSORD="$PWD/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/none" KMSG="$T/kmsg" \
+if env SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/none" KMSG="$T/kmsg" \
 	sh "$RUN" >"$T/norun.txt" 2>&1; then
 	fail "ran without a sensord"
 fi
 grep -q "run sensors-up first" "$T/norun.txt" || fail "no-sensord message: $(cat "$T/norun.txt")"
 
-./tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/main.log" &
+./build/host/tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/main.log" &
 SPID=$!
-./tests/fake_smgr serve >"$T/smgr.log" 2>&1 &
+./build/host/tests/fake_smgr serve >"$T/smgr.log" 2>&1 &
 FPID=$!
 wait_for "$T/main.log" "smgr ready" 80 || fail "main sensord never ready"
 
@@ -165,9 +166,9 @@ wait_for "$T/smgr.log" "QMAG DISABLE instance 7$" 30 || fail "QMAG_CAL not disab
 ls "$D"/*.sock >/dev/null 2>&1 && fail "helper sockets left"
 pgrep -f "sensord-fake -R -S $D" >/dev/null && fail "helper sensord left running"
 kill -0 "$SPID" 2>/dev/null || fail "main sensord died"
-./tests/sensord-fake -S "$SOCK" status | grep -q '"smgr":"ready"' || fail "main sensord not ready after"
+./build/host/tests/sensord-fake -S "$SOCK" status | grep -q '"smgr":"ready"' || fail "main sensord not ready after"
 sleep 0.5
-./tests/sensord-fake -S "$SOCK" list | grep -q '"claims":[1-9]' && fail "claims left on the main sensord"
+./build/host/tests/sensord-fake -S "$SOCK" list | grep -q '"claims":[1-9]' && fail "claims left on the main sensord"
 # the host analysis reads it (degenerate constant data must not crash it)
 python3 ../mag-cal-check.py "$D" >"$T/check.txt" 2>&1 || fail "mag-cal-check: $(tail -n 5 "$T/check.txt")"
 grep -q "VERDICT q-magn-qmag after fit" "$T/check.txt" || fail "mag-cal-check output: $(head -n 20 "$T/check.txt")"

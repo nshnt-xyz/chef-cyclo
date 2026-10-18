@@ -22,11 +22,13 @@
 #
 # Init is resumed (SIGCONT) on every path that does not reboot: the exit
 # trap, INT/TERM, and a detached RAM-only watchdog for a killed helper,
-# sized above the whole bounded chain. SIGHUP is ignored, so a closing
-# telnet session does not stop it halfway. One run at a time (a lock on
-# /run), so a second run cannot resume init under the first. Without
-# chef-state and chef-storage (stage 1) init is not paused and only
-# btprobe runs. Busybox applets only.
+# sized above the whole bounded chain. Started in the background of a
+# non-interactive shell it inherits INT ignored, which no trap can undo:
+# Ctrl-C then does nothing and it goes on to the bootloader (TERM still
+# works). SIGHUP is ignored, so a closing telnet session does not stop it
+# halfway. One run at a time (a lock on /run), so a second run cannot
+# resume init under the first. Without chef-state and chef-storage (stage
+# 1) init is not paused and only btprobe runs. Busybox applets only.
 RUN=${CHEF_REBOOT_RUN:-/run}
 KMSG=${CHEF_REBOOT_KMSG:-/dev/kmsg}
 LOG=$RUN/chef-reboot.log

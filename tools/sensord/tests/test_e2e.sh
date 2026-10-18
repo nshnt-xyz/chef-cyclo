@@ -1,10 +1,10 @@
 #!/bin/sh
-# End-to-end: the real sensord main loop (tests/sensord-fake, i.e.
-# sensord.c on tests/fake_ipc.c) against tests/fake_smgr, which plays the
-# ADSP: REG2 reads/writes at "boot", then the SMGR service with sensor
-# info, report add/delete and a sample stream, and a simulated DSP
-# restart. Client side through sensord's own CLI mode. Registry data is
-# the synthetic fixture. Run from tools/sensord (make test does).
+# End-to-end: the real sensord main loop (build/host/tests/sensord-fake, i.e.
+# sensord.c on tests/fake_ipc.c) against build/host/tests/fake_smgr, which
+# plays the ADSP: REG2 reads/writes at "boot", then the SMGR service with
+# sensor info, report add/delete and a sample stream, and a simulated DSP
+# restart. Client side through sensord's own CLI mode. Registry data is the
+# synthetic fixture. Run from tools/sensord (make test does).
 set -u
 
 T=$(mktemp -d /tmp/snsd.XXXXXX)	# short: AF_UNIX paths are <= 107 bytes
@@ -39,19 +39,19 @@ wait_for() {
 }
 
 cli() {
-	timeout 10 ./tests/sensord-fake -S "$SOCK" "$@"
+	timeout 10 ./build/host/tests/sensord-fake -S "$SOCK" "$@"
 }
 
 # Background client: timeout is the direct child, so killing $! stops it.
 bg_cli() {
-	timeout 20 ./tests/sensord-fake -S "$SOCK" "$@" &
+	timeout 20 ./build/host/tests/sensord-fake -S "$SOCK" "$@" &
 }
 
 start_pair() {
-	./tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" -v $1 \
+	./build/host/tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" -v $1 \
 		2>>"$T/sensord.log" &
 	SPID=$!
-	./tests/fake_smgr serve $2 >>"$T/smgr.log" 2>&1 &
+	./build/host/tests/fake_smgr serve $2 >>"$T/smgr.log" 2>&1 &
 	FPID=$!
 	wait_for "$T/sensord.log" "smgr ready" 80 || fail "sensord never reached smgr ready ($1)"
 }
@@ -65,7 +65,7 @@ stop_pair() {
 	FPID=
 }
 
-./tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
+./build/host/tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
 chmod 0400 "$T/reg"	# as sensors-up leaves its copy
 
 # ---------------------------------------------------------- buffering
@@ -88,7 +88,7 @@ wait_for "$T/sensord.log" "registry written back to $T/reg (after DSP writes; 1 
 [ "$(ls "$T" | tr '\n' ' ')" = "ipc reg sensord.log smgr.log sock " ] || fail "files besides the registry: $(ls "$T")"
 
 # a second daemon must not steal the socket or publish REG2 again
-if ./tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/second.log"; then
+if ./build/host/tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/second.log"; then
 	fail "second sensord started"
 fi
 grep -q "another sensord is serving" "$T/second.log" || fail "second sensord message: $(cat "$T/second.log")"
@@ -132,7 +132,7 @@ N5=$(grep -c '^{"sensor":"magn"' "$T/magn5")
 [ "$N5" -ge 1 ] && [ "$N5" -le 20 ] || fail "5 Hz client got $N5 samples (decimation)"
 
 # a client that never reads: others keep streaming, it learns what it lost
-./tests/fake_smgr slow "$SOCK" 5 >"$T/slow" &
+./build/host/tests/fake_smgr slow "$SOCK" 5 >"$T/slow" &
 SLOWP=$!
 sleep 1
 W=$(cli -n 20 watch accel 50)
@@ -310,7 +310,7 @@ stop_pair
 
 # ------------------------------------------------------- -R (no REG2)
 : >"$T/smgr.log"
-./tests/sensord-fake -R -S "$SOCK" 2>"$T/noreg.log" &
+./build/host/tests/sensord-fake -R -S "$SOCK" 2>"$T/noreg.log" &
 SPID=$!
 wait_for "$T/noreg.log" "not serving REG2" 30 || fail "-R not logged"
 ls "$SENSORD_FAKE_IPC" | grep -q '^s271\.' && fail "-R still published REG2"
@@ -323,9 +323,9 @@ SPID=
 DISK="$PWD/tests/e2e-disk-$$.reg"
 cp "$T/reg" "$DISK"
 : >"$T/smgr.log"
-./tests/sensord-fake -r "$DISK" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/disk.log" &
+./build/host/tests/sensord-fake -r "$DISK" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/disk.log" &
 SPID=$!
-./tests/fake_smgr serve >>"$T/smgr.log" 2>&1 &
+./build/host/tests/fake_smgr serve >>"$T/smgr.log" 2>&1 &
 FPID=$!
 wait_for "$T/disk.log" "registry write-back to $DISK failed (Invalid cross-device link): not a RAM filesystem" 80 \
 	|| fail "disk write-back not refused: $(grep -i registry "$T/disk.log")"
@@ -337,7 +337,7 @@ rm -f "$DISK" "$DISK.tmp"
 
 # refuses to start on a registry whose size does not match the map
 head -c 1000 "$T/reg" >"$T/short"
-if ./tests/sensord-fake -r "$T/short" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/short.log"; then
+if ./build/host/tests/sensord-fake -r "$T/short" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/short.log"; then
 	fail "started with a short registry"
 fi
 grep -q "map wants 1024" "$T/short.log" || fail "short registry message: $(cat "$T/short.log")"

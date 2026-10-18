@@ -1,17 +1,16 @@
 #!/bin/sh
-# End-to-end for the heading and rotvec channels: the real sensord main
-# loop, built with ASan/UBSan (tests/sensord-fake-san), against
-# tests/fake_smgr over the fake transport. Checks that claiming heading
-# adds the accel/anglvel/magn reports (50/50/20 Hz, calibration full) and
-# releasing it removes them, the rate max with other clients, the
-# heading lines (fake phone: heading 88.13, pitch 2.90, roll -5.81), the
-# calibrated flag (live: full minus the internal factory report, with the
-# fake's learned bias switched on by a file; the registry group 2980 write
-# only before the live state is known), declination,
-# get, status, -M/-D, -c magn=factory, and the rotation vector client
-# (-V): lifecycle through release, SIGTERM, SIGHUP, SMGR-only and whole
-# DSP restarts, a slow and an in-flight ENABLE, and no contact without
-# -V. Run from tools/sensord (make test does).
+# End-to-end for the heading and rotvec channels: the real sensord main loop,
+# built with ASan/UBSan (build/host/tests/sensord-fake-san), against
+# build/host/tests/fake_smgr over the fake transport. Checks that claiming
+# heading adds the accel/anglvel/magn reports (50/50/20 Hz, calibration full)
+# and releasing it removes them, the rate max with other clients, the heading
+# lines (fake phone: heading 88.13, pitch 2.90, roll -5.81), the calibrated
+# flag (live: full minus the internal factory report, with the fake's learned
+# bias switched on by a file; the registry group 2980 write only before the
+# live state is known), declination, get, status, -M/-D, -c magn=factory, and
+# the rotation vector client (-V): lifecycle through release, SIGTERM,
+# SIGHUP, SMGR-only and whole DSP restarts, a slow and an in-flight ENABLE,
+# and no contact without -V. Run from tools/sensord (make test does).
 set -u
 
 T=$(mktemp -d /tmp/snsc.XXXXXX)	# short: AF_UNIX paths are <= 107 bytes
@@ -21,7 +20,7 @@ SOCK="$T/sock"
 FAILS=0
 SPID=
 FPID=
-DAEMON=./tests/sensord-fake-san
+DAEMON=./build/host/tests/sensord-fake-san
 export ASAN_OPTIONS=detect_leaks=0
 export UBSAN_OPTIONS=halt_on_error=1
 
@@ -49,17 +48,17 @@ wait_for() {
 }
 
 cli() {
-	timeout 10 ./tests/sensord-fake -S "$SOCK" "$@"
+	timeout 10 ./build/host/tests/sensord-fake -S "$SOCK" "$@"
 }
 
 bg_cli() {
-	timeout 30 ./tests/sensord-fake -S "$SOCK" "$@" &
+	timeout 30 ./build/host/tests/sensord-fake -S "$SOCK" "$@" &
 }
 
 start_pair() {
 	$DAEMON -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" -v $1 2>>"$T/sensord.log" &
 	SPID=$!
-	./tests/fake_smgr serve >>"$T/smgr.log" 2>&1 &
+	./build/host/tests/fake_smgr serve >>"$T/smgr.log" 2>&1 &
 	FPID=$!
 	wait_for "$T/sensord.log" "smgr ready" 100 || fail "sensord never reached smgr ready ($1)"
 }
@@ -92,7 +91,7 @@ while [ ${#G2980} -lt 252 ]; do G2980="${G2980}00"; done
 # the fake applies a learned bias to factory magn once this file exists
 export FAKE_MAG_LEARN_FILE="$T/learned"
 
-./tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
+./build/host/tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
 chmod 0400 "$T/reg"
 
 # ------------------------------------------------------------ heading
@@ -158,7 +157,7 @@ grep -q "DELETE report [1236]" "$T/smgr.log" && fail "an input deleted while hea
 wait_for "$T/sensord.log" "magnetometer NOT calibrated (source live, live): live bias 0.0000 0.0000 0.0000 gauss (factory - full, device frame, known)" 60 \
 	|| fail "live state not known: $(grep 'magnetometer' "$T/sensord.log")"
 # a 2980 write now does not override what SMGR applies (the live state)
-./tests/fake_smgr reg2write 2980 "$G2980" >"$T/w" 2>&1 || fail "reg2write: $(cat "$T/w")"
+./build/host/tests/fake_smgr reg2write 2980 "$G2980" >"$T/w" 2>&1 || fail "reg2write: $(cat "$T/w")"
 wait_for "$T/sensord.log" "magnetometer bias in the registry (DSP write): -0.2409 -0.3949 0.2547 gauss (SMGR frame, group 2980) -> calibrated" 30 \
 	|| fail "registry write not seen: $(grep magnetometer "$T/sensord.log")"
 cli -n 3 watch heading 10 >"$T/h3"
@@ -207,7 +206,7 @@ grep -q "sensor 20 dt 0 rate 20 report_rate 20 notify 1 cal 1 " "$T/smgr.log" ||
 # full minus factory means nothing when magn itself is factory: no
 # internal factory report, and never calibrated
 grep -q "rate 5 report_rate 5 notify 1 cal 1 " "$T/smgr.log" && fail "internal factory report with -c magn=factory"
-./tests/fake_smgr reg2write 2980 "$G2980" >/dev/null 2>&1
+./build/host/tests/fake_smgr reg2write 2980 "$G2980" >/dev/null 2>&1
 wait_for "$T/sensord.log" "but magn calibration is not full (-c) -> calibrated" 30 || fail "registry write with factory magn"
 cli -n 3 watch heading 10 >"$T/h5"
 grep -q '"calibrated":true' "$T/h5" && fail "factory magn counted as calibrated"

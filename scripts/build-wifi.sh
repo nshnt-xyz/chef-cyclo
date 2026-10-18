@@ -21,7 +21,12 @@ fetch() {
 }
 # Export only the pinned Git trees. Existing untracked/ignored files (including
 # old Kbuild products) cannot become build inputs or affect sibling headers.
-BUILD_SRC=$(mktemp -d "$CHEF_ROOT/out/wifi-build.XXXXXX")
+# A fixed path, not mktemp: the source paths end up in the module's __FILE__
+# strings, so a random directory made every wlan.ko different, and the
+# Android GCC 4.9 has no -fmacro-prefix-map to strip them.
+BUILD_SRC="$CHEF_ROOT/out/wifi-build"
+rm -rf "$BUILD_SRC"
+mkdir "$BUILD_SRC"
 trap 'rm -rf "$BUILD_SRC"' EXIT
 prepare() {
     local name=$1 commit=$2
@@ -33,7 +38,15 @@ prepare qcacld-3.0 a685f67b37cc311487526dda738301b63b903c9b
 prepare qca-wifi-host-cmn a6db9b5df15dd4b86d6e49b8e8788154547ab8eb
 prepare fw-api aea65288eb08d96d977b99d9e4b60a05dfecd5f1
 [ -s "$KERNEL_OUT/Module.symvers" ] || { echo 'build the kernel first (Module.symvers missing)' >&2; exit 1; }
-kmake -j"${JOBS:-$(nproc)}" M="$BUILD_SRC/qcacld-3.0" \
+# qcacld's Kbuild puts TIMESTAMP (`date -u`, build time) into the driver
+# version string; the SOURCE_DATE_EPOCH idea instead: the pinned qcacld
+# commit's own committer date, in the same UTC format, so the module is
+# the same on every build from the same checkout path (the __FILE__
+# strings still carry $CHEF_ROOT). Given on the command line, it overrides
+# the Kbuild's assignment.
+TIMESTAMP=$(TZ=UTC git -C "$WIFI_SRC/qcacld-3.0" log -1 --format=%cd \
+    --date=format-local:%Y-%m-%dT%H:%M:%SZ HEAD)
+kmake -j"${JOBS:-$(nproc)}" M="$BUILD_SRC/qcacld-3.0" TIMESTAMP="$TIMESTAMP" \
     WLAN_ROOT="$BUILD_SRC/qcacld-3.0" MODNAME=wlan \
     CONFIG_QCA_CLD_WLAN=m CONFIG_QCA_WIFI_ISOC=0 CONFIG_QCA_WIFI_2_0=1 \
     BOARD_PLATFORM=sdm660 modules

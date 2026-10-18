@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host tests for tools/rtc-edge (host build) against a fake since_epoch.
+"""Host tests for rtc-edge (host build, tools/build/host) against a fake since_epoch.
 
 A thread bumps the fake since_epoch file at a known CLOCK_REALTIME instant
 (rewritten in place, same width, so a read never sees a short file); the
@@ -16,7 +16,7 @@ import threading
 import time
 import unittest
 
-BIN = Path(__file__).resolve().parents[1] / "rtc-edge"
+BIN = Path(__file__).resolve().parents[1] / "build/host/rtc-edge"
 NS = 1_000_000_000
 
 

@@ -89,7 +89,7 @@ CLOCK_RE = re.compile(r"^#\s*clock uptime\s+(\S+)\s+sample_t\s+(\d+)")
 STEP_RE = re.compile(r"^(\S+)\s+STEP\s+([^:]+):\s*(.*?)(?:\s*\((\d+(?:\.\d+)?)\s*s\))?\s*$")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_REPLAY = os.path.join(HERE, "sensord", "compass-replay")
+DEFAULT_REPLAY = os.path.join(HERE, "sensord", "build", "host", "compass-replay")
 
 
 class InputError(Exception):
@@ -173,7 +173,7 @@ def replay(d, binary, mount, prefix=None):
     """Heading lines from compass-replay over DIR's raw captures (per
     phase prefix when the captures are split, e.g. a-/q-)."""
     if not os.access(binary, os.X_OK):
-        raise InputError("%s not built (make -C tools/sensord compass-replay)" % binary)
+        raise InputError("%s not built (make -C tools/sensord)" % binary)
     pre = (prefix + "-") if prefix else ""
     acc = pick(d, pre + "*accel*.jsonl") if prefix else pick(d, "*accel*.jsonl")
     gyr = pick(d, pre + "*anglvel*.jsonl") if prefix else pick(d, "*anglvel*.jsonl")

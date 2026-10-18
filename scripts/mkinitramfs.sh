@@ -1,14 +1,11 @@
 #!/bin/sh
 # Build out/initramfs.cpio.lzma: the Alpine rootfs from scripts/mkrootfs.sh
-# with the initramfs/ overlay (init, inittab, users, bt-up, BlueZ config),
-# the btprobe helper, the WCN3990 firmware, the GPS/QMI helpers, the
-# display/touch probe fbtouch, the UI platform demo
-# chefui-demo, the gpsd feed nmea-broker, the GNSS demand
-# manager gps-manager, the button daemon buttond, the battery daemon powerd
-# and the ADSP bring-up +
-# speaker test tone (audio-up, speaker-test-tone, wavtone and the atomic
-# TAS2560 calibration-control writer) and the
-# sensors bring-up (sensors-up, sensord and its registry map) on top.
+# with the initramfs/ overlay (init, inittab, users, the bring-up scripts,
+# service configuration), our own binaries (the top-level Makefile's device
+# build: btprobe, the GPS/QMI helpers, the daemons, probes and the UI apps;
+# what each one is and why it is packed is beside its Makefile rule), the
+# WCN3990 Bluetooth and Wi-Fi firmware and the Wi-Fi module, tftp-server's
+# RAM-shadow seed and sensord's registry map on top.
 #
 # SSH (docs/features/ssh.md): the public keys in secrets/ssh/authorized_keys
 # (gitignored; AUTHORIZED_KEYS overrides the path) are checked with
@@ -145,12 +142,20 @@ if [ "${SSH:-1}" = 1 ]; then
     echo "SSH: $(grep -c '^[^#]' "$ROOT/etc/chef/ssh/authorized_keys") authorized key(s) baked in"
 fi
 
-# Small libc-free helper used by bt-up to exercise /dev/btpower and the
-# WCN3990 UART; also a raw H4/QCA attach and LE scan for debugging without
-# BlueZ.
-BTCC=toolchain/aarch64-linux-android-4.9/bin/aarch64-linux-android-gcc
-"$BTCC" -Os -static -nostdlib -fno-stack-protector \
-    -o "$ROOT/usr/bin/btprobe" tools/btprobe.c
+# Our own binaries: every component's device build (tools/device.mk has
+# the compilers and flags), installed into $ROOT/usr/bin with mode 755.
+make -j"$(nproc)" device
+make install-device DESTDIR="$ROOT"
+
+# Runtime partners of those binaries that come from the rootfs package
+# list (scripts/mkrootfs.sh): nmea-broker feeds gpsd, and audio-up and
+# speaker-test-tone drive tinyalsa's tinymix/tinyplay. Fail closed on
+# either half missing.
+[ -x "$ROOT/usr/sbin/gpsd" ] || { echo "no gpsd in out/rootfs; rerun scripts/mkrootfs.sh (package list changed)" >&2; exit 1; }
+[ -x "$ROOT/usr/bin/tinymix" ] && [ -x "$ROOT/usr/bin/tinyplay" ] || {
+    echo "no tinymix/tinyplay in out/rootfs; rerun scripts/mkrootfs.sh (package list changed)" >&2
+    exit 1
+}
 
 # Pull the device-matched WCN3990 firmware from the verified stock partition;
 # hci_qca requests qca/crbtfw21.tlv and qca/crnv21.bin by ROM version.
@@ -197,47 +202,6 @@ done
 # wifi-up validates the bootarg before module load. Do not invent wlan_mac.bin.
 # No stock persist writes, generated shared MAC or automatic driver startup.
 
-# GPS/QMI userspace helpers (musl aarch64, real libc unlike btprobe's
-# freestanding build): rmtfs, servreg-locator and tftp-server are ours;
-# msmipc.c/irsc.c/qmuxd-lite.c/qmux.c and the vendored tools/qrtr/ are the
-# protocol transport (see docs/features/gps.md for the interface).
-# gps-up is included in this image, so all five helpers are mandatory:
-# never emit a bootable GPS script without its RMTFS, IRSC,
-# SERVREG-LOCATOR, TFTP-SERVER and QMUX counterparts. servreg-locator is
-# the userspace SERVREG_LOC (pd-mapper) server that answers the modem's
-# boot-time domain-list lookup -- see
-# tools/servreg-locator/servreg-locator.c's file header and
-# docs/build-log.md's 2026-09-17 (dog timeout) entry for why it exists.
-# tftp-server is the bounded TFTP/RFS server (service 0x1000) the 2026-09-17
-# stock-read probe found the locator alone doesn't replace -- see
-# tools/tftp/tftpserv.c's file header, REPORT.md 8.1 in the stock-read
-# evidence dir, and docs/build-log.md's 2026-09-17 (stock read + TFTP/RFS)
-# entry. Its RAM shadow is seeded below, at build time, from the persist
-# partition -- see the block right after this one. msmipc.h pulls in the
-# vendor kernel's verbatim <linux/msm_ipc.h>, which needs both uapi/ (for the
-# header itself) and the plain include/ (for <linux/compiler.h> etc. it pulls
-# in transitively) -- using make headers_install output instead would avoid
-# the kernel-headers warning, but isn't worth it for two headers.
-MUSLCC=toolchain/aarch64-musl/bin/aarch64-buildroot-linux-musl-gcc
-QRTR_DIR=tools/qrtr
-KHDR="-I kernel/include/uapi -I kernel/include"
-[ -x "$MUSLCC" ] || { echo "missing musl cross compiler; run scripts/setup-toolchain.sh" >&2; exit 1; }
-"$MUSLCC" -Wall -Wextra -Werror -O2 -static -o "$ROOT/usr/bin/wifi-psk" tools/wifi-psk.c
-
-"$MUSLCC" -Wall -Wextra -Werror -Wno-cpp -O2 -static $KHDR -I tools -I "$QRTR_DIR" \
-    -o "$ROOT/usr/bin/wlan-fw" tools/wlan-fw.c tools/qmux.c tools/msmipc.c
-
-for src in tools/msmipc.c tools/irsc.c tools/qmux.c tools/qmuxd-lite.c \
-           "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" \
-           tools/rmtfs/qmi_rmtfs.c tools/rmtfs/rmtfs.c tools/rmtfs/sharedmem.c \
-           tools/rmtfs/storage.c tools/rmtfs/util.c \
-           tools/servreg-locator/jsn.c tools/servreg-locator/servreg_loc.c \
-           tools/servreg-locator/servreg-locator.c \
-           tools/tftp/ramfs.c tools/tftp/translate.c tools/tftp/protocol.c \
-           tools/tftp/tftpserv.c; do
-    [ -f "$src" ] || { echo "missing required GPS source: $src" >&2; exit 1; }
-done
-
 # tftp-server's /readwrite RAM shadow is seeded at *build* time (never at
 # runtime -- see tools/tftp/translate.c) from the persist partition's own
 # rfs/msm/mpss directory, read with debugfs's read-only ext2/3/4 accessor
@@ -265,178 +229,6 @@ for spec in "$@"; do
     fi
 done
 echo "seeded $SEED_DIR from $PERSIST_IMG (8 files, sizes verified)"
-
-"$MUSLCC" -Wall -O2 -static $KHDR -I tools/rmtfs -I "$QRTR_DIR" -I tools \
-    -o "$ROOT/usr/bin/rmtfs" \
-    tools/rmtfs/qmi_rmtfs.c tools/rmtfs/rmtfs.c tools/rmtfs/sharedmem.c \
-    tools/rmtfs/storage.c tools/rmtfs/util.c \
-    "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" tools/msmipc.c -lpthread
-echo "built $ROOT/usr/bin/rmtfs"
-
-"$MUSLCC" -Wall -O2 -static $KHDR -I "$QRTR_DIR" -I tools \
-    -o "$ROOT/usr/bin/irsc" tools/irsc.c tools/msmipc.c
-echo "built $ROOT/usr/bin/irsc"
-
-"$MUSLCC" -Wall -O2 -static $KHDR -I "$QRTR_DIR" -I tools \
-    -o "$ROOT/usr/bin/qmuxd-lite" tools/qmuxd-lite.c tools/qmux.c tools/msmipc.c \
-    "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" -lpthread
-echo "built $ROOT/usr/bin/qmuxd-lite"
-
-"$MUSLCC" -Wall -O2 -static $KHDR -I tools/servreg-locator -I "$QRTR_DIR" -I tools \
-    -o "$ROOT/usr/bin/servreg-locator" \
-    tools/servreg-locator/jsn.c tools/servreg-locator/servreg_loc.c \
-    tools/servreg-locator/servreg-locator.c \
-    "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" tools/msmipc.c
-echo "built $ROOT/usr/bin/servreg-locator"
-
-# tftp-server speaks raw TFTP (RFC 1350), not QMI, so it needs only
-# msmipc.c's qrtr_* transport calls -- no qrtr/qmi.c or logging.c, unlike
-# rmtfs/servreg-locator above (see tools/tftp/Makefile's file header).
-"$MUSLCC" -Wall -O2 -static $KHDR -I tools/tftp -I "$QRTR_DIR" -I tools \
-    -o "$ROOT/usr/bin/tftp-server" \
-    tools/tftp/ramfs.c tools/tftp/translate.c tools/tftp/protocol.c \
-    tools/tftp/tftpserv.c tools/msmipc.c
-echo "built $ROOT/usr/bin/tftp-server"
-
-# Display + touch probe (tools/fbtouch.c): holds /dev/fb0 open, draws a test
-# pattern through mmap + FBIOPAN_DISPLAY, drives lcd-backlight and decodes
-# the NT36xxx evdev stream. Manual opt-in from the telnet shell, not in
-# inittab, until live-verified (same policy as gps-up). Needs only libc's
-# <linux/fb.h>/<linux/input.h> (through the header-only tools/fbdev.h and
-# tools/evdev.h), so no kernel include paths.
-for f in tools/fbtouch.c tools/fbdev.h tools/evdev.h; do
-    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
-done
-"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/fbtouch" tools/fbtouch.c
-echo "built $ROOT/usr/bin/fbtouch"
-
-# gpsd feed (tools/nmea-broker.c): reads the qmicli LOC follower's stdout and
-# sends each valid NMEA sentence as one UDP datagram to gpsd on
-# 127.0.0.1:20175 (gpsd cannot read a FIFO). The
-# rootfs must carry gpsd itself (scripts/mkrootfs.sh's package list) or the
-# broker has nothing to feed -- fail closed on either half missing. Manual
-# opt-in from the telnet shell like gps-up; not in inittab until live-verified.
-[ -f tools/nmea-broker.c ] || { echo "missing required source: tools/nmea-broker.c" >&2; exit 1; }
-[ -x "$ROOT/usr/sbin/gpsd" ] || { echo "no gpsd in out/rootfs; rerun scripts/mkrootfs.sh (package list changed)" >&2; exit 1; }
-"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/nmea-broker" tools/nmea-broker.c
-echo "built $ROOT/usr/bin/nmea-broker"
-
-# GNSS demand manager (tools/gps-manager.c, docs/features/gps.md): leases on
-# /run/gps-manager.sock start the LOC session, gpsd and the qmicli follower |
-# nmea-broker pipeline on top of gps-up's shared modem, and stop them after
-# the last release. Never touches gps-up. Started from inittab (respawn).
-[ -f tools/gps-manager.c ] || { echo "missing required source: tools/gps-manager.c" >&2; exit 1; }
-"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/gps-manager" tools/gps-manager.c
-echo "built $ROOT/usr/bin/gps-manager"
-
-# BLE sensor daemon (tools/blesensd/, docs/features/bluetooth.md "BLE
-# sensors"): the one owner of heart rate, cycling power and speed/cadence
-# sensors (pairing, reconnection, notifications) behind /run/blesensd.sock,
-# records through chef-state blesens-load/-save. BlueZ over static basu
-# (scripts/setup-toolchain.sh fetches it to toolchain/basu). Started from
-# inittab (respawn).
-for f in tools/blesensd/blesensd.c tools/blesensd/blesens.c tools/blesensd/blesens.h; do
-    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
-done
-[ -f toolchain/basu/lib/libbasu.a ] || { echo "basu not found at toolchain/basu: run scripts/setup-toolchain.sh" >&2; exit 1; }
-"$MUSLCC" -std=gnu11 -Wall -Wextra -O2 -static -DCHEF_BASU -I toolchain/basu/include -o "$ROOT/usr/bin/blesensd" \
-    tools/blesensd/blesensd.c tools/blesensd/blesens.c toolchain/basu/lib/libbasu.a -lm
-echo "built $ROOT/usr/bin/blesensd"
-
-# Side-button gesture daemon (tools/buttond.c): grabs the qpnp_pon and
-# gpio-keys evdev nodes, publishes short/double/long/chord gestures on
-# /run/buttond.sock to whoever claims them, and by default toggles the panel
-# on a short power press through fblog's /run/fblog.off protocol and powers
-# off cleanly (sync + busybox `poweroff`) when power is held 3 s and released.
-# Started from inittab (respawn). Only libc's
-# <linux/input.h> (device discovery through the header-only tools/evdev.h),
-# so no kernel include paths.
-for f in tools/buttond.c tools/evdev.h; do
-    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
-done
-"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/buttond" tools/buttond.c
-echo "built $ROOT/usr/bin/buttond"
-
-# UI platform demo (tools/chefui/, docs/archive/ui-platform.md): LVGL
-# v9.6.0 (the third_party/lvgl submodule) rendering on the MDSS fbdev with
-# chefui's screen lock/flag handling, multitouch reader and buttond client;
-# chefui-demo is the platform's verification vehicle. tools/chefui's
-# Makefile builds it static with the musl cross compiler and strips it.
-# Manual opt-in from the telnet shell; inittab does not start it.
-[ -f third_party/lvgl/lvgl.h ] || { echo "missing LVGL: git submodule update --init third_party/lvgl" >&2; exit 1; }
-make -C tools/chefui -j"$(nproc)" device >/dev/null
-install -m 755 tools/chefui/build/device/chefui-demo "$ROOT/usr/bin/chefui-demo"
-echo "built $ROOT/usr/bin/chefui-demo"
-# The system UI app (tools/chefui/apps/settings, docs/features/system-ui.md):
-# status bar, settings hub and Display page on chefui, with NetworkManager
-# and BlueZ state over static basu (scripts/setup-toolchain.sh fetches it to
-# toolchain/basu). Started from inittab (respawn); owns the panel.
-install -m 755 tools/chefui/build/device/chef-settings "$ROOT/usr/bin/chef-settings"
-echo "built $ROOT/usr/bin/chef-settings"
-
-# A/B slot marker (tools/abslot.c, docs/features/boot.md):
-# `fastboot flash boot_a` leaves boot_a unsuccessful with 7 retries and abl
-# spends one per boot; inittab runs `abslot mark-successful` 30 s into each
-# boot, the job Android's boot_control HAL did. Plain libc.
-[ -f tools/abslot.c ] || { echo "missing required source: tools/abslot.c" >&2; exit 1; }
-"$MUSLCC" -Wall -Wextra -Werror -O2 -static -o "$ROOT/usr/bin/abslot" tools/abslot.c
-echo "built $ROOT/usr/bin/abslot"
-
-# Sub-second wall clock against the PMIC RTC (tools/rtc-edge.c,
-# docs/features/storage.md): chef-state saves and restores the
-# wall-minus-RTC offset with it. Plain libc.
-[ -f tools/rtc-edge.c ] || { echo "missing required source: tools/rtc-edge.c" >&2; exit 1; }
-"$MUSLCC" -Wall -Wextra -Werror -O2 -static -o "$ROOT/usr/bin/rtc-edge" tools/rtc-edge.c
-echo "built $ROOT/usr/bin/rtc-edge"
-
-# Battery daemon (tools/powerd.c, docs/features/battery-and-charging.md):
-# low-battery warn/critical and clean shutdown (BatteryService clone),
-# power_supply CSV log (/data/v1/power or /run/power) + state file under
-# /run/power, and the 44/42 C
-# charge throttle on battery/system_temp_level (thermal-engine SS-BATT-BATT
-# clone). Started from both inittabs (respawn). Plain libc.
-[ -f tools/powerd.c ] || { echo "missing required source: tools/powerd.c" >&2; exit 1; }
-"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/powerd" tools/powerd.c
-echo "built $ROOT/usr/bin/powerd"
-
-# ADSP bring-up + speaker test tone (docs/features/audio.md): audio-up
-# (initramfs/usr/bin/audio-up) and speaker-test-tone
-# (initramfs/usr/bin/speaker-test-tone, chmod'd above) drive tinyalsa's
-# tinymix/tinyplay from the rootfs's package list -- fail closed on either
-# half missing, same pattern as nmea-broker/gpsd above. wavtone
-# (tools/wavtone.c) writes the WAV file speaker-test-tone hands to
-# tinyplay; only libc's <math.h>, so no kernel include paths, but needs
-# -lm explicitly since musl's static libm is a separate archive.
-# tas2560-send-cal uses the kernel ALSA control UAPI to atomically write the
-# write-only five-integer calibration control; it has no runtime library
-# dependency beyond the statically linked musl libc.
-[ -f tools/wavtone.c ] || { echo "missing required source: tools/wavtone.c" >&2; exit 1; }
-[ -f tools/tas2560-send-cal.c ] || { echo "missing required source: tools/tas2560-send-cal.c" >&2; exit 1; }
-[ -x "$ROOT/usr/bin/tinymix" ] && [ -x "$ROOT/usr/bin/tinyplay" ] || {
-    echo "no tinymix/tinyplay in out/rootfs; rerun scripts/mkrootfs.sh (package list changed)" >&2
-    exit 1
-}
-"$MUSLCC" -Wall -Wextra -O2 -static -o "$ROOT/usr/bin/wavtone" tools/wavtone.c -lm
-echo "built $ROOT/usr/bin/wavtone"
-
-"$MUSLCC" -Wall -Wextra -O2 -static \
-    -o "$ROOT/usr/bin/tas2560-send-cal" tools/tas2560-send-cal.c
-echo "built $ROOT/usr/bin/tas2560-send-cal"
-
-# Sensors (tools/sensord/sensord.c, docs/features/sensors.md):
-# sensord is the REG2 registry server + SMGR client behind
-# /run/sensord.sock, started by initramfs/usr/bin/sensors-up (manual
-# opt-in, not in inittab). Same transport/codec as servreg-locator.
-for f in tools/sensord/sensord.c tools/sensord/sns_msgs.c tools/sensord/sns_reg.c \
-         tools/sensord/compass.c initramfs/usr/bin/sensors-up \
-         initramfs/usr/bin/sensors-compass-run; do
-    [ -f "$f" ] || { echo "missing required source: $f" >&2; exit 1; }
-done
-"$MUSLCC" -Wall -Wextra -Wno-cpp -O2 -static $KHDR -I tools/sensord -I "$QRTR_DIR" -I tools \
-    -o "$ROOT/usr/bin/sensord" \
-    tools/sensord/sensord.c tools/sensord/sns_msgs.c tools/sensord/sns_reg.c \
-    tools/sensord/compass.c "$QRTR_DIR/qmi.c" "$QRTR_DIR/logging.c" tools/msmipc.c -lm
-echo "built $ROOT/usr/bin/sensord"
 
 # sensord's registry map: which sns.reg bytes are which REG2 item/group is
 # compiled into the stock sensors.qti, not stored in sns.reg. Extracted at

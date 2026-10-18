@@ -9,9 +9,11 @@
  * resolves services by an immediate ioctl, not by an async NEW_SERVER
  * packet the way QRTR does -- see the note on qrtr_new_lookup() below).
  *
- * Needs -I<repo>/kernel/include/uapi so <linux/msm_ipc.h> resolves to the
- * vendor kernel's verbatim header (do not hand-copy it: sendmsg() rejects
- * any sockaddr_msm_ipc whose layout doesn't match what the kernel expects).
+ * <linux/msm_ipc.h> is the vendor kernel's own header: tools/device.mk
+ * copies kernel/include/uapi/linux/msm_ipc.h verbatim into each build
+ * tree's include/ at build time (never hand-copy or edit it: sendmsg()
+ * rejects any sockaddr_msm_ipc whose layout doesn't match what the kernel
+ * expects).
  */
 #ifndef CHEF_CYCLO_MSMIPC_H
 #define CHEF_CYCLO_MSMIPC_H

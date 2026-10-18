@@ -6,6 +6,7 @@ Paths below are relative to the repository root.
 
 | Path | Purpose |
 |---|---|
+| `Makefile`, `tools/device.mk` | The one build ([build and boot](building.md#one-build-make-device-and-make-test)): `make device`, `make install-device DESTDIR=...`, `make test` (every suite in parallel) and `make clean` across the component Makefiles; `device.mk` holds the phone compiler and flags. Every component writes only under its own `build/`. |
 | `kernel/` | Motorola Linux 4.4.192 submodule, project fork branch `chef-cyclo`; device tree `sdm636-chef-evt.dts`. |
 | `kernel-config/chef-cyclo.config` | Project fragment appended to Motorola's three-part config stack. |
 | `stock/partitions/` | Verified stock backups; includes irreplaceable device-unique partitions. See [device reference](device.md). |

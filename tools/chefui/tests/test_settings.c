@@ -585,6 +585,39 @@ static int read_back(const char *path, struct ui_settings *t)
 	return n > 0 ? ui_settings_parse(buf, (size_t)n, t, &why) : -1;
 }
 
+/* data is under the host's /tmp, a filesystem other processes write to: a
+ * free-space change there during a usage scan makes it an estimate, and one
+ * seen by a storage stat drops the cached usage (sys/storage.c), as it should
+ * on the phone. Such a step is repeated, at most 100 times. Two rules, by
+ * path: test_sys.c's scan_quiet() calls the scanner directly, so a statvfs
+ * pair around the call brackets well under a millisecond and it retries only
+ * when that pair moved (the stricter rule: it retries a deadline overrun only
+ * when another writer moved the pair at the same time). Here the scan is a
+ * round trip through the worker and the fake loop, milliseconds in which
+ * another writer's create and delete can both land and cancel out in such a
+ * pair, so these steps judge by the result: usage_estimate_only() for a scan,
+ * cache_dropped_by_capacity() for the cache. Anything else fails at once. */
+static bool usage_estimate_only(bool known, bool ours, const enum sys_usage_cat cat[3],
+				uint64_t free_bytes, uint64_t total_bytes, uint64_t other_bytes)
+{
+	bool exact = true;
+
+	for (int c = 0; c < 3; c++)
+		exact = exact && cat[c] == USAGE_CAT_EXACT;
+	return known && ours && exact && free_bytes < total_bytes && other_bytes > 0;
+}
+
+/* The stat after a want saw other free or total bytes than the cached usage,
+ * on the same root: storage.c dropped the cache for capacity alone. */
+static bool cache_dropped_by_capacity(uint64_t usage_free, uint64_t usage_total,
+				      uint64_t root_dev, uint64_t root_ino)
+{
+	return sys_state.storage.known && sys_state.storage.ours &&
+	       sys_state.storage.root_dev == root_dev && sys_state.storage.root_ino == root_ino &&
+	       (sys_state.storage.free_bytes != usage_free ||
+		sys_state.storage.total_bytes != usage_total);
+}
+
 static void test_store(void)
 {
 	struct ui_store_paths paths = { .data = data, .run = run, .mountpoint = fake_mountpoint,
@@ -609,8 +642,16 @@ static void test_store(void)
 	}
 	{
 		ui_store_on_usage(on_usage, NULL);
-		ui_store_usage();
-		CHECK(await(c_usage, NULL, false));
+		for (int i = 0; i < 100; i++) {
+			usage_calls = 0;
+			ui_store_usage();
+			CHECK(await(c_usage, NULL, false));
+			if (got_usage.complete ||
+			    !usage_estimate_only(got_usage.known, got_usage.ours, got_usage.cat_state,
+						 got_usage.free_bytes, got_usage.total_bytes,
+						 got_usage.other_bytes))
+				break;
+		}
 		CHECK(got_usage.known && got_usage.ours && got_usage.complete);
 		CHECK(got_usage.total_bytes > 0 && got_usage.free_bytes <= got_usage.total_bytes);
 	}
@@ -1091,13 +1132,32 @@ static void test_storage(void)
 	sys_storage_refresh();
 	CHECK(fakeloop_run_until(storage_known, NULL, 2000));
 	CHECK(sys_state.storage.ours && sys_state.storage.free_bytes > 0);
-	sys_storage_usage_want(true);
-	CHECK(fakeloop_run_until(storage_usage_known, NULL, 2000));
+	for (int i = 0; i < 100; i++) {
+		sys_state.storage.usage_known = false;	/* scan again on a repeat */
+		sys_storage_usage_want(true);
+		CHECK(fakeloop_run_until(storage_usage_known, NULL, 2000));
+		if (sys_state.storage.usage_complete ||
+		    !usage_estimate_only(sys_state.storage.usage_known, sys_state.storage.ours,
+					 sys_state.storage.usage_cat, sys_state.storage.usage_free_bytes,
+					 sys_state.storage.usage_total_bytes, sys_state.storage.usage_other))
+			break;
+	}
 	CHECK(sys_state.storage.usage_complete && !sys_state.storage.usage_maps &&
 	      !sys_state.storage.usage_rides && !sys_state.storage.usage_routes);
-	int64_t usage_sample = sys_state.storage.usage_updated_mono_ms;
-	sys_storage_usage_want(true);
-	CHECK(settle());
+	int64_t usage_sample = 0;
+	for (int i = 0; i < 100; i++) {
+		uint64_t usage_free = sys_state.storage.usage_free_bytes;
+		uint64_t usage_total = sys_state.storage.usage_total_bytes;
+		uint64_t root_dev = sys_state.storage.usage_root_dev;
+		uint64_t root_ino = sys_state.storage.usage_root_ino;
+
+		usage_sample = sys_state.storage.usage_updated_mono_ms;
+		sys_storage_usage_want(true);
+		CHECK(settle());
+		if (sys_state.storage.usage_updated_mono_ms == usage_sample ||
+		    !cache_dropped_by_capacity(usage_free, usage_total, root_dev, root_ino))
+			break;
+	}
 	CHECK(sys_state.storage.usage_updated_mono_ms == usage_sample); /* cached under 30 s */
 	usage_before_refresh = usage_sample;
 	sys_state.storage.usage_updated_mono_ms -= 30000;

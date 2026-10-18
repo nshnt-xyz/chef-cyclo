@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host tests for tools/abslot (host build) on synthetic GPT disk images.
+"""Host tests for abslot (host build, tools/build/host) on synthetic GPT disk images.
 
 Each test builds a small disk image with a primary and a backup GPT, a fake
 sysfs (class/block/mmcblk0pN uevent/start/size, block/mmcblk0 size and
@@ -22,7 +22,7 @@ import zlib
 
 TOOLS = Path(__file__).resolve().parents[1]
 REPO = TOOLS.parent
-BIN = TOOLS / "abslot"
+BIN = TOOLS / "build/host/abslot"
 spec = importlib.util.spec_from_file_location("gpt_slots", REPO / "scripts/gpt-slots.py")
 gpt_slots = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gpt_slots)
@@ -95,7 +95,7 @@ class AbslotTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if not BIN.exists():
-            raise unittest.SkipTest("build tools/abslot first (make -C tools abslot)")
+            raise unittest.SkipTest("build tools/build/host/abslot first (make -C tools)")
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

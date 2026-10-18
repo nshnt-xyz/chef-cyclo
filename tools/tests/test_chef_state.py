@@ -32,7 +32,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "initramfs/usr/bin/chef-state"
-POWERD = ROOT / "tools/powerd"  # host build (make -C tools powerd)
+POWERD = ROOT / "tools/build/host/powerd"  # host build (make -C tools)
 NS = 10**9
 BOOT_ID = "58cf29ac-5b1a-4c4e-9d19-5742e1808633"
 SYNCED = """Reference ID    : A29FC87B (162.159.200.123)

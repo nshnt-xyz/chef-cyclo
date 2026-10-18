@@ -1,34 +1,61 @@
 # blesensd: the BLE sensor daemon (heart rate, cycling power, speed and
 # cadence), see blesensd.c's file header and docs/features/bluetooth.md
 # ("BLE sensors"). blesens.c is its pure measurement code. The host build
-# uses libsystemd's sd-bus; scripts/mkinitramfs.sh builds the shipped
-# binary itself against static basu (-DCHEF_BASU).
+# uses libsystemd's sd-bus; the phone build uses static basu
+# (-DCHEF_BASU; scripts/setup-toolchain.sh fetches it to toolchain/basu).
+# On the phone it is the one owner of the BLE sensors (pairing,
+# reconnection, notifications) behind /run/blesensd.sock, records through
+# chef-state blesens-load/-save, started from inittab (respawn).
 #
-# Native (host) build + tests:
-#   make && make test
+#   make                 host build: build/host/blesensd
+#   make test            host tests (build/host/tests/)
+#   make device          the phone binary: build/device/blesensd
+#   make install-device DESTDIR=DIR   it into DIR/usr/bin
 #
 # test-blesens: the parsers and rates. tests/test_blesensd.py: the daemon
 # binary against tests/fake_bluez.py (a fake bluetoothd on a private
 # dbus-daemon, never the system bus) and a stub chef-state; needs
 # libsystemd, dbus-daemon and python3 dbus + gi.
 
+REPO_ROOT := ../..
 CC ?= cc
-CFLAGS ?= -std=gnu11 -Wall -Wextra -O2 -g
+CFLAGS ?= -std=gnu11 -Wall -Wextra -Werror -O2 -g
 SDBUS_LIBS ?= $(shell pkg-config --libs libsystemd 2>/dev/null)
+BASU ?= $(REPO_ROOT)/toolchain/basu
+H := build/host
+D := build/device
 
-.PHONY: all test clean
+.PHONY: all test clean device install-device check-basu
 
-all: blesensd
+all: $(H)/blesensd
 
-blesensd: blesensd.c blesens.c blesens.h
+include ../device.mk
+
+$(H)/blesensd: blesensd.c blesens.c blesens.h
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ blesensd.c blesens.c $(LDFLAGS) $(SDBUS_LIBS) -lm
 
-tests/test-blesens: tests/test_blesens.c blesens.c blesens.h
+check-basu:
+	@test -f $(BASU)/lib/libbasu.a || { echo "basu not found at $(BASU): run scripts/setup-toolchain.sh" >&2; exit 1; }
+
+$(D)/blesensd: blesensd.c blesens.c blesens.h
+	@mkdir -p $(@D)
+	$(DEVICE_CC) $(DEVICE_CFLAGS) -DCHEF_BASU -I$(BASU)/include -o $@ \
+		blesensd.c blesens.c $(BASU)/lib/libbasu.a -lm
+
+device: check-device-cc check-basu $(D)/blesensd
+
+install-device: check-destdir device
+	install -d $(DESTDIR)/usr/bin
+	install -m 755 $(D)/blesensd $(DESTDIR)/usr/bin/
+
+$(H)/tests/test-blesens: tests/test_blesens.c blesens.c blesens.h
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ tests/test_blesens.c blesens.c $(LDFLAGS) -lm
 
-test: tests/test-blesens blesensd
-	./tests/test-blesens
+test: $(H)/tests/test-blesens $(H)/blesensd
+	$(H)/tests/test-blesens
 	python3 tests/test_blesensd.py
 
 clean:
-	rm -f blesensd tests/test-blesens
+	rm -rf build

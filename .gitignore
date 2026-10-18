@@ -16,62 +16,18 @@ toolchain/
 logs/ride-live-test-*.tgz
 logs/gpsd-live-test-*.tgz
 
-# tools/ build outputs (see tools/Makefile)
-tools/irsc
-tools/qmuxd-lite
-tools/fbtouch
-tools/tests/test-qmux
-tools/tests/test-msmipc
-tools/tests/test-evdev
-tools/tests/test-fbtouch
-tools/fblog/fblog
-tools/tests/test-fblog
-tools/nmea-broker
-tools/tests/test-nmea-broker
-tools/gps-manager
-tools/tests/test-gps-manager
-tools/buttond
-tools/tests/test-buttond
-tools/powerd
-tools/tests/test-powerd
-tools/wavtone
-tools/tests/test-wavtone
-tools/tas2560-send-cal
-tools/tests/test-tas2560-send-cal
-tools/tests/test-wlan-fw
-tools/rmtfs/tests/test-storage
-tools/rmtfs/tests/test-sharedmem
-tools/rmtfs/tests/test-qmi-rmtfs
-tools/servreg-locator/servreg-locator
-tools/servreg-locator/tests/test-jsn
-tools/servreg-locator/tests/test-servreg-loc
-tools/tftp/tftp-server
-tools/tftp/tests/test-translate
-tools/tftp/tests/test-protocol
-tools/tftp/tests/test-e2e
-tools/tftp/tests/test-translate-san
-tools/tftp/tests/test-protocol-san
-tools/tftp/tests/test-e2e-san
-tools/sensord/sensord
-tools/sensord/tests/test-sns-msgs
-tools/sensord/tests/test-sns-reg
-tools/sensord/tests/test-sensord
-tools/sensord/tests/sensord-fake
-tools/sensord/tests/fake_smgr
-tools/sensord/tests/test-sns-msgs-san
-tools/sensord/tests/test-sensord-san
-tools/sensord/compass-replay
-tools/sensord/tests/test-compass
-tools/sensord/tests/test-compass-san
-tools/sensord/tests/sensord-fake-san
-__pycache__/
-
-tools/wifi-psk
-tools/abslot
-tools/rtc-edge
-
-# chefui build tree (tools/chefui/Makefile)
+# Build trees: every component Makefile writes its host, test and device
+# outputs under its own build/, and the top-level Makefile its test logs
+# under build/.
+/build/
+tools/build/
+tools/rmtfs/build/
+tools/servreg-locator/build/
+tools/tftp/build/
+tools/sensord/build/
+tools/blesensd/build/
 tools/chefui/build/
+__pycache__/
 
 # SSH authorized keys baked into the image (scripts/ssh-setup.sh,
 # docs/features/ssh.md): host-specific, never committed.

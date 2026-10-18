@@ -17,8 +17,8 @@
 # (EPIPE). Only recorded pids are ever signalled.
 set -eu
 cd "$(dirname "$0")/.."
-GM=$PWD/gps-manager
-BROKER=$PWD/nmea-broker
+GM=$PWD/build/host/gps-manager
+BROKER=$PWD/build/host/nmea-broker
 [ -x "$GM" ] && [ -x "$BROKER" ] || { echo "build gps-manager and nmea-broker first" >&2; exit 1; }
 
 T=$(mktemp -d /tmp/gps-manager-it.XXXXXX)

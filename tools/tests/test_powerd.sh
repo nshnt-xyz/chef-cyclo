@@ -1,18 +1,18 @@
 #!/bin/sh
-# End-to-end host test for the real tools/powerd binary (host build) on a
-# fake power_supply tree: option parsing and rejection, the TEST OVERRIDE
-# kmsg lines, the startup system_temp_level reset, SIGUSR1 samples, the
-# throttle writing the fake sysfs attribute, `powerd status`, the injected
-# shutdown command (-x) running once after the marker/state are written,
-# and the clean-exit level reset; with -l, rows batched in log.pending,
-# flushed by the poll timeout when the -F interval is up (no sample needed)
-# and once on SIGTERM. The policy itself is covered in detail
-# by test_powerd.c; this checks the wiring around it. Nothing is powered
-# off: -x only touches a file.
+# End-to-end host test for the real powerd binary (host build,
+# tools/build/host) on a fake power_supply tree: option parsing and
+# rejection, the TEST OVERRIDE kmsg lines, the startup system_temp_level
+# reset, SIGUSR1 samples, the throttle writing the fake sysfs attribute,
+# `powerd status`, the injected shutdown command (-x) running once after
+# the marker/state are written, and the clean-exit level reset; with -l,
+# rows batched in log.pending, flushed by the poll timeout when the -F
+# interval is up (no sample needed) and once on SIGTERM. The policy itself
+# is covered in detail by test_powerd.c; this checks the wiring around it.
+# Nothing is powered off: -x only touches a file.
 set -u
 cd "$(dirname "$0")/.."
-BIN=$PWD/powerd
-[ -x "$BIN" ] || { echo "build tools/powerd first (make -C tools)" >&2; exit 1; }
+BIN=$PWD/build/host/powerd
+[ -x "$BIN" ] || { echo "build tools/build/host/powerd first (make -C tools)" >&2; exit 1; }
 
 T=$(mktemp -d /tmp/powerd-test.XXXXXX)
 PID=

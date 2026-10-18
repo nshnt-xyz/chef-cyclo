@@ -56,6 +56,19 @@ APPLETS = ["sleep", "sync", "setsid", "timeout", "flock"]
 CHEF = ["chef-state", "chef-storage"]
 
 
+def default_int_quit():
+    """Start the helper with INT and QUIT at their defaults, as on the phone.
+
+    An asynchronous job of a non-interactive shell (`make test &`, a CI
+    runner) starts with SIGINT and SIGQUIT ignored, that is inherited down to
+    the helper, and a non-interactive shell cannot trap a signal ignored on
+    entry: its `trap 'exit 1' INT` would then be a no-op and the INT test
+    would fail whatever chef-reboot does.
+    """
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    signal.signal(signal.SIGQUIT, signal.SIG_DFL)
+
+
 class ChefReboot(unittest.TestCase):
     shell = ["bash"]
 
@@ -115,7 +128,8 @@ class ChefReboot(unittest.TestCase):
         with open(self.p / "err", "w") as err:
             return subprocess.Popen([*self.shell, str(self.script), *args], text=True,
                                     stdout=subprocess.DEVNULL, stderr=err,
-                                    env={**self.env, "PATH": self.path(chef, probe), **env})
+                                    env={**self.env, "PATH": self.path(chef, probe), **env},
+                                    preexec_fn=default_int_quit)
 
     def finish(self, proc):
         proc.wait(timeout=30)

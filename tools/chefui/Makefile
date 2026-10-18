@@ -4,9 +4,10 @@
 # configured by lv_conf.h here. Everything is built under build/.
 #
 #   make device   static aarch64 musl build for the phone:
-#                 build/device/libchefui.a + build/device/chefui-demo
-#                 (stripped). scripts/mkinitramfs.sh runs this and installs
-#                 the demo as /usr/bin/chefui-demo.
+#                 build/device/libchefui.a, build/device/chefui-demo and
+#                 build/device/chef-settings (stripped), with the device
+#                 flags from ../device.mk
+#   make install-device DESTDIR=DIR   the two apps into DIR/usr/bin
 #   make host     the same library and demo against LVGL's SDL2 driver for
 #                 the PC (needs libsdl2-dev): build/host/chefui-demo
 #   make test     host unit tests (no device, no SDL, no real fb): the
@@ -28,6 +29,11 @@
 #
 # Only LVGL's own sources are compiled with -w. DEVICE_CC/HOST_CC and
 # LVGL can be overridden on the command line.
+#
+# In the image: chefui-demo is the platform's verification vehicle, a
+# manual opt-in from the shell that inittab does not start; chef-settings
+# (status bar, settings hub and pages, NetworkManager and BlueZ state over
+# basu) is started from inittab (respawn) and owns the panel.
 
 REPO_ROOT := ../..
 LVGL ?= $(REPO_ROOT)/third_party/lvgl
@@ -39,12 +45,13 @@ HOST_AR ?= ar
 SDL_CFLAGS ?= $(shell pkg-config --cflags sdl2 2>/dev/null)
 SDL_LIBS ?= $(shell pkg-config --libs sdl2 2>/dev/null)
 
-CHEF_WARN := -std=gnu11 -Wall -Wextra
+CHEF_WARN := -std=gnu11 -Wall -Wextra -Werror
 LV_DEFS := -DLV_CONF_INCLUDE_SIMPLE
 INC := -I. -I.. -I$(LVGL) -Ikit -Isys -Iapps/settings
 BASU ?= $(REPO_ROOT)/toolchain/basu
 SDBUS_LIBS ?= $(shell pkg-config --libs libsystemd 2>/dev/null)
-OPT := -O2 -g -ffunction-sections -fdata-sections
+SECTIONS := -g -ffunction-sections -fdata-sections
+OPT := -O2 $(SECTIONS)
 SAN := -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all
 
 LV_SRCS := $(shell find $(LVGL)/src -name '*.c' 2>/dev/null)
@@ -77,9 +84,12 @@ endif
 
 B := build
 
-.PHONY: all device host test clean check-lvgl
+.PHONY: all device install-device host test clean check-lvgl
 
 all: device
+
+# after the first rule, so `all` stays the default goal
+include ../device.mk
 
 check-lvgl:
 	@test -f $(LVGL)/lvgl.h || { echo "LVGL not found at $(LVGL): git submodule update --init third_party/lvgl" >&2; exit 1; }
@@ -113,7 +123,7 @@ $(B)/test/liblvgl.a: $(patsubst $(LVGL)/%.c,$(B)/test/lvgl/%.o,$(LV_SRCS))
 
 $(B)/device/%.o: %.c $(HDRS)
 	@mkdir -p $(dir $@)
-	$(DEVICE_CC) $(CHEF_WARN) $(OPT) $(LV_DEFS) $(INC) -c -o $@ $<
+	$(DEVICE_CC) $(DEVICE_CFLAGS) $(SECTIONS) $(LV_DEFS) $(INC) -c -o $@ $<
 
 $(B)/device/libchefui.a: $(patsubst %.c,$(B)/device/%.o,$(DEV_LIB_SRCS))
 	rm -f $@; $(DEVICE_AR) rcs $@ $^
@@ -126,7 +136,7 @@ $(B)/device/chefui-demo: $(B)/device/demo.o $(B)/device/libchefui.a $(B)/device/
 $(patsubst %.c,$(B)/device/%.o,$(NETBUS_SRCS)): $(B)/device/%.o: %.c $(HDRS)
 	@mkdir -p $(dir $@)
 	@test -f $(BASU)/lib/libbasu.a || { echo "basu not found at $(BASU): run scripts/setup-toolchain.sh" >&2; exit 1; }
-	$(DEVICE_CC) $(CHEF_WARN) $(OPT) $(LV_DEFS) $(INC) -DCHEF_BASU -I$(BASU)/include -c -o $@ $<
+	$(DEVICE_CC) $(DEVICE_CFLAGS) $(SECTIONS) $(LV_DEFS) $(INC) -DCHEF_BASU -I$(BASU)/include -c -o $@ $<
 
 $(B)/device/libchefkit.a: $(patsubst %.c,$(B)/device/%.o,$(KIT_SRCS) $(SYS_SRCS) $(NETBUS_SRCS))
 	rm -f $@; $(DEVICE_AR) rcs $@ $^
@@ -135,8 +145,12 @@ $(B)/device/chef-settings: $(patsubst %.c,$(B)/device/%.o,$(APP_SRCS) apps/setti
 	$(DEVICE_CC) -static -Wl,--gc-sections -o $@.unstripped $^ $(BASU)/lib/libbasu.a -pthread -lrt -lm
 	$(DEVICE_STRIP) -o $@ $@.unstripped
 
-device: check-lvgl $(B)/device/chefui-demo $(B)/device/chef-settings
+device: check-device-cc check-lvgl $(B)/device/chefui-demo $(B)/device/chef-settings
 	@ls -l $(B)/device/chefui-demo $(B)/device/chef-settings
+
+install-device: check-destdir device
+	install -d $(DESTDIR)/usr/bin
+	install -m 755 $(B)/device/chefui-demo $(B)/device/chef-settings $(DESTDIR)/usr/bin/
 
 # ---------------------------------------------------------------- host
 

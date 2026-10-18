@@ -18,7 +18,7 @@ import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BIN = os.path.join(HERE, "..", "blesensd")
+BIN = os.path.join(HERE, "..", "build", "host", "blesensd")
 FAKE = os.path.join(HERE, "fake_bluez.py")
 
 HR = "AA:BB:CC:00:00:01"
@@ -184,7 +184,7 @@ def is_(t, **kw):
     return lambda m: m.get("type") == t and all(m.get(k) == v for k, v in kw.items())
 
 
-@unittest.skipUnless(HAVE and os.path.exists(BIN), "needs dbus-daemon, python3 dbus + gi and ./blesensd")
+@unittest.skipUnless(HAVE and os.path.exists(BIN), "needs dbus-daemon, python3 dbus + gi and build/host/blesensd")
 class BlesensdTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="bs", dir="/tmp")

@@ -1,14 +1,14 @@
 #!/bin/sh
-# Host test for initramfs/usr/bin/sensors-compass-run: the real script
-# with second-long steps, against tests/sensord-fake (main sensord serving
-# REG2, plus the script's -R -V helper with ROTVEC=1) and tests/fake_smgr
-# as the ADSP (SMGR, ROTATION_VECTOR, and a registry write of group 2980
-# standing in for the DSP learning its bias). Checks the calibration
-# rounds (never calibrates / calibrates mid-round / already calibrated),
-# the prompts, the files and steps tools/compass-check.py expects, that
-# the helper is gone and no claim is left on the main sensord afterwards,
-# an abort, and that compass-check.py reads the result. Run from
-# tools/sensord (make test does).
+# Host test for initramfs/usr/bin/sensors-compass-run: the real script with
+# second-long steps, against build/host/tests/sensord-fake (main sensord
+# serving REG2, plus the script's -R -V helper with ROTVEC=1) and
+# build/host/tests/fake_smgr as the ADSP (SMGR, ROTATION_VECTOR, and a
+# registry write of group 2980 standing in for the DSP learning its bias).
+# Checks the calibration rounds (never calibrates / calibrates mid-round /
+# already calibrated), the prompts, the files and steps
+# tools/compass-check.py expects, that the helper is gone and no claim is
+# left on the main sensord afterwards, an abort, and that compass-check.py
+# reads the result. Run from tools/sensord (make test does).
 set -u
 
 T=$(mktemp -d /tmp/snsr.XXXXXX)
@@ -46,7 +46,7 @@ wait_for() {
 script_env() {
 	n=$1
 	shift
-	echo SENSORD="$PWD/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/$n" \
+	echo SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/$n" \
 		KMSG="$T/kmsg-$n" VIB="$T/vib-$n" SENSORS_UP_LOG="$T/none" NOW_CMD="$T/now" \
 		CAL_S=0.3 CAL_ROUNDS=2 TURN_S=0.6 TILT_S=0.5 BAR_S=0.3 ROLL_S=0.3 SHAKE_S=0.3 \
 		QUICK_S=0.6 GAP_S=0 COUNT_S=1 POLL_S=1 HELPER_WAIT=40 "$@"
@@ -62,15 +62,15 @@ run_script() {
 
 no_claims() {
 	sleep 0.5
-	./tests/sensord-fake -S "$SOCK" list | grep -q '"claims":[1-9]' && fail "$1: claims left on the main sensord"
-	./tests/sensord-fake -S "$SOCK" status | grep -q '"compass":"off"' || fail "$1: heading still on"
+	./build/host/tests/sensord-fake -S "$SOCK" list | grep -q '"claims":[1-9]' && fail "$1: claims left on the main sensord"
+	./build/host/tests/sensord-fake -S "$SOCK" status | grep -q '"compass":"off"' || fail "$1: heading still on"
 }
 
 # the fake ADSP applies its learned bias to factory magn once this file
 # exists (sensord's live calibrated flag: full minus factory)
 export FAKE_MAG_LEARN_FILE="$T/learned"
 
-./tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
+./build/host/tests/fake_smgr mkreg "$T/reg" 1024 || { echo "FAIL: mkreg"; exit 1; }
 chmod 0400 "$T/reg"
 ln -s "$PWD/$RUN" "$T/compass-run"
 RUN="$T/compass-run"
@@ -88,15 +88,15 @@ echo "$L" | grep -q "one long buzz = the step starts: hold still (HOLD), or star
 printf '#!/bin/sh\nexec python3 -c "import time; print(\\"%%.3f\\" %% time.monotonic())"\n' >"$T/now"
 chmod +x "$T/now"
 
-if env SENSORD="$PWD/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/none" KMSG="$T/kmsg" \
+if env SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/none" KMSG="$T/kmsg" \
 	sh "$RUN" >"$T/norun.txt" 2>&1; then
 	fail "ran without a sensord"
 fi
 grep -q "run sensors-up first" "$T/norun.txt" || fail "no-sensord message: $(cat "$T/norun.txt")"
 
-./tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/main.log" &
+./build/host/tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/main.log" &
 SPID=$!
-./tests/fake_smgr serve >"$T/smgr.log" 2>&1 &
+./build/host/tests/fake_smgr serve >"$T/smgr.log" 2>&1 &
 FPID=$!
 wait_for "$T/main.log" "smgr ready" 80 || fail "main sensord never ready"
 

@@ -217,7 +217,7 @@ A known live state wins over the registry (it is what SMGR applies; after an ADS
 
 ### Replay on the 2026-09-27 captures
 
-`tools/sensord/compass-replay` runs the same filter over recorded captures (`make -C tools/sensord compass-replay`; `compass-replay -s A-accel.jsonl A-anglvel.jsonl A-magn-full.jsonl`), and `tools/compass-check.py DIR` replays a capture directory that has no heading channel. On the magcal capture of 2026-09-27 (`~/chef-cyclo-evidence/magcal-live-20260927T084431Z/...`, `full` calibration after the DSP had learned its bias; 0 samples dropped, 0 gaps):
+`tools/sensord/build/host/compass-replay` runs the same filter over recorded captures (built by `make -C tools/sensord`; `compass-replay -s A-accel.jsonl A-anglvel.jsonl A-magn-full.jsonl`), and `tools/compass-check.py DIR` replays a capture directory that has no heading channel. On the magcal capture of 2026-09-27 (`~/chef-cyclo-evidence/magcal-live-20260927T084431Z/...`, `full` calibration after the DSP had learned its bias; 0 samples dropped, 0 gaps):
 
 | Window | Heading change vs gyro yaw | max / rms error | Raw magnetometer heading (mag-cal-check) |
 |---|---|---|---|

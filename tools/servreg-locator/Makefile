@@ -1,73 +1,89 @@
 # servreg-locator: userspace SERVREG_LOC (pd-mapper) server for this vendor
 # kernel's AF_MSM_IPC transport (see servreg-locator.c's file header).
-# CC/CFLAGS/LDFLAGS/CPPFLAGS come from the caller (scripts/mkinitramfs.sh
-# sets them for the musl aarch64 cross toolchain and points -I at
-# ../msmipc.h + ../qrtr/libqrtr.h); this Makefile only adds to them.
 #
-# Native (host) build + tests:
-#   make && make test
+#   make                 host build: build/host/servreg-locator
+#   make test            host tests (build/host/tests/)
+#   make device          the phone binary: build/device/servreg-locator
+#   make install-device DESTDIR=DIR   it into DIR/usr/bin
 #
-# Cross build for the phone: see scripts/mkinitramfs.sh, which builds this
-# the same way it builds tools/rmtfs.
+# On the phone it answers the modem's boot-time domain-list lookup; see
+# servreg-locator.c's file header and docs/build-log.md's 2026-09-17 (dog
+# timeout) entry for why it exists.
 
 REPO_ROOT := ../..
 QRTR_DIR := ../qrtr
-# Only msmipc.c/msmipc.h need the vendor kernel's verbatim <linux/msm_ipc.h>
-# (see tools/msmipc.h) -- kept off jsn.o/servreg_loc.o/servreg-locator.o's
-# own flags below so they don't pick up the unrelated "kernel headers from
-# user space" build warning.
-KHDR := -I$(REPO_ROOT)/kernel/include/uapi -I$(REPO_ROOT)/kernel/include
-
-OUT := servreg-locator
-TEST_OUT := tests/test-jsn tests/test-servreg-loc
-
-CFLAGS += -Wall -Wextra -g -O2 -static
-LDFLAGS += -static
+CC ?= cc
+CFLAGS ?= -Wall -Wextra -Werror -g -O2
+H := build/host
+D := build/device
 
 SRCS := jsn.c servreg_loc.c servreg-locator.c
-OBJS := $(SRCS:.c=.o)
+HDRS := jsn.h servreg_loc.h ../msmipc.h $(QRTR_DIR)/libqrtr.h $(QRTR_DIR)/logging.h
 
-.PHONY: all test clean
+.PHONY: all test clean device install-device
 
-all: $(OUT)
+all: $(H)/servreg-locator
+
+include ../device.mk
 
 # Borrowed sources are built into local object files (qrtr-qmi.o etc, not
-# ../qrtr/qmi.o -- this Makefile doesn't write into shared directories)
-# purely so `make all` is a standalone host sanity build; the real cross
-# build that ships is scripts/mkinitramfs.sh, which compiles all of these
-# together directly, the same way it builds tools/rmtfs.
-$(OUT): jsn.o servreg_loc.o servreg-locator.o qrtr-qmi.o qrtr-logging.o msmipc.o
+# ../qrtr/qmi.o -- this Makefile doesn't write into shared directories).
+# Only msmipc.c/msmipc.h need <linux/msm_ipc.h> (see ../device.mk).
+$(H)/servreg-locator: $(H)/jsn.o $(H)/servreg_loc.o $(H)/servreg-locator.o $(H)/qrtr-qmi.o \
+		$(H)/qrtr-logging.o $(H)/msmipc.o
 	$(CC) -o $@ $^ $(LDFLAGS) -lpthread
 
-jsn.o: jsn.c jsn.h servreg_loc.h
+$(H)/jsn.o: jsn.c jsn.h servreg_loc.h
+	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -I$(QRTR_DIR) -c -o $@ jsn.c
 
-servreg_loc.o: servreg_loc.c servreg_loc.h
+$(H)/servreg_loc.o: servreg_loc.c servreg_loc.h
+	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -I$(QRTR_DIR) -c -o $@ servreg_loc.c
 
-servreg-locator.o: servreg-locator.c jsn.h servreg_loc.h
+$(H)/servreg-locator.o: servreg-locator.c jsn.h servreg_loc.h
+	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -I$(QRTR_DIR) -c -o $@ servreg-locator.c
 
-qrtr-qmi.o: $(QRTR_DIR)/qmi.c $(QRTR_DIR)/libqrtr.h
+$(H)/qrtr-qmi.o: $(QRTR_DIR)/qmi.c $(QRTR_DIR)/libqrtr.h
+	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(QRTR_DIR) -c -o $@ $(QRTR_DIR)/qmi.c
 
-qrtr-logging.o: $(QRTR_DIR)/logging.c $(QRTR_DIR)/logging.h
+$(H)/qrtr-logging.o: $(QRTR_DIR)/logging.c $(QRTR_DIR)/logging.h
+	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(QRTR_DIR) -c -o $@ $(QRTR_DIR)/logging.c
 
-msmipc.o: ../msmipc.c ../msmipc.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(KHDR) -I$(QRTR_DIR) -I.. -c -o $@ ../msmipc.c
+$(H)/msmipc.o: ../msmipc.c ../msmipc.h $(H)/include/linux/msm_ipc.h
+	@mkdir -p $(@D)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(H)/include -I$(QRTR_DIR) -I.. -c -o $@ ../msmipc.c
+
+# The phone binary is built from the sources in one step, as it always was.
+$(D)/servreg-locator: $(SRCS) $(QRTR_DIR)/qmi.c $(QRTR_DIR)/logging.c ../msmipc.c $(HDRS) \
+		$(D)/include/linux/msm_ipc.h
+	@mkdir -p $(@D)
+	$(DEVICE_CC) $(DEVICE_CFLAGS) -I$(D)/include -I. -I$(QRTR_DIR) -I.. -o $@ $(SRCS) \
+		$(QRTR_DIR)/qmi.c $(QRTR_DIR)/logging.c ../msmipc.c
+
+device: check-device-cc $(D)/servreg-locator
+
+install-device: check-destdir device
+	install -d $(DESTDIR)/usr/bin
+	install -m 755 $(D)/servreg-locator $(DESTDIR)/usr/bin/
 
 clean:
-	rm -f $(OUT) *.o $(TEST_OUT)
+	rm -rf build
 
 # Pure-protocol/parser tests: no sockets, no AF_MSM_IPC, so no msmipc.c and
 # no vendor kernel headers needed -- see the two test files' headers.
-tests/test-jsn: tests/test_jsn.c jsn.c jsn.h servreg_loc.h
+$(H)/tests/test-jsn: tests/test_jsn.c jsn.c jsn.h servreg_loc.h
+	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -I$(QRTR_DIR) -o $@ tests/test_jsn.c jsn.c
 
-tests/test-servreg-loc: tests/test_servreg_loc.c servreg_loc.c servreg_loc.h $(QRTR_DIR)/qmi.c $(QRTR_DIR)/logging.c
+$(H)/tests/test-servreg-loc: tests/test_servreg_loc.c servreg_loc.c servreg_loc.h $(QRTR_DIR)/qmi.c $(QRTR_DIR)/logging.c
+	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -I$(QRTR_DIR) -o $@ tests/test_servreg_loc.c servreg_loc.c $(QRTR_DIR)/qmi.c $(QRTR_DIR)/logging.c
 
-test: tests/test-jsn tests/test-servreg-loc
-	cd tests && ./test-jsn
-	./tests/test-servreg-loc
+# test-jsn reads its fixtures relative to tests/
+test: $(H)/tests/test-jsn $(H)/tests/test-servreg-loc
+	cd tests && ../$(H)/tests/test-jsn
+	$(H)/tests/test-servreg-loc

@@ -18,6 +18,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
@@ -825,13 +826,53 @@ static void test_deviceinfo_parsers(void)
 
 struct small_stack_scan { const char *root; struct sys_usage_result u; };
 
+/* A scan expected to be complete. The fixture is under the host's /tmp, a
+ * filesystem other processes write to: one that changes its free space
+ * between the scan's two statvfs samples makes the result an estimate, as it
+ * should on the phone. So repeat, at most 100 times, only while the result is
+ * that estimate: everything else intact (known, ours, every category read to
+ * the end) and the filesystem's capacity seen changing across the scan here
+ * too. Any other incomplete or wrong result returns at once and fails the
+ * CHECK after it. This statvfs-pair rule is the stricter of the two the tests
+ * use (it retries a deadline overrun only when another writer moved the pair
+ * at the same time), and fits here because the scanner is called directly:
+ * the pair brackets well under a millisecond. test_settings.c's worker-path
+ * steps judge by the result instead (see usage_estimate_only() there). The
+ * real estimate path is covered by changing_capacity. lim NULL: the default
+ * scan, else sys_storage_usage_scan_limited(). */
+static void scan_quiet(const char *root, bool (*mountpoint)(const char *),
+		       const struct sys_usage_limits *lim, struct sys_usage_result *u)
+{
+	for (int i = 0; i < 100; i++) {
+		struct statvfs a, b;
+		bool other_writer, intact = true;
+
+		if (statvfs(root, &a))
+			memset(&a, 0, sizeof(a));
+		if (lim)
+			sys_storage_usage_scan_limited(root, mountpoint, lim, u);
+		else
+			sys_storage_usage_scan(root, mountpoint, u);
+		if (statvfs(root, &b))
+			memset(&b, 0, sizeof(b));
+		if (u->complete)
+			return;
+		other_writer = a.f_blocks != b.f_blocks || a.f_bavail != b.f_bavail ||
+			       a.f_frsize != b.f_frsize;
+		for (int c = 0; c < 3; c++)
+			intact = intact && u->cat_state[c] == USAGE_CAT_EXACT;
+		if (!other_writer || !intact || !u->known || !u->ours)
+			return;
+	}
+}
+
 static bool fixture_mountpoint(const char *path);
 
 static void *small_stack_scan_run(void *arg)
 {
 	struct small_stack_scan *j = arg;
 
-	sys_storage_usage_scan(j->root, fixture_mountpoint, &j->u);
+	scan_quiet(j->root, fixture_mountpoint, NULL, &j->u);
 	return NULL;
 }
 
@@ -903,7 +944,7 @@ static void test_storage_usage_scan(void)
 	CHECK(symlink("/etc/passwd", path) == 0);
 	snprintf(path, sizeof(path), "%s/v1/rides/pipe", root);
 	CHECK(mkfifo(path, 0600) == 0);
-	sys_storage_usage_scan(root, fixture_mountpoint, &u);
+	scan_quiet(root, fixture_mountpoint, NULL, &u);
 	CHECK(u.known && u.ours && u.complete);
 	CHECK(u.maps_bytes > 0 && u.routes_bytes > 0 && u.rides_bytes == 0);
 	CHECK(u.total_bytes > 0 && u.free_bytes <= u.total_bytes);
@@ -958,7 +999,7 @@ static void test_storage_usage_scan(void)
 		CHECK(ftruncate(sparse, 16 * 1024 * 1024) == 0);
 		close(sparse);
 	}
-	sys_storage_usage_scan(root, fixture_mountpoint, &u);
+	scan_quiet(root, fixture_mountpoint, NULL, &u);
 	CHECK(u.known && u.complete);
 	CHECK(u.maps_bytes < 16 * 1024 * 1024);
 	mountpoint_calls = 0;
@@ -992,7 +1033,7 @@ static void test_storage_usage_scan(void)
 		CHECK(mkdir(empty, 0700) == 0);
 		snprintf(path, sizeof(path), "%s/chef-layout", empty);
 		f = fopen(path, "w"); CHECK(f != NULL); if (f) { fputs("chef-cyclo-data-v1\n", f); fclose(f); }
-		sys_storage_usage_scan(empty, fixture_mountpoint, &u);
+		scan_quiet(empty, fixture_mountpoint, NULL, &u);
 		CHECK(u.known && u.ours && u.complete);
 		CHECK(!u.maps_bytes && !u.rides_bytes && !u.routes_bytes);
 	}
@@ -1126,7 +1167,7 @@ static void test_storage_usage_review(void)
 	CHECK(u.cat_state[0] == USAGE_CAT_PARTIAL && u.cat_state[1] == USAGE_CAT_UNSCANNED &&
 	      u.cat_state[2] == USAGE_CAT_UNSCANNED);
 	lim.max_entries = 10000;
-	sys_storage_usage_scan_limited(root, fixture_mountpoint, &lim, &u);
+	scan_quiet(root, fixture_mountpoint, &lim, &u);
 	CHECK(u.known && u.complete);
 	for (int i = 0; i < 3; i++)
 		CHECK(u.cat_state[i] == USAGE_CAT_EXACT);

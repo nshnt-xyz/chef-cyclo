@@ -1,7 +1,7 @@
 /* compass: tilt-compensated heading from accelerometer, gyroscope and
  * magnetometer samples (docs/research/sensors.md section 8). Pure:
  * no I/O, no clock, no allocation; sensord feeds it the SMGR samples it
- * publishes, tools/sensord/compass-replay feeds it recorded captures.
+ * publishes, compass-replay (compass-replay.c) feeds it recorded captures.
  *
  * Frames: the body frame is the Android/IIO device frame sensord
  * publishes (x right, y towards the top edge, z out of the screen); the

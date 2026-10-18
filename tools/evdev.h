@@ -2,7 +2,7 @@
  * evdev.h - the chef-cyclo evdev plumbing, shared by every program that
  * reads input devices directly (the chefui UI platform's touch.c, fbtouch,
  * buttond). Header-only, static functions, libc + <linux/input.h> only, so
- * single-file builds (mkinitramfs.sh's `$MUSLCC ... tools/fbtouch.c`) need
+ * single-file builds (tools/Makefile's fbtouch and buttond rules) need
  * nothing extra. There is no libinput/libevdev/mtdev on the phone.
  *
  *   evdev_bit()            test a bit in an EVIOCGBIT/EVIOCGPROP bitmap

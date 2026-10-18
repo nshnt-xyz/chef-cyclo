@@ -32,7 +32,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL = os.path.normpath(os.path.join(HERE, "..", "..", "compass-check.py"))
-REPLAY = os.path.normpath(os.path.join(HERE, "..", "compass-replay"))
+REPLAY = os.path.normpath(os.path.join(HERE, "..", "build", "host", "compass-replay"))
 FAILS = []
 B_WORLD = np.array([0.0, 0.32, -0.20])
 G = 9.80665
