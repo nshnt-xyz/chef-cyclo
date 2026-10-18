@@ -1,0 +1,75 @@
+Build and tree cleanup (standard interfaces step 1), 2026-10-18
+================================================================
+
+Plan: docs/archive/build-cleanup-handoff.md (section 0 of
+docs/next-steps/standard-interfaces.md). Pair: cleanup_impl and
+cleanup_review (both Claude Opus 5.5), coordinator cleanup_coord.
+Evidence: ~/chef-cyclo-evidence/build-cleanup-20261018/ (baseline-*,
+final-report.md, m3-binary-compare.txt, final-files.txt,
+final-sha256.txt, review-snapshots/NOTES.md, live/).
+
+Commits on main (each approved by cleanup_review, commit checked
+byte for byte against the reviewed diff; not pushed):
+  6947ecb  M1 remove the speaker-protection and DRM experiments
+           (kept on experiment/speaker-protection, experiment/drm at 08e1ec9)
+  53e6ce7  M2 dangling doc references, repository layout
+  7584546  M3 one build (tools/device.mk, per-component device and
+           install-device targets, root Makefile), one parallel make test,
+           build output under build/, reproducible wlan.ko, two test flakes
+  6472f3a  M4 rename initramfs/ to rootfs-overlay/
+  a11079d  wording follow-up (rootfs-overlay/ tree)
+  4bd4085  README: colons instead of em dashes
+
+Findings during the step
+  - -Wno-cpp hid kernel/include/uapi/linux/types.h's "kernel headers
+    from user space" #warning in the 7 binaries using msmipc.h. Fixed
+    by giving them only a build-dir copy of the exported UAPI header
+    linux/msm_ipc.h; device binaries byte-identical to the baseline.
+  - wlan.ko differed on every build: a mktemp build path in 78
+    __FILE__ strings and qcacld's Kbuild TIMESTAMP (date -u). Fixed
+    path out/wifi-build plus TIMESTAMP from the pinned qcacld commit's
+    committer date. Reproducible per checkout path (__FILE__ carries
+    the absolute path).
+  - test_chef_reboot.py failed whenever its suite ran as an async job
+    of a non-interactive shell: such jobs start with SIGINT and SIGQUIT
+    ignored and a non-interactive shell cannot trap a signal ignored on
+    entry. Test resets them in the child; make test runs suites as make
+    prerequisites. Product unaffected (chef-reboot then carries on to
+    the bootloader; TERM still interrupts it).
+  - chefui storage tests flaked because their fixture lives on the
+    host's shared /tmp tmpfs; the product correctly reports an estimate
+    when free space changes mid-scan. Bounded retries (100) only for
+    that case, a deterministic test still covers the estimate path.
+
+Image comparison (final RAM image vs the 6209e0f baseline)
+  out/boot-ram-ca43cff1.img
+  sha256 ca43cff11c3e98e1e1f50c321425719da6a24168c0c877a660e0b895e8a23d24
+  kernel #23 unchanged, Chef loader margin 22892544 bytes.
+  Paths 1506 -> 1502: exactly afe-debug, afe-topology-cal,
+  spk-protect-probe, tert-tx-hold removed. 19 of 21 phone binaries
+  byte-identical; chef-settings (-0.13 %) and chefui-demo differ only
+  because -static at compile time turns off the toolchain's default
+  PIE. wlan.ko 1debb0ce... -> 6f1c2a15... (reproducible now). 7
+  overlay scripts with comment-only edits. Compiled helpers 775 -> 755.
+  make test: 8 suites in parallel ~250 s (serial baseline ~713 s),
+  5 consecutive passing runs.
+
+Live check (RAM boot, 2026-10-18, about 20:18 to 20:40 IST)
+  phone-boot.sh EXPECT=ca43cff1...: chef-reboot bootloader, fastboot
+  boot OK, USB network 16 s after boot. image-info commit 4bd4085.
+  All inittab services up (bluetoothd, NetworkManager, gps-manager,
+  chronyd, blesensd, buttond, powerd, chef-settings, dropbear,
+  sensord); wlan.ko loaded; no oops or segfault in dmesg.
+  The user's Wi-Fi and GPS switches were off (saved 2026-10-17); both
+  were turned on for the check and off again afterwards
+  (WirelessEnabled=false, gps enabled 0 on /data).
+  Wi-Fi: connected to the home AP 4 s after radio on, 0 % loss to 1.1.1.1.
+  GPS: map lease -> STARTING -> ACQUIRING, gpsd and nmea-broker up,
+  NMEA flowing (indoors, no fix expected).
+  Sensors: sensord get accel live sample; get illuminance answered.
+  User at the phone, on-screen STEP cards:
+    1/4 status bar and hub look normal: pass
+    2/4 short power off and on: pass (buttond power.short -> 1 claimant x2)
+    3/4 Storage row opens: pass
+    4/4 GPS page shows searching: pass
+  Returned to the installed image with reboot.
