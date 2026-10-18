@@ -68,11 +68,11 @@ Every binary of ours is built by its component's Makefile (`tools/`, `tools/rmtf
 ```sh
 make -j"$(nproc)" device                      # every phone binary
 make install-device DESTDIR=out/initramfs-root   # into DESTDIR/usr/bin, mode 755 (mkinitramfs.sh does both)
-make test                                     # all 9 host test suites in parallel
+make test                                     # all 10 host test suites in parallel
 make clean
 ```
 
-`make test` runs the suites (`tools`, `tools/rmtfs`, `tools/servreg-locator`, `tools/tftp`, `tools/sensord`, `tools/blesensd`, `tools/buttond`, `tools/chefui` and `scripts/tests`) in parallel, writes each suite's output to `build/test-logs/<suite>.log`, prints one pass or FAIL line per suite with its wall time and exits non-zero if any failed. It takes about as long as the slowest suite, `tools/sensord` (about 4.5 minutes), most of it the fixed `sleep`s of the shell tests. A single suite runs as before, for example `make -C tools test` or `make tools/sensord.test` (with its log in `build/test-logs/`).
+`make test` runs the suites (`tools`, `tools/rmtfs`, `tools/servreg-locator`, `tools/tftp`, `tools/sensord`, `tools/blesensd`, `tools/buttond`, `tools/chefui`, the shared code in `tools/common` and `scripts/tests`) in parallel, writes each suite's output to `build/test-logs/<suite>.log`, prints one pass or FAIL line per suite with its wall time and exits non-zero if any failed. It takes about as long as the slowest suite, `tools/sensord` (about 4.5 minutes), most of it the fixed `sleep`s of the shell tests. A single suite runs as before, for example `make -C tools test` or `make tools/sensord.test` (with its log in `build/test-logs/`).
 
 `make -C tools test` includes `tests/test_abslot.py` (synthetic GPT images), the GPS startup, audio-up and speaker-test-tone shell suites. For a focused script change, run `sh tools/tests/test_gps-up.sh`, `sh tools/tests/test_audio-up.sh` or `sh tools/tests/test_speaker-test-tone.sh` directly. Component-specific tests and live verification expectations are linked from each feature guide. The storage suite additionally requires host BusyBox (ash), e2fsprogs and GNU timeout. Host success does not imply live device verification. Record image hashes, device results, and evidence paths in the [build log](build-log.md).
 

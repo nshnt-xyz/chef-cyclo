@@ -8,20 +8,25 @@
 #                        output in build/test-logs/<suite>.log, one pass or
 #                        FAIL line per suite with its wall time, and a
 #                        non-zero exit if any failed
-#   make clean           every component's build/ and build/ here
+#   make clean           every component's build/, tools/common/build/
+#                        and build/ here
 #
 # The suites run as make prerequisites, never as shell `&` jobs: those
 # start with SIGINT and SIGQUIT ignored, which the chef-reboot tests
 # depend on not being.
 
 COMPONENTS := tools tools/rmtfs tools/servreg-locator tools/tftp tools/sensord tools/blesensd tools/buttond tools/chefui
-SUITES := $(COMPONENTS) scripts/tests
+# tools/common/ is compiled into its consumers and builds no phone binary
+# of its own: a test suite to run and clean, not a component.
+LIBS := tools/common
+SUITES := $(COMPONENTS) $(LIBS) scripts/tests
 LOGS := build/test-logs
 # Nothing is written into the source tree, not even Python's bytecode cache.
 export PYTHONDONTWRITEBYTECODE := 1
 
 .PHONY: all device install-device test clean \
-	$(COMPONENTS:%=%.device) $(COMPONENTS:%=%.install) $(COMPONENTS:%=%.clean) $(SUITES:%=%.test)
+	$(COMPONENTS:%=%.device) $(COMPONENTS:%=%.install) $(COMPONENTS:%=%.clean) $(LIBS:%=%.clean) \
+	$(SUITES:%=%.test)
 
 all: device
 
@@ -49,8 +54,8 @@ $(SUITES:%=%.test): %.test:
 	awk -v r=$$r -v s=$* -v t0=$$start -v t1=$$(date +%s.%N) -v out=$(LOGS)/$(subst /,_,$*).log \
 		'BEGIN { printf "%-4s %-22s %7.1f s  %s\n", r, s, t1 - t0, out }' > $(LOGS)/$(subst /,_,$*).result
 
-$(COMPONENTS:%=%.clean): %.clean:
+$(COMPONENTS:%=%.clean) $(LIBS:%=%.clean): %.clean:
 	$(MAKE) -C $* clean
 
-clean: $(COMPONENTS:%=%.clean)
+clean: $(COMPONENTS:%=%.clean) $(LIBS:%=%.clean)
 	rm -rf build
