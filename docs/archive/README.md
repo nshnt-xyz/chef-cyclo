@@ -19,3 +19,4 @@ Archived during the 2026-10-11 documentation review. These files preserve origin
 | [Return to bootloader](reboot-bootloader-handoff.md) | State-saving helper verified 2026-10-10; installed 2026-10-11. |
 | [SSH and install](ssh-and-install-handoff.md) | Key-only SSH and updated pair installed 2026-10-11, including the userdata mount-sweep fix. |
 | [Build and tree cleanup](build-cleanup-handoff.md) | Standard interfaces step 1 done 2026-10-18: experiments off main, one build through make, one parallel `make test`, reproducible `wlan.ko`, `initramfs/` renamed `rootfs-overlay/`; RAM image live verified; installed as `8b8cddf0` + `41dca3ff`. |
+| [buttond on the shared library](buttond-handoff.md) | Standard interfaces step 2 done 2026-10-18: `tools/buttond/`, the shared `tools/common/` (log, socket server, JSON reader), buttond and chefui on the JSON line protocol with written contracts; RAM image live verified, not installed. |

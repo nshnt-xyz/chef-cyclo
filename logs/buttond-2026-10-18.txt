@@ -1,0 +1,68 @@
+buttond on the shared library (standard interfaces step 2), 2026-10-18
+=====================================================================
+
+Plan: docs/archive/buttond-handoff.md (step 2 and section 2 of
+docs/next-steps/standard-interfaces.md). Pair: buttond_impl and
+buttond_review (both Claude Opus 5.5), coordinator buttond_coord.
+Evidence: ~/chef-cyclo-evidence/buttond-20261018/ (review/M{1,2,3}.diff,
+M{1,2,3}-review.md, M2-note.txt, live/).
+
+Commits on main (each approved by buttond_review, each commit checked
+by the reviewer and the coordinator against the reviewed diff; not
+pushed):
+  d3196e7  M1 move buttond to tools/buttond/ (own Makefile; device
+           binary byte-identical, 0d7d52c9; all 22 staged binaries
+           identical)
+  c6aeba2  M2 tools/common/: chef_log, linesrv (server side), json
+           (escape + strict reader); 374 host checks, also under
+           ASan/UBSan; root make test 10 suites
+  8d9920e  M3 buttond on tools/common/ with the JSON line protocol
+           (proto 1), chefui/buttons.c on the shared reader, contract in
+           docs/features/buttons-and-power-off.md and the shared
+           envelope in docs/features/local-sockets.md; buttond.c
+           1232 -> 1176 lines; CLI sends with MSG_NOSIGNAL
+
+Decisions (coordinator): plain-text requests, JSON replies/events with
+a "type" member (blesensd's shape), hello with proto first, ok/error
+with cmd, clients ignore unknown types and members; the shared JSON
+reader pulled forward from step 3; 8-word tokenizer limit with the
+rest unsplit (bad arguments); library sends the two cmd-less errors;
+slot-indexed per-client state; must-deliver vs lossy output.
+
+RAM image: out/boot-ram-3e5ba485.img, sha256
+3e5ba485465baa02b9150ce92594df6635dd41d0692c76f84046add67fbf72d9,
+commit 8d9920e (dirty only from the uncommitted handoff and plan
+edits), kernel #23. Staged tree vs installed 8b8cddf0: same 1503
+paths; only image-info, buttond (89953f05), chef-settings (e41a8799)
+and chefui-demo (bda5cae2) differ.
+
+Live check (RAM boot, 2026-10-18, about 23:08 to 23:12 IST)
+  phone-boot.sh EXPECT=3e5ba485...: chef-reboot bootloader, fastboot
+  boot OK, USB network 20 s after boot. image-info commit 8d9920e,
+  /usr/bin/buttond 89953f05. buttond grabbed event0 (qpnp_pon) and
+  event6 (gpio-keys). dmesg: only the usual ramoops/pstore lines.
+  buttond status (rc 0):
+    {"type":"status","buttons":{"power":"up","volup":"up","voldown":"up"},
+     "long_ms":1500,"double_ms":300,"poweroff_hold_ms":1500,
+     "poweroff":"idle","claims":{"power.short":1},"watchers":0}
+  Claim lifetime: setsid buttond claim voldown.long -> reply
+    {"type":"ok","cmd":"claim","gesture":"voldown.long"}, status claims
+    {"power.short":1,"voldown.long":1}; kill -9 of the claimer ->
+    claims {"power.short":1} one second later.
+  buttond watch streamed to the host: {"type":"ok","cmd":"watch"} then
+    one {"type":"gesture",...} line per press.
+  User at the phone, on-screen STEP cards advanced by the gesture stream:
+    1/5 status bar and hub normal, Storage row opens: pass (user)
+    2/5 short power on Storage goes Back to the hub: pass (user;
+        power.short -> 1 claimant at 114.3 s)
+    3/5 short power on the hub, screen off: pass (117.7 s
+        "power.short: screen off", panel off in 314 ms)
+    4/5 short power, screen on: pass (122.0 s, on in 237 ms)
+    5/5 hold to the first buzz and release: pass (power.long at
+        125.4 s, "power off cancelled: released after 1711 ms",
+        status poweroff idle)
+  Returned to the installed image with reboot: fresh boot (host clock
+  minus uptime), image-info ef0b058 dirty 0, buttond 0d7d52c9 on the
+  old text protocol as expected.
+
+Not installed. Next: step 3 (gps-manager and the client side).
