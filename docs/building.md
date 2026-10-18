@@ -20,7 +20,7 @@ scripts/setup-toolchain.sh   # once: fetches AOSP GCC 4.9 aarch64 into toolchain
 chef_defconfig               # sdm660-perf_defconfig + moto-sdm660.config + moto-sdm660-chef.config + chef-cyclo.config -> out/kernel/.config
 kmake -j$(nproc)             # Image.gz-dtb comes out in out/kernel/arch/arm64/boot/
 scripts/mkrootfs.sh          # Alpine aarch64 musl/busybox/dbus/BlueZ -> out/rootfs (once, or after changing the package list)
-scripts/mkinitramfs.sh       # out/rootfs + rootfs-overlay/ overlay + make device + firmware -> out/initramfs.cpio.lzma
+scripts/mkinitramfs.sh       # out/rootfs + rootfs-overlay/ + make device + firmware -> out/initramfs.cpio.lzma
 scripts/mkboot.sh            # -> out/boot.img (header values from stock boot_a.img)
 fastboot boot out/boot.img   # nothing is flashed; a reboot runs what boot_a holds
 ```

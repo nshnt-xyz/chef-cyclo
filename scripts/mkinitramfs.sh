@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build out/initramfs.cpio.lzma: the Alpine rootfs from scripts/mkrootfs.sh
-# with the rootfs-overlay/ overlay (init, inittab, users, the bring-up scripts,
+# with the rootfs-overlay/ tree (init, inittab, users, the bring-up scripts,
 # service configuration), our own binaries (the top-level Makefile's device
 # build: btprobe, the GPS/QMI helpers, the daemons, probes and the UI apps;
 # what each one is and why it is packed is beside its Makefile rule), the
