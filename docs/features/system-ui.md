@@ -554,9 +554,11 @@ second reader such as the ride recorder links it alone. The contract:
 - Which file: `/data/v1/ui/settings` when `/data` is ours (a mount point
   whose `chef-layout` is exactly `chef-cyclo-data-v1`, trailing newlines
   allowed: the `chef-state ours` rule), else `/run/ui/settings`. The writer
-  moves from `/run` to `/data` when `/data` becomes ours later (above), and
-  it writes nothing when a valid `/data` file wins, so a reader re-applies
-  the rule on every reload and, while on `/run`, also re-applies it when the
+  moves from `/run` to `/data` when `/data` becomes ours later (above). A
+  reader watching `/run/ui` gets no event for that move, whether the writer
+  then writes this boot's changes to `/data` or adopts a valid `/data` file
+  without writing, so a reader re-applies the rule on every reload and,
+  while on `/run`, also re-applies it when the
   mount table changes (`poll()` on `/proc/self/mountinfo` for `POLLPRI`,
   the standard Linux mount-change signal) and at least every 30 s, as the
   writer does; the 30 s re-check alone is enough to conform.

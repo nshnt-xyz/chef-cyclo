@@ -1,0 +1,93 @@
+gps-manager and the client side (standard interfaces step 3), 2026-10-18 to 2026-10-19
+=====================================================================================
+
+Plan: docs/archive/gps-clients-handoff.md (step 3, section 2 and the
+settings item of section 5 of docs/next-steps/standard-interfaces.md).
+Pair: gps_impl and gps_review (both Claude Opus 5.5), coordinator
+gps_coord. The user was asleep or away for the whole step; the live
+check ran without them (phone at a window).
+Evidence: ~/chef-cyclo-evidence/gps-clients-20261018/ (review/M1..M6
+diffs, reviewed snapshots and notes, review/NOTES.md, image/, live/).
+
+Commits on main (each approved by gps_review and checked against the
+reviewed snapshot):
+  fdb9a16  M1 move gps-manager to tools/gps-manager/ (device binary
+           byte-identical, e54d5f8a)
+  1b29545  M2 split into core.c, server.c, owner.c, main.c, cli.c and
+           gps-manager.h; code moved verbatim; tests link the modules,
+           also under ASan/UBSan; device binary +2.2 %
+  aedcc78  M3 gps-manager on linesrv/chef_log with the JSON line
+           protocol (proto 1) and its contract in docs/features/gps.md;
+           chefui gps.c on the reader; JSON_MAX_MEMBERS 32 -> 128.
+           Committed by gps_coord from the approved index (both agents
+           stopped on a usage limit); diff hash a9364de1 = snapshot.
+           Review round 1 found a NULL dereference: a switch load
+           finishing after gm_server_fini() at shutdown counted leases
+           on the freed server (ASan repro); fixed with a guard and a test.
+  cd6ea65  M4 tools/common/lineclient (connection core, framing, backoff),
+           chefui/sys/lcwatch glue, LVGL-free chefui/sys/gpsclient
+           (gps-manager + gpsd), gps.c as the wrapper, gpsview.c on the
+           reader
+  dd4c2a3  M5 LVGL-free chefui/sys/blesclient, blesens.c the wrapper,
+           alsclient.c on lineclient and the reader, linebuf.h deleted;
+           gpsclient's lease FIFO: when full, log once and reconnect
+  4343f8c  M6 chefui/sys/settings_file.{c,h} split from the store; the
+           reader contract in docs/features/system-ui.md (only writer,
+           path rule, inotify on the directory, /run readers re-check
+           the /data rule on mount changes or every 30 s, same checks,
+           0600/0700 root until step 8); stand-alone reader test
+
+Coordinator decisions: JSON reader limit 128 (live sensord status has 50
+top-level members, gpsd TPV 23 from our NMEA); gps-manager proto 1 table
+(ok lease with "held", switch event, the acq line merged into state
+events as up_ms/fix_ms, null for none, status object, bad arguments,
+"not failed" for retry); split along the existing sections; nmea-broker
+stays in tools/; lineclient in tools/common/, the protocol clients
+LVGL-free in chefui/sys/ (the gpsview.c/als.c pattern); alsclient on the
+reader only (sensord's envelope is step 4); the inotify settings reader
+waits for its first consumer (ride slice 1). Accepted impl calls: a
+watcher dropped mid-broadcast has its lease sync deferred to keep state
+order; CLI error replies on stdout, exit 1 when closed without a reply;
+socket mode 0660 set by main.c.
+
+RAM image (gps_impl, clean tree at 4343f8c, image-info dirty 0)
+  out/boot-ram-7a7971a5.img
+  sha256 7a7971a579b7b8ef1e581d4d834e37ea0f3af96c54a577c1c54edcf9cf287a8a
+  Staged tree vs installed 188b83e6: same 1503 paths; differ image-info,
+  gps-manager, chef-settings, chefui-demo, and buttond (only from the
+  JSON_MAX_MEMBERS change: rebuilt at 32 it is the installed 89953f05
+  byte for byte).
+
+Live check (coordinator alone, 2026-10-19 about 20:39 to 20:47 IST
+[15:09 to 15:17Z], phone at a window at night)
+  phone-boot.sh of 7a7971a5 from the installed pair (chef-reboot
+  bootloader), network up 18 s after boot.
+  GPS switch: found off on 2026-10-18 and turned on with `gps-manager
+    enable` at the user's request; still on.
+  gps-manager status: one JSON object, state OFF, enabled true, cid null,
+    up_ms/fix_ms null; chef-settings' watch connection counted.
+  watch + hold map: hello never printed; ok lease held 1, ok watch,
+    switch, state lines STARTING (owner, alloc, NMEA types, LOC start)
+    -> ACQUIRING at 86 ms -> RUNNING "CID 1, fix" with up_ms = fix_ms =
+    100145 (cold, about 1 min 40 s); gpsd TPV mode 3, eph 28.5 m (no
+    position recorded).
+  kill -9 of the holder: leases map 0 and grace true at once; 30 s later
+    STOPPING released then OFF idle with up_ms/fix_ms null, cid null,
+    leaked 0, no gpsd left.
+  disable: {"type":"ok","cmd":"disable","enabled":false}, /data/v1/gps/
+    enabled 0, watchers got switch false then state DISABLED; hold map
+    -> {"type":"error","cmd":"lease","reason":"disabled"}; retry ->
+    {"type":"error","cmd":"retry","reason":"not failed"} exit 1; enable
+    -> saved 1, watchers switch true, state OFF.
+  chef-settings through the split clients (one-shot args file, options
+    not saved; the screen-off flag had to be absent for a lit start):
+    --page gps --auto-brightness on --sleep 0: map lease held by the
+      app, RUNNING with a warm fix in 5 s; snapshot shows 3D, +-25 m,
+      satellites 7/11, first fix 5 s, position masked; sensord clients
+      2 (the illuminance claim).
+    --page bt: blesensd held true, scanning true; the page lists the
+      paired CHEF-SENSOR in 3 roles and "Scanning"; the previous app's
+      lease released when it exited (grace).
+    Back to the normal app: blesensd held false, scanning false; the
+      lease grace ended in OFF; sensord back to the CLI alone.
+  kmsg: no Call trace, WARN or segfault.
