@@ -60,17 +60,18 @@ HDRS := chefui.h chefui_internal.h copy.h plan.h touch.h buttons.h fbscreen.h lv
 
 DEV_LIB_SRCS := chefui.c backend_fb.c backends_device.c $(PURE)
 HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
-# Shared code from ../common/ (the JSON line reader buttons.c parses
-# buttond with), compiled into each configuration's libchefui as
+# Shared code from ../common/ (the JSON line reader buttons.c and the
+# state sources parse daemon lines with, and lineclient, their connection
+# core), compiled into each configuration's libchefui as
 # build/<config>/common/*.o.
-COMMON_SRCS := json.c
-HDRS += ../common/json.h
+COMMON_SRCS := json.c lineclient.c
+HDRS += ../common/json.h ../common/lineclient.h
 common_objs = $(patsubst %.c,$(B)/$(1)/common/%.o,$(COMMON_SRCS))
 
 # System UI kit + state sources (libchefkit) and the chef-settings app.
 FONT_SRCS := $(sort $(wildcard kit/fonts/chefkit_*.c))
 KIT_SRCS := kit/theme.c kit/widgets.c kit/blocks.c kit/keyboard.c $(FONT_SRCS)
-SYS_SRCS := sys/sysstate.c sys/settings.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c \
+SYS_SRCS := sys/sysstate.c sys/settings.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c sys/gpsclient.c sys/lcwatch.c \
 	 sys/storage.c sys/storage_usage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c sys/timeview.c sys/deviceinfo.c sys/feedback.c sys/als.c sys/alsclient.c
 # the system bus clients (sd-bus): basu on the phone, libsystemd on a PC
 NETBUS_SRCS := sys/netbus.c sys/wifi.c
@@ -79,7 +80,7 @@ APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_
 	apps/settings/page_storage.c apps/settings/page_about.c \
 	apps/settings/policy.c apps/settings/text.c apps/settings/prompt.c
 KIT_HDRS := kit/theme.h kit/widgets.h kit/fonts.h kit/icons.h sys/sysstate.h sys/sys.h \
-	sys/settings.h sys/storage_usage.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/blesens.h sys/timeview.h sys/deviceinfo.h sys/feedback.h sys/als.h apps/settings/app.h \
+	sys/settings.h sys/storage_usage.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/gpsclient.h sys/lcwatch.h sys/blesens.h sys/timeview.h sys/deviceinfo.h sys/feedback.h sys/als.h apps/settings/app.h \
 	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h apps/settings/prompt.h
 HDRS += $(KIT_HDRS)
 ifneq ($(SDBUS_LIBS),)
@@ -194,6 +195,16 @@ host: check-lvgl
 T := $(B)/test
 TEST_CFLAGS := $(CHEF_WARN) -g -O1 $(SAN) -DCHEFUI_TEST=1 $(INC)
 
+# The modules that must not depend on LVGL, built without its include
+# path: an #include of lvgl.h (or of a header that has one) fails here.
+NOLVGL_CFLAGS := $(CHEF_WARN) -g -O1 $(SAN) -I.. -Isys -Itests
+GPSCLIENT_SRCS := sys/gpsclient.c sys/gpsview.c ../common/lineclient.c ../common/json.c
+
+$(T)/test-gpsclient: tests/test_gpsclient.c $(GPSCLIENT_SRCS) sys/gpsclient.h sys/gpsview.h \
+		../common/lineclient.h ../common/json.h tests/check.h
+	@mkdir -p $(T)
+	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_gpsclient.c $(GPSCLIENT_SRCS) -lm
+
 $(T)/test-copy: tests/test_copy.c copy.c copy.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_copy.c copy.c
@@ -277,13 +288,14 @@ $(T)/test-wifi: tests/test_wifi.c $(FAKELOOP) $(SYSUI_OBJS) $(NETBUS_OBJS) $(T)/
 		$(SYSUI_OBJS) $(NETBUS_OBJS) $(T)/liblvgl.a -lm -pthread $(SDBUS_LIBS) \
 		-Wl,--wrap=getrandom
 
-TESTS := $(T)/test-copy $(T)/test-plan $(T)/test-touch $(T)/test-buttons $(T)/test-fbscreen $(T)/test-chefui \
+TESTS := $(T)/test-gpsclient $(T)/test-copy $(T)/test-plan $(T)/test-touch $(T)/test-buttons $(T)/test-fbscreen $(T)/test-chefui \
 	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app $(T)/test-als $(T)/test-alsclient $(T)/test-prompt
 ifneq ($(SDBUS_LIBS),)
 TESTS += $(T)/test-netbus $(T)/test-wifi
 endif
 
 test: check-lvgl $(TESTS)
+	$(T)/test-gpsclient
 	$(T)/test-copy
 	$(T)/test-plan
 	$(T)/test-touch

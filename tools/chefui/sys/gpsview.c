@@ -1,65 +1,67 @@
 /*
  * gpsview.c - the pure part of the GPS view (gpsview.h): gpsd JSON TPV
- * and SKY reports into struct gps_view, satellite labels and counts. No
- * sockets, no LVGL; unit tested in test-sys.
+ * and SKY reports into struct gps_view through the shared JSON reader
+ * (../common/json.h), satellite labels and counts. No sockets, no LVGL;
+ * unit tested in test-sys and built into the LVGL-free test-gpsclient.
  */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "common/json.h"
 #include "gpsview.h"
 
 struct gps_view gps_view;
 
-/* "key": number within [p, end); false when absent or not a number. */
-static bool json_num(const char *p, const char *end, const char *key, double *out)
+/* A finite number member; false when absent or not a number. */
+static bool num(const struct json_obj *o, const char *key, double *out)
 {
-	char pat[32];
-	size_t pl = (size_t)snprintf(pat, sizeof(pat), "\"%s\":", key);
+	double v;
 
-	while (p && p < end) {
-		const char *k = strstr(p, pat);
-		char *e;
-		double v;
-
-		if (!k || k >= end)
-			return false;
-		v = strtod(k + pl, &e);
-		if (e != k + pl && e <= end && isfinite(v)) {
-			*out = v;
-			return true;
-		}
-		p = k + pl;
-	}
-	return false;
+	if (!json_get_double(o, key, &v) || !isfinite(v))
+		return false;
+	*out = v;
+	return true;
 }
 
-static bool json_true(const char *p, const char *end, const char *key)
+/* LINE is a gpsd report of class CLS: its members in *O. */
+static bool report(struct json_obj *o, const char *line, const char *cls)
 {
-	char pat[32];
-	const char *k;
+	char c[8];
 
-	snprintf(pat, sizeof(pat), "\"%s\":true", key);
-	k = strstr(p, pat);
-	return k && k < end;
+	return json_parse(o, line, strlen(line)) == JSON_OK && json_get_string(o, "class", c, sizeof(c)) &&
+	       strcmp(c, cls) == 0;
+}
+
+int gps_parse_tpv_status(const char *line, int *mode, double *eph)
+{
+	struct json_obj o;
+	long m;
+	double e;
+
+	if (!report(&o, line, "TPV") || !json_get_long(&o, "mode", &m) || m < 0 || m > 3)
+		return -1;
+	*mode = (int)m;
+	*eph = num(&o, "eph", &e) && e >= 0 && e < 1e6 ? e : -1;
+	return 0;
 }
 
 int gps_parse_tpv_view(const char *line, struct gps_view *v)
 {
-	const char *end = line + strlen(line);
+	struct json_obj o;
 	double d;
 
-	if (line[0] != '{' || !strstr(line, "\"class\":\"TPV\""))
+	if (!report(&o, line, "TPV"))
 		return -1;
-	v->mode = json_num(line, end, "mode", &d) && d >= 0 && d <= 3 ? (int)d : 0;
-	v->eph = json_num(line, end, "eph", &d) && d >= 0 ? d : NAN;
+	v->mode = num(&o, "mode", &d) && d >= 0 && d <= 3 ? (int)d : 0;
+	v->eph = num(&o, "eph", &d) && d >= 0 ? d : NAN;
 	/* gpsd 3.27: altMSL (and altHAE); older: alt */
-	if (!json_num(line, end, "altMSL", &v->alt) && !json_num(line, end, "alt", &v->alt))
+	if (!num(&o, "altMSL", &v->alt) && !num(&o, "alt", &v->alt))
 		v->alt = NAN;
-	v->speed = json_num(line, end, "speed", &d) && d >= 0 ? d : NAN;
-	v->lat = json_num(line, end, "lat", &d) && d >= -90 && d <= 90 ? d : NAN;
-	v->lon = json_num(line, end, "lon", &d) && d >= -180 && d <= 180 ? d : NAN;
+	v->speed = num(&o, "speed", &d) && d >= 0 ? d : NAN;
+	v->lat = num(&o, "lat", &d) && d >= -90 && d <= 90 ? d : NAN;
+	v->lon = num(&o, "lon", &d) && d >= -180 && d <= 180 ? d : NAN;
 	if (v->mode < 2)
 		v->lat = v->lon = v->alt = v->eph = v->speed = NAN;	/* no fix: nothing kept */
 	return 0;
@@ -67,44 +69,45 @@ int gps_parse_tpv_view(const char *line, struct gps_view *v)
 
 int gps_parse_sky_view(const char *line, struct gps_view *v)
 {
-	const char *end = line + strlen(line), *p, *arr;
+	const struct json_member *arr;
+	struct json_span e;
+	enum json_type t;
+	struct json_obj o, so;
+	size_t pos = 0;
 	double d;
 
-	if (line[0] != '{' || !strstr(line, "\"class\":\"SKY\""))
+	if (!report(&o, line, "SKY"))
 		return -1;
-	arr = strstr(line, "\"satellites\":[");
-	/* the DOPs come before the array. gpsd sends a DOP-only SKY (no satellites key) between
-	 * its full ones: it updates the DOPs and keeps the satellites of the last full SKY; a
-	 * SKY with the array, even an empty one, replaces them. */
-	v->hdop = json_num(line, arr ? arr : end, "hdop", &d) && d >= 0 ? d : NAN;
-	v->pdop = json_num(line, arr ? arr : end, "pdop", &d) && d >= 0 ? d : NAN;
+	/* gpsd sends a DOP-only SKY (no satellites member) between its full
+	 * ones: it updates the DOPs and keeps the satellites of the last full
+	 * SKY; a SKY with the array, even an empty one, replaces them. */
+	v->hdop = num(&o, "hdop", &d) && d >= 0 ? d : NAN;
+	v->pdop = num(&o, "pdop", &d) && d >= 0 ? d : NAN;
 	v->sky = true;
-	if (!arr)
+	arr = json_find(&o, "satellites");
+	if (!arr || arr->type != JSON_ARRAY)
 		return 0;
 	v->n_sats = 0;
-	p = arr + 14;
-	while (v->n_sats < GPS_SATS_MAX) {
-		const char *o = strchr(p, '{'), *c;
+	while (v->n_sats < GPS_SATS_MAX && json_array_next(arr->val, &pos, &t, &e)) {
 		struct gps_sat s = { .az = -1, .el = -1, .ss = -1 };
 		double prn = 0, gnss = -1, svid = -1;
+		bool used = false;
 
-		c = o ? strchr(o, '}') : NULL;
-		if (!o || !c || (strchr(p, ']') && strchr(p, ']') < o))
-			break;
-		json_num(o, c, "PRN", &prn);
-		json_num(o, c, "gnssid", &gnss);
-		json_num(o, c, "svid", &svid);
-		if (json_num(o, c, "az", &d) && d >= 0 && d <= 360)
+		if (t != JSON_OBJECT || json_parse(&so, e.p, e.len) != JSON_OK)
+			continue;
+		num(&so, "PRN", &prn);
+		num(&so, "gnssid", &gnss);
+		num(&so, "svid", &svid);
+		if (num(&so, "az", &d) && d >= 0 && d <= 360)
 			s.az = d;
-		if (json_num(o, c, "el", &d) && d >= -90 && d <= 90)
+		if (num(&so, "el", &d) && d >= -90 && d <= 90)
 			s.el = d;
-		if (json_num(o, c, "ss", &d) && d >= 0 && d < 100)
+		if (num(&so, "ss", &d) && d >= 0 && d < 100)
 			s.ss = d;
-		s.used = json_true(o, c, "used");
+		s.used = json_get_bool(&so, "used", &used) && used;
 		s.gnss = gnss >= 0 ? (int)gnss : GNSS_GPS;
 		s.svid = svid >= 0 ? (int)svid : (int)prn;
 		v->sats[v->n_sats++] = s;
-		p = c + 1;
 	}
 	return 0;
 }

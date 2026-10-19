@@ -588,6 +588,10 @@ All on the chefui loop, nonblocking, none polling while idle:
   switch goes out on it too. gpsd
   `127.0.0.1:2947` `?WATCH` JSON while `RUNNING` for TPV `mode` and `eph`,
   and while a GPS page is seen also in `ACQUIRING`, for its TPV and SKY.
+  Both clients are `sys/gpsclient.c`, which has no LVGL (the ride recorder
+  runs it with its own `poll()` and clock); `sys/gps.c` is its chefui
+  wrapper and puts the connections on the loop through `sys/lcwatch.c`
+  (a `tools/common/lineclient` on `chefui_watch_fd()` and one `lv_timer`).
 - **Wi-Fi and Bluetooth**: the system bus through sd-bus (static basu on the
   phone, libsystemd on a PC), asynchronous calls and matches only, every
   call with `NO_AUTO_START` so a query never starts a service through D-Bus
@@ -644,7 +648,10 @@ fixtures and uevents), `test-app` (fonts, theme restyle, status bar, tiles,
 subtitles, page stack, power policy, auto-sleep), `test-netbus` (a fake
 NetworkManager and BlueZ on a private dbus-daemon; skipped without
 libsystemd and dbus-daemon; `test-sys` also has the GPS page's lease, switch
-and view against a fake gps-manager and gpsd, and the gpsd TPV/SKY parsers), `test-wifi` (`sys/wifi.c` against
+and view against a fake gps-manager and gpsd, and the gpsd TPV/SKY parsers),
+`test-gpsclient` (`sys/gpsclient.c` built without LVGL's include path,
+driven with an injected clock and its own `poll()`: the manager's lines,
+reconnect deadlines, both lease kinds, the switch, gpsd, staleness), `test-wifi` (`sys/wifi.c` against
 `tests/fake_nm.py`, a fake NetworkManager in python3 dbus-python and GLib on
 a private dbus-daemon: the view, scans, joins new/saved/open/hidden with the
 passphrase NM received, a refused passphrase deleting its profile, a saved

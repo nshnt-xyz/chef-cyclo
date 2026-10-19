@@ -85,60 +85,17 @@ static void test_linebuf(void)
 
 static void test_parsers(void)
 {
-	struct sys_gps_mgr_line l;
 	int mode;
 	double eph;
 
-	/* gps-manager's JSON lines */
-	CHECK(sys_gps_parse_mgr("{\"type\":\"hello\",\"daemon\":\"gps-manager\",\"proto\":1}", &l) == 0 &&
-	      l.type == SYS_GPS_MGR_HELLO && l.proto == 1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"hello\",\"daemon\":\"gps-manager\"}", &l) == 0 &&
-	      l.type == SYS_GPS_MGR_HELLO && l.proto == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"ok\",\"cmd\":\"watch\"}", &l) == 0 && l.type == SYS_GPS_MGR_OK &&
-	      !strcmp(l.cmd, "watch"));
-	CHECK(sys_gps_parse_mgr("{\"type\":\"error\",\"cmd\":\"lease\",\"reason\":\"disabled\"}", &l) == 0 &&
-	      l.type == SYS_GPS_MGR_ERROR && !strcmp(l.cmd, "lease") && !strcmp(l.reason, "disabled"));
-	CHECK(sys_gps_parse_mgr("{\"type\":\"error\",\"reason\":\"too many clients\"}", &l) == 0 &&
-	      l.type == SYS_GPS_MGR_ERROR && l.cmd[0] == 0);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"switch\",\"enabled\":false}", &l) == 0 && l.type == SYS_GPS_MGR_SWITCH &&
-	      l.enabled == 0);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"switch\",\"enabled\":true,\"new\":[1]}", &l) == 0 && l.enabled == 1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"switch\",\"enabled\":1}", &l) == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"switch\"}", &l) == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"RUNNING\",\"detail\":\"CID 1, fix\",\"up_ms\":84000,"
-				"\"fix_ms\":80000}", &l) == 0 && l.type == SYS_GPS_MGR_STATE && l.state == SYS_GPS_RUNNING &&
-	      l.up_ms == 84000 && l.fix_ms == 80000);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"ACQUIRING\",\"detail\":\"x\",\"up_ms\":0,\"fix_ms\":null}",
-				&l) == 0 && l.state == SYS_GPS_SEARCHING && l.up_ms == 0 && l.fix_ms == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"OFF\",\"detail\":\"idle\",\"up_ms\":null,\"fix_ms\":null}",
-				&l) == 0 && l.state == SYS_GPS_OFF && l.up_ms == -1 && l.fix_ms == -1);
-	/* a first fix without a bring-up, or out of range: none */
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"OFF\",\"up_ms\":null,\"fix_ms\":5}", &l) == 0 &&
-	      l.fix_ms == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"OFF\",\"up_ms\":-2,\"fix_ms\":1}", &l) == 0 &&
-	      l.up_ms == -1 && l.fix_ms == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"STOPPING\"}", &l) == 0 && l.state == SYS_GPS_OFF);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"FAILED\"}", &l) == 0 && l.state == SYS_GPS_FAILED);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"STARTING\"}", &l) == 0 && l.state == SYS_GPS_SEARCHING);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"DISABLED\"}", &l) == 0 && l.state == SYS_GPS_DISABLED);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"RUNNINGX\"}", &l) == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"RUN\"}", &l) == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\"}", &l) == -1);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"status\",\"state\":\"RUNNING\"}", &l) == 0 && l.type == SYS_GPS_MGR_OTHER);
-	CHECK(sys_gps_parse_mgr("{\"type\":\"future\"}", &l) == 0 && l.type == SYS_GPS_MGR_OTHER);
-	CHECK(sys_gps_parse_mgr("{\"state\":\"RUNNING\"}", &l) == -1);	/* no type */
-	CHECK(sys_gps_parse_mgr("state RUNNING fix", &l) == -1);	/* the old text protocol */
-	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"OFF\"} x", &l) == -1);
-	CHECK(sys_gps_parse_mgr("", &l) == -1);
-
-	CHECK(sys_gps_parse_tpv("{\"class\":\"TPV\",\"device\":\"x\",\"mode\":3,\"lat\":1,\"eph\":2.7}",
-				&mode, &eph) == 0 && mode == 3 && eph > 2.6 && eph < 2.8);
-	CHECK(sys_gps_parse_tpv("{\"class\":\"TPV\",\"mode\":1}", &mode, &eph) == 0 && mode == 1 && eph < 0);
-	CHECK(sys_gps_parse_tpv("{\"class\":\"SKY\",\"mode\":3}", &mode, &eph) == -1);
-	CHECK(sys_gps_parse_tpv("{\"class\":\"TPV\"}", &mode, &eph) == -1);
-	CHECK(sys_gps_parse_tpv("{\"class\":\"TPV\",\"mode\":9}", &mode, &eph) == -1);
-	CHECK(sys_gps_parse_tpv("{\"class\":\"TPV\",\"mode\":2,\"eph\":-4}", &mode, &eph) == 0 && eph < 0);
-	CHECK(sys_gps_parse_tpv("garbage", &mode, &eph) == -1);
+	CHECK(gps_parse_tpv_status("{\"class\":\"TPV\",\"device\":\"x\",\"mode\":3,\"lat\":1,\"eph\":2.7}",
+				   &mode, &eph) == 0 && mode == 3 && eph > 2.6 && eph < 2.8);
+	CHECK(gps_parse_tpv_status("{\"class\":\"TPV\",\"mode\":1}", &mode, &eph) == 0 && mode == 1 && eph < 0);
+	CHECK(gps_parse_tpv_status("{\"class\":\"SKY\",\"mode\":3}", &mode, &eph) == -1);
+	CHECK(gps_parse_tpv_status("{\"class\":\"TPV\"}", &mode, &eph) == -1);
+	CHECK(gps_parse_tpv_status("{\"class\":\"TPV\",\"mode\":9}", &mode, &eph) == -1);
+	CHECK(gps_parse_tpv_status("{\"class\":\"TPV\",\"mode\":2,\"eph\":-4}", &mode, &eph) == 0 && eph < 0);
+	CHECK(gps_parse_tpv_status("garbage", &mode, &eph) == -1);
 }
 
 /* ------------------------------------------------------- fake servers */
@@ -368,7 +325,13 @@ static void test_gps_view_parsers(void)
 	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"hdop\":1.1,\"satellites\":[]}", &v) == 0 && v.n_sats == 0);
 	CHECK(gps_parse_sky_view(SKY, &v) == 0 && v.n_sats == 3);
 	CHECK(gps_parse_sky_view("{\"class\":\"TPV\"}", &v) == -1);
-	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"satellites\":[{\"PRN\":", &v) == 0 && v.n_sats == 0);
+	/* not JSON (a cut line): not a report, the view untouched */
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"satellites\":[{\"PRN\":", &v) == -1 && v.n_sats == 3);
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"satellites\":[]}", &v) == 0 && v.n_sats == 0);
+	/* elements that are not objects are skipped; a satellites member that is not an array is none */
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"satellites\":[1,{\"PRN\":7,\"used\":true},\"x\"]}", &v) == 0 &&
+	      v.n_sats == 1 && v.sats[0].svid == 7 && v.sats[0].used && v.sats[0].gnss == GNSS_GPS);
+	CHECK(gps_parse_sky_view("{\"class\":\"SKY\",\"satellites\":{}}", &v) == 0 && v.n_sats == 1);
 	CHECK(gps_parse_tpv_view(TPV3, &v) == 0 && v.mode == 3);
 	CHECK(fabs(v.lat + 33.8569) < 1e-9 && fabs(v.lon - 151.2153) < 1e-9);
 	CHECK(fabs(v.alt - 41.5) < 1e-9 && fabs(v.eph - 3.1) < 1e-9 && fabs(v.speed - 1.5) < 1e-9);

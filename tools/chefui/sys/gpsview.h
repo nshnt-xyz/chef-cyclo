@@ -51,9 +51,12 @@ bool sys_gps_watching(void);
 /* gps-manager's switch ("enable"/"disable"); -ENOTCONN without it. */
 int sys_gps_set_enabled(bool on);
 
-/* Pure parsers (tests). 0 when the line is that report. */
+/* Pure parsers on the JSON reader. 0 when the line is that report (a
+ * valid JSON object of that class). The status: a TPV with a mode 0..3,
+ * eph or -1. */
 int gps_parse_tpv_view(const char *line, struct gps_view *v);
 int gps_parse_sky_view(const char *line, struct gps_view *v);
+int gps_parse_tpv_status(const char *line, int *mode, double *eph);
 
 /* Texts: "G05" style label, counts. */
 void gps_sat_label(const struct gps_sat *s, char *buf, size_t n);
