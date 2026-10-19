@@ -194,10 +194,11 @@ static void gpsd_lost(struct lineclient *lc, int64_t now)
 
 /* ---------------------------------------------------------- the manager */
 
+#define FIFO_MAX ((int)(sizeof(((struct gpsclient *)0)->fifo) / sizeof(int)))
+
 static void fifo_push(struct gpsclient *gc, int kind)
 {
-	if (gc->nfifo < (int)(sizeof(gc->fifo) / sizeof(gc->fifo[0])))
-		gc->fifo[gc->nfifo++] = kind;
+	gc->fifo[gc->nfifo++] = kind;	/* lease_sync() made room */
 }
 
 /* The kind of the oldest lease request still unanswered, -1 none. */
@@ -232,6 +233,17 @@ static void lease_sync(struct gpsclient *gc, int64_t now)
 		if (!lineclient_up(&gc->mgr) || !gc->watching)
 			return;	/* a failed send closed it */
 		if (gc->want[k] && !gc->held[k] && gc->enabled != 0) {
+			if (gc->nfifo == FIFO_MAX) {
+				/* that many leases asked and none answered (wanted on
+				 * and off faster than the manager replies, or a manager
+				 * that does not reply): the refusals could no longer be
+				 * matched, so start over; the reconnect asks again */
+				if (!gc->fifo_warned && gc->cfg.log)
+					gc->cfg.log("gps-manager: %d lease requests unanswered; reconnecting", FIFO_MAX);
+				gc->fifo_warned = true;
+				lineclient_close(&gc->mgr, now);
+				return;
+			}
 			snprintf(req, sizeof(req), "lease %s\n", lease_names[k]);
 			if (lineclient_send(&gc->mgr, req, now) == 0) {
 				gc->held[k] = true;

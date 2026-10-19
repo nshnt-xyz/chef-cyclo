@@ -27,7 +27,7 @@ static void io(int fd, short revents, void *user)
 	struct lcwatch *w = user;
 
 	(void)fd;
-	lineclient_handle(w->lc, revents, lcwatch_now());
+	lineclient_handle(w->lc, revents, w->now());
 	after(w);
 }
 
@@ -37,13 +37,15 @@ static void fired(lv_timer_t *t)
 
 	w->timer = NULL;	/* one-shot: LVGL deletes it after this call */
 	w->timer_at = -1;
-	lineclient_tick(w->lc, lcwatch_now());
+	lineclient_tick(w->lc, w->now());
 	after(w);
 }
 
-void lcwatch_init(struct lcwatch *w, struct lineclient *lc, void (*after_cb)(void *user), void *user)
+void lcwatch_init(struct lcwatch *w, struct lineclient *lc, int64_t (*now)(void),
+		  void (*after_cb)(void *user), void *user)
 {
 	w->lc = lc;
+	w->now = now ? now : lcwatch_now;
 	w->after = after_cb;
 	w->user = user;
 	w->fd = -1;
@@ -80,7 +82,7 @@ static void register_current(struct lcwatch *w)
 	}
 	w->timer_at = d;
 	if (d >= 0) {
-		int64_t ms = d - lcwatch_now();
+		int64_t ms = d - w->now();
 
 		w->timer = lv_timer_create(fired, ms > 0 ? (uint32_t)ms : 0, w);
 		lv_timer_set_repeat_count(w->timer, 1);

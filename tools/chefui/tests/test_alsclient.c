@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include "check.h"
+#include "common/json.h"
 #include "fakeloop.h"
 #include "settings.h"
 #include "sys.h"
@@ -30,6 +31,7 @@ static int64_t clock_ms;
 static struct {
 	int lfd, cfd, accepts, status_reqs, claims;
 	bool drop_on_accept, ack, smgr, status_silent, eof, mute;
+	const char *status_line;	/* the status reply, NULL: the short one */
 	char in[1024];
 	size_t n;
 	int64_t accept_at[16];
@@ -74,7 +76,9 @@ static void serve_requests(void)
 				say("{\"ok\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}\n");
 		} else if (!strncmp(S.in, "status\n", len)) {
 			S.status_reqs++;
-			if (!S.status_silent)
+			if (!S.status_silent && S.status_line)
+				say(S.status_line);
+			else if (!S.status_silent)
 				say(S.smgr ? "{\"ok\":\"status\",\"proto\":1,\"smgr\":\"ready\",\"clients\":2}\n"
 					   : "{\"ok\":\"status\",\"proto\":1,\"smgr\":\"down\",\"clients\":2}\n");
 		}
@@ -179,6 +183,20 @@ static void sample(double lux)
 	sample_aged(lux, 0);
 }
 
+/* A live sensord status line (2026-09-26 sensors evidence): 50 members. */
+#define STATUS_50(smgr) "{\"ok\":\"status\",\"proto\":1,\"smgr\":\"" smgr "\",\"smgr_node\":5,\"smgr_port\":90," \
+	"\"smgr_resets\":0,\"api\":\"buffering\",\"reg2\":true,\"reg2_reads\":75,\"reg2_writes\":4,\"reg2_misses\":0," \
+	"\"reg2_saves\":3,\"reg2_save_errors\":0,\"time2\":false,\"time2_reqs\":0,\"unknown_reqs\":0,\"ts\":\"dsps\"," \
+	"\"clients\":1,\"compass\":\"off\",\"compass_clients\":0,\"mount\":\"portrait\",\"calibrated\":true," \
+	"\"cal_source\":\"live\",\"mag_bias\":[0.2120,0.3383,0.0427],\"mag_bias_pairs\":2700," \
+	"\"mag_bias_reg\":[-0.339203,-0.213211,0.042511],\"disturbed\":false,\"accuracy\":null," \
+	"\"rotvec_accuracy\":null,\"declination\":null,\"compass_lines\":57551,\"compass_dropped\":0," \
+	"\"compass_gaps\":0,\"compass_resets\":1,\"compass_gyro_lost\":0,\"compass_disturbances\":14," \
+	"\"compass_reacquired\":11,\"gyro_bias\":[-0.00005,0.00060,-0.00201],\"rotvec\":\"off\"," \
+	"\"rotvec_instance\":-1,\"rotvec_enables\":0,\"rotvec_inds\":0,\"rotvec_errors\":0," \
+	"\"rotvec_last_error\":-1,\"qmag\":\"off\",\"qmag_instance\":-1,\"qmag_enables\":0,\"qmag_inds\":0," \
+	"\"qmag_errors\":0,\"qmag_last_error\":-1}\n"
+
 static void test_parse(void)
 {
 	double lux = -1;
@@ -279,6 +297,27 @@ static void test_client(void)
 		S.smgr = true;
 		run(31000);
 		CHECK(sys_state.als.available && S.accepts == acc && S.claims == claims);
+
+		/* the real 50-member status line, read with the JSON reader: smgr is its
+		 * top-level member, wherever it stands; one nested in another member is
+		 * not it */
+		{
+			struct json_obj o;
+
+			CHECK(json_parse(&o, STATUS_50("ready"), strlen(STATUS_50("ready")) - 1) == JSON_OK && o.n == 50);
+		}
+		S.status_line = STATUS_50("down");
+		run(31000);
+		CHECK(!sys_state.als.available && S.cfd >= 0);
+		S.status_line = STATUS_50("ready");
+		run(31000);
+		CHECK(sys_state.als.available && S.accepts == acc);
+		S.status_line = "{\"x\":{\"smgr\":\"ready\"},\"ok\":\"status\",\"proto\":1,\"smgr\":\"down\"}\n";
+		run(31000);
+		CHECK(!sys_state.als.available && S.cfd >= 0);
+		S.status_line = NULL;
+		run(31000);
+		CHECK(sys_state.als.available && S.accepts == acc && S.claims == claims);
 	}
 
 	/* a status that never answers: reconnect after the reply timeout, logged */
@@ -310,6 +349,12 @@ static void test_client(void)
 	say("{\"err\":\"other\"}\n");
 	run(100);
 	CHECK(fakeloop_log_count("als: sensord error: other") == 1);
+	/* the err text is a JSON string: escapes decoded */
+	CHECK(until_accept(3, 9000));
+	run(100);
+	say("{\"err\":\"bad \\\"rate\\\" \\u0041\",\"sensor\":\"illuminance\"}\n");
+	run(100);
+	CHECK(fakeloop_log_count("als: sensord error: bad \"rate\" A") == 1 && !sys_state.als.available);
 
 	/* a server that drops every connection at once: the delays double to the 30 s cap */
 	S.accepts = 0;

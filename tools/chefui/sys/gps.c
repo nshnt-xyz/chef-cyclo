@@ -129,8 +129,8 @@ int sys_gps_start(const char *sock, int gpsd_port)
 
 	sys_gps_stop();
 	gpsclient_init(&G.gc, &cfg);
-	lcwatch_init(&G.w[0], &G.gc.mgr, sync, NULL);
-	lcwatch_init(&G.w[1], &G.gc.gpsd, sync, NULL);
+	lcwatch_init(&G.w[0], &G.gc.mgr, NULL, sync, NULL);
+	lcwatch_init(&G.w[1], &G.gc.gpsd, NULL, sync, NULL);
 	G.stale_at = -1;
 	G.running = true;
 	G.watch = false;

@@ -1,10 +1,11 @@
 /*
  * test_sys.c - the system UI state sources against fakes, on fakeloop
- * with real time: line framing, the gps-manager and gpsd parsers, a fake
- * gps-manager socket (late start, partial and malformed lines, restart)
- * and a fake gpsd (connect only while RUNNING), battery sysfs fixtures
- * with uevents on a datagram socket, the clock under a POSIX TZ and the
- * fake-state file.
+ * with real time: the gpsd parsers, a fake gps-manager socket (late
+ * start, partial and malformed lines, restart) and a fake gpsd (connect
+ * only while RUNNING), blesensd's lines and a fake blesensd, battery
+ * sysfs fixtures with uevents on a datagram socket, the clock under a
+ * POSIX TZ and the fake-state file. Line framing is lineclient's
+ * (tools/common/tests/test_lineclient.c).
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -26,7 +27,6 @@
 
 #include "check.h"
 #include "fakeloop.h"
-#include "linebuf.h"
 #include "settings.h"
 #include "sys.h"
 #include "gpsview.h"
@@ -45,40 +45,6 @@ static void on_change(unsigned what, void *user)
 {
 	(void)user;
 	changes |= what;
-}
-
-/* ------------------------------------------------------------ linebuf */
-
-static char got[8][64];
-static int ngot;
-
-static void collect(char *line, void *user)
-{
-	(void)user;
-	if (ngot < 8)
-		snprintf(got[ngot++], sizeof(got[0]), "%s", line);
-}
-
-static void test_linebuf(void)
-{
-	static struct linebuf b;
-	char big[LINEBUF_SIZE + 100];
-
-	ngot = 0;
-	linebuf_feed(&b, "state ACQ", 9, collect, NULL);
-	CHECK(ngot == 0);
-	linebuf_feed(&b, "UIRING x\nok\r\nhal", 16, collect, NULL);
-	CHECK(ngot == 2 && !strcmp(got[0], "state ACQUIRING x") && !strcmp(got[1], "ok"));
-	linebuf_feed(&b, "f\n", 2, collect, NULL);
-	CHECK(ngot == 3 && !strcmp(got[2], "half"));
-	/* an over-long line is dropped whole, the next one survives */
-	memset(big, 'x', sizeof(big));
-	linebuf_feed(&b, big, sizeof(big), collect, NULL);
-	linebuf_feed(&b, big, 50, collect, NULL);
-	linebuf_feed(&b, "\nnext\n", 6, collect, NULL);
-	CHECK(ngot == 4 && !strcmp(got[3], "next") && b.dropped == 1);
-	linebuf_feed(&b, "\n", 1, collect, NULL);
-	CHECK(ngot == 5 && got[4][0] == 0);
 }
 
 /* ------------------------------------------------------------ parsers */
@@ -1739,7 +1705,6 @@ int main(void)
 		return 1;
 	fakeloop_init(false);
 	sys_on_change(on_change, NULL);
-	test_linebuf();
 	test_parsers();
 	test_gps();
 	test_gps_view_parsers();

@@ -342,6 +342,42 @@ static void test_client(void)
 	CHECK(strcmp(buf, "watch\nlease map\nlease ride\n") == 0);
 	CHECK(g_logs == 1);	/* the unknown proto was logged once */
 
+	/* leases wanted on and off faster than the manager answers: once the
+	 * unanswered requests can no longer be tracked, logged once and the
+	 * connection starts over (which asks for the wanted leases again) */
+	say(m, "{\"type\":\"ok\",\"cmd\":\"lease\",\"kind\":\"map\",\"held\":1}\n"
+	    "{\"type\":\"ok\",\"cmd\":\"lease\",\"kind\":\"ride\",\"held\":1}\n");
+	pump(&gc, t);
+	CHECK(gc.nfifo == 0);
+	gpsclient_want_lease(&gc, GPSC_LEASE_RIDE, false, t);
+	for (int i = 0; i < 4; i++) {
+		gpsclient_want_lease(&gc, GPSC_LEASE_MAP, false, t);
+		gpsclient_want_lease(&gc, GPSC_LEASE_MAP, true, t);
+	}
+	CHECK(gc.nfifo == 4 && lineclient_up(&gc.mgr) && g_logs == 1);
+	heard(m, buf, sizeof(buf));
+	gpsclient_want_lease(&gc, GPSC_LEASE_MAP, false, t);
+	gpsclient_want_lease(&gc, GPSC_LEASE_MAP, true, t);
+	CHECK(!lineclient_up(&gc.mgr) && gc.state == GPSC_NONE && gc.nfifo == 0);
+	CHECK(g_logs == 2 && strstr(g_log, "4 lease requests unanswered; reconnecting"));
+	heard(m, buf, sizeof(buf));	/* the manager sees the connection end */
+	close(m);
+	t += 1000;
+	gpsclient_tick(&gc, t);
+	pump(&gc, t);
+	m = accept_one(lfd);
+	CHECK(m >= 0);
+	say(m, HELLO OK_WATCH SWITCH("true") STATE("OFF", "null", "null"));
+	pump(&gc, t);
+	heard(m, buf, sizeof(buf));
+	CHECK(strcmp(buf, "watch\nlease map\n") == 0 && gc.nfifo == 1);
+	/* the second overflow is not logged again */
+	for (int i = 0; i < 4; i++) {
+		gpsclient_want_lease(&gc, GPSC_LEASE_MAP, false, t);
+		gpsclient_want_lease(&gc, GPSC_LEASE_MAP, true, t);
+	}
+	CHECK(!lineclient_up(&gc.mgr) && g_logs == 2);
+
 	gpsclient_stop(&gc, t);
 	CHECK(gc.state == GPSC_NONE && gpsclient_deadline(&gc) == -1);
 	CHECK(gc.mgr.fd < 0 && gc.gpsd.fd < 0);

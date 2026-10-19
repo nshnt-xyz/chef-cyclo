@@ -72,7 +72,7 @@ common_objs = $(patsubst %.c,$(B)/$(1)/common/%.o,$(COMMON_SRCS))
 FONT_SRCS := $(sort $(wildcard kit/fonts/chefkit_*.c))
 KIT_SRCS := kit/theme.c kit/widgets.c kit/blocks.c kit/keyboard.c $(FONT_SRCS)
 SYS_SRCS := sys/sysstate.c sys/settings.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c sys/gpsclient.c sys/lcwatch.c \
-	 sys/storage.c sys/storage_usage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c sys/timeview.c sys/deviceinfo.c sys/feedback.c sys/als.c sys/alsclient.c
+	 sys/storage.c sys/storage_usage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c sys/blesclient.c sys/timeview.c sys/deviceinfo.c sys/feedback.c sys/als.c sys/alsclient.c
 # the system bus clients (sd-bus): basu on the phone, libsystemd on a PC
 NETBUS_SRCS := sys/netbus.c sys/wifi.c
 APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_wifi.c \
@@ -80,7 +80,7 @@ APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_
 	apps/settings/page_storage.c apps/settings/page_about.c \
 	apps/settings/policy.c apps/settings/text.c apps/settings/prompt.c
 KIT_HDRS := kit/theme.h kit/widgets.h kit/fonts.h kit/icons.h sys/sysstate.h sys/sys.h \
-	sys/settings.h sys/storage_usage.h sys/sha256.h sys/linebuf.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/gpsclient.h sys/lcwatch.h sys/blesens.h sys/timeview.h sys/deviceinfo.h sys/feedback.h sys/als.h apps/settings/app.h \
+	sys/settings.h sys/storage_usage.h sys/sha256.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/gpsclient.h sys/lcwatch.h sys/blesens.h sys/blesclient.h sys/timeview.h sys/deviceinfo.h sys/feedback.h sys/als.h apps/settings/app.h \
 	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h apps/settings/prompt.h
 HDRS += $(KIT_HDRS)
 ifneq ($(SDBUS_LIBS),)
@@ -205,13 +205,20 @@ $(T)/test-gpsclient: tests/test_gpsclient.c $(GPSCLIENT_SRCS) sys/gpsclient.h sy
 	@mkdir -p $(T)
 	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_gpsclient.c $(GPSCLIENT_SRCS) -lm
 
+BLESCLIENT_SRCS := sys/blesclient.c ../common/lineclient.c ../common/json.c
+
+$(T)/test-blesclient: tests/test_blesclient.c $(BLESCLIENT_SRCS) sys/blesclient.h \
+		../common/lineclient.h ../common/json.h tests/check.h
+	@mkdir -p $(T)
+	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_blesclient.c $(BLESCLIENT_SRCS) -lm
+
 $(T)/test-copy: tests/test_copy.c copy.c copy.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_copy.c copy.c
 
 $(T)/test-als: tests/test_als.c sys/als.c sys/als.h sys/settings.h tests/check.h
 	@mkdir -p $(T)
-	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_als.c sys/als.c -lm
+	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_als.c sys/als.c -lm
 
 $(T)/test-plan: tests/test_plan.c plan.c plan.h copy.h tests/check.h
 	@mkdir -p $(T)
@@ -288,7 +295,7 @@ $(T)/test-wifi: tests/test_wifi.c $(FAKELOOP) $(SYSUI_OBJS) $(NETBUS_OBJS) $(T)/
 		$(SYSUI_OBJS) $(NETBUS_OBJS) $(T)/liblvgl.a -lm -pthread $(SDBUS_LIBS) \
 		-Wl,--wrap=getrandom
 
-TESTS := $(T)/test-gpsclient $(T)/test-copy $(T)/test-plan $(T)/test-touch $(T)/test-buttons $(T)/test-fbscreen $(T)/test-chefui \
+TESTS := $(T)/test-gpsclient $(T)/test-blesclient $(T)/test-copy $(T)/test-plan $(T)/test-touch $(T)/test-buttons $(T)/test-fbscreen $(T)/test-chefui \
 	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app $(T)/test-als $(T)/test-alsclient $(T)/test-prompt
 ifneq ($(SDBUS_LIBS),)
 TESTS += $(T)/test-netbus $(T)/test-wifi
@@ -296,6 +303,7 @@ endif
 
 test: check-lvgl $(TESTS)
 	$(T)/test-gpsclient
+	$(T)/test-blesclient
 	$(T)/test-copy
 	$(T)/test-plan
 	$(T)/test-touch

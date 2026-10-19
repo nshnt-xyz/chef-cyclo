@@ -64,8 +64,10 @@ ink). A theme switch restyles every widget in place.
 
 ## Ambient light (M5)
 
-`sys/als.c` (pure logic, `test-als`) and `sys/alsclient.c` (the `sensord`
-client, `test-alsclient`) drive Auto brightness and theme Auto.
+`sys/als.c` (pure logic, `test-als`, built without LVGL) and
+`sys/alsclient.c` (the `sensord` client on a `tools/common/lineclient`,
+its lines read with the shared JSON reader, `test-alsclient`) drive Auto
+brightness and theme Auto.
 
 **Claim rules.** The UI claims `illuminance` at 5 Hz on `/run/sensord.sock`
 (`--sensord-sock PATH`) only while the screen is on and Auto brightness or
@@ -602,9 +604,11 @@ All on the chefui loop, nonblocking, none polling while idle:
   ignored), `DeviceAdded/Removed` and `InterfacesAdded/Removed`, coalesced
   over 100 ms. A lost bus is closed (not flushed) and reopened with backoff
   1 s doubling to 10 s.
-- **BLE sensors** (`sys/blesens.c`): a nonblocking watch connection to
-  `/run/blesensd.sock`, retrying from 1 to 8 seconds when absent; structured
-  JSON updates for records, values, advertisements and our pairing.
+- **BLE sensors** (`sys/blesclient.c`, no LVGL, with `sys/blesens.c` its
+  chefui wrapper through `sys/lcwatch.c`): a nonblocking watch connection
+  to `/run/blesensd.sock` (a `tools/common/lineclient`), retrying from 1 to
+  8 seconds when absent; structured JSON updates, read with the shared
+  reader, for records, values, advertisements and our pairing.
 - **Storage**: the ownership check and `statvfs` on hub entry, run on the
   persistence worker below (never on the UI thread).
 - **Wi-Fi pages** (`sys/wifi.c`, the pure parts in `sys/wifi_model.c`):
@@ -649,6 +653,7 @@ subtitles, page stack, power policy, auto-sleep), `test-netbus` (a fake
 NetworkManager and BlueZ on a private dbus-daemon; skipped without
 libsystemd and dbus-daemon; `test-sys` also has the GPS page's lease, switch
 and view against a fake gps-manager and gpsd, and the gpsd TPV/SKY parsers),
+`test-blesclient` (`sys/blesclient.c` without LVGL against a fake blesensd),
 `test-gpsclient` (`sys/gpsclient.c` built without LVGL's include path,
 driven with an injected clock and its own `poll()`: the manager's lines,
 reconnect deadlines, both lease kinds, the switch, gpsd, staleness), `test-wifi` (`sys/wifi.c` against

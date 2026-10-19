@@ -3,7 +3,9 @@
  * registered with chefui_watch_fd() (registered again whenever the fd or
  * its events change) and one one-shot lv_timer at lineclient_deadline().
  * The fd callback runs lineclient_handle(), the timer lineclient_tick(),
- * both with the monotonic clock, then the `after` hook, which must sync
+ * both with the owner's clock (CLOCK_MONOTONIC ms unless it passes its
+ * own, as the ALS client does with chefui's LVGL tick), then the `after`
+ * hook, which must sync
  * every lcwatch the call may have changed (a client's callbacks can start
  * or stop another client: gps-manager's state starts gpsd).
  *
@@ -22,6 +24,7 @@
 
 struct lcwatch {
 	struct lineclient *lc;
+	int64_t (*now)(void);		/* the clock the client runs on */
 	void (*after)(void *user);	/* NULL: lcwatch_sync() of this one */
 	void *user;
 	int fd;				/* registered, -1 none */
@@ -30,7 +33,10 @@ struct lcwatch {
 	int64_t timer_at;		/* the deadline the timer is set for */
 };
 
-void lcwatch_init(struct lcwatch *w, struct lineclient *lc, void (*after)(void *user), void *user);
+/* NOW NULL: lcwatch_now(). Every call of the owner into LC must use the
+ * same clock. */
+void lcwatch_init(struct lcwatch *w, struct lineclient *lc, int64_t (*now)(void),
+		  void (*after)(void *user), void *user);
 /* The registration and the timer brought in line with the client. */
 void lcwatch_sync(struct lcwatch *w);
 /* The same for N watches: every stale fd unregistered first. */

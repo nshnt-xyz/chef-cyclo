@@ -22,23 +22,26 @@
  * one-shot timer runs it at its next deadline (theme holds, smoothing), no
  * timer at steady light.
  *
- * Nonblocking connect and reads on the chefui loop, like gps.c. Nothing
- * here logs a sample; an err line is logged once per distinct text.
+ * The connection is a ../common/lineclient on the chefui loop (lcwatch),
+ * on chefui's LVGL tick like the timers here; sensord's lines are read
+ * with the shared JSON reader. They are still sensord's pre-envelope
+ * shapes ({"hello":...}, {"ok":"claim",...}, {"ok":"status",...},
+ * {"err":"..."}, {"dropped":N}, typeless samples): standard interfaces
+ * step 4 changes sensord and this client together. Nothing here logs a
+ * sample; an err line is logged once per distinct text.
  */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <math.h>
-#include <poll.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
+#include <time.h>
 
 #include "als.h"
 #include "chefui.h"
-#include "linebuf.h"
+#include "common/json.h"
+#include "common/lineclient.h"
+#include "lcwatch.h"
 #include "sys.h"
 #include "sysstate.h"
 
@@ -46,16 +49,13 @@
 #define ALS_RATE_STR "5"	/* Hz */
 #define BACKOFF_MIN_MS 1000
 #define BACKOFF_MAX_MS 30000
-#define READS_PER_WAKEUP 4
 
 static struct {
-	char sock[108];
 	bool running, want;
-	int fd;
-	bool connecting, claimed, acked, smgr_ready, status_pending;
-	int backoff_ms;
-	lv_timer_t *retry, *tick, *probe, *reply;
-	struct linebuf lb;
+	bool claimed, acked, smgr_ready, status_pending;
+	struct lineclient lc;
+	struct lcwatch w;
+	lv_timer_t *tick, *probe, *reply;
 	struct als als;
 	sys_als_cb cb;
 	void *cb_user;
@@ -64,7 +64,7 @@ static struct {
 	int64_t tick_base;
 	int64_t claim_ns;	/* CLOCK_MONOTONIC when the claim line was sent */
 	bool stale_logged;	/* the dropped-sample line was logged for this claim */
-} A = { .fd = -1, .als = { .applied = -1, .above_since = -1, .below_since = -1 } };
+} A = { .lc = { .fd = -1 }, .w = { .fd = -1 }, .als = { .applied = -1, .above_since = -1, .below_since = -1 } };
 
 /* chefui monotonic ms, extended past the 32-bit LVGL tick wrap */
 static int64_t now_ms(void)
@@ -98,29 +98,16 @@ bool sys_als_sample_stale(int64_t t_ns, int64_t claim_ns)
 
 int sys_als_parse_sample_t(const char *line, double *lux, int64_t *t_ns)
 {
-	static const char head[] = "{\"sensor\":\"illuminance\"";
-	const char *p;
-	char *end;
+	struct json_obj o;
+	char sensor[16];
 	double v;
+	long t;
 
-	if (strncmp(line, head, sizeof(head) - 1))
-		return -1;
-	p = strstr(line + sizeof(head) - 1, "\"illuminance\":");
-	if (!p)
-		return -1;
-	p += 14;
-	v = strtod(p, &end);
-	if (end == p || !isfinite(v) || v < 0)
+	if (json_parse(&o, line, strlen(line)) || !json_get_string(&o, "sensor", sensor, sizeof(sensor)) ||
+	    strcmp(sensor, "illuminance") || !json_get_double(&o, "illuminance", &v) || !isfinite(v) || v < 0)
 		return -1;
 	*lux = v;
-	*t_ns = -1;
-	p = strstr(line + sizeof(head) - 1, "\"t\":");
-	if (p) {
-		long long t = strtoll(p + 4, &end, 10);
-
-		if (end != p + 4 && t >= 0)
-			*t_ns = t;
-	}
+	*t_ns = json_get_long(&o, "t", &t) && t >= 0 ? (int64_t)t : -1;
 	return 0;
 }
 
@@ -170,7 +157,7 @@ static void tick_rearm(void)
 
 static void avail_update(void)
 {
-	bool on = A.fd >= 0 && !A.connecting && A.claimed && A.acked && A.smgr_ready;
+	bool on = lineclient_up(&A.lc) && A.claimed && A.acked && A.smgr_ready;
 
 	if (sys_state.als.available != on) {
 		sys_state.als.available = on;
@@ -186,15 +173,12 @@ static void timer_del(lv_timer_t **t)
 	}
 }
 
-static void conn_close(void)
+/* The connection went (whatever ended it): the stream with it. */
+static void conn_lost(struct lineclient *lc, int64_t now)
 {
-	if (A.fd >= 0) {
-		chefui_unwatch_fd(A.fd);
-		close(A.fd);
-		A.fd = -1;
-	}
-	A.connecting = A.claimed = A.acked = A.smgr_ready = A.status_pending = false;
-	linebuf_reset(&A.lb);
+	(void)lc;
+	(void)now;
+	A.claimed = A.acked = A.smgr_ready = A.status_pending = false;
 	timer_del(&A.probe);
 	timer_del(&A.reply);
 	als_stream_restart(&A.als);	/* no stream: the held lux and its holds are gone */
@@ -202,31 +186,19 @@ static void conn_close(void)
 	avail_update();
 }
 
-static void connect_start(void);
-
-static void retry_fired(lv_timer_t *t)
-{
-	(void)t;
-	A.retry = NULL;
-	if (A.running && A.want)
-		connect_start();
-}
-
+/* Close; the retry follows the backoff, only while wanted. */
 static void conn_retry_later(void)
 {
-	conn_close();
-	if (A.retry || !A.running || !A.want)
-		return;
-	A.retry = lv_timer_create(retry_fired, (uint32_t)A.backoff_ms, NULL);
-	lv_timer_set_repeat_count(A.retry, 1);
-	A.backoff_ms = A.backoff_ms * 2 > BACKOFF_MAX_MS ? BACKOFF_MAX_MS : A.backoff_ms * 2;
+	lineclient_close(&A.lc, now_ms());
 }
 
 static void conn_cancel(void)
 {
-	conn_close();
-	timer_del(&A.retry);
-	A.backoff_ms = BACKOFF_MIN_MS;
+	bool up = lineclient_up(&A.lc);
+
+	lineclient_stop(&A.lc, now_ms());	/* backoff back to 1 s */
+	if (!up)
+		conn_lost(&A.lc, now_ms());	/* connecting or waiting: the same clean slate */
 }
 
 static void reply_fired(lv_timer_t *t)
@@ -235,18 +207,15 @@ static void reply_fired(lv_timer_t *t)
 	A.reply = NULL;
 	chefui_log("als: no answer from sensord in %d s; reconnecting", ALS_REPLY_MS / 1000);
 	conn_retry_later();
+	lcwatch_sync(&A.w);
 }
 
 static void send_status(void)
 {
-	static const char req[] = "status\n";
-
-	if (A.fd < 0 || !A.acked || A.status_pending)
+	if (!lineclient_up(&A.lc) || !A.acked || A.status_pending)
 		return;
-	if (send(A.fd, req, sizeof(req) - 1, MSG_NOSIGNAL | MSG_DONTWAIT) != (ssize_t)sizeof(req) - 1) {
-		conn_retry_later();
-		return;
-	}
+	if (lineclient_send(&A.lc, "status\n", now_ms()))
+		return;	/* broken: closed, retried */
 	A.status_pending = true;
 	A.reply = lv_timer_create(reply_fired, ALS_REPLY_MS, NULL);
 	lv_timer_set_repeat_count(A.reply, 1);
@@ -256,27 +225,27 @@ static void probe_fired(lv_timer_t *t)
 {
 	(void)t;
 	send_status();
+	lcwatch_sync(&A.w);
 }
 
-static void sensord_line(char *line, void *user)
+static void sensord_line(struct lineclient *lc, char *line, size_t len, int64_t now)
 {
+	struct json_obj o;
 	struct als_event ev;
+	char ok[16], text[sizeof(A.last_err)];
 	double lux;
 	int64_t t_ns;
 
-	(void)user;
-	if (!strncmp(line, "{\"hello\":", 9)) {
-		static const char claim[] = "claim illuminance " ALS_RATE_STR "\n";
-
-		if (!A.claimed && send(A.fd, claim, sizeof(claim) - 1, MSG_NOSIGNAL | MSG_DONTWAIT) ==
-				  (ssize_t)sizeof(claim) - 1) {
+	(void)now;
+	if (json_parse(&o, line, len))
+		return;		/* not one JSON object: not ours to act on */
+	if (json_find(&o, "hello")) {
+		if (!A.claimed && !lineclient_send(lc, "claim illuminance " ALS_RATE_STR "\n", now_ms())) {
 			A.claimed = true;
 			A.claim_ns = mono_ns();
 			A.stale_logged = false;
 			als_stream_restart(&A.als);
-		} else if (!A.claimed) {
-			conn_retry_later();
-		}
+		}	/* a failed send closed the connection: retried */
 		return;
 	}
 	if (!sys_als_parse_sample_t(line, &lux, &t_ns)) {
@@ -294,7 +263,7 @@ static void sensord_line(char *line, void *user)
 		tick_rearm();
 		return;
 	}
-	if (!strncmp(line, "{\"ok\":\"claim\"", 13)) {
+	if (json_get_string(&o, "ok", ok, sizeof(ok)) && !strcmp(ok, "claim")) {
 		if (A.claimed && !A.acked) {
 			A.acked = true;
 			timer_del(&A.reply);	/* the connect-to-ack deadline is met */
@@ -304,26 +273,27 @@ static void sensord_line(char *line, void *user)
 		}
 		return;
 	}
-	if (!strncmp(line, "{\"ok\":\"status\"", 14)) {
+	if (json_get_string(&o, "ok", ok, sizeof(ok)) && !strcmp(ok, "status")) {
 		if (A.status_pending) {
+			char smgr[16];
+
 			A.status_pending = false;
 			timer_del(&A.reply);
-			A.smgr_ready = strstr(line, "\"smgr\":\"ready\"") != NULL;
+			A.smgr_ready = json_get_string(&o, "smgr", smgr, sizeof(smgr)) && !strcmp(smgr, "ready");
 			if (A.smgr_ready)
-				A.backoff_ms = BACKOFF_MIN_MS;
+				lineclient_healthy(lc);
 			avail_update();
 		}
 		return;
 	}
-	if (!strncmp(line, "{\"err\":", 7)) {
-		char text[sizeof(A.last_err)] = "";
-		const char *q = line + 7;
+	if (json_find(&o, "err")) {
+		/* the text (cut to fit), "" when it is not a string */
+		const struct json_member *m = json_find(&o, "err");
+		char raw[256];
 
-		if (*q == '"') {
-			size_t n = strcspn(q + 1, "\"");
-
-			snprintf(text, sizeof(text), "%.*s", (int)n, q + 1);
-		}
+		text[0] = '\0';
+		if (m->type == JSON_STRING && json_span_string(m->type, m->val, raw, sizeof(raw)))
+			snprintf(text, sizeof(text), "%.*s", (int)sizeof(text) - 1, raw);
 		if (strcmp(text, A.last_err)) {
 			snprintf(A.last_err, sizeof(A.last_err), "%s", text);
 			chefui_log("als: sensord error: %s", text);
@@ -333,62 +303,20 @@ static void sensord_line(char *line, void *user)
 	/* {"dropped":N}, anything else: not ours to act on */
 }
 
-static void als_io(int fd, short revents, void *user)
+/* Connected: the same deadline covers the hello and the claim acknowledgment. */
+static void sensord_connected(struct lineclient *lc, int64_t now)
 {
-	char buf[4096];
-
-	(void)user;
-	if (A.connecting) {
-		int err = 0;
-		socklen_t l = sizeof(err);
-
-		if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &l) || err ||
-		    (revents & (POLLERR | POLLHUP))) {
-			conn_retry_later();
-			return;
-		}
-		A.connecting = false;
-		chefui_watch_fd(fd, POLLIN, als_io, NULL);
-		return;
-	}
-	for (int i = 0; i < READS_PER_WAKEUP && A.fd >= 0; i++) {
-		ssize_t n = recv(A.fd, buf, sizeof(buf), MSG_DONTWAIT);
-
-		if (n < 0 && errno == EINTR)
-			continue;
-		if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
-			return;
-		if (n <= 0) {
-			conn_retry_later();
-			return;
-		}
-		linebuf_feed(&A.lb, buf, (size_t)n, sensord_line, NULL);
-	}
+	(void)lc;
+	(void)now;
+	timer_del(&A.reply);
+	A.reply = lv_timer_create(reply_fired, ALS_REPLY_MS, NULL);
+	lv_timer_set_repeat_count(A.reply, 1);
 }
 
 static void connect_start(void)
 {
-	struct sockaddr_un sa = { .sun_family = AF_UNIX };
-	int fd;
-
-	if (A.fd >= 0)
-		return;
-	snprintf(sa.sun_path, sizeof(sa.sun_path), "%s", A.sock);
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-	if (fd < 0) {
-		conn_retry_later();
-		return;
-	}
-	A.fd = fd;
-	if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) && errno != EINPROGRESS) {
-		conn_retry_later();	/* ENOENT/ECONNREFUSED: not there yet */
-		return;
-	}
-	A.connecting = true;
-	chefui_watch_fd(fd, POLLOUT, als_io, NULL);
-	/* the same deadline covers connect, hello and the claim acknowledgment */
-	A.reply = lv_timer_create(reply_fired, ALS_REPLY_MS, NULL);
-	lv_timer_set_repeat_count(A.reply, 1);
+	lineclient_start(&A.lc, now_ms());
+	lcwatch_sync(&A.w);
 }
 
 /* ----------------------------------------------------------- interface */
@@ -399,17 +327,24 @@ int sys_als_start(const char *sock, const struct als_params *p)
 	sys_als_cb cb = A.cb;
 	void *cb_user = A.cb_user;
 
+	struct lineclient_config lcfg = {
+		.path = sock ? sock : SENSORD_SOCK, .backoff_min_ms = BACKOFF_MIN_MS,
+		.backoff_max_ms = BACKOFF_MAX_MS, .on_connected = sensord_connected,
+		.on_line = sensord_line, .on_lost = conn_lost,
+	};
+
+	if (A.running)
+		sys_als_stop();
 	memset(&A, 0, sizeof(A));
 	A.cb = cb;
 	A.cb_user = cb_user;
-	snprintf(A.sock, sizeof(A.sock), "%s", sock ? sock : SENSORD_SOCK);
 	if (!p) {
 		als_params_default(&def);
 		p = &def;
 	}
 	als_init(&A.als, p);
-	A.fd = -1;
-	A.backoff_ms = BACKOFF_MIN_MS;
+	lineclient_init(&A.lc, &lcfg);
+	lcwatch_init(&A.w, &A.lc, now_ms, NULL, NULL);
 	A.running = true;
 	memset(&sys_state.als, 0, sizeof(sys_state.als));
 	return 0;
@@ -417,9 +352,13 @@ int sys_als_start(const char *sock, const struct als_params *p)
 
 void sys_als_stop(void)
 {
+	if (!A.running)
+		return;
 	A.running = false;
 	A.want = false;
 	conn_cancel();
+	lcwatch_fini(&A.w);
+	timer_del(&A.tick);
 }
 
 void sys_als_want(bool want)
@@ -433,6 +372,7 @@ void sys_als_want(bool want)
 		connect_start();
 	else
 		conn_cancel();
+	lcwatch_sync(&A.w);
 }
 
 bool sys_als_wanted(void)

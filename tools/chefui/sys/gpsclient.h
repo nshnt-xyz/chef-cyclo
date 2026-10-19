@@ -80,7 +80,7 @@ struct gpsclient {
 	int64_t start_ms, first_fix_ms;	/* read: the bring-up and its first fix, 0 none */
 	int64_t lease_ms[GPSC_NLEASE];	/* read: when the wanted lease was asked, 0 none */
 	struct gps_view view;		/* read: only fed while the view is wanted */
-	bool want[GPSC_NLEASE], want_view, watching, proto_warned;
+	bool want[GPSC_NLEASE], want_view, watching, proto_warned, fifo_warned;
 	bool held[GPSC_NLEASE];		/* asked (or held) on this connection */
 	int fifo[2 * GPSC_NLEASE], nfifo;	/* kinds of lease requests not answered yet */
 	int64_t sats_at;		/* the last full SKY, 0 none */
