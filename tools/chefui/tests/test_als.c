@@ -6,7 +6,7 @@
 
 #include "als.h"
 #include "check.h"
-#include "settings.h"
+#include "settings_file.h"
 
 #define STEP 200	/* ms between samples when a test feeds a steady 5 Hz */
 

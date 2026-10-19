@@ -542,6 +542,43 @@ theme, auto-sleep, zone). At shutdown init detaches `/data` before it
 signals processes, so a change made in the last 2 s before a shutdown is
 not saved.
 
+**Reading the settings from another program.** The file is
+`tools/chefui/sys/settings_file.{h,c}` (no LVGL, no threads: the defaults,
+the checks, parse and format, the `/data` rule and `ui_settings_read()`);
+chef-settings' store (`settings.c`, the worker above) is built on it, and a
+second reader such as the ride recorder links it alone. The contract:
+
+- `chef-settings` is the only writer. Readers never write, lock or create
+  the file or its directory (`ui_settings_read()` only opens the file
+  read-only).
+- Which file: `/data/v1/ui/settings` when `/data` is ours (a mount point
+  whose `chef-layout` is exactly `chef-cyclo-data-v1`, trailing newlines
+  allowed: the `chef-state ours` rule), else `/run/ui/settings`. The writer
+  moves from `/run` to `/data` when `/data` becomes ours later (above), and
+  it writes nothing when a valid `/data` file wins, so a reader re-applies
+  the rule on every reload and, while on `/run`, also re-applies it when the
+  mount table changes (`poll()` on `/proc/self/mountinfo` for `POLLPRI`,
+  the standard Linux mount-change signal) and at least every 30 s, as the
+  writer does; the 30 s re-check alone is enough to conform.
+- Changes: the writer renames a temp file over `settings`, so a reader
+  watches the `ui` directory with inotify (`IN_MOVED_TO`, `IN_CLOSE_WRITE`,
+  `IN_CREATE` for the name `settings`), watches the parent while `ui` does
+  not exist yet, and re-reads the whole file on each event. It never keeps
+  the file open.
+- Checks: the same as chef-settings (`ui_settings_parse()`): the version
+  line (1, 2 or 3), every line in order with canonical numbers and its
+  range, no extra lines, no NUL bytes, a final newline and the `sha256`
+  line over everything before it; the file at most `UI_SETTINGS_MAX_BYTES`
+  (4096) and a regular file, not followed through a link. A file that fails
+  gives the defaults (`ui_settings_defaults()`), as chef-settings does; a
+  missing one (`-ENOENT`) too.
+- Access: the file is 0600 and its directory 0700, owned by root. A reader
+  runs as root until standard interfaces step 8 (daemon users), which must
+  give readers a group.
+- The fields a second reader uses: the ride recorder takes `alert_volume`,
+  `alert_sounds`, `haptics` and `quiet_paused`. The inotify reader itself
+  lands with ride slice 1, its first consumer, built on `settings_file.c`.
+
 ## Boot and crash recovery
 
 inittab respawns `/usr/bin/chef-settings` after buttond and powerd. It takes
@@ -654,6 +691,10 @@ NetworkManager and BlueZ on a private dbus-daemon; skipped without
 libsystemd and dbus-daemon; `test-sys` also has the GPS page's lease, switch
 and view against a fake gps-manager and gpsd, and the gpsd TPV/SKY parsers),
 `test-blesclient` (`sys/blesclient.c` without LVGL against a fake blesensd),
+`test-settings-file` (a stand-alone reader from `sys/settings_file.c` and
+`sys/sha256.c` alone, without LVGL's include path: the `/data` rule, files
+from `ui_settings_format()`, v1 and v2, a bad sha256, over-long, a FIFO, a
+link and a directory in its place, nothing created),
 `test-gpsclient` (`sys/gpsclient.c` built without LVGL's include path,
 driven with an injected clock and its own `poll()`: the manager's lines,
 reconnect deadlines, both lease kinds, the switch, gpsd, staleness), `test-wifi` (`sys/wifi.c` against

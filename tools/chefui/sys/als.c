@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #include "als.h"
-#include "settings.h"
+#include "settings_file.h"
 
 /* Lux -> percent anchors, piecewise linear in log10(lux + 1). A starting
  * point: a room at 250 to 320 lux measured live gives about 30 %. */
