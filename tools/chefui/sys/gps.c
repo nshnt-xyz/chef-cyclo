@@ -1,17 +1,19 @@
 /*
  * gps.c - GPS state for the status bar and hub tile, and the GPS pages.
  *
- * gps-manager (docs/features/gps.md): a `watch` connection on
- * /run/gps-manager.sock. DISABLED = the switch is off, OFF/STOPPING = on
- * and idle, FAILED = failed, STARTING/ACQUIRING = searching, RUNNING =
- * fix; "enabled 0|1" lines carry the switch. Reconnected with backoff (1 s
- * doubling to 8 s) when the manager is not there or goes away.
+ * gps-manager (docs/features/gps.md "Socket contract", JSON lines read
+ * with ../common/json.h): a `watch` connection on /run/gps-manager.sock.
+ * Its "state" lines: DISABLED = the switch is off, OFF/STOPPING = on and
+ * idle, FAILED = failed, STARTING/ACQUIRING = searching, RUNNING = fix,
+ * with the bring-up's age and first fix; "switch" lines carry the switch.
+ * Reconnected with backoff (1 s doubling to 8 s) when the manager is not
+ * there or goes away.
  *
  * No lease, except while the GPS page asks (sys_gps_watch): then the same
  * connection holds one "map" lease (sent again after a reconnect or when
- * the switch comes back on; "err disabled" means none is held), released
- * when the page lets go. A lease lives on its connection, so a crash of
- * the app releases it too.
+ * the switch comes back on; an error with reason "disabled" means none is
+ * held), released when the page lets go. A lease lives on its connection,
+ * so a crash of the app releases it too.
  *
  * gpsd (127.0.0.1:2947): ?WATCH JSON while RUNNING for TPV mode and eph
  * ("3D fix · ±3 m"), and while the page watches also during ACQUIRING,
@@ -37,12 +39,14 @@
 #include <time.h>
 
 #include "chefui.h"
+#include "common/json.h"
 #include "gpsview.h"
 #include "linebuf.h"
 #include "sys.h"
 #include "sysstate.h"
 
 #define MGR_SOCK "/run/gps-manager.sock"
+#define MGR_PROTO 1
 #define GPSD_PORT 2947
 #define BACKOFF_MIN_MS 1000
 #define MGR_BACKOFF_MAX_MS 8000
@@ -68,6 +72,7 @@ static struct {
 	bool watch;		/* the GPS page wants a lease and the view */
 	bool lease_sent;	/* "lease map" sent on this connection, not refused */
 	bool watching;		/* "watch" answered on this connection */
+	bool proto_warned;	/* an unknown proto was logged once */
 	int64_t acq_start_ms, acq_fix_ms;	/* the manager's bring-up (monotonic ms, 0 none) */
 	lv_timer_t *sats_stale;	/* no full SKY for GPS_SATS_STALE_MS: the satellites are cleared */
 } G;
@@ -82,7 +87,7 @@ static int64_t mono_ms(void)
 
 /* ------------------------------------------------------------- parsers */
 
-int sys_gps_parse_state(const char *line, enum sys_gps *out)
+int sys_gps_parse_mgr(const char *line, struct sys_gps_mgr_line *out)
 {
 	static const struct { const char *name; enum sys_gps s; } map[] = {
 		{ "OFF", SYS_GPS_OFF }, { "STOPPING", SYS_GPS_OFF }, { "FAILED", SYS_GPS_FAILED },
@@ -90,18 +95,48 @@ int sys_gps_parse_state(const char *line, enum sys_gps *out)
 		{ "STARTING", SYS_GPS_SEARCHING }, { "ACQUIRING", SYS_GPS_SEARCHING },
 		{ "RUNNING", SYS_GPS_RUNNING },
 	};
-	size_t n;
+	struct json_obj o;
+	char type[16], st[16];
+	bool on;
+	size_t i;
 
-	if (strncmp(line, "state ", 6))
+	memset(out, 0, sizeof(*out));
+	out->proto = out->up_ms = out->fix_ms = -1;
+	if (json_parse(&o, line, strlen(line)) || !json_get_string(&o, "type", type, sizeof(type)))
 		return -1;
-	line += 6;
-	n = strcspn(line, " ");
-	for (size_t i = 0; i < sizeof(map) / sizeof(map[0]); i++)
-		if (strlen(map[i].name) == n && !strncmp(line, map[i].name, n)) {
-			*out = map[i].s;
-			return 0;
-		}
-	return -1;
+	json_get_string(&o, "cmd", out->cmd, sizeof(out->cmd));
+	if (!strcmp(type, "hello")) {
+		out->type = SYS_GPS_MGR_HELLO;
+		json_get_long(&o, "proto", &out->proto);
+	} else if (!strcmp(type, "ok")) {
+		out->type = SYS_GPS_MGR_OK;
+	} else if (!strcmp(type, "error")) {
+		out->type = SYS_GPS_MGR_ERROR;
+		json_get_string(&o, "reason", out->reason, sizeof(out->reason));
+	} else if (!strcmp(type, "switch")) {
+		if (!json_get_bool(&o, "enabled", &on))
+			return -1;
+		out->type = SYS_GPS_MGR_SWITCH;
+		out->enabled = on;
+	} else if (!strcmp(type, "state")) {
+		if (!json_get_string(&o, "state", st, sizeof(st)))
+			return -1;
+		for (i = 0; i < sizeof(map) / sizeof(map[0]) && strcmp(st, map[i].name); i++)
+			;
+		if (i == sizeof(map) / sizeof(map[0]))
+			return -1;
+		/* null (or absent) when there is no bring-up or no fix yet */
+		if (!json_get_long(&o, "up_ms", &out->up_ms) || out->up_ms < 0 || out->up_ms > 1000000000L)
+			out->up_ms = -1;
+		if (out->up_ms < 0 || !json_get_long(&o, "fix_ms", &out->fix_ms) || out->fix_ms < 0 ||
+		    out->fix_ms > 1000000000L)
+			out->fix_ms = -1;
+		out->type = SYS_GPS_MGR_STATE;
+		out->state = map[i].s;
+	} else {
+		out->type = SYS_GPS_MGR_OTHER;
+	}
+	return 0;
 }
 
 int sys_gps_parse_tpv(const char *line, int *mode, double *eph)
@@ -127,24 +162,6 @@ int sys_gps_parse_tpv(const char *line, int *mode, double *eph)
 		if (end != p + 6 && e >= 0 && e < 1e6)
 			*eph = e;
 	}
-	return 0;
-}
-
-int sys_gps_parse_acq(const char *line, long *up_ms, long *fix_ms)
-{
-	char *end;
-	long up, fix;
-
-	if (strncmp(line, "acq ", 4))
-		return -1;
-	up = strtol(line + 4, &end, 10);
-	if (end == line + 4 || *end != ' ')
-		return -1;
-	fix = strtol(end + 1, &end, 10);
-	if (*end || up < -1 || fix < -1 || up > 1000000000L || fix > 1000000000L)
-		return -1;
-	*up_ms = up;
-	*fix_ms = fix;
 	return 0;
 }
 
@@ -394,38 +411,55 @@ static void enabled_set(int on)
 	}
 }
 
+/* One line from gps-manager: the hello's proto checked, the watch reply,
+ * a refused lease, the switch and the state (with the bring-up's times);
+ * other replies and types need nothing. */
 static void mgr_line(char *line, void *user)
 {
+	struct sys_gps_mgr_line l;
 	enum sys_gps st;
-	long up, fix;
 
 	(void)user;
-	if (!sys_gps_parse_acq(line, &up, &fix)) {
+	if (sys_gps_parse_mgr(line, &l))
+		return;		/* junk, unknown states */
+	switch (l.type) {
+	case SYS_GPS_MGR_HELLO:
+		if (l.proto != MGR_PROTO && !G.proto_warned) {
+			G.proto_warned = true;
+			chefui_log("gps-manager: unknown protocol in %s (this client speaks proto %d); carrying on",
+				   line, MGR_PROTO);
+		}
+		return;
+	case SYS_GPS_MGR_OK:
+		if (!strcmp(l.cmd, "watch")) {
+			/* the lease waits for the switch line that follows */
+			G.mgr.backoff_ms = BACKOFF_MIN_MS;
+			G.watching = true;
+		}
+		return;
+	case SYS_GPS_MGR_ERROR:
+		if (!strcmp(l.cmd, "lease") && !strcmp(l.reason, "disabled"))
+			G.lease_sent = false;	/* refused: none held */
+		return;
+	case SYS_GPS_MGR_SWITCH:
+		enabled_set(l.enabled);
+		lease_sync();		/* on again: lease again if it was refused */
+		return;
+	case SYS_GPS_MGR_STATE:
+		break;
+	default:
+		return;
+	}
+	{
 		int64_t now = mono_ms();
 
-		G.acq_start_ms = up >= 0 ? now - up : 0;
-		G.acq_fix_ms = up >= 0 && fix >= 0 ? G.acq_start_ms + fix : 0;
+		G.acq_start_ms = l.up_ms >= 0 ? now - l.up_ms : 0;
+		G.acq_fix_ms = l.up_ms >= 0 && l.fix_ms >= 0 ? G.acq_start_ms + l.fix_ms : 0;
 		gps_view.start_ms = G.acq_start_ms;
 		gps_view.first_fix_ms = G.acq_fix_ms;
 		sys_changed(SYS_GPS_VIEW);
-		return;
 	}
-	if (!strncmp(line, "ok watch", 8)) {
-		/* the lease waits for the switch line that follows */
-		G.mgr.backoff_ms = BACKOFF_MIN_MS;
-		G.watching = true;
-	}
-	if (!strcmp(line, "err disabled")) {
-		G.lease_sent = false;	/* refused: none held */
-		return;
-	}
-	if (!strcmp(line, "enabled 0") || !strcmp(line, "enabled 1")) {
-		enabled_set(line[8] == '1');
-		lease_sync();		/* on again: lease again if it was refused */
-		return;
-	}
-	if (sys_gps_parse_state(line, &st))
-		return;		/* ok/err replies, unknown states, junk */
+	st = l.state;
 	if (st == SYS_GPS_DISABLED)
 		enabled_set(0);
 	lease_sync();		/* a manager without switch lines */

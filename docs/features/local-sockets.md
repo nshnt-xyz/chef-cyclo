@@ -7,7 +7,7 @@ Our daemons serve contracts that have no standard Linux equivalent (gesture clai
 | Socket | Daemon | On this protocol |
 |---|---|---|
 | `/run/buttond.sock` | [buttond](buttons-and-power-off.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
-| `/run/gps-manager.sock` | [gps-manager](gps.md) | not yet ([standard interfaces](../next-steps/standard-interfaces.md#order) step 3) |
+| `/run/gps-manager.sock` | [gps-manager](gps.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
 | `/run/sensord.sock`, `/run/blesensd.sock` | [sensord](sensors.md), [blesensd](bluetooth.md#ble-sensors) | not yet (step 4; both already send JSON without the envelope) |
 
 ## Requests
@@ -43,5 +43,5 @@ Compatibility rules:
 Compiled from source into each daemon and client that uses it (no archive, no phone binary of its own); `make -C tools/common test` runs its host tests, also under ASan/UBSan, and the root `make test` includes them. Each header documents its interface.
 
 - **`linesrv.{h,c}`**, the server side: `linesrv_new()` with the client limit, line maximum and queue size; `linesrv_listen()` (non-blocking, CLOEXEC, stale path unlinked, backlog 8); `linesrv_pollfds()` and `linesrv_handle()` around the daemon's own `poll()`; callbacks `on_connect` (where a daemon sends its hello), `on_line(argc, argv)` and `on_close` (exactly once per client); `linesrv_send()`/`linesrv_sendf()` (must-deliver) and `linesrv_send_lossy()`; `linesrv_close_all()` at exit. A daemon keeps its per-client state in its own array indexed by `linesrv_slot()`. A client may be dropped from inside any callback or send, also while the daemon loops over clients to broadcast. `linesrv_connect()` is the blocking connect for a daemon's command-line client.
-- **`json.{h,c}`**: `json_escape()` for writing, and the reader clients parse daemon lines with: one line into its top-level members, strict (anything but a single valid JSON object is an error), at most 32 members, nested objects and arrays as spans to parse again, no allocation.
+- **`json.{h,c}`**: `json_escape()` for writing, and the reader clients parse daemon lines with: one line into its top-level members, strict (anything but a single valid JSON object is an error), at most 128 top-level members, nested objects and arrays as spans to parse again, no allocation.
 - **`chef_log.{h,c}`**: `chef_log()` writes `<tag>: <message>` to `/dev/kmsg` (and stderr with `-v`); daemons on the library do not write kmsg themselves, so moving to syslog (step 6) changes one file.

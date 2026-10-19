@@ -9,8 +9,10 @@
  * strict: anything that is not exactly one JSON object (RFC 8259 grammar,
  * nested values validated too, at most JSON_MAX_DEPTH deep), with
  * optional whitespace around it, is an error. More than JSON_MAX_MEMBERS
- * members is an error, not a silent cut. Bytes >= 0x80 inside strings
- * pass through unchecked.
+ * top-level members is an error, not a silent cut (128: sensord's status
+ * line has 50, gpsd's TPV up to about 36). Bytes >= 0x80 inside strings
+ * pass through unchecked. A struct json_obj is about 5 KB: parse on the
+ * caller's stack or in static storage, never in a signal handler.
  *
  * Getters look a key up (the first member of that name; keys compare
  * unescaped) and are false when it is missing or of another type.
@@ -28,7 +30,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define JSON_MAX_MEMBERS 32
+#define JSON_MAX_MEMBERS 128
 #define JSON_MAX_DEPTH 16
 
 enum json_type {

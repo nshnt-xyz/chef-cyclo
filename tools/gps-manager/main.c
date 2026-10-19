@@ -93,10 +93,10 @@
  *                    hold KIND...
  *   -b  run qmicli, gpsd and nmea-broker from BINDIR (tests); default PATH
  *   -s  the chef-state command for the switch (default chef-state; tests)
- * Logs: kmsg "gps-manager:" lines (transitions, not polls); the children's
- * output in DIR (default /run/gps-manager): steps.log, gpsd.log, follow.log
- * and broker.log, each rotated to .1 at a bring-up so the run that failed is
- * kept next to its retry. RAM only.
+ * Logs: "gps-manager:" lines through chef_log (kmsg; transitions, not
+ * polls); the children's output in DIR (default /run/gps-manager):
+ * steps.log, gpsd.log, follow.log and broker.log, each rotated to .1 at a
+ * bring-up so the run that failed is kept next to its retry. RAM only.
  *
  * Files: core.c the state machine with injected operations, server.c the
  * lease server and its protocol, owner.c the owner check, /proc start
@@ -112,19 +112,18 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
 #include <sys/prctl.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/un.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
+#include "common/chef_log.h"
+#include "common/linesrv.h"
 #include "gps-manager.h"
 
 static bool g_verbose;
@@ -138,36 +137,6 @@ static int64_t now_ms(void)
 
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-}
-
-static void kmsg_note(const char *msg)
-{
-	char buf[320];
-	int fd, n;
-
-	n = snprintf(buf, sizeof(buf), "gps-manager: %s\n", msg);
-	if (n >= (int)sizeof(buf))
-		n = (int)sizeof(buf) - 1;
-	if (g_verbose)
-		fputs(buf, stderr);
-	fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
-	if (fd < 0)
-		return;
-	if (write(fd, buf, (size_t)n) < 0) {
-		/* nothing sensible to do */
-	}
-	close(fd);
-}
-
-static void notef(const char *fmt, ...)
-{
-	char buf[256];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	kmsg_note(buf);
 }
 
 struct shell {
@@ -228,18 +197,18 @@ static void shell_save(struct shell *sh)
 	snprintf(tmp, sizeof(tmp), "%s/state.tmp", sh->dir);
 	fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
 	if (fd < 0) {
-		notef("cannot write %s: %s", tmp, strerror(errno));
+		chef_log("cannot write %s: %s", tmp, strerror(errno));
 		return;
 	}
 	if (write(fd, buf, strlen(buf)) != (ssize_t)strlen(buf) || fsync(fd) != 0) {
-		notef("cannot write %s: %s; %s keeps its previous contents", tmp, strerror(errno), path);
+		chef_log("cannot write %s: %s; %s keeps its previous contents", tmp, strerror(errno), path);
 		close(fd);
 		unlink(tmp);
 		return;
 	}
 	close(fd);
 	if (rename(tmp, path) != 0) {
-		notef("cannot rename %s: %s", tmp, strerror(errno));
+		chef_log("cannot rename %s: %s", tmp, strerror(errno));
 		unlink(tmp);
 	}
 }
@@ -247,7 +216,7 @@ static void shell_save(struct shell *sh)
 static void op_log(void *ctx, const char *msg)
 {
 	(void)ctx;
-	kmsg_note(msg);
+	chef_log("%s", msg);
 }
 
 static bool op_owner(void *ctx, struct gm_owner *o)
@@ -477,7 +446,7 @@ static void shell_save_switch(struct shell *sh)
 	sh->save_pending = false;
 	pid = spawn(sh->state_cmd, argv, -1, -1, -1);
 	if (pid < 0) {
-		notef("cannot run %s gps-save: %s; the switch is not saved", sh->state_cmd, strerror(-pid));
+		chef_log("cannot run %s gps-save: %s; the switch is not saved", sh->state_cmd, strerror(-pid));
 	} else {
 		sh->save_pid = pid;
 		sh->save_until = now_ms() + GM_SAVE_TIMEOUT_MS;
@@ -489,7 +458,7 @@ static void shell_save_switch(struct shell *sh)
 static void shell_save_check(struct shell *sh)
 {
 	if (sh->save_pid > 0 && sh->save_until && now_ms() >= sh->save_until) {
-		notef("%s gps-save still running after %d s: killed; the switch may not be saved",
+		chef_log("%s gps-save still running after %d s: killed; the switch may not be saved",
 		      sh->state_cmd, GM_SAVE_TIMEOUT_MS / 1000);
 		kill(-sh->save_pid, SIGKILL);	/* its group: a lock holder dies too */
 		sh->save_until = 0;
@@ -513,7 +482,7 @@ static void shell_load_start(struct shell *sh)
 
 	sh->load_fd = -1;
 	if (pipe2(p, O_CLOEXEC) < 0) {
-		notef("pipe: %s; GPS switch taken as enabled", strerror(errno));
+		chef_log("pipe: %s; GPS switch taken as enabled", strerror(errno));
 		gm_server_set_enabled(&sh->srv, true, false);
 		return;
 	}
@@ -521,7 +490,7 @@ static void shell_load_start(struct shell *sh)
 	close(p[1]);
 	if (pid < 0) {
 		close(p[0]);
-		notef("cannot run %s gps-load: %s; GPS switch taken as enabled", sh->state_cmd, strerror(-pid));
+		chef_log("cannot run %s gps-load: %s; GPS switch taken as enabled", sh->state_cmd, strerror(-pid));
 		gm_server_set_enabled(&sh->srv, true, false);
 		return;
 	}
@@ -547,12 +516,12 @@ static void shell_load_check(struct shell *sh, bool timed_out)
 	}
 	sh->load_exited = false;
 	if (timed_out)
-		notef("%s gps-load gave no answer in %d s: GPS switch taken as enabled", sh->state_cmd,
+		chef_log("%s gps-load gave no answer in %d s: GPS switch taken as enabled", sh->state_cmd,
 		      GM_LOAD_TIMEOUT_MS / 1000);
 	else if (strcmp(sh->load_out, "enabled 0\n") == 0)
 		on = false;
 	else if (strcmp(sh->load_out, "enabled 1\n") != 0)
-		notef("%s gps-load: unexpected answer; GPS switch taken as enabled", sh->state_cmd);
+		chef_log("%s gps-load: unexpected answer; GPS switch taken as enabled", sh->state_cmd);
 	if (!sh->m.loaded)	/* a client's enable/disable since start wins */
 		gm_server_set_enabled(&sh->srv, on, false);
 }
@@ -652,7 +621,7 @@ static void shell_reap(struct shell *sh)
 		if (pid == sh->save_pid) {
 			sh->save_pid = 0;
 			if (rc)
-				notef("%s gps-save exited %d: the switch may not be saved", sh->state_cmd, rc);
+				chef_log("%s gps-save exited %d: the switch may not be saved", sh->state_cmd, rc);
 			if (sh->save_pending)
 				shell_save_switch(sh);
 			continue;
@@ -675,7 +644,7 @@ static void shell_reap(struct shell *sh)
 			sh->step_rc = rc;
 			shell_step_check(sh);
 		} else {
-			notef("%s (pid %d) exited %d", gm_child_names[c], (int)pid, rc);
+			chef_log("%s (pid %d) exited %d", gm_child_names[c], (int)pid, rc);
 			shell_save(sh);
 			gm_child_exited(&sh->m, now_ms(), (enum gm_child)c, rc);
 		}
@@ -709,10 +678,10 @@ static void shell_cleanup_previous(struct shell *sh)
 		if (!r.pid[c])
 			continue;
 		if (!gm_record_match(sh->paths.proc, &r, c)) {
-			notef("previous %s pid %d: gone or no longer ours, not signalled", gm_child_names[c], r.pid[c]);
+			chef_log("previous %s pid %d: gone or no longer ours, not signalled", gm_child_names[c], r.pid[c]);
 			continue;
 		}
-		notef("stopping the previous instance's %s (pid %d)", gm_child_names[c], r.pid[c]);
+		chef_log("stopping the previous instance's %s (pid %d)", gm_child_names[c], r.pid[c]);
 		kill(r.pid[c], c == CH_FOLLOW ? SIGINT : SIGTERM);
 		for (i = 0; i < 30 && gm_record_match(sh->paths.proc, &r, c); i++)
 			usleep(100000);
@@ -725,32 +694,9 @@ static void shell_cleanup_previous(struct shell *sh)
 	if (r.cid > 0) {
 		sh->m.stale_cid = r.cid;
 		sh->m.stale_owner = r.owner;
-		notef("previous instance held LOC CID %d (owner pid %d): releasing it when that owner is ready",
+		chef_log("previous instance held LOC CID %d (owner pid %d): releasing it when that owner is ready",
 		      r.cid, r.owner.pid);
 	}
-}
-
-static int sock_listen(const char *path)
-{
-	struct sockaddr_un sa;
-	int fd;
-
-	if (strlen(path) >= sizeof(sa.sun_path))
-		return -ENAMETOOLONG;
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-	if (fd < 0)
-		return -errno;
-	memset(&sa, 0, sizeof(sa));
-	sa.sun_family = AF_UNIX;
-	strcpy(sa.sun_path, path);
-	unlink(path);	/* only ever while holding the instance lock */
-	if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0 || chmod(path, 0660) < 0 || listen(fd, 8) < 0) {
-		int err = errno;
-
-		close(fd);
-		return -err;
-	}
-	return fd;
 }
 
 static void wake(char c)
@@ -783,18 +729,14 @@ static int64_t srv_now(void)
 	return now_ms();
 }
 
-/* One poll round: signals, children, step output, NMEA, clients, tick. */
-static void shell_round(struct shell *sh, int lfd)
+/* One poll round: signals, children, step output, NMEA, clients, tick.
+ * SERVING false: the socket is closed already (shutdown). */
+static void shell_round(struct shell *sh, bool serving)
 {
-	struct pollfd pfd[5 + GM_MAX_CLIENTS];
-	struct gm_client *cmap[GM_MAX_CLIENTS];
-	int n = 0, nclients = 0, i, ilisten = -1, istep = -1, inmea = -1, iload = -1, iclients;
+	struct pollfd pfd[4 + 1 + GM_MAX_CLIENTS];
+	int n = 0, nsrv = 0, istep = -1, inmea = -1, iload = -1, isrv;
 
 	pfd[n++] = (struct pollfd){ .fd = g_sigpipe[0], .events = POLLIN };
-	if (lfd >= 0) {
-		ilisten = n;
-		pfd[n++] = (struct pollfd){ .fd = lfd, .events = POLLIN };
-	}
 	if (sh->step_fd >= 0) {
 		istep = n;
 		pfd[n++] = (struct pollfd){ .fd = sh->step_fd, .events = POLLIN };
@@ -807,14 +749,12 @@ static void shell_round(struct shell *sh, int lfd)
 		iload = n;
 		pfd[n++] = (struct pollfd){ .fd = sh->load_fd, .events = POLLIN };
 	}
-	iclients = n;
-	for (i = 0; i < GM_MAX_CLIENTS; i++) {
-		if (sh->srv.clients[i].fd < 0)
-			continue;
-		cmap[nclients++] = &sh->srv.clients[i];
-		pfd[n++] = (struct pollfd){ .fd = sh->srv.clients[i].fd, .events = POLLIN };
+	isrv = n;
+	if (serving) {
+		nsrv = linesrv_pollfds(sh->srv.srv, pfd + n, 1 + GM_MAX_CLIENTS);
+		n += nsrv;
 	}
-	if (poll(pfd, (nfds_t)n, lfd >= 0 ? GM_TICK_MS : 200) < 0 && errno != EINTR)
+	if (poll(pfd, (nfds_t)n, serving ? GM_TICK_MS : 200) < 0 && errno != EINTR)
 		return;
 	if (pfd[0].revents & POLLIN) {
 		char junk[64];
@@ -836,17 +776,8 @@ static void shell_round(struct shell *sh, int lfd)
 		shell_load_check(sh, true);
 	}
 	shell_save_check(sh);
-	if (ilisten >= 0 && (pfd[ilisten].revents & POLLIN)) {
-		int cfd = accept4(lfd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
-
-		if (cfd >= 0 && !gm_server_add(&sh->srv, cfd)) {
-			notef("client limit (%d) reached, refusing", GM_MAX_CLIENTS);
-			close(cfd);
-		}
-	}
-	for (i = 0; i < nclients; i++)
-		if (cmap[i]->fd >= 0 && (pfd[iclients + i].revents & (POLLIN | POLLERR | POLLHUP)))
-			gm_client_input(&sh->srv, cmap[i]);
+	if (nsrv)
+		linesrv_handle(sh->srv.srv, pfd + isrv, nsrv);
 	gm_tick(&sh->m, now_ms());
 }
 
@@ -862,7 +793,7 @@ int main(int argc, char **argv)
 	};
 	struct sigaction sa;
 	char path[256];
-	int lfd, lockfd, opt, i, grace_s = GM_GRACE_MS / 1000;
+	int rc, lockfd, opt, grace_s = GM_GRACE_MS / 1000;
 
 	memset(sh, 0, sizeof(*sh));
 	sh->dir = GM_DIR;
@@ -885,6 +816,7 @@ int main(int argc, char **argv)
 	}
 	if (optind < argc)
 		return gm_cli_main(sock_path, argc - optind, argv + optind);
+	chef_log_init("gps-manager", g_verbose);
 	if (grace_s < 0) {
 		gm_usage();
 		return 64;
@@ -901,7 +833,7 @@ int main(int argc, char **argv)
 	if (lockfd < 0 || flock(lockfd, LOCK_EX | LOCK_NB) < 0) {
 		int e = errno;
 
-		notef("%s: %s; another gps-manager is running, exiting in 5 s", path, strerror(e));
+		chef_log("%s: %s; another gps-manager is running, exiting in 5 s", path, strerror(e));
 		fprintf(stderr, "gps-manager: already running (%s: %s)\n", path, strerror(e));
 		sleep(5);	/* keeps a respawning init from spinning */
 		return 1;
@@ -912,10 +844,14 @@ int main(int argc, char **argv)
 	sh->m.qmicli = "qmicli";
 	sh->m.qmux_sock = sh->paths.qmux_sock;
 	sh->m.grace_ms = grace_s * 1000;
-	gm_server_init(&sh->srv, &sh->m, srv_now);
+	if (gm_server_init(&sh->srv, &sh->m, srv_now, NULL)) {
+		chef_log("out of memory; exiting in 5 s");
+		sleep(5);
+		return 1;
+	}
 
 	if (pipe2(g_sigpipe, O_CLOEXEC | O_NONBLOCK) < 0) {
-		notef("pipe: %s; exiting in 5 s", strerror(errno));
+		chef_log("pipe: %s; exiting in 5 s", strerror(errno));
 		sleep(5);
 		return 1;
 	}
@@ -932,26 +868,23 @@ int main(int argc, char **argv)
 	shell_save(sh);
 	shell_load_start(sh);
 
-	lfd = sock_listen(sock_path);
-	if (lfd < 0) {
-		notef("listen %s: %s; exiting in 5 s", sock_path, strerror(-lfd));
+	/* the stale path is unlinked only ever while holding the instance lock */
+	rc = linesrv_listen(sh->srv.srv, sock_path);
+	if (rc == 0 && chmod(sock_path, 0660) < 0)
+		rc = -errno;
+	if (rc < 0) {
+		chef_log("listen %s: %s; exiting in 5 s", sock_path, strerror(-rc));
 		sleep(5);
 		return 1;
 	}
-	notef("ready on %s, idle until leased", sock_path);
+	chef_log("ready on %s, idle until leased", sock_path);
 
 	while (!g_stop)
-		shell_round(sh, lfd);
+		shell_round(sh, true);
 
 	/* orderly shutdown (init's SIGTERM): everything down, bounded */
-	notef("exiting: tearing down");
-	for (i = 0; i < GM_MAX_CLIENTS; i++)
-		if (sh->srv.clients[i].fd >= 0) {
-			close(sh->srv.clients[i].fd);
-			sh->srv.clients[i].fd = -1;
-		}
-	close(lfd);
-	unlink(sock_path);
+	chef_log("exiting: tearing down");
+	gm_server_fini(&sh->srv);	/* clients closed, the socket unlinked */
 	sh->m.leases = 0;
 	sh->m.grace_at = 0;
 	sh->m.failing = false;
@@ -960,7 +893,7 @@ int main(int argc, char **argv)
 		int64_t until = now_ms() + 3 * GM_STEP_TIMEOUT_MS;
 
 		while (sh->m.phase != PH_IDLE && now_ms() < until)
-			shell_round(sh, -1);
+			shell_round(sh, false);
 	}
 	/* the last switch change is saved before we go (bounded): a saver
 	 * killed by our exit would leave the old value on disk */
@@ -971,10 +904,10 @@ int main(int argc, char **argv)
 			if (sh->save_pid <= 0)
 				shell_save_switch(sh);
 			if (sh->save_pid > 0)
-				shell_round(sh, -1);
+				shell_round(sh, false);
 		}
 		if (sh->save_pid > 0 || sh->save_pending) {
-			notef("exiting with the GPS switch save unfinished: the saved value may be stale");
+			chef_log("exiting with the GPS switch save unfinished: the saved value may be stale");
 			if (sh->save_pid > 0)
 				kill(-sh->save_pid, SIGKILL);
 		}
@@ -985,6 +918,6 @@ int main(int argc, char **argv)
 		snprintf(path, sizeof(path), "%s/state", sh->dir);
 		unlink(path);
 	}
-	notef("exited %s (%s)", gm_state_names[sh->m.state], gm_phase_names[sh->m.phase]);
+	chef_log("exited %s (%s)", gm_state_names[sh->m.state], gm_phase_names[sh->m.phase]);
 	return 0;
 }

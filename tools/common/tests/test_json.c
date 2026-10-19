@@ -209,10 +209,11 @@ static void test_invalid(void)
 static void test_limits(void)
 {
 	struct json_obj o;
-	char text[1024];
+	char text[4096];
 	size_t off;
 	int i;
 
+	CHECK(JSON_MAX_MEMBERS == 128);
 	off = (size_t)snprintf(text, sizeof(text), "{");
 	for (i = 0; i < JSON_MAX_MEMBERS; i++)
 		off += (size_t)snprintf(text + off, sizeof(text) - off, "%s\"k%d\":%d", i ? "," : "", i, i);

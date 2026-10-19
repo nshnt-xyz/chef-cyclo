@@ -1,7 +1,14 @@
 /*
- * gps-manager's command-line client: status, watch, retry, enable,
- * disable and hold KIND... on the lease socket (server.c's header has the
- * protocol).
+ * gps-manager's command-line client on the lease socket (server.c's
+ * header has the protocol). It never prints the hello:
+ *
+ *   status, retry, enable, disable   print the one reply line; exit 0 on
+ *                                    a non-error reply, 1 on an error reply
+ *                                    or no connection
+ *   watch, hold KIND...              print every later line raw (one JSON
+ *                                    object per line) until EOF or ^C;
+ *                                    hold sends its leases, then watch
+ *   usage errors                     exit 64
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -9,32 +16,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/un.h>
 #include <unistd.h>
 
+#include "common/json.h"
+#include "common/linesrv.h"
 #include "gps-manager.h"
-
-static int sock_connect(const char *path)
-{
-	struct sockaddr_un sa;
-	int fd;
-
-	if (strlen(path) >= sizeof(sa.sun_path))
-		return -ENAMETOOLONG;
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-	if (fd < 0)
-		return -errno;
-	memset(&sa, 0, sizeof(sa));
-	sa.sun_family = AF_UNIX;
-	strcpy(sa.sun_path, path);
-	if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-		int err = errno;
-
-		close(fd);
-		return -err;
-	}
-	return fd;
-}
 
 void gm_usage(void)
 {
@@ -45,53 +31,91 @@ void gm_usage(void)
 		"                                                                    (KIND: map, ride)\n");
 }
 
+/* The "type" of one daemon line, or "" when it has none. */
+static const char *line_type(const char *line, size_t len, char *buf, size_t buflen)
+{
+	struct json_obj o;
+
+	if (json_parse(&o, line, len) || !json_get_string(&o, "type", buf, buflen))
+		buf[0] = '\0';
+	return buf;
+}
+
+/* MSG_NOSIGNAL: a connection the manager refused (too many clients) is an
+ * error message and exit 1, not death by SIGPIPE. */
+static int send_request(int fd, const char *sock_path, const char *line)
+{
+	if (send(fd, line, strlen(line), MSG_NOSIGNAL) < 0) {
+		fprintf(stderr, "gps-manager: send to %s: %s\n", sock_path, strerror(errno));
+		return -1;
+	}
+	return 0;
+}
+
 int gm_cli_main(const char *sock_path, int argc, char **argv)
 {
-	int fd;
-	char buf[512];
 	bool once = strcmp(argv[0], "status") == 0 || strcmp(argv[0], "retry") == 0 ||
 		    strcmp(argv[0], "enable") == 0 || strcmp(argv[0], "disable") == 0;
-	int i;
+	bool hold = strcmp(argv[0], "hold") == 0;
+	char buf[4096], type[16];
+	size_t len = 0;
+	int fd, i;
 
-	if (!once && strcmp(argv[0], "watch") != 0 && strcmp(argv[0], "hold") != 0) {
+	if (!once && !hold && strcmp(argv[0], "watch") != 0) {
 		gm_usage();
 		return 64;
 	}
-	if (strcmp(argv[0], "hold") == 0 && argc < 2) {
+	if (hold && argc < 2) {
 		gm_usage();
 		return 64;
 	}
-	fd = sock_connect(sock_path);
+	fd = linesrv_connect(sock_path);
 	if (fd < 0) {
 		fprintf(stderr, "gps-manager: connect %s: %s\n", sock_path, strerror(-fd));
 		return 1;
 	}
-	if (strcmp(argv[0], "hold") == 0) {
-		for (i = 1; i < argc; i++) {
-			snprintf(buf, sizeof(buf), "lease %s\n", argv[i]);
-			if (write(fd, buf, strlen(buf)) < 0)
-				return 1;
+	/* hold: its leases, then watch; otherwise the one command */
+	for (i = hold ? 1 : 0; i < (hold ? argc : 1); i++) {
+		snprintf(buf, sizeof(buf), hold ? "lease %s\n" : "%s\n", argv[i]);
+		if (send_request(fd, sock_path, buf)) {
+			close(fd);
+			return 1;
 		}
-		if (write(fd, "watch\n", 6) < 0)
-			return 1;
-	} else {
-		snprintf(buf, sizeof(buf), "%s\n", argv[0]);
-		if (write(fd, buf, strlen(buf)) < 0)
-			return 1;
+	}
+	if (hold && send_request(fd, sock_path, "watch\n")) {
+		close(fd);
+		return 1;
 	}
 	for (;;) {
-		ssize_t n = read(fd, buf, sizeof(buf));
+		ssize_t n = read(fd, buf + len, sizeof(buf) - len);
+		char *nl;
 
 		if (n <= 0)
 			break;
-		if (fwrite(buf, 1, (size_t)n, stdout) != (size_t)n)
-			break;
-		fflush(stdout);
-		if (once && memchr(buf, '\n', (size_t)n)) {
-			close(fd);
-			return strncmp(buf, "ok", 2) == 0 ? 0 : 1;
+		len += (size_t)n;
+		while ((nl = memchr(buf, '\n', len))) {
+			size_t used = (size_t)(nl - buf) + 1;
+
+			line_type(buf, used - 1, type, sizeof(type));
+			if (strcmp(type, "hello") != 0) {
+				if (fwrite(buf, 1, used, stdout) != used)
+					goto out;
+				fflush(stdout);
+				if (once) {
+					close(fd);
+					return strcmp(type, "error") == 0 ? 1 : 0;
+				}
+			}
+			memmove(buf, buf + used, len - used);
+			len -= used;
+		}
+		if (len == sizeof(buf)) {	/* no line is this long: pass it on */
+			if (!once)
+				fwrite(buf, 1, len, stdout);
+			len = 0;
 		}
 	}
+out:
 	close(fd);
-	return 0;
+	return once ? 1 : 0;	/* closed before the reply: no answer */
 }

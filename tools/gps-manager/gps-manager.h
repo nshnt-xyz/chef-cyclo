@@ -37,7 +37,10 @@
 #define GM_SAVE_DRAIN_MS   3000	/* at exit: the last switch change */
 
 #define GM_MAX_CLIENTS 16
-#define GM_LINE_MAX    128
+#define GM_LINE_MAX    128	/* a request line, its newline included */
+#define GM_OUTQ        4096	/* per-client output queue */
+#define GM_PROTO       1	/* the socket protocol's version (hello) */
+#define GM_ECHO_MAX    32	/* bytes of a request word echoed in an error */
 #define GM_DETAIL_MAX  112
 
 /* ------------------------------------------------------------------ core */
@@ -60,7 +63,6 @@ enum gm_phase {
 	PH_STOP_GPSD,	/* STOPPING: gpsd exiting */
 };
 extern const char *const gm_phase_names[];
-
 
 struct gm_owner {
 	int pid;
@@ -120,7 +122,7 @@ struct gm {
 	char fail_reason[64];
 	int streak;		/* consecutive fast failures */
 	int64_t grace_at, retry_at, up_at, last_nmea, last_fix;
-	int64_t start_at, first_fix_at;	/* this bring-up's start and first fix (0: none): the "acq" line */
+	int64_t start_at, first_fix_at;	/* this bring-up's start and first fix (0: none): up_ms/fix_ms */
 	unsigned long bringups, failures, nmea_lines, leaked;
 	char argv_buf[8][96];
 	char *argv[9];
@@ -150,25 +152,32 @@ void gm_tick(struct gm *m, int64_t now);
 enum gm_kind { LK_MAP, LK_RIDE, LK_COUNT };
 extern const char *const gm_kind_names[];
 
+struct linesrv;
+
+/* gps-manager's own state per connection, indexed by the linesrv slot. */
 struct gm_client {
-	int fd;			/* -1 = free slot */
 	bool watch;
-	bool discarding;
 	int leases[LK_COUNT];
-	char in[GM_LINE_MAX];
-	size_t inlen;
 };
 
 struct gm_server {
 	struct gm *m;
+	struct linesrv *srv;	/* the socket: linesrv_listen(), _pollfds(), _handle() */
 	struct gm_client clients[GM_MAX_CLIENTS];
 	int64_t (*now)(void);
+	int broadcasting;	/* inside a loop over the watchers */
+	bool sync_pending;	/* a client went during it: sync the count after */
+	bool closing;		/* gm_server_fini(): no syncing on the way out */
 };
 
-void gm_server_init(struct gm_server *s, struct gm *m, int64_t (*now)(void));
-struct gm_client *gm_server_add(struct gm_server *s, int fd);
-void gm_client_input(struct gm_server *s, struct gm_client *c);
-/* State change: one "state S detail" line and the "acq" line to every watcher. */
+/* The server for M (not listening yet). LOG NULL = chef_log; the socket
+ * library logs through it too. 0, or -ENOMEM. */
+int gm_server_init(struct gm_server *s, struct gm *m, int64_t (*now)(void),
+		   void (*log)(const char *fmt, ...));
+/* Every client closed and the socket path unlinked. Their leases are not
+ * synced into the core: the caller tears down itself. */
+void gm_server_fini(struct gm_server *s);
+/* State change: one "state" line to every watcher. */
 void gm_server_broadcast(struct gm_server *s);
 void gm_server_set_enabled(struct gm_server *s, bool on, bool persist);
 

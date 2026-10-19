@@ -45,12 +45,29 @@ void sys_timeview_stop(void);
  * gpsd TPV mode/eph while RUNNING (port 0 = 2947). */
 int sys_gps_start(const char *sock, int gpsd_port);
 void sys_gps_stop(void);
-/* Pure parsers. state line: 0 and *out, or -1. TPV: 0 with mode (and eph
- * or -1), -1 for anything else. */
-int sys_gps_parse_state(const char *line, enum sys_gps *out);
+/* One gps-manager line (JSON, proto 1; docs/features/gps.md "Socket
+ * contract"), as far as this client uses it. */
+enum sys_gps_mgr_type {
+	SYS_GPS_MGR_OTHER,	/* a type this client does not use */
+	SYS_GPS_MGR_HELLO,	/* proto */
+	SYS_GPS_MGR_OK,		/* cmd */
+	SYS_GPS_MGR_ERROR,	/* cmd, reason */
+	SYS_GPS_MGR_SWITCH,	/* enabled */
+	SYS_GPS_MGR_STATE,	/* state, up_ms, fix_ms */
+};
+struct sys_gps_mgr_line {
+	enum sys_gps_mgr_type type;
+	char cmd[16], reason[32];	/* "" when absent */
+	long proto;			/* -1 when absent */
+	int enabled;
+	enum sys_gps state;
+	long up_ms, fix_ms;		/* the bring-up's age and first fix, -1 null */
+};
+/* Pure parsers. Manager line: 0 and *out, or -1 for anything unreadable
+ * (not JSON, no type, a switch or state line without its members, an
+ * unknown state). TPV: 0 with mode (and eph or -1), -1 for anything else. */
+int sys_gps_parse_mgr(const char *line, struct sys_gps_mgr_line *out);
 int sys_gps_parse_tpv(const char *line, int *mode, double *eph);
-/* "acq UP_MS FIX_MS" (the age of the manager's bring-up and its first fix, -1 none): 0, or -1. */
-int sys_gps_parse_acq(const char *line, long *up_ms, long *fix_ms);
 
 /* Ambient light: an illuminance claim on sensord (default
  * /run/sensord.sock) while wanted, fed through the pure logic in als.h.

@@ -389,7 +389,7 @@ position" and "Rides record without a track or map." On, the page holds a
 
 - **Searching (P12)** until a fix: STATUS "No fix" ("Failed" in `FAILED`,
   "Starting" before the lease is in), SEARCHING the age of gps-manager's
-  current bring-up (m:ss from its `acq` line, ticking once a second only while seen: a quick
+  current bring-up (m:ss from `up_ms` in its `state` lines, ticking once a second only while seen: a quick
   return to the page inside the manager's 30 s grace keeps counting, 0:00 only when the manager
   really starts on this lease), "N satellites
   visible, M in use", and the sky plot (720 px, rings at 30 and 60
@@ -398,7 +398,7 @@ position" and "Rides record without a track or map." On, the page holds a
   I NavIC).
 - **Locked (P13)** while `RUNNING` with a TPV mode 2 or 3: FIX 2D/3D (accent),
   ACCURACY `±eph m`, then Satellites used/visible, First fix (seconds from
-  the start of gps-manager's bring-up to its first fix, from the same `acq` line),
+  the start of gps-manager's bring-up to its first fix, `fix_ms` in the same lines),
   Altitude (MSL), HDOP, PDOP, Speed in km/h, and Position (5 decimals,
   N/S E/W). The Satellites row ("12 in use · 4 systems") opens P14.
 - **Satellites (P14)**: the sky plot (840 px, N E S W), the legend, used/
@@ -578,12 +578,14 @@ All on the chefui loop, nonblocking, none polling while idle:
 - **Clock**: a `CLOCK_REALTIME` timerfd armed for the next minute with
   `TFD_TIMER_CANCEL_ON_SET`, so a clock step (chrony's first step after the
   1970 boot clock, the chef-state restore) redraws at once.
-- **GPS**: a `watch` connection to `/run/gps-manager.sock`, reconnected
-  with backoff 1 s doubling to 8 s. It carries no lease, except one `map`
-  lease while a GPS page is seen (sent after the `enabled` line, again
-  after a reconnect or when the switch comes back on; `err disabled` means
-  none is held; `release map` when the page goes; a crash releases it with
-  the connection); the switch goes out on it too. gpsd
+- **GPS**: a `watch` connection to `/run/gps-manager.sock` (its JSON
+  lines, the [socket contract](gps.md#socket-contract), read with the
+  shared reader), reconnected with backoff 1 s doubling to 8 s. It carries
+  no lease, except one `map` lease while a GPS page is seen (sent after
+  the `switch` line, again after a reconnect or when the switch comes back
+  on; an error with reason `disabled` means none is held; `release map`
+  when the page goes; a crash releases it with the connection); the
+  switch goes out on it too. gpsd
   `127.0.0.1:2947` `?WATCH` JSON while `RUNNING` for TPV `mode` and `eph`,
   and while a GPS page is seen also in `ACQUIRING`, for its TPV and SKY.
 - **Wi-Fi and Bluetooth**: the system bus through sd-bus (static basu on the

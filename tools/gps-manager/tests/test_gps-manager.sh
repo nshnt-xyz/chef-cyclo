@@ -103,7 +103,7 @@ run_gm() {
 		i=$((i + 1)); [ $i -lt 100 ] || { bad "manager did not come up"; return 1; }; sleep 0.1
 	done
 }
-state() { "$GM" -S "$S" status 2>/dev/null | sed -n 's/.*state=\([A-Z]*\).*/\1/p'; }
+state() { "$GM" -S "$S" status 2>/dev/null | sed -n 's/^{"type":"status","state":"\([A-Z]*\)".*/\1/p'; }
 wait_state() {	# wait_state STATE SECONDS
 	i=0; until [ "$(state)" = "$1" ]; do
 		i=$((i + 1)); [ $i -lt $(($2 * 10)) ] || return 1; sleep 0.1
@@ -131,9 +131,12 @@ check "children names" '[ "$(comm "$F")" = qmicli ] && [ "$(comm "$B")" = nmea-b
 check "CID 1 recorded with the owner" '[ "$(rec cid)" = 1 ] && [ "$(rec owner)" = $$ ]'
 check "bring-up order" 'grep -n "" "$T/qmicli.log" | tr "\n" " " | grep -q "1:-d .*--client-no-release-cid --loc-noop 2:-d .*--client-cid=1 --client-no-release-cid --loc-set-nmea-types=gga|rmc|gsv|gsa|vtg 3:-d .*--client-cid=1 --client-no-release-cid --loc-start --loc-session-id=1 4:-d .*--client-cid=1 --client-no-release-cid --loc-follow-nmea"'
 check "children inherit only stdio" '[ "$(ls /proc/$F/fd | wc -l)" -le 4 ] && [ "$(ls /proc/$B/fd | wc -l)" -le 4 ]'
-check "watcher saw the states" 'grep -q "^state RUNNING" "$T/hold1.out"'
-check "watcher saw the age and the first fix of the bring-up" 'grep -Eq "^acq [0-9]+ [0-9]+$" "$T/hold1.out"'
-grep -q nmea= "$T/hold1.out" || true
+check "holder got its lease, then watch, no hello" 'head -n 3 "$T/hold1.out" | tr "\n" " " | grep -q "^{\"type\":\"ok\",\"cmd\":\"lease\",\"kind\":\"map\",\"held\":1} {\"type\":\"ok\",\"cmd\":\"watch\"} {\"type\":\"switch\",\"enabled\":true} $" && ! grep -q "\"hello\"" "$T/hold1.out"'
+check "watcher saw the states" 'grep -q "^{\"type\":\"state\",\"state\":\"RUNNING\"," "$T/hold1.out"'
+check "watcher saw the age and the first fix of the bring-up" 'grep -Eq "^\{\"type\":\"state\",\"state\":\"RUNNING\",\"detail\":\"CID 1, fix\",\"up_ms\":[0-9]+,\"fix_ms\":[0-9]+\}$" "$T/hold1.out"'
+check "every watcher line is one JSON object" 'python3 -c "import json,sys; [json.loads(l) for l in open(sys.argv[1])]" "$T/hold1.out"'
+rc=0; "$GM" -S "$S" retry > "$T/retry.out" || rc=$?
+check "an error reply: printed, exit 1" '[ $rc = 1 ] && [ "$(cat "$T/retry.out")" = "{\"type\":\"error\",\"cmd\":\"retry\",\"reason\":\"not failed\"}" ]'
 
 # --- release: grace, ordered teardown (gpsd needs its KILL), OFF
 kill "$H"
@@ -173,7 +176,7 @@ check "third lease RUNNING with CID 3" 'wait_state RUNNING 10 && [ "$(rec cid)" 
 G=$(rec gpsd)
 kill "$H"
 sleep 0.5
-check "in grace" '"$GM" -S "$S" status | grep -q "grace=on"'
+check "in grace" '"$GM" -S "$S" status | grep -q "\"grace\":true,"'
 kill -9 "$GMPID"
 run_gm
 check "after kill -9 in grace: OFF, gpsd gone, CID 3 released" 'i=0; while alive "$G" && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done; ! alive "$G" && wait_state OFF 10 && grep -q -- "--client-cid=3 --loc-noop" "$T/qmicli.log"'
@@ -183,14 +186,14 @@ check "after kill -9 in grace: OFF, gpsd gone, CID 3 released" 'i=0; while alive
 H=$!; PIDS="$PIDS $H"
 check "switch: leased and RUNNING" 'wait_state RUNNING 10'
 F=$(rec follower); B=$(rec broker); G=$(rec gpsd); C=$(rec cid)
-check "switch: disable answers" '[ "$("$GM" -S "$S" disable)" = "ok enabled 0" ]'
+check "switch: disable answers" '[ "$("$GM" -S "$S" disable)" = "{\"type\":\"ok\",\"cmd\":\"disable\",\"enabled\":false}" ]'
 check "switch: torn down at once, no grace" 'wait_state DISABLED 10 && ! alive "$F" && ! alive "$B" && ! alive "$G" && grep -q -- "--client-cid=$C --loc-noop" "$T/qmicli.log"'
-check "switch: the lease is held, the state says disabled" '"$GM" -S "$S" status | grep -q "state=DISABLED enabled=0 leases=map:1"'
+check "switch: the lease is held, the state says disabled" '"$GM" -S "$S" status | grep -q "\"state\":\"DISABLED\",\"enabled\":false,\"leases\":{\"map\":1,"'
 check "switch: saved" 'i=0; until grep -q "enabled 0" "$T/gps-enabled" 2>/dev/null || [ $i -ge 30 ]; do sleep 0.1; i=$((i+1)); done; [ "$(cat "$T/gps-enabled")" = "enabled 0" ]'
-check "switch: watchers told" 'grep -q "^enabled 0" "$T/hold5.out" && grep -q "^state DISABLED" "$T/hold5.out"'
+check "switch: watchers told" 'grep -q "^{\"type\":\"switch\",\"enabled\":false}$" "$T/hold5.out" && grep -q "^{\"type\":\"state\",\"state\":\"DISABLED\"," "$T/hold5.out"'
 "$GM" -S "$S" hold ride > "$T/hold6.out" &
 H2=$!; PIDS="$PIDS $H2"
-check "switch: a new lease is refused" 'i=0; until grep -q "err disabled" "$T/hold6.out" || [ $i -ge 30 ]; do sleep 0.1; i=$((i+1)); done; grep -q "err disabled" "$T/hold6.out"'
+check "switch: a new lease is refused" 'i=0; until grep -q "\"reason\":\"disabled\"" "$T/hold6.out" || [ $i -ge 30 ]; do sleep 0.1; i=$((i+1)); done; grep -q "^{\"type\":\"error\",\"cmd\":\"lease\",\"reason\":\"disabled\"}$" "$T/hold6.out"'
 kill "$H2"
 check "switch: still DISABLED a while later" 'sleep 3; [ "$(state)" = DISABLED ] && [ "$(rec cid)" = -1 ]'
 kill -9 "$GMPID"
@@ -198,9 +201,9 @@ run_gm
 check "switch: read back after a respawn" 'wait_state DISABLED 5 && grep -q "^gps-load" "$T/chef-state.log"'
 "$GM" -S "$S" hold map > "$T/hold7.out" &
 H=$!; PIDS="$PIDS $H"
-check "switch: refused after the respawn too" 'i=0; until grep -q "err disabled" "$T/hold7.out" || [ $i -ge 30 ]; do sleep 0.1; i=$((i+1)); done; grep -q "err disabled" "$T/hold7.out"'
+check "switch: refused after the respawn too" 'i=0; until grep -q "\"reason\":\"disabled\"" "$T/hold7.out" || [ $i -ge 30 ]; do sleep 0.1; i=$((i+1)); done; grep -q "\"reason\":\"disabled\"" "$T/hold7.out"'
 kill "$H"
-check "switch: enable" '[ "$("$GM" -S "$S" enable)" = "ok enabled 1" ] && wait_state OFF 5'
+check "switch: enable" '[ "$("$GM" -S "$S" enable)" = "{\"type\":\"ok\",\"cmd\":\"enable\",\"enabled\":true}" ] && wait_state OFF 5'
 check "switch: enabled saved" 'i=0; until grep -q "enabled 1" "$T/gps-enabled" || [ $i -ge 30 ]; do sleep 0.1; i=$((i+1)); done; [ "$(cat "$T/gps-enabled")" = "enabled 1" ]'
 # a gps-load that hangs: leases wait, then the default (enabled) after 5 s
 touch "$T/load-slow"
@@ -208,7 +211,7 @@ kill -9 "$GMPID"
 run_gm
 "$GM" -S "$S" hold map > "$T/hold8.out" &
 H=$!; PIDS="$PIDS $H"
-check "switch: while reading, the lease waits" 'sleep 1; "$GM" -S "$S" status > "$T/st8"; grep -q "state=OFF enabled=1 leases=map:1,.*detail=reading the GPS switch" "$T/st8" || { cat "$T/st8" >&2; false; }'
+check "switch: while reading, the lease waits" 'sleep 1; "$GM" -S "$S" status > "$T/st8"; grep -q "\"state\":\"OFF\",\"enabled\":true,\"leases\":{\"map\":1,.*\"detail\":\"reading the GPS switch\"}$" "$T/st8" || { cat "$T/st8" >&2; false; }'
 check "switch: after the 5 s bound, enabled and up" 'wait_state RUNNING 15'
 rm -f "$T/load-slow"
 kill "$H"
@@ -218,7 +221,7 @@ check "switch: back OFF" 'wait_state OFF 20'
 touch "$T/load-slow"
 kill -9 "$GMPID"
 run_gm
-check "switch: disable while reading answers" '[ "$("$GM" -S "$S" disable)" = "ok enabled 0" ] && wait_state DISABLED 3'
+check "switch: disable while reading answers" '[ "$("$GM" -S "$S" disable)" = "{\"type\":\"ok\",\"cmd\":\"disable\",\"enabled\":false}" ] && wait_state DISABLED 3'
 LP=$(cat "$T/loader.pid")
 check "switch: the hung loader is killed by its bound anyway" 'sleep 6; ! alive "$LP"'
 rm -f "$T/load-slow"

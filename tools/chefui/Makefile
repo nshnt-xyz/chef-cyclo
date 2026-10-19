@@ -234,7 +234,7 @@ $(T)/test-chefui: tests/test_chefui.c tests/check.h $(patsubst %.c,$(T)/chefui/%
 
 # System UI: kit, sources, settings and app on fakeloop (no chefui loop,
 # no display hardware). Sanitized like the rest.
-SYSUI_OBJS := $(patsubst %.c,$(T)/chefui/%.o,$(KIT_SRCS) $(SYS_SRCS) $(APP_SRCS))
+SYSUI_OBJS := $(patsubst %.c,$(T)/chefui/%.o,$(KIT_SRCS) $(SYS_SRCS) $(APP_SRCS)) $(call common_objs,test)
 FAKELOOP := tests/fakeloop.c tests/fakeloop.h tests/check.h
 WIFI_STUB := tests/wifi_stub.c tests/wifi_stub.h
 

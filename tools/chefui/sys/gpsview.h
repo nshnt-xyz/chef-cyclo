@@ -35,8 +35,8 @@ struct gps_view {
 	int n_sats;
 	struct gps_sat sats[GPS_SATS_MAX];
 	/* monotonic ms, 0 none: the page's lease (it only says "leased"), and gps-manager's current
-	 * bring-up: its start and its first fix, from the manager's "acq" lines (they survive the
-	 * page's leases: the manager keeps its bring-up through its 30 s grace) */
+	 * bring-up: its start and its first fix, from up_ms/fix_ms in the manager's "state" lines
+	 * (they survive the page's leases: the manager keeps its bring-up through its 30 s grace) */
 	int64_t lease_ms;
 	int64_t start_ms;
 	int64_t first_fix_ms;

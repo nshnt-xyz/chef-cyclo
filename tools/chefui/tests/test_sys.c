@@ -85,32 +85,51 @@ static void test_linebuf(void)
 
 static void test_parsers(void)
 {
-	enum sys_gps st;
+	struct sys_gps_mgr_line l;
 	int mode;
 	double eph;
 
-	CHECK(sys_gps_parse_state("state OFF idle", &st) == 0 && st == SYS_GPS_OFF);
-	{
-		long up = 7, fix = 7;
-
-		CHECK(sys_gps_parse_acq("acq 84000 80000", &up, &fix) == 0 && up == 84000 && fix == 80000);
-		CHECK(sys_gps_parse_acq("acq 0 -1", &up, &fix) == 0 && up == 0 && fix == -1);
-		CHECK(sys_gps_parse_acq("acq -1 -1", &up, &fix) == 0 && up == -1 && fix == -1);
-		CHECK(sys_gps_parse_acq("acq 5", &up, &fix) == -1 && sys_gps_parse_acq("acq x y", &up, &fix) == -1);
-		CHECK(sys_gps_parse_acq("acq 5 6 7", &up, &fix) == -1 && sys_gps_parse_acq("acq -2 1", &up, &fix) == -1);
-		CHECK(sys_gps_parse_acq("state OFF idle", &up, &fix) == -1 && sys_gps_parse_acq("", &up, &fix) == -1);
-	}
-	CHECK(sys_gps_parse_state("state STOPPING -", &st) == 0 && st == SYS_GPS_OFF);
-	CHECK(sys_gps_parse_state("state FAILED no modem", &st) == 0 && st == SYS_GPS_FAILED);
-	CHECK(sys_gps_parse_state("state STARTING x", &st) == 0 && st == SYS_GPS_SEARCHING);
-	CHECK(sys_gps_parse_state("state ACQUIRING", &st) == 0 && st == SYS_GPS_SEARCHING);
-	CHECK(sys_gps_parse_state("state RUNNING fix", &st) == 0 && st == SYS_GPS_RUNNING);
-	CHECK(sys_gps_parse_state("state DISABLED disabled", &st) == 0 && st == SYS_GPS_DISABLED);
-	CHECK(sys_gps_parse_state("state RUNNINGX y", &st) == -1);
-	CHECK(sys_gps_parse_state("state RUN", &st) == -1);
-	CHECK(sys_gps_parse_state("ok watch", &st) == -1);
-	CHECK(sys_gps_parse_state("err nope", &st) == -1);
-	CHECK(sys_gps_parse_state("", &st) == -1);
+	/* gps-manager's JSON lines */
+	CHECK(sys_gps_parse_mgr("{\"type\":\"hello\",\"daemon\":\"gps-manager\",\"proto\":1}", &l) == 0 &&
+	      l.type == SYS_GPS_MGR_HELLO && l.proto == 1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"hello\",\"daemon\":\"gps-manager\"}", &l) == 0 &&
+	      l.type == SYS_GPS_MGR_HELLO && l.proto == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"ok\",\"cmd\":\"watch\"}", &l) == 0 && l.type == SYS_GPS_MGR_OK &&
+	      !strcmp(l.cmd, "watch"));
+	CHECK(sys_gps_parse_mgr("{\"type\":\"error\",\"cmd\":\"lease\",\"reason\":\"disabled\"}", &l) == 0 &&
+	      l.type == SYS_GPS_MGR_ERROR && !strcmp(l.cmd, "lease") && !strcmp(l.reason, "disabled"));
+	CHECK(sys_gps_parse_mgr("{\"type\":\"error\",\"reason\":\"too many clients\"}", &l) == 0 &&
+	      l.type == SYS_GPS_MGR_ERROR && l.cmd[0] == 0);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"switch\",\"enabled\":false}", &l) == 0 && l.type == SYS_GPS_MGR_SWITCH &&
+	      l.enabled == 0);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"switch\",\"enabled\":true,\"new\":[1]}", &l) == 0 && l.enabled == 1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"switch\",\"enabled\":1}", &l) == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"switch\"}", &l) == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"RUNNING\",\"detail\":\"CID 1, fix\",\"up_ms\":84000,"
+				"\"fix_ms\":80000}", &l) == 0 && l.type == SYS_GPS_MGR_STATE && l.state == SYS_GPS_RUNNING &&
+	      l.up_ms == 84000 && l.fix_ms == 80000);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"ACQUIRING\",\"detail\":\"x\",\"up_ms\":0,\"fix_ms\":null}",
+				&l) == 0 && l.state == SYS_GPS_SEARCHING && l.up_ms == 0 && l.fix_ms == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"OFF\",\"detail\":\"idle\",\"up_ms\":null,\"fix_ms\":null}",
+				&l) == 0 && l.state == SYS_GPS_OFF && l.up_ms == -1 && l.fix_ms == -1);
+	/* a first fix without a bring-up, or out of range: none */
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"OFF\",\"up_ms\":null,\"fix_ms\":5}", &l) == 0 &&
+	      l.fix_ms == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"OFF\",\"up_ms\":-2,\"fix_ms\":1}", &l) == 0 &&
+	      l.up_ms == -1 && l.fix_ms == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"STOPPING\"}", &l) == 0 && l.state == SYS_GPS_OFF);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"FAILED\"}", &l) == 0 && l.state == SYS_GPS_FAILED);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"STARTING\"}", &l) == 0 && l.state == SYS_GPS_SEARCHING);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"DISABLED\"}", &l) == 0 && l.state == SYS_GPS_DISABLED);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"RUNNINGX\"}", &l) == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"RUN\"}", &l) == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\"}", &l) == -1);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"status\",\"state\":\"RUNNING\"}", &l) == 0 && l.type == SYS_GPS_MGR_OTHER);
+	CHECK(sys_gps_parse_mgr("{\"type\":\"future\"}", &l) == 0 && l.type == SYS_GPS_MGR_OTHER);
+	CHECK(sys_gps_parse_mgr("{\"state\":\"RUNNING\"}", &l) == -1);	/* no type */
+	CHECK(sys_gps_parse_mgr("state RUNNING fix", &l) == -1);	/* the old text protocol */
+	CHECK(sys_gps_parse_mgr("{\"type\":\"state\",\"state\":\"OFF\"} x", &l) == -1);
+	CHECK(sys_gps_parse_mgr("", &l) == -1);
 
 	CHECK(sys_gps_parse_tpv("{\"class\":\"TPV\",\"device\":\"x\",\"mode\":3,\"lat\":1,\"eph\":2.7}",
 				&mode, &eph) == 0 && mode == 3 && eph > 2.6 && eph < 2.8);
@@ -209,6 +228,34 @@ static void say(int fd, const char *s)
 	CHECK(write(fd, s, strlen(s)) == (ssize_t)strlen(s));
 }
 
+/* gps-manager's lines (proto 1) */
+#define MGR_HELLO "{\"type\":\"hello\",\"daemon\":\"gps-manager\",\"proto\":1}\n"
+#define MGR_OK_WATCH "{\"type\":\"ok\",\"cmd\":\"watch\"}\n"
+#define MGR_OK_LEASE "{\"type\":\"ok\",\"cmd\":\"lease\",\"kind\":\"map\",\"held\":1}\n"
+#define MGR_SWITCH_ON "{\"type\":\"switch\",\"enabled\":true}\n"
+#define MGR_SWITCH_OFF "{\"type\":\"switch\",\"enabled\":false}\n"
+#define MGR_STATE(st, detail) "{\"type\":\"state\",\"state\":\"" st "\",\"detail\":\"" detail \
+	"\",\"up_ms\":null,\"fix_ms\":null}\n"
+
+static int64_t mono_now(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* A state line of a bring-up that began at START (monotonic ms) and had
+ * its first fix FIX ms after it. */
+static void say_state_since(int fd, const char *st, int64_t start, long fix)
+{
+	char buf[256];
+
+	snprintf(buf, sizeof(buf), "{\"type\":\"state\",\"state\":\"%s\",\"detail\":\"CID 1, fix\","
+		 "\"up_ms\":%lld,\"fix_ms\":%ld}\n", st, (long long)(mono_now() - start), fix);
+	say(fd, buf);
+}
+
 static void test_gps(void)
 {
 	char sock[300];
@@ -228,10 +275,11 @@ static void test_gps(void)
 	CHECK(fakeloop_run_until(server_poll, &mgr, 1000) && !strcmp(mgr.in, "watch\n"));
 
 	/* partial line, then the rest; a malformed line changes nothing */
-	say(mgr.cfd, "ok watch\nstate ACQ");
+	say(mgr.cfd, MGR_HELLO MGR_OK_WATCH "{\"type\":\"state\",\"state\":\"ACQ");
 	fakeloop_run_for(100);
 	CHECK(sys_state.gps.state == SYS_GPS_UNAVAILABLE);
-	say(mgr.cfd, "UIRING sats 3\nbogus line\nstate WEIRD x\n");
+	say(mgr.cfd, "UIRING\",\"detail\":\"sats 3\",\"up_ms\":null,\"fix_ms\":null}\nbogus line\n"
+	    "state RUNNING old text\n" MGR_STATE("WEIRD", "x"));
 	want = SYS_GPS_SEARCHING;
 	CHECK(fakeloop_run_until(gps_is, &want, 1000));
 	CHECK(gpsd.cfd < 0);	/* no gpsd until RUNNING */
@@ -239,7 +287,7 @@ static void test_gps(void)
 	CHECK(!accepted(&gpsd));
 
 	/* RUNNING: gpsd ?WATCH, TPV in pieces */
-	say(mgr.cfd, "state RUNNING fix\n");
+	say(mgr.cfd, MGR_STATE("RUNNING", "fix"));
 	want = SYS_GPS_RUNNING;
 	CHECK(fakeloop_run_until(gps_is, &want, 1000));
 	CHECK(fakeloop_run_until(accepted, &gpsd, 2000));
@@ -249,7 +297,7 @@ static void test_gps(void)
 	CHECK(fakeloop_run_until(gps_mode3, NULL, 1000));
 
 	/* leaving RUNNING drops gpsd and the fix detail */
-	say(mgr.cfd, "state STOPPING lease released\n");
+	say(mgr.cfd, MGR_STATE("STOPPING", "lease released"));
 	want = SYS_GPS_OFF;
 	CHECK(fakeloop_run_until(gps_is, &want, 1000));
 	CHECK(sys_state.gps.mode == 0 && sys_state.gps.eph < 0);
@@ -268,7 +316,7 @@ static void test_gps(void)
 	mgr.lfd = listen_unix(sock);
 	CHECK(fakeloop_run_until(accepted, &mgr, 4000));
 	CHECK(fakeloop_run_until(server_poll, &mgr, 1000) && !strcmp(mgr.in, "watch\n"));
-	say(mgr.cfd, "ok watch\nstate FAILED no modem owner\n");
+	say(mgr.cfd, MGR_HELLO MGR_OK_WATCH MGR_STATE("FAILED", "no modem owner"));
 	want = SYS_GPS_FAILED;
 	CHECK(fakeloop_run_until(gps_is, &want, 1000));
 
@@ -379,7 +427,7 @@ static void test_gps_page(void)
 	sys_gps_start(sock, port);
 	CHECK(fakeloop_run_until(accepted, &mgr, 3000));
 	CHECK(mgr_wait(&mgr, "watch\n", 1000));
-	say(mgr.cfd, "ok watch\nenabled 1\nstate OFF idle\n");
+	say(mgr.cfd, MGR_HELLO MGR_OK_WATCH MGR_SWITCH_ON MGR_STATE("OFF", "idle"));
 	en = 1;
 	CHECK(fakeloop_run_until(enabled_is, &en, 1000));
 	want = SYS_GPS_OFF;
@@ -391,7 +439,7 @@ static void test_gps_page(void)
 	sys_gps_watch(true);
 	CHECK(mgr_wait(&mgr, "lease map\n", 1000) && gps_view.lease_ms > 0);
 	/* searching: gpsd already, for the sky */
-	say(mgr.cfd, "ok lease map 1\nstate ACQUIRING CID 1, no fix\n");
+	say(mgr.cfd, MGR_OK_LEASE MGR_STATE("ACQUIRING", "CID 1, no fix"));
 	CHECK(fakeloop_run_until(accepted, &gpsd, 3000));
 	CHECK(mgr_wait(&gpsd, "?WATCH", 1000));
 	say(gpsd.cfd, SKY);
@@ -400,7 +448,7 @@ static void test_gps_page(void)
 	CHECK(fakeloop_run_until(view_sats, &n, 1000) && gps_view.mode == 1 && !gps_view.first_fix_ms);
 	/* the manager's bring-up has been running 84 s and had its first fix after 80 s: those are
 	 * the counter and the first-fix time, not the page's lease */
-	say(mgr.cfd, "state RUNNING CID 1, fix\nacq 84000 80000\n");
+	say_state_since(mgr.cfd, "RUNNING", mono_now() - 84000, 80000);
 	say(gpsd.cfd, TPV3);
 	say(gpsd.cfd, "\n");
 	CHECK(fakeloop_run_until(view_fix, NULL, 1000));
@@ -421,7 +469,8 @@ static void test_gps_page(void)
 		sys_gps_watch(true);
 		CHECK(mgr_wait(&mgr, "lease map\n", 1000));
 		CHECK(gps_view.start_ms == start && gps_view.first_fix_ms == fixed && gps_view.lease_ms > start);
-		say(mgr.cfd, "ok lease map 1\nstate RUNNING CID 1, fix\n");
+		say(mgr.cfd, MGR_OK_LEASE);
+		say_state_since(mgr.cfd, "RUNNING", start, 80000);
 		fakeloop_run_for(100);
 		/* gpsd was closed with the page; it is read again for the sky and the fix */
 		if (gpsd.cfd >= 0) {
@@ -436,7 +485,8 @@ static void test_gps_page(void)
 		say(gpsd.cfd, TPV3);
 		say(gpsd.cfd, "\n");
 		CHECK(fakeloop_run_until(view_fix, NULL, 1000));
-		CHECK(gps_view.start_ms == start && gps_view.first_fix_ms == fixed);
+		/* the same bring-up, as the manager's up_ms says (less the time on the way) */
+		CHECK(llabs(gps_view.start_ms - start) <= 100 && gps_view.first_fix_ms - gps_view.start_ms == fixed - start);
 	}
 
 	/* gpsd's DOP-only SKY lines between the full ones keep the satellites (the flicker defect
@@ -483,7 +533,8 @@ static void test_gps_page(void)
 	mgr.in[0] = 0;
 	CHECK(sys_gps_set_enabled(false) == 0);
 	CHECK(mgr_wait(&mgr, "disable\n", 1000));
-	say(mgr.cfd, "ok enabled 0\nenabled 0\nstate STOPPING released\nstate DISABLED disabled\nacq -1 -1\n");
+	say(mgr.cfd, "{\"type\":\"ok\",\"cmd\":\"disable\",\"enabled\":false}\n" MGR_SWITCH_OFF
+	    MGR_STATE("STOPPING", "released") MGR_STATE("DISABLED", "disabled"));
 	want = SYS_GPS_DISABLED;
 	CHECK(fakeloop_run_until(gps_is, &want, 1000) && sys_state.gps.enabled == 0);
 	CHECK(fakeloop_run_until(peer_closed, &gpsd, 1000));
@@ -500,21 +551,21 @@ static void test_gps_page(void)
 	mgr.in[0] = 0;
 	CHECK(fakeloop_run_until(accepted, &mgr, 4000));
 	CHECK(mgr_wait(&mgr, "watch\n", 1000));
-	say(mgr.cfd, "ok watch\nenabled 0\nstate DISABLED disabled\n");
+	say(mgr.cfd, MGR_HELLO MGR_OK_WATCH MGR_SWITCH_OFF MGR_STATE("DISABLED", "disabled"));
 	fakeloop_run_for(200);
 	server_poll(&mgr);
 	CHECK(!strstr(mgr.in, "lease"));		/* off: not even asked */
-	say(mgr.cfd, "enabled 1\nstate OFF idle\n");
+	say(mgr.cfd, MGR_SWITCH_ON MGR_STATE("OFF", "idle"));
 	CHECK(mgr_wait(&mgr, "lease map\n", 1000));
-	say(mgr.cfd, "err disabled\n");	/* a race with another disable */
+	say(mgr.cfd, "{\"type\":\"error\",\"cmd\":\"lease\",\"reason\":\"disabled\"}\n");	/* a race with another disable */
 	fakeloop_run_for(100);
 	mgr.n = 0;
 	mgr.in[0] = 0;
-	say(mgr.cfd, "enabled 0\nenabled 1\n");
+	say(mgr.cfd, MGR_SWITCH_OFF MGR_SWITCH_ON);
 	CHECK(mgr_wait(&mgr, "lease map\n", 1000));	/* asked again */
 
 	/* the manager goes while a fix is shown: forgotten at once */
-	say(mgr.cfd, "state RUNNING CID 1, fix\n");
+	say(mgr.cfd, MGR_STATE("RUNNING", "CID 1, fix"));
 	CHECK(fakeloop_run_until(accepted, &gpsd, 4000));
 	CHECK(mgr_wait(&gpsd, "?WATCH", 1000));
 	say(gpsd.cfd, TPV3);
@@ -533,7 +584,7 @@ static void test_gps_page(void)
 	mgr.in[0] = 0;
 	CHECK(fakeloop_run_until(accepted, &mgr, 4000));
 	CHECK(mgr_wait(&mgr, "watch\n", 1000));
-	say(mgr.cfd, "ok watch\nenabled 1\nstate OFF idle\n");
+	say(mgr.cfd, MGR_HELLO MGR_OK_WATCH MGR_SWITCH_ON MGR_STATE("OFF", "idle"));
 	CHECK(mgr_wait(&mgr, "lease map\n", 1000));	/* the page still wants it */
 
 	/* the page goes: release, the view forgotten */
