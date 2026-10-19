@@ -150,7 +150,7 @@ Sensors and audio share the ADSP. `sensors-up` reuses `audio-up` unchanged to bo
 
 Protocol references: `logs/sns-idl-dump-2026-09-26.txt`, `logs/sns-idl-dump-2026-09-27-qmag.txt` (QMAG_CAL 0x140, MAG_CAL 0x110), `logs/sns-idl-dump-2026-09-27-rotvec.txt` (ROTATION_VECTOR 0x112, with the stock HAL's use of it; regenerate with `tools/sns-idl-dump.py` against the stock `libsensor1.so`), and `tools/sensord/sns_msgs.h`, which carries our reading of each message.
 
-Sources: `tools/sensord/` (`sensord.c`, `compass.{c,h}`, `sns_msgs.{c,h}`, `sns_reg.{c,h}`, `compass-replay.c`), `rootfs-overlay/usr/bin/sensors-up`, `rootfs-overlay/usr/bin/sensors-compass-run`, `tools/compass-check.py`, `tools/sns-idl-dump.py`, `tools/sns-reg-map.py`, the map step in `scripts/mkinitramfs.sh`.
+Sources: `tools/sensord/` (`sensord.h` and `main.c`, `channel.c`, `server.c`, `heading.c`, `smgr.c`, `sam.c`, `regserv.c`, `cli.c`, `compass.{c,h}`, `sns_msgs.{c,h}`, `sns_reg.{c,h}`, `compass-replay.c`), `rootfs-overlay/usr/bin/sensors-up`, `rootfs-overlay/usr/bin/sensors-compass-run`, `tools/compass-check.py`, `tools/sns-idl-dump.py`, `tools/sns-reg-map.py`, the map step in `scripts/mkinitramfs.sh`.
 
 ## Magnetometer calibration check
 

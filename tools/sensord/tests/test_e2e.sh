@@ -1,6 +1,6 @@
 #!/bin/sh
 # End-to-end: the real sensord main loop (build/host/tests/sensord-fake, i.e.
-# sensord.c on tests/fake_ipc.c) against build/host/tests/fake_smgr, which
+# sensord's sources on tests/fake_ipc.c) against build/host/tests/fake_smgr, which
 # plays the ADSP: REG2 reads/writes at "boot", then the SMGR service with
 # sensor info, report add/delete and a sample stream, and a simulated DSP
 # restart. Client side through sensord's own CLI mode. Registry data is the

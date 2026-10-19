@@ -1,12 +1,20 @@
-/* Unit tests for sensord.c's pure parts: sample conversion and axis
+/* Unit tests for sensord's pure parts: sample conversion and axis
  * mapping, DSP tick -> CLOCK_MONOTONIC conversion (with wrap), the
  * JSON lines, claim/release/get bookkeeping and rate aggregation, the
  * bounded per-client queue and its drop accounting, and the request
- * parser. sensord.c is included with SENSORD_NO_MAIN; the SMGR side is
- * held "down" here (so nothing is sent) and exercised end to end by
- * tests/test_e2e.sh instead. */
-#define SENSORD_NO_MAIN
-#include "../sensord.c"
+ * parser. Linked with every sensord source but main.c and cli.c; the
+ * SMGR side is held "down" here (so nothing is sent) and exercised end to
+ * end by tests/test_e2e.sh instead. */
+#include <errno.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+#include "../sensord.h"
 
 #include <math.h>
 
@@ -51,30 +59,30 @@ static void test_convert(void)
 	double v[3];
 
 	/* SMGR -> Android frame, as sensors.ssc.so: x=d1, y=d0, z=-d2 */
-	convert_sample(CH_VEC3, d, v);
+	sn_convert_sample(CH_VEC3, d, v);
 	CHECK(near(v[0], 1.0) && near(v[1], 0.5) && near(v[2], 0x9ce80 / 65536.0));
-	convert_sample(CH_SCALAR, d, v);
+	sn_convert_sample(CH_SCALAR, d, v);
 	CHECK(near(v[0], 0.5));
-	convert_sample(CH_PROX, (int32_t[3]){ 0, 42, 0 }, v);
+	sn_convert_sample(CH_PROX, (int32_t[3]){ 0, 42, 0 }, v);
 	CHECK(v[0] == 0 && near(v[1], 42));
-	convert_sample(CH_PROX, (int32_t[3]){ 0x10000, 0, 0 }, v);
+	sn_convert_sample(CH_PROX, (int32_t[3]){ 0x10000, 0, 0 }, v);
 	CHECK(v[0] == 1);
 	/* near = trunc(d0 / 2^16) != 0, like the HAL's fcvtzs */
-	convert_sample(CH_PROX, (int32_t[3]){ 0xffff, 0, 0 }, v);
+	sn_convert_sample(CH_PROX, (int32_t[3]){ 0xffff, 0, 0 }, v);
 	CHECK(v[0] == 0);
-	convert_sample(CH_PROX, (int32_t[3]){ -0x10000, 0, 0 }, v);
+	sn_convert_sample(CH_PROX, (int32_t[3]){ -0x10000, 0, 0 }, v);
 	CHECK(v[0] == 1);
 }
 
 static void test_ticks(void)
 {
 	/* one second before the anchor */
-	CHECK(ticks_to_ns(1000, 1000 + 32768, 5000000000LL) == 4000000000LL);
+	CHECK(sn_ticks_to_ns(1000, 1000 + 32768, 5000000000LL) == 4000000000LL);
 	/* stamp just before the u32 counter wrapped, anchor just after */
-	CHECK(ticks_to_ns(0xffffffffu - 32767, 1, 10000000000LL) ==
+	CHECK(sn_ticks_to_ns(0xffffffffu - 32767, 1, 10000000000LL) ==
 	      10000000000LL - 1000000000LL - 1000000000LL / 32768);
 	/* a stamp slightly in the future stays in the future */
-	CHECK(ticks_to_ns(32768 + 16384, 32768, 0) == 500000000LL);
+	CHECK(sn_ticks_to_ns(32768 + 16384, 32768, 0) == 500000000LL);
 }
 
 static void test_format(void)
@@ -82,17 +90,17 @@ static void test_format(void)
 	struct channel ch[CH_COUNT];
 	char buf[256];
 
-	memcpy(ch, channel_defaults, sizeof(ch));
-	format_sample(buf, sizeof(buf), &ch[CH_ACCEL], 123, (int32_t[3]){ 0, 0x10000, 0x20000 });
+	memcpy(ch, sn_channel_defaults, sizeof(ch));
+	sn_format_sample(buf, sizeof(buf), &ch[CH_ACCEL], 123, (int32_t[3]){ 0, 0x10000, 0x20000 });
 	CHECK(strcmp(buf, "{\"sensor\":\"accel\",\"t\":123,\"x\":1,\"y\":0,\"z\":-2}\n") == 0);
-	format_sample(buf, sizeof(buf), &ch[CH_ILLUM], 5, (int32_t[3]){ 0x7b8000, 0, 0 });
+	sn_format_sample(buf, sizeof(buf), &ch[CH_ILLUM], 5, (int32_t[3]){ 0x7b8000, 0, 0 });
 	CHECK(strcmp(buf, "{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":123.5}\n") == 0);
-	format_sample(buf, sizeof(buf), &ch[CH_PROX_], 5, (int32_t[3]){ 0x10000, 42, 0 });
+	sn_format_sample(buf, sizeof(buf), &ch[CH_PROX_], 5, (int32_t[3]){ 0x10000, 42, 0 });
 	CHECK(strcmp(buf, "{\"sensor\":\"proximity\",\"t\":5,\"near\":1,\"proximity\":42}\n") == 0);
 
-	json_escape(buf, sizeof(buf), "a\"b\\c\x01\xffz");
+	sn_json_escape(buf, sizeof(buf), "a\"b\\c\x01\xffz");
 	CHECK(strcmp(buf, "a\\\"b\\\\cz") == 0);
-	CHECK(channel_from_name("magn") == CH_MAGN && channel_from_name("gyro") == -1);
+	CHECK(sn_channel_from_name("magn") == CH_MAGN && sn_channel_from_name("gyro") == -1);
 }
 
 /* A server with one connected client over a socketpair; returns the
@@ -103,7 +111,7 @@ static struct client *setup(struct server *s, int *peer)
 	struct client *c;
 	int i;
 
-	server_init(s);
+	sn_server_init(s);
 	s->now_ms = test_now;
 	s->log = test_log;
 	for (i = 0; i < CH_COUNT; i++) {
@@ -111,7 +119,7 @@ static struct client *setup(struct server *s, int *peer)
 		s->ch[i].max_hz = i == CH_MAGN ? 50 : 200;
 	}
 	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	c = server_add_client(s, sv[0]);
+	c = sn_server_add_client(s, sv[0]);
 	*peer = sv[1];
 	return c;
 }
@@ -121,7 +129,7 @@ static void send_line(struct server *s, struct client *c, const char *line)
 	char buf[SENSORD_LINE_MAX + 64];
 
 	snprintf(buf, sizeof(buf), "%s", line);
-	server_handle_line(s, c, buf);
+	sn_server_handle_line(s, c, buf);
 }
 
 static size_t drain(int fd, char *buf, size_t len)
@@ -144,7 +152,7 @@ static void test_claims(void)
 
 	a = setup(&s, &pa);
 	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	b = server_add_client(&s, sv[0]);
+	b = sn_server_add_client(&s, sv[0]);
 	pb = sv[1];
 
 	send_line(&s, a, "claim accel 50");
@@ -154,10 +162,10 @@ static void test_claims(void)
 	send_line(&s, b, "claim magn 500");			/* clamped to 50 */
 	drain(pb, buf, sizeof(buf));
 	CHECK(strstr(buf, "\"rate\":10") && strstr(buf, "\"sensor\":\"magn\",\"rate\":50"));
-	CHECK(channel_want(&s, CH_ACCEL) == 50 && channel_claims(&s, CH_ACCEL) == 2);
-	CHECK(channel_want(&s, CH_MAGN) == 50);
+	CHECK(sn_channel_want(&s, CH_ACCEL) == 50 && sn_channel_claims(&s, CH_ACCEL) == 2);
+	CHECK(sn_channel_want(&s, CH_MAGN) == 50);
 	send_line(&s, a, "release accel");
-	CHECK(channel_want(&s, CH_ACCEL) == 10);
+	CHECK(sn_channel_want(&s, CH_ACCEL) == 10);
 
 	/* errors */
 	send_line(&s, a, "claim gyro");
@@ -183,8 +191,8 @@ static void test_claims(void)
 
 	/* disconnect drops that client's claims */
 	close(pb);
-	server_client_input(&s, b);
-	CHECK(b->fd < 0 && channel_want(&s, CH_ACCEL) == 0 && channel_want(&s, CH_MAGN) == 0);
+	sn_server_client_input(&s, b);
+	CHECK(b->fd < 0 && sn_channel_want(&s, CH_ACCEL) == 0 && sn_channel_want(&s, CH_MAGN) == 0);
 
 	/* list and status are single JSON lines */
 	send_line(&s, a, "list");
@@ -195,7 +203,7 @@ static void test_claims(void)
 	drain(pa, buf, sizeof(buf));
 	CHECK(strstr(buf, "\"api\":\"buffering\"") && strstr(buf, "\"clients\":1"));
 	close(pa);
-	server_drop_client(&s, a);
+	sn_server_drop_client(&s, a);
 }
 
 static void test_publish_and_get(void)
@@ -208,24 +216,24 @@ static void test_publish_and_get(void)
 
 	fast = setup(&s, &pf);
 	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	slow_ = server_add_client(&s, sv[0]);
+	slow_ = sn_server_add_client(&s, sv[0]);
 	ps = sv[1];
 	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	g = server_add_client(&s, sv[0]);
+	g = sn_server_add_client(&s, sv[0]);
 	pg = sv[1];
 
 	send_line(&s, fast, "claim accel 100");
 	send_line(&s, slow_, "claim accel 10");
 	send_line(&s, g, "get accel");
 	CHECK(g->rate[CH_ACCEL] == 10 && g->get_only[CH_ACCEL]);
-	CHECK(channel_want(&s, CH_ACCEL) == 100);
+	CHECK(sn_channel_want(&s, CH_ACCEL) == 100);
 	drain(pf, buf, sizeof(buf));
 	drain(ps, buf, sizeof(buf));
 
 	/* one second of 100 Hz samples */
 	for (i = 0, t = 1000000000LL; i < 100; i++, t += 10000000LL)
-		server_publish(&s, CH_ACCEL, t, (int32_t[3]){ 0, 0x10000, 0 });
-	server_flush_all(&s);
+		sn_server_publish(&s, CH_ACCEL, t, (int32_t[3]){ 0, 0x10000, 0 });
+	sn_server_flush_all(&s);
 	{
 		size_t n = drain(pf, buf, sizeof(buf));
 		int lines = 0;
@@ -247,10 +255,10 @@ static void test_publish_and_get(void)
 	/* a get nobody answers times out */
 	fake_now = 1000;
 	send_line(&s, g, "get illuminance");
-	server_tick_clients(&s);
+	sn_server_tick_clients(&s);
 	CHECK(g->get[CH_ILLUM]);
 	fake_now += SENSORD_GET_TIMEOUT_MS;
-	server_tick_clients(&s);
+	sn_server_tick_clients(&s);
 	drain(pg, buf, sizeof(buf));
 	CHECK(strcmp(buf, "{\"err\":\"timeout\",\"sensor\":\"illuminance\"}\n") == 0);
 	CHECK(!g->get[CH_ILLUM] && g->rate[CH_ILLUM] == 0);
@@ -274,19 +282,19 @@ static void test_slow_client(void)
 	setsockopt(c->fd, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz));
 	send_line(&s, c, "claim accel 200");
 	for (i = 0; i < 5000; i++) {
-		server_publish(&s, CH_ACCEL, 1000000000LL + i * 5000000LL, (int32_t[3]){ 1, 2, 3 });
-		server_flush_all(&s);
+		sn_server_publish(&s, CH_ACCEL, 1000000000LL + i * 5000000LL, (int32_t[3]){ 1, 2, 3 });
+		sn_server_flush_all(&s);
 	}
 	CHECK(c->fd >= 0 && c->outlen > sizeof(c->out) - 200);
 	dropped = c->dropped;
 	CHECK(dropped > 0 && c->dropped_total == dropped);
 	drain(p, buf, sizeof(buf));
-	server_flush_all(&s);
+	sn_server_flush_all(&s);
 	drain(p, buf, sizeof(buf));
-	server_flush_all(&s);
+	sn_server_flush_all(&s);
 	drain(p, buf, sizeof(buf));
-	server_publish(&s, CH_ACCEL, 99000000000LL, (int32_t[3]){ 1, 2, 3 });
-	server_flush_all(&s);
+	sn_server_publish(&s, CH_ACCEL, 99000000000LL, (int32_t[3]){ 1, 2, 3 });
+	sn_server_flush_all(&s);
 	drain(p, buf, sizeof(buf));
 	d = strstr(buf, "{\"dropped\":");
 	CHECK(d && strtoul(d + 11, NULL, 10) == dropped);
@@ -312,9 +320,9 @@ static void test_long_line(void)
 	memset(junk, 'x', sizeof(junk));
 	CHECK(write(p, junk, sizeof(junk)) == (ssize_t)sizeof(junk));
 	CHECK(write(p, "\nclaim accel 20\n", 16) == 16);
-	server_client_input(&s, c);
-	server_client_input(&s, c);
-	server_client_input(&s, c);
+	sn_server_client_input(&s, c);
+	sn_server_client_input(&s, c);
+	sn_server_client_input(&s, c);
 	drain(p, buf, sizeof(buf));
 	CHECK(strstr(buf, "{\"err\":\"line too long\"}\n"));
 	CHECK(strstr(buf, "{\"ok\":\"claim\",\"sensor\":\"accel\",\"rate\":20}\n"));
@@ -331,19 +339,19 @@ static void test_deadline(void)
 	fake_now = 10000;
 	s.st = SMGR_READY;
 	s.next_check = 15000;
-	CHECK(server_deadline_ms(&s) == 5000);
+	CHECK(sn_server_deadline_ms(&s) == 5000);
 	s.pend[0].used = true;
 	s.pend[0].sent = 9000;
-	CHECK(server_deadline_ms(&s) == 2000);	/* request timeout at 12000 */
+	CHECK(sn_server_deadline_ms(&s) == 2000);	/* request timeout at 12000 */
 	c->get[CH_ACCEL] = true;
 	c->get_deadline[CH_ACCEL] = 10500;
-	CHECK(server_deadline_ms(&s) == 500);
+	CHECK(sn_server_deadline_ms(&s) == 500);
 	c->get_deadline[CH_ACCEL] = 9000;
-	CHECK(server_deadline_ms(&s) == 0);
+	CHECK(sn_server_deadline_ms(&s) == 0);
 	s.pend[0].used = false;
 	c->get[CH_ACCEL] = false;
 	s.next_check = 10000000;
-	CHECK(server_deadline_ms(&s) == 60000);
+	CHECK(sn_server_deadline_ms(&s) == 60000);
 	close(p);
 }
 
@@ -358,7 +366,7 @@ static void test_reset(void)
 	s.ch[CH_ACCEL].busy = true;
 	s.pend[0].used = true;
 	all_logs[0] = '\0';
-	smgr_reset(&s, "test");
+	sn_smgr_reset(&s, "test");
 	CHECK(s.st == SMGR_DOWN && s.ch[CH_ACCEL].rate == 0 && !s.ch[CH_ACCEL].busy &&
 	      !s.pend[0].used && s.smgr_resets == 1);
 	CHECK(strstr(all_logs, "lost (test)"));
@@ -383,7 +391,7 @@ static void test_reg2_bad_write(void)
 	pkt.data = buf;
 	pkt.data_len = sizeof(msg);
 	all_logs[0] = '\0';
-	reg2_rx(&s, &pkt, 5, 77);
+	sn_reg2_rx(&s, &pkt, 5, 77);
 	if (!strstr(all_logs, "item write 700 from 5:77 (RAM, /run copy) rejected (0 bytes)"))
 		fprintf(stderr, "logs: %s\n", all_logs);
 	CHECK(strstr(all_logs, "item write 700 from 5:77 (RAM, /run copy) rejected (0 bytes)"));
@@ -435,32 +443,32 @@ static void test_qmag(void)
 	s.qmag.node = 5;
 	s.qmag.port = 9;
 	c->rate[CH_MAGN] = 10;
-	CHECK(strcmp(sam_state_name(&s.qmag), "on") == 0);
+	CHECK(strcmp(sn_sam_state_name(&s.qmag), "on") == 0);
 
 	/* from another port: ignored */
 	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, ind, sizeof(ind));
-	sam_rx(&s, &s.qmag, &pkt, 5, 10);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 10);
 	CHECK(!s.qmag.have && s.qmag.inds == 0);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(s.qmag.have && s.qmag.inds == 1 && s.qmag.accuracy == 2);
 	CHECK(s.qmag.bias[0] == 0x2000 && s.qmag.bias[1] == -0x4000 && s.qmag.bias[2] == 0x6000);
 	CHECK(strstr(last_log, "qmag report 1: instance 7 ts 16 bias raw 8192 -16384 24576"));
 	CHECK(strstr(last_log, "device x -0.25000 y 0.12500 z -0.37500 gauss, accuracy 2"));
 
-	server_publish(&s, CH_MAGN, 5, (int32_t[3]){ 0x10000, 0x20000, 0x30000 });
-	server_flush_all(&s);
+	sn_server_publish(&s, CH_MAGN, 5, (int32_t[3]){ 0x10000, 0x20000, 0x30000 });
+	sn_server_flush_all(&s);
 	drain(p, buf, sizeof(buf));
 	CHECK(strcmp(buf, "{\"sensor\":\"magn\",\"t\":5,\"x\":2,\"y\":1,\"z\":-3,\"bias\":[-0.25,0.125,-0.375],"
 			  "\"bias_raw\":[8192,-16384,24576],\"accuracy\":2}\n") == 0);
 	/* other channels are untouched */
 	c->rate[CH_ACCEL] = 10;
-	server_publish(&s, CH_ACCEL, 5, (int32_t[3]){ 0, 0, 0 });
-	server_flush_all(&s);
+	sn_server_publish(&s, CH_ACCEL, 5, (int32_t[3]){ 0, 0, 0 });
+	sn_server_flush_all(&s);
 	drain(p, buf, sizeof(buf));
 	CHECK(!strstr(buf, "bias"));
 
-	server_status_line(&s, buf, sizeof(buf));
+	sn_server_status_line(&s, buf, sizeof(buf));
 	CHECK(strstr(buf, "\"qmag\":\"on\",\"qmag_instance\":7,\"qmag_enables\":0,\"qmag_inds\":1,"
 			  "\"qmag_errors\":0,\"qmag_last_error\":-1,\"bias\":[-0.25,0.125,-0.375]"));
 
@@ -472,64 +480,64 @@ static void test_qmag(void)
 		other[3] = 8;
 		other[29] = 3;
 		b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, other, sizeof(other));
-		sam_rx(&s, &s.qmag, &pkt, 5, 9);
+		sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 		free(b);
 		CHECK(s.qmag.inds == 1 && s.qmag.accuracy == 2);
 		CHECK(strstr(last_log, "qmag report for instance 8 ignored"));
 	}
 	/* truncated: the bias TLV claims 12 bytes, the packet ends first */
 	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, ind, 20);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(s.qmag.inds == 1);
 	CHECK(strstr(last_log, "qmag report indication did not decode"));
 	/* error indication */
 	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_ERROR_IND,
 		  (const uint8_t[]){ 0x01, 0x01, 0x00, 0x04, 0x02, 0x01, 0x00, 0x07 }, 8);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(s.qmag.errors == 1 && s.qmag.last_error == 4 &&
 	      strstr(last_log, "qmag error indication: error 4 for our instance 7"));
 	/* another instance's error is not ours */
 	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_ERROR_IND,
 		  (const uint8_t[]){ 0x01, 0x01, 0x00, 0x05, 0x02, 0x01, 0x00, 0x09 }, 8);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(s.qmag.errors == 1 && strstr(last_log, "instance 9 (not ours"));
 	/* mandatory TLVs missing (libqrtr would decode zeros): ignored */
 	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, ind, 4);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(s.qmag.inds == 1 && strstr(last_log, "without all of TLVs"));
 	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_ERROR_IND, (const uint8_t[]){ 0x01, 0x01, 0x00, 0x04 }, 4);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(s.qmag.errors == 1 && strstr(last_log, "malformed"));
 	/* a late ENABLE response for another instance: disabled at once
 	 * (the send fails here: no socket, which is logged) */
 	b = mkpkt(&pkt, QMI_RESPONSE, SNS_SAM_ENABLE,
 		  (const uint8_t[]){ 0x02, 0x02, 0x00, 0x00, 0x00, 0x10, 0x01, 0x00, 0x0b }, 9);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(strstr(last_log, "qmag late enable response created instance 11: disabling it"));
 	/* ... but a duplicate response for our own instance is left alone */
 	last_log[0] = '\0';
 	b = mkpkt(&pkt, QMI_RESPONSE, SNS_SAM_ENABLE,
 		  (const uint8_t[]){ 0x02, 0x02, 0x00, 0x00, 0x00, 0x10, 0x01, 0x00, 0x07 }, 9);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(!strstr(last_log, "late enable"));
 	/* a response nobody asked for changes nothing */
 	b = mkpkt(&pkt, QMI_RESPONSE, SNS_SAM_DISABLE,
 		  (const uint8_t[]){ 0x02, 0x02, 0x00, 0x00, 0x00 }, 5);
-	sam_rx(&s, &s.qmag, &pkt, 5, 9);
+	sn_sam_rx(&s, &s.qmag, &pkt, 5, 9);
 	free(b);
 	CHECK(s.qmag.on);
 
 	/* without -Q, or with SMGR down, nothing is wanted */
-	CHECK(!sam_wanted(&s, &s.qmag));
+	CHECK(!sn_sam_wanted(&s, &s.qmag));
 	s.qmag.opt = false;
-	CHECK(strcmp(sam_state_name(&s.qmag), "off") == 0);
+	CHECK(strcmp(sn_sam_state_name(&s.qmag), "off") == 0);
 	close(p);
 }
 
@@ -547,10 +555,10 @@ static void test_reg_debounce(void)
 	s.reg_dirty = true;
 	s.reg_dirty_since = s.reg_dirty_at = fake_now;
 	fake_now += 2999;
-	reg_tick(&s);
+	sn_reg_tick(&s);
 	CHECK(s.reg_dirty && s.reg_save_errors == 0);
 	fake_now += 1;
-	reg_tick(&s);
+	sn_reg_tick(&s);
 	CHECK(!s.reg_dirty && s.reg_save_errors == 1 && strstr(last_log, "write-back"));
 	/* a write every 2 s: saved at 30 s, not postponed for ever */
 	s.reg_dirty = true;
@@ -559,7 +567,7 @@ static void test_reg_debounce(void)
 		fake_now += 1000;
 		if (t % 2 == 0)
 			s.reg_dirty_at = fake_now;
-		reg_tick(&s);
+		sn_reg_tick(&s);
 		if (!s.reg_dirty)
 			break;
 	}
@@ -568,7 +576,7 @@ static void test_reg_debounce(void)
 	s.reg_path = NULL;
 	s.reg_dirty = true;
 	fake_now += 60000;
-	reg_tick(&s);
+	sn_reg_tick(&s);
 	CHECK(s.reg_save_errors == 2);
 	close(p);
 }
@@ -590,11 +598,11 @@ static void feed_flat_east(struct server *s, int64_t ms)
 	int32_t a[3] = { 0, 0, q16(-9.80665) }, g[3] = { 0, 0, 0 };
 	int32_t m[3] = { 0, q16(-0.3), q16(0.2) };
 
-	server_publish(s, CH_ANGLVEL, t, g);
-	server_publish(s, CH_ACCEL, t + 1, a);
+	sn_server_publish(s, CH_ANGLVEL, t, g);
+	sn_server_publish(s, CH_ACCEL, t + 1, a);
 	if (ms % 50 == 0)
-		server_publish(s, CH_MAGN, t + 2, m);
-	server_flush_all(s);
+		sn_server_publish(s, CH_MAGN, t + 2, m);
+	sn_server_flush_all(s);
 }
 
 static void test_heading(void)
@@ -608,22 +616,22 @@ static void test_heading(void)
 	c = setup(&s, &p);
 	s.ch[CH_HEADING].max_hz = SENSORD_HEADING_MAX_HZ;
 	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	o = server_add_client(&s, sv[0]);
+	o = sn_server_add_client(&s, sv[0]);
 	po = sv[1];
-	CHECK(channel_want(&s, CH_ACCEL) == 0 && !s.heading.active);
+	CHECK(sn_channel_want(&s, CH_ACCEL) == 0 && !s.heading.active);
 	send_line(&s, c, "claim heading 5");
 	drain(p, buf, sizeof(buf));
 	CHECK(strstr(buf, "{\"ok\":\"claim\",\"sensor\":\"heading\",\"rate\":5}"));
 	CHECK(s.heading.active && strstr(all_logs, "heading on: accel 50 Hz, anglvel 50 Hz, magn 20 Hz"));
-	CHECK(channel_want(&s, CH_ACCEL) == 50 && channel_want(&s, CH_ANGLVEL) == 50 &&
-	      channel_want(&s, CH_MAGN) == 20 && channel_want(&s, CH_ILLUM) == 0);
-	CHECK(channel_used(&s, CH_MAGN) == 1 && channel_claims(&s, CH_MAGN) == 0);
+	CHECK(sn_channel_want(&s, CH_ACCEL) == 50 && sn_channel_want(&s, CH_ANGLVEL) == 50 &&
+	      sn_channel_want(&s, CH_MAGN) == 20 && sn_channel_want(&s, CH_ILLUM) == 0);
+	CHECK(sn_channel_used(&s, CH_MAGN) == 1 && sn_channel_claims(&s, CH_MAGN) == 0);
 	/* rate max with another client, both ways */
 	send_line(&s, o, "claim accel 100");
 	send_line(&s, o, "claim magn 10");
-	CHECK(channel_want(&s, CH_ACCEL) == 100 && channel_want(&s, CH_MAGN) == 20);
+	CHECK(sn_channel_want(&s, CH_ACCEL) == 100 && sn_channel_want(&s, CH_MAGN) == 20);
 	send_line(&s, o, "release accel");
-	CHECK(channel_want(&s, CH_ACCEL) == 50 && channel_used(&s, CH_MAGN) == 2);
+	CHECK(sn_channel_want(&s, CH_ACCEL) == 50 && sn_channel_used(&s, CH_MAGN) == 2);
 	/* heading over 50 Hz is clamped */
 	send_line(&s, o, "claim heading 400");
 	drain(po, buf, sizeof(buf));
@@ -651,7 +659,7 @@ static void test_heading(void)
 	{
 		char st[4096];
 
-		server_status_line(&s, st, sizeof(st));
+		sn_server_status_line(&s, st, sizeof(st));
 		CHECK(strstr(st, "\"compass\":\"on\",\"compass_clients\":1,\"mount\":\"portrait\","
 				 "\"calibrated\":false,\"cal_source\":\"none\",\"mag_bias\":null,"
 				 "\"mag_bias_pairs\":0,\"mag_bias_reg\":null,\"disturbed\":false,"
@@ -659,7 +667,7 @@ static void test_heading(void)
 		CHECK(strstr(st, "\"compass_gyro_lost\":0,"));
 		CHECK(strstr(st, "\"rotvec\":\"off\",\"rotvec_instance\":-1,"));
 		CHECK(strstr(st, ",\"qmag\":\"off\","));
-		server_list_line(&s, st, sizeof(st));
+		sn_server_list_line(&s, st, sizeof(st));
 		CHECK(strstr(st, "{\"sensor\":\"heading\",\"unit\":\"deg\",\"virtual\":true,"
 				 "\"inputs\":\"accel 50 Hz, anglvel 50 Hz, magn 20 Hz\",\"present\":true,"
 				 "\"max_hz\":50,\"rate\":5,\"claims\":1,\"mount\":\"portrait\",\"calibrated\":false}"));
@@ -707,28 +715,28 @@ static void test_heading(void)
 
 		all_logs[0] = '\0';
 		for (; ms < t0 + 4000; ms += 20) {
-			server_publish(&s, CH_ACCEL, ms * 1000000LL + 1, a);
+			sn_server_publish(&s, CH_ACCEL, ms * 1000000LL + 1, a);
 			if (ms % 100 == 0)
-				server_publish(&s, CH_MAGN, ms * 1000000LL + 2, m);
+				sn_server_publish(&s, CH_MAGN, ms * 1000000LL + 2, m);
 		}
 		CHECK(strstr(all_logs, "heading: anglvel stopped (accel/magn more than 2 s past the last gyro sample): filter re-initialised, running on accel + magn until it is back (1 so far)"));
 		CHECK(s.heading.c.gyro_lost == 1 && s.heading.lines > lines + 50);
 		{
 			char st[4096];
 
-			server_status_line(&s, st, sizeof(st));
+			sn_server_status_line(&s, st, sizeof(st));
 			CHECK(strstr(st, "\"compass_gyro_lost\":1,"));
 		}
-		server_flush_all(&s);
+		sn_server_flush_all(&s);
 		drain(p, buf, sizeof(buf));
 	}
 	/* the internal factory magn report: wanted at 5 Hz while heading is
 	 * claimed, not listed, not claimable */
-	CHECK(channel_want(&s, CH_MAGF) == SENSORD_HEADING_FAC_HZ && channel_from_name("magn_factory") < 0);
+	CHECK(sn_channel_want(&s, CH_MAGF) == SENSORD_HEADING_FAC_HZ && sn_channel_from_name("magn_factory") < 0);
 	{
 		char st[4096];
 
-		server_list_line(&s, st, sizeof(st));
+		sn_server_list_line(&s, st, sizeof(st));
 		CHECK(!strstr(st, "magn_factory"));
 	}
 	/* live calibration: factory == full for 3 s: known, not calibrated;
@@ -743,14 +751,14 @@ static void test_heading(void)
 		for (; ms < t0 + 4000; ms += 20) {
 			feed_flat_east(&s, ms);
 			if (ms % 200 == 0)
-				server_publish(&s, CH_MAGF, ms * 1000000LL + 3, m0);
+				sn_server_publish(&s, CH_MAGF, ms * 1000000LL + 3, m0);
 		}
 		CHECK(s.heading.mc.known && !s.heading.calibrated && !strcmp(s.heading.cal_source, "live"));
 		CHECK(strstr(all_logs, "magnetometer NOT calibrated (source live, live): live bias 0.0000 0.0000 0.0000 gauss"));
 		for (t0 = ms; ms < t0 + 4000; ms += 20) {
 			feed_flat_east(&s, ms);
 			if (ms % 200 == 0)
-				server_publish(&s, CH_MAGF, ms * 1000000LL + 3, mb);
+				sn_server_publish(&s, CH_MAGF, ms * 1000000LL + 3, mb);
 		}
 		CHECK(s.heading.calibrated && s.heading.c.calibrated && !strcmp(s.heading.cal_source, "live"));
 		CHECK(strstr(all_logs, "magnetometer calibrated (source live, live): live bias 0.4010 0.2290 0.2540 gauss"));
@@ -762,23 +770,23 @@ static void test_heading(void)
 		{
 			char st[4096];
 
-			server_status_line(&s, st, sizeof(st));
+			sn_server_status_line(&s, st, sizeof(st));
 			CHECK(strstr(st, "\"calibrated\":true,\"cal_source\":\"live\",\"mag_bias\":[0.4010,0.2290,0.2540],"));
 		}
 		/* SMGR lost (the ADSP may restart and forget): learned again */
-		smgr_reset(&s, "test");
+		sn_smgr_reset(&s, "test");
 		CHECK(!s.heading.mc.known && !s.heading.calibrated && !strcmp(s.heading.cal_source, "none"));
 		CHECK(strstr(last_log, "magnetometer NOT calibrated (source none, smgr lost)") ||
 		      strstr(all_logs, "magnetometer NOT calibrated (source none, smgr lost)"));
 	}
 	/* release: inputs no longer wanted, filter off */
 	send_line(&s, c, "release heading");
-	CHECK(!s.heading.active && channel_want(&s, CH_ACCEL) == 0 && channel_used(&s, CH_MAGN) == 0);
+	CHECK(!s.heading.active && sn_channel_want(&s, CH_ACCEL) == 0 && sn_channel_used(&s, CH_MAGN) == 0);
 	CHECK(strstr(last_log, "heading off (no claims)"));
 	/* the heading's input refused: its claimants hear about it */
 	send_line(&s, c, "claim heading");
 	drain(p, buf, sizeof(buf));
-	notify_claimants(&s, CH_MAGN, "smgr refused report");
+	sn_notify_claimants(&s, CH_MAGN, "smgr refused report");
 	drain(p, buf, sizeof(buf));
 	CHECK(strstr(buf, "{\"err\":\"smgr refused report\",\"sensor\":\"heading\",\"input\":\"magn\"}"));
 	/* -M: mount name, parse */
@@ -806,7 +814,7 @@ static void test_mag_cal(void)
 	setup(&s, &p);
 	/* no registry at all (-R) */
 	s.serve_reg2 = false;
-	mag_cal_check(&s, "no registry (-R)");
+	sn_mag_cal_check(&s, "no registry (-R)");
 	CHECK(!s.heading.calibrated && !s.heading.bias_known &&
 	      strstr(all_logs, "magnetometer calibration in the registry unknown (no registry (-R)") &&
 	      strstr(last_log, "magnetometer NOT calibrated (source none, no registry (-R))"));
@@ -817,7 +825,7 @@ static void test_mag_cal(void)
 	s.reg.ngroups = 1;
 	s.reg.items = items;
 	s.reg.nitems = 6;
-	mag_cal_check(&s, "registry loaded");
+	sn_mag_cal_check(&s, "registry loaded");
 	CHECK(s.heading.bias_known && !s.heading.calibrated && !s.heading.c.calibrated);
 	CHECK(strstr(all_logs, "magnetometer bias in the registry (registry loaded): 0.0000 0.0000 0.0000 gauss (SMGR frame, group 2980) -> not calibrated"));
 	/* the DSP writes group 2980 with the live bias words */
@@ -835,7 +843,7 @@ static void test_mag_cal(void)
 				 sns_reg2_group_write_req_ei) > 0);
 	s.reg_sock = -1;
 	all_logs[0] = '\0';
-	reg2_rx(&s, &out, 5, 81);
+	sn_reg2_rx(&s, &out, 5, 81);
 	CHECK(s.reg.writes == 1 && s.heading.calibrated && s.heading.c.calibrated);
 	CHECK(s.heading.bias_raw[0] == -15790 && s.heading.bias_raw[2] == 16690);
 	CHECK(strstr(all_logs, "magnetometer bias in the registry (DSP write): -0.2409 -0.3949 0.2547 gauss (SMGR frame, group 2980) -> calibrated"));
@@ -843,7 +851,7 @@ static void test_mag_cal(void)
 	{
 		char st[4096];
 
-		server_status_line(&s, st, sizeof(st));
+		sn_server_status_line(&s, st, sizeof(st));
 		CHECK(strstr(st, "\"calibrated\":true,\"cal_source\":\"registry\",\"mag_bias\":null,"
 				 "\"mag_bias_pairs\":0,\"mag_bias_reg\":[-0.240936,-0.394852,0.254669],"));
 	}
@@ -851,24 +859,24 @@ static void test_mag_cal(void)
 	 * applying a bias right now (e.g. it restarted), whatever 2980 says */
 	s.heading.mc.known = true;
 	s.heading.mc.calibrated = false;
-	cal_apply(&s, "live");
+	sn_cal_apply(&s, "live");
 	CHECK(!s.heading.calibrated && !strcmp(s.heading.cal_source, "live"));
 	compass_magcal_init(&s.heading.mc);
-	cal_apply(&s, "test");
+	sn_cal_apply(&s, "test");
 	CHECK(s.heading.calibrated && !strcmp(s.heading.cal_source, "registry"));
 	/* the same bias again: no new log */
 	all_logs[0] = '\0';
-	mag_cal_check(&s, "DSP write");
+	sn_mag_cal_check(&s, "DSP write");
 	CHECK(all_logs[0] == '\0');
 	/* magn at calibration factory: SMGR does not apply the bias */
 	s.ch[CH_MAGN].cal = SNS_SMGR_CAL_FACTORY;
-	mag_cal_check(&s, "test");
+	sn_mag_cal_check(&s, "test");
 	CHECK(!s.heading.calibrated && strstr(last_log, "magnetometer NOT calibrated (source registry, test; magn calibration not full)"));
-	CHECK(internal_want(&s, CH_MAGF) == 0);
+	CHECK(sn_internal_want(&s, CH_MAGF) == 0);
 	s.ch[CH_MAGN].cal = SNS_SMGR_CAL_FULL;
 	/* a map without the items */
 	s.reg.nitems = 3;
-	mag_cal_check(&s, "test");
+	sn_mag_cal_check(&s, "test");
 	CHECK(!s.heading.calibrated && !s.heading.bias_known);
 	s.reg.data = NULL;
 	s.reg.groups = s.reg.items = NULL;
@@ -905,20 +913,20 @@ static void test_rotvec(void)
 	send_line(&s, c, "claim rotvec 20");
 	drain(p, buf, sizeof(buf));
 	CHECK(strstr(buf, "{\"ok\":\"claim\",\"sensor\":\"rotvec\",\"rate\":20}"));
-	CHECK(channel_used(&s, CH_ROTVEC) == 1 && !sam_wanted(&s, &s.rotvec));	/* SMGR down */
+	CHECK(sn_channel_used(&s, CH_ROTVEC) == 1 && !sn_sam_wanted(&s, &s.rotvec));	/* SMGR down */
 	s.rotvec.on = true;
 	s.rotvec.instance = 4;
 	s.rotvec.node = 5;
 	s.rotvec.port = 12;
-	CHECK(strcmp(sam_state_name(&s.rotvec), "on") == 0);
+	CHECK(strcmp(sn_sam_state_name(&s.rotvec), "on") == 0);
 	/* another port: ignored */
 	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, ind, sizeof(ind));
-	sam_rx(&s, &s.rotvec, &pkt, 5, 13);
+	sn_sam_rx(&s, &s.rotvec, &pkt, 5, 13);
 	CHECK(s.rotvec.inds == 0);
-	sam_rx(&s, &s.rotvec, &pkt, 5, 12);
+	sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 	free(b);
 	CHECK(s.rotvec.inds == 1 && s.rotvec.accuracy == 2 && s.rotvec.coord == 1);
-	server_flush_all(&s);
+	sn_server_flush_all(&s);
 	CHECK(strstr(last_log, "rotvec report 1: instance 4 ts 16 q x 0.00000 y 0.00000 z -0.70711 w 0.70711 (|q| 1.0000) accuracy 2 coord 1"));
 	drain(p, buf, sizeof(buf));
 	CHECK(strstr(buf, "{\"sensor\":\"rotvec\",\"t\":"));
@@ -928,7 +936,7 @@ static void test_rotvec(void)
 	memcpy(shortr, ind, sizeof(shortr));
 	shortr[12] = 0x11;
 	b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, shortr, sizeof(shortr));
-	sam_rx(&s, &s.rotvec, &pkt, 5, 12);
+	sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 	free(b);
 	CHECK(s.rotvec.inds == 1 && strstr(last_log, "with a 17-byte result, ignored"));
 	/* another instance: ignored */
@@ -938,7 +946,7 @@ static void test_rotvec(void)
 		memcpy(other, ind, sizeof(ind));
 		other[3] = 5;
 		b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, other, sizeof(other));
-		sam_rx(&s, &s.rotvec, &pkt, 5, 12);
+		sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 		free(b);
 		CHECK(s.rotvec.inds == 1 && strstr(last_log, "rotvec report for instance 5 ignored"));
 	}
@@ -952,10 +960,10 @@ static void test_rotvec(void)
 		c->next_t[CH_ROTVEC] = 0;	/* stamps are receive times here: not decimated away */
 		b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, bad, sizeof(bad));
 		all_logs[0] = '\0';
-		sam_rx(&s, &s.rotvec, &pkt, 5, 12);
+		sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 		free(b);
 		CHECK(strstr(all_logs, "rotvec quaternion norm 2.0000: not a unit quaternion"));
-		server_flush_all(&s);
+		sn_server_flush_all(&s);
 		drain(p, buf, sizeof(buf));
 		CHECK(strstr(buf, "\"w\":2,\"accuracy\":2,\"coord\":1}\n"));
 	}
@@ -967,9 +975,9 @@ static void test_rotvec(void)
 		memcpy(nan_q + 14, "\x00\x00\xc0\x7f\x00\x00\x80\x7f", 8);	/* x nan, y inf */
 		b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, nan_q, sizeof(nan_q));
 		c->next_t[CH_ROTVEC] = 0;
-		sam_rx(&s, &s.rotvec, &pkt, 5, 12);
+		sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 		free(b);
-		server_flush_all(&s);
+		sn_server_flush_all(&s);
 		drain(p, buf, sizeof(buf));
 		CHECK(strstr(buf, "\"x\":null,\"y\":null,\"z\":-0.707107,\"w\":0.707107,\"accuracy\":2,\"coord\":1}\n"));
 		CHECK(!strstr(buf, "nan") && !strstr(buf, "inf"));
@@ -988,7 +996,7 @@ static void test_rotvec(void)
 		for (k = 0; k < 40; k++) {
 			fake_now += 50;
 			b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, other, sizeof(other));
-			sam_rx(&s, &s.rotvec, &pkt, 5, 12);
+			sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 			free(b);
 		}
 		for (l = all_logs; (l = strstr(l, "rotvec report for instance 6 ignored")); l++)
@@ -996,14 +1004,14 @@ static void test_rotvec(void)
 		CHECK(n == 1);
 		fake_now += 5000;
 		b = mkpkt(&pkt, QMI_INDICATION, SNS_SAM_REPORT_IND, other, sizeof(other));
-		sam_rx(&s, &s.rotvec, &pkt, 5, 12);
+		sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 		free(b);
 		CHECK(strstr(last_log, "rotvec report for instance 6 ignored (ours is 4; 42 such reports so far)"));
 	}
 	{
 		char st[4096];
 
-		server_status_line(&s, st, sizeof(st));
+		sn_server_status_line(&s, st, sizeof(st));
 		CHECK(strstr(st, "\"rotvec\":\"on\",\"rotvec_instance\":4,\"rotvec_enables\":0,"
 				 "\"rotvec_inds\":3,\"rotvec_errors\":0,\"rotvec_last_error\":-1,"));
 	}

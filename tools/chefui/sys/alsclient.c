@@ -79,7 +79,7 @@ static int64_t now_ms(void)
 
 /* ------------------------------------------------------------- parsers */
 
-/* sensord stamps a sample with CLOCK_MONOTONIC ns (sensord.c); -1 when "t" is absent */
+/* sensord stamps a sample with CLOCK_MONOTONIC ns (sensord's channel.c); -1 when "t" is absent */
 static int64_t mono_ns(void)
 {
 	struct timespec ts;
