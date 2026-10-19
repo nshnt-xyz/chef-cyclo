@@ -8,7 +8,8 @@ Our daemons serve contracts that have no standard Linux equivalent (gesture clai
 |---|---|---|
 | `/run/buttond.sock` | [buttond](buttons-and-power-off.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
 | `/run/gps-manager.sock` | [gps-manager](gps.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
-| `/run/sensord.sock`, `/run/blesensd.sock` | [sensord](sensors.md), [blesensd](bluetooth.md#ble-sensors) | not yet (step 4; both already send JSON without the envelope) |
+| `/run/sensord.sock` | [sensord](sensors.md#socket-contract) | yes, proto 2 (since 2026-10-19) |
+| `/run/blesensd.sock` | [blesensd](bluetooth.md#ble-sensors) | not yet (step 4; already sends the `type` envelope, no hello) |
 
 ## Requests
 
@@ -22,7 +23,7 @@ Every line a daemon sends is exactly one JSON object with a `"type"` member:
 |---|---|
 | `{"type":"hello","daemon":"buttond","proto":1}` | First on every connection, before anything else. `proto` is the version of that daemon's protocol. |
 | `{"type":"ok","cmd":"<request word>",...}` | The request succeeded; further members carry its result. |
-| `{"type":"error","cmd":"<request word>","reason":"<text>",...}` | It failed. `reason` is a fixed text a program can compare; further members say more. `cmd` is absent when there is no request word: `line too long`, `too many clients`. A request word echoed back is its first 32 bytes as sent, JSON-escaped (bytes from 0x7f up become `?`). |
+| `{"type":"error","cmd":"<request word>","reason":"<text>",...}` | It failed. `reason` is a fixed text a program can compare; further members say more. `cmd` is absent when there is no request word (`line too long`, `too many clients`) or when the error answers no request (sensord's `smgr refused report`). A word of the request echoed back, the command or an argument such as sensord's sensor name, is its first 32 bytes as sent, JSON-escaped (bytes from 0x7f up become `?`). |
 | `{"type":"dropped","count":N}` | N lines a slow client may lose were not sent (see below). |
 | any other `type` | A reply with data (buttond's `status`) or an event (buttond's `gesture`), defined by the daemon. |
 

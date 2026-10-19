@@ -263,7 +263,7 @@ void sn_time2_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, uint3
 /* Receive one datagram. Returns 1 with *pkt filled, 0 for nothing, or
  * -ENETRESET when the router reset the socket (DSP restart). */
 int sn_ipc_recv(int sock, char *buf, size_t bsz, struct qrtr_packet *pkt, uint32_t *node,
-		    uint32_t *port)
+		uint32_t *port)
 {
 	struct sockaddr_qrtr sq;
 	int ret;

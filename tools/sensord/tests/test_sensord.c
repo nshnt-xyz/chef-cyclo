@@ -1,11 +1,14 @@
 /* Unit tests for sensord's pure parts: sample conversion and axis
  * mapping, DSP tick -> CLOCK_MONOTONIC conversion (with wrap), the
  * JSON lines, claim/release/get bookkeeping and rate aggregation, the
- * bounded per-client queue and its drop accounting, and the request
- * parser. Linked with every sensord source but main.c and cli.c; the
+ * bounded per-client queue and its drop accounting, and the protocol
+ * (proto 2: hello first, every reply in the envelope, bad arguments,
+ * unknown commands, too many clients) over real socketpairs adopted by
+ * the server. Linked with every sensord source but main.c and cli.c; the
  * SMGR side is held "down" here (so nothing is sent) and exercised end to
  * end by tests/test_e2e.sh instead. */
 #include <errno.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -15,6 +18,7 @@
 #include <unistd.h>
 
 #include "../sensord.h"
+#include "common/linesrv.h"
 
 #include <math.h>
 
@@ -92,53 +96,105 @@ static void test_format(void)
 
 	memcpy(ch, sn_channel_defaults, sizeof(ch));
 	sn_format_sample(buf, sizeof(buf), &ch[CH_ACCEL], 123, (int32_t[3]){ 0, 0x10000, 0x20000 });
-	CHECK(strcmp(buf, "{\"sensor\":\"accel\",\"t\":123,\"x\":1,\"y\":0,\"z\":-2}\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"sample\",\"sensor\":\"accel\",\"t\":123,\"x\":1,\"y\":0,\"z\":-2}\n") == 0);
 	sn_format_sample(buf, sizeof(buf), &ch[CH_ILLUM], 5, (int32_t[3]){ 0x7b8000, 0, 0 });
-	CHECK(strcmp(buf, "{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":123.5}\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":123.5}\n") == 0);
 	sn_format_sample(buf, sizeof(buf), &ch[CH_PROX_], 5, (int32_t[3]){ 0x10000, 42, 0 });
-	CHECK(strcmp(buf, "{\"sensor\":\"proximity\",\"t\":5,\"near\":1,\"proximity\":42}\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"sample\",\"sensor\":\"proximity\",\"t\":5,\"near\":1,\"proximity\":42}\n") == 0);
 
-	sn_json_escape(buf, sizeof(buf), "a\"b\\c\x01\xffz");
-	CHECK(strcmp(buf, "a\\\"b\\\\cz") == 0);
 	CHECK(sn_channel_from_name("magn") == CH_MAGN && sn_channel_from_name("gyro") == -1);
+}
+
+/* The test's end of each client's socketpair, by slot. */
+static int peer_fd[SENSORD_MAX_CLIENTS];
+
+static int peer_of(struct server *s, struct client *c)
+{
+	return peer_fd[c - s->clients];
+}
+
+/* The server of the running test, for drain(). */
+static struct server *cur;
+
+/* One round of the server's own poll handling: requests, flushes. */
+static void pump(struct server *s)
+{
+	struct pollfd pfd[1 + SENSORD_MAX_CLIENTS];
+	int n;
+
+	if (!s->srv)
+		return;	/* after sn_server_fini() */
+	n = linesrv_pollfds(s->srv, pfd, 1 + SENSORD_MAX_CLIENTS);
+	if (poll(pfd, (nfds_t)n, 0) > 0)
+		linesrv_handle(s->srv, pfd, n);
+}
+
+static size_t drain(int fd, char *buf, size_t len);
+
+/* Another connected client; *peer is the test's end. The hello is read
+ * and checked: it is the first line. */
+static struct client *add_client(struct server *s, int *peer)
+{
+	char buf[256];
+	struct client *c;
+	int sv[2];
+
+	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
+	c = sn_server_add_client(s, sv[0]);
+	*peer = sv[1];
+	if (!c)
+		return NULL;
+	peer_fd[c - s->clients] = sv[1];
+	drain(sv[1], buf, sizeof(buf));
+	CHECK(strcmp(buf, "{\"type\":\"hello\",\"daemon\":\"sensord\",\"proto\":2}\n") == 0);
+	return c;
 }
 
 /* A server with one connected client over a socketpair; returns the
  * client's own end in *peer. SMGR stays down, so no request is sent. */
 static struct client *setup(struct server *s, int *peer)
 {
-	int sv[2];
-	struct client *c;
 	int i;
 
 	sn_server_init(s);
+	cur = s;
 	s->now_ms = test_now;
 	s->log = test_log;
+	CHECK(sn_server_start(s) == 0);
 	for (i = 0; i < CH_COUNT; i++) {
 		s->ch[i].present = true;
 		s->ch[i].max_hz = i == CH_MAGN ? 50 : 200;
 	}
-	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	c = sn_server_add_client(s, sv[0]);
-	*peer = sv[1];
-	return c;
+	return add_client(s, peer);
 }
 
+/* A request line as the client sends it, handled at once. */
 static void send_line(struct server *s, struct client *c, const char *line)
 {
 	char buf[SENSORD_LINE_MAX + 64];
+	int n = snprintf(buf, sizeof(buf), "%s\n", line);
 
-	snprintf(buf, sizeof(buf), "%s", line);
-	sn_server_handle_line(s, c, buf);
+	CHECK(write(peer_of(s, c), buf, (size_t)n) == n);
+	pump(s);
 }
 
+/* Everything the client has been sent: what the server still holds in
+ * its queue (the socket takes a few dozen lines) is flushed as the test
+ * reads, as the real poll loop does. */
 static size_t drain(int fd, char *buf, size_t len)
 {
-	size_t got = 0;
+	size_t got = 0, before;
 	ssize_t n;
 
-	while (got < len - 1 && (n = read(fd, buf + got, len - 1 - got)) > 0)
-		got += (size_t)n;
+	do {
+		before = got;
+		while (got < len - 1 && (n = read(fd, buf + got, len - 1 - got)) > 0)
+			got += (size_t)n;
+		if (cur)
+			pump(cur);
+		while (got < len - 1 && (n = read(fd, buf + got, len - 1 - got)) > 0)
+			got += (size_t)n;
+	} while (got != before && got < len - 1);
 	buf[got] = '\0';
 	return got;
 }
@@ -148,16 +204,14 @@ static void test_claims(void)
 	static struct server s;
 	struct client *a, *b;
 	char buf[4096];
-	int pa, pb, sv[2];
+	int pa, pb;
 
 	a = setup(&s, &pa);
-	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	b = sn_server_add_client(&s, sv[0]);
-	pb = sv[1];
+	b = add_client(&s, &pb);
 
 	send_line(&s, a, "claim accel 50");
 	drain(pa, buf, sizeof(buf));
-	CHECK(strcmp(buf, "{\"ok\":\"claim\",\"sensor\":\"accel\",\"rate\":50}\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"accel\",\"rate\":50}\n") == 0);
 	send_line(&s, b, "claim accel");			/* default 10 Hz */
 	send_line(&s, b, "claim magn 500");			/* clamped to 50 */
 	drain(pb, buf, sizeof(buf));
@@ -173,9 +227,42 @@ static void test_claims(void)
 	send_line(&s, a, "claim accel fast");
 	send_line(&s, a, "frobnicate");
 	drain(pa, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"err\":\"unknown sensor\",\"sensor\":\"gyro\"}\n"));
-	CHECK(strstr(buf, "{\"err\":\"bad rate\",\"sensor\":\"accel\"}\n"));
-	CHECK(strstr(buf, "{\"err\":\"unknown command\",\"command\":\"frobnicate\"}\n"));
+	CHECK(strstr(buf, "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"unknown sensor\",\"sensor\":\"gyro\"}\n"));
+	CHECK(strstr(buf, "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"bad rate\",\"sensor\":\"accel\"}\n"));
+	CHECK(strstr(buf, "{\"type\":\"error\",\"cmd\":\"frobnicate\",\"reason\":\"unknown command\"}\n"));
+
+	/* words: missing or extra arguments; echoed words cut at 32 bytes
+	 * and escaped */
+	send_line(&s, a, "claim");
+	send_line(&s, a, "claim accel 10 x");
+	send_line(&s, a, "get");
+	send_line(&s, a, "release");
+	send_line(&s, a, "release accel 10");
+	send_line(&s, a, "list x");
+	send_line(&s, a, "status x");
+	send_line(&s, a, "declination 1 2");
+	drain(pa, buf, sizeof(buf));
+	CHECK(!strcmp(buf, "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"bad arguments\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"bad arguments\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"get\",\"reason\":\"bad arguments\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"release\",\"reason\":\"bad arguments\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"release\",\"reason\":\"bad arguments\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"list\",\"reason\":\"bad arguments\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"status\",\"reason\":\"bad arguments\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"declination\",\"reason\":\"bad arguments\"}\n"));
+	CHECK(sn_channel_claims(&s, CH_ACCEL) == 1);	/* b's only: the bad claims took nothing */
+	send_line(&s, a, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\\yyyyyyy");
+	send_line(&s, a, "get m\"agn");
+	send_line(&s, a, "release magn_factory");
+	drain(pa, buf, sizeof(buf));
+	CHECK(strcmp(buf, "{\"type\":\"error\",\"cmd\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\\"\\\\\",\"reason\":\"unknown command\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"get\",\"reason\":\"unknown sensor\",\"sensor\":\"m\\\"agn\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"release\",\"reason\":\"unknown sensor\",\"sensor\":\"magn_factory\"}\n") == 0);
+	/* blank lines are ignored, a CR before the newline is stripped */
+	send_line(&s, a, "  ");
+	send_line(&s, a, "declination\r");
+	drain(pa, buf, sizeof(buf));
+	CHECK(strcmp(buf, "{\"type\":\"ok\",\"cmd\":\"declination\",\"declination\":null}\n") == 0);
 
 	/* a sensor the DSP did not list is refused once SMGR is ready */
 	s.st = SMGR_READY;
@@ -186,41 +273,100 @@ static void test_claims(void)
 	s.ch[CH_MAGN].rate = 50;
 	send_line(&s, a, "claim anglvel");
 	drain(pa, buf, sizeof(buf));
-	CHECK(strcmp(buf, "{\"err\":\"sensor not present\",\"sensor\":\"anglvel\"}\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"sensor not present\",\"sensor\":\"anglvel\"}\n") == 0);
 	s.st = SMGR_DOWN;
 
 	/* disconnect drops that client's claims */
 	close(pb);
-	sn_server_client_input(&s, b);
-	CHECK(b->fd < 0 && sn_channel_want(&s, CH_ACCEL) == 0 && sn_channel_want(&s, CH_MAGN) == 0);
+	pump(&s);
+	CHECK(!b->lc && sn_channel_want(&s, CH_ACCEL) == 0 && sn_channel_want(&s, CH_MAGN) == 0);
+	CHECK(strstr(all_logs, "release magn (client gone)"));
 
 	/* list and status are single JSON lines */
 	send_line(&s, a, "list");
 	drain(pa, buf, sizeof(buf));
-	CHECK(strncmp(buf, "{\"ok\":\"list\",\"smgr\":\"down\",\"sensors\":[{\"sensor\":\"accel\"", 50) == 0);
+	CHECK(strncmp(buf, "{\"type\":\"list\",\"smgr\":\"down\",\"sensors\":[{\"sensor\":\"accel\"", 57) == 0);
 	CHECK(strchr(buf, '\n') == buf + strlen(buf) - 1);
 	send_line(&s, a, "status");
 	drain(pa, buf, sizeof(buf));
+	CHECK(strncmp(buf, "{\"type\":\"status\",\"smgr\":\"down\",", 31) == 0 && !strstr(buf, "\"proto\""));
 	CHECK(strstr(buf, "\"api\":\"buffering\"") && strstr(buf, "\"clients\":1"));
+	linesrv_drop(a->lc);
+	CHECK(!a->lc);
+	sn_server_fini(&s);
 	close(pa);
-	sn_server_drop_client(&s, a);
+}
+
+/* A client dropped inside the delivery loop (its peer gone, the lossy
+ * send fails): its slot is cleared at once, the others still get the
+ * sample, and its claims are synced to the reports once the loop is over
+ * (here the heading goes off), not from inside it. */
+static void test_drop_mid_deliver(void)
+{
+	static struct server s;
+	struct client *a, *b;
+	char buf[4096];
+	int pa, pb;
+
+	a = setup(&s, &pa);
+	b = add_client(&s, &pb);
+	send_line(&s, a, "claim accel 10");
+	send_line(&s, a, "claim heading 5");
+	send_line(&s, b, "claim accel 10");
+	drain(pa, buf, sizeof(buf));
+	drain(pb, buf, sizeof(buf));
+	CHECK(s.heading.active && sn_channel_claims(&s, CH_ACCEL) == 2);
+	close(pa);	/* not pumped: the server learns it from the send */
+	all_logs[0] = '\0';
+	sn_server_publish(&s, CH_ACCEL, 1000000000LL, (int32_t[3]){ 0, 0x10000, 0 });
+	CHECK(!a->lc && b->lc);
+	CHECK(strstr(all_logs, "release accel (client gone)") && strstr(all_logs, "release heading (client gone)"));
+	CHECK(!s.heading.active && strstr(all_logs, "heading off (no claims)"));
+	CHECK(s.delivering == 0 && !s.sync_pending);
+	CHECK(sn_channel_claims(&s, CH_ACCEL) == 1 && sn_channel_want(&s, CH_ACCEL) == 10);
+	drain(pb, buf, sizeof(buf));
+	CHECK(strncmp(buf, "{\"type\":\"sample\",\"sensor\":\"accel\",\"t\":1000000000,", 49) == 0);
+	sn_server_fini(&s);
+	close(pb);
+}
+
+/* The 17th connection gets the library's error line and is closed; the
+ * 16 others are served. */
+static void test_too_many(void)
+{
+	static struct server s;
+	struct client *c;
+	char buf[4096];
+	int p[SENSORD_MAX_CLIENTS + 1], i;
+
+	setup(&s, &p[0]);
+	for (i = 1; i < SENSORD_MAX_CLIENTS; i++)
+		CHECK(add_client(&s, &p[i]) != NULL);
+	c = add_client(&s, &p[SENSORD_MAX_CLIENTS]);
+	CHECK(c == NULL);
+	drain(p[SENSORD_MAX_CLIENTS], buf, sizeof(buf));
+	CHECK(strcmp(buf, "{\"type\":\"error\",\"reason\":\"too many clients\"}\n") == 0);
+	CHECK(read(p[SENSORD_MAX_CLIENTS], buf, 1) == 0);	/* closed */
+	CHECK(strstr(last_log, "client limit (16) reached, refusing"));
+	send_line(&s, &s.clients[SENSORD_MAX_CLIENTS - 1], "status");
+	drain(p[SENSORD_MAX_CLIENTS - 1], buf, sizeof(buf));
+	CHECK(strstr(buf, "\"clients\":16"));
+	sn_server_fini(&s);
+	for (i = 0; i <= SENSORD_MAX_CLIENTS; i++)
+		close(p[i]);
 }
 
 static void test_publish_and_get(void)
 {
 	static struct server s;
 	struct client *fast, *slow_, *g;
-	char buf[8192];
-	int pf, ps, pg, sv[2], i;
+	char buf[16384];
+	int pf, ps, pg, i;
 	int64_t t;
 
 	fast = setup(&s, &pf);
-	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	slow_ = sn_server_add_client(&s, sv[0]);
-	ps = sv[1];
-	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	g = sn_server_add_client(&s, sv[0]);
-	pg = sv[1];
+	slow_ = add_client(&s, &ps);
+	g = add_client(&s, &pg);
 
 	send_line(&s, fast, "claim accel 100");
 	send_line(&s, slow_, "claim accel 10");
@@ -233,7 +379,7 @@ static void test_publish_and_get(void)
 	/* one second of 100 Hz samples */
 	for (i = 0, t = 1000000000LL; i < 100; i++, t += 10000000LL)
 		sn_server_publish(&s, CH_ACCEL, t, (int32_t[3]){ 0, 0x10000, 0 });
-	sn_server_flush_all(&s);
+	pump(&s);
 	{
 		size_t n = drain(pf, buf, sizeof(buf));
 		int lines = 0;
@@ -246,8 +392,8 @@ static void test_publish_and_get(void)
 			lines += buf[i] == '\n';
 		CHECK(lines == 10);	/* decimated to its own 10 Hz */
 		n = drain(pg, buf, sizeof(buf));
-		CHECK(strcmp(buf, "{\"sensor\":\"accel\",\"t\":1000000000,\"x\":1,\"y\":0,\"z\":-0}\n") == 0 ||
-		      strcmp(buf, "{\"sensor\":\"accel\",\"t\":1000000000,\"x\":1,\"y\":0,\"z\":0}\n") == 0);
+		CHECK(strcmp(buf, "{\"type\":\"sample\",\"sensor\":\"accel\",\"t\":1000000000,\"x\":1,\"y\":0,\"z\":-0}\n") == 0 ||
+		      strcmp(buf, "{\"type\":\"sample\",\"sensor\":\"accel\",\"t\":1000000000,\"x\":1,\"y\":0,\"z\":0}\n") == 0);
 	}
 	/* the get-only claim is gone after its sample */
 	CHECK(g->rate[CH_ACCEL] == 0 && !g->get[CH_ACCEL]);
@@ -260,15 +406,17 @@ static void test_publish_and_get(void)
 	fake_now += SENSORD_GET_TIMEOUT_MS;
 	sn_server_tick_clients(&s);
 	drain(pg, buf, sizeof(buf));
-	CHECK(strcmp(buf, "{\"err\":\"timeout\",\"sensor\":\"illuminance\"}\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"error\",\"cmd\":\"get\",\"reason\":\"timeout\",\"sensor\":\"illuminance\"}\n") == 0);
 	CHECK(!g->get[CH_ILLUM] && g->rate[CH_ILLUM] == 0);
+	sn_server_fini(&s);
 	close(pf);
 	close(ps);
 	close(pg);
 }
 
 /* A client that never reads: samples are dropped and counted, the
- * daemon never blocks, and the count is reported once there is room. */
+ * daemon never blocks, and the count is reported once there is room. A
+ * reply that does not fit drops the client and releases its claims. */
 static void test_slow_client(void)
 {
 	static struct server s;
@@ -279,33 +427,38 @@ static void test_slow_client(void)
 	char *d;
 
 	c = setup(&s, &p);
-	setsockopt(c->fd, SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz));
+	setsockopt(linesrv_fd(c->lc), SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz));
 	send_line(&s, c, "claim accel 200");
+	drain(p, buf, sizeof(buf));
 	for (i = 0; i < 5000; i++) {
 		sn_server_publish(&s, CH_ACCEL, 1000000000LL + i * 5000000LL, (int32_t[3]){ 1, 2, 3 });
-		sn_server_flush_all(&s);
+		pump(&s);
 	}
-	CHECK(c->fd >= 0 && c->outlen > sizeof(c->out) - 200);
-	dropped = c->dropped;
-	CHECK(dropped > 0 && c->dropped_total == dropped);
-	drain(p, buf, sizeof(buf));
-	sn_server_flush_all(&s);
-	drain(p, buf, sizeof(buf));
-	sn_server_flush_all(&s);
-	drain(p, buf, sizeof(buf));
+	dropped = c->dropped_total;
+	CHECK(c->lc && dropped > 1000);
+	for (i = 0; i < 20; i++) {
+		drain(p, buf, sizeof(buf));
+		pump(&s);
+	}
+	CHECK(c->dropped_total == dropped);
 	sn_server_publish(&s, CH_ACCEL, 99000000000LL, (int32_t[3]){ 1, 2, 3 });
-	sn_server_flush_all(&s);
+	pump(&s);
 	drain(p, buf, sizeof(buf));
-	d = strstr(buf, "{\"dropped\":");
-	CHECK(d && strtoul(d + 11, NULL, 10) == dropped);
-	CHECK(d && strstr(d, "\n{\"sensor\":\"accel\",\"t\":99000000000,"));
-	CHECK(c->dropped == 0);
+	d = strstr(buf, "{\"type\":\"dropped\",\"count\":");
+	CHECK(d && d == buf && strtoul(d + 26, NULL, 10) == dropped);
+	CHECK(d && strstr(d, "}\n{\"type\":\"sample\",\"sensor\":\"accel\",\"t\":99000000000,"));
 
-	/* a reply that cannot be queued disconnects the client */
-	c->outlen = sizeof(c->out) - 10;
+	/* fill the queue again, then a reply that cannot be queued
+	 * disconnects the client and releases its claim */
+	for (i = 0; c->dropped_total == dropped && i < 5000; i++)
+		sn_server_publish(&s, CH_ACCEL, 100000000000LL + i * 5000000LL, (int32_t[3]){ 1, 2, 3 });
+	CHECK(c->lc && c->dropped_total > dropped);
+	all_logs[0] = '\0';
 	send_line(&s, c, "status");
-	CHECK(c->fd < 0);
+	CHECK(!c->lc && sn_channel_want(&s, CH_ACCEL) == 0);
 	CHECK(strstr(all_logs, "client output full, disconnecting it"));
+	CHECK(strstr(all_logs, "release accel (client gone)"));
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -320,12 +473,14 @@ static void test_long_line(void)
 	memset(junk, 'x', sizeof(junk));
 	CHECK(write(p, junk, sizeof(junk)) == (ssize_t)sizeof(junk));
 	CHECK(write(p, "\nclaim accel 20\n", 16) == 16);
-	sn_server_client_input(&s, c);
-	sn_server_client_input(&s, c);
-	sn_server_client_input(&s, c);
+	pump(&s);
+	pump(&s);
+	pump(&s);
 	drain(p, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"err\":\"line too long\"}\n"));
-	CHECK(strstr(buf, "{\"ok\":\"claim\",\"sensor\":\"accel\",\"rate\":20}\n"));
+	CHECK(strcmp(buf, "{\"type\":\"error\",\"reason\":\"line too long\"}\n"
+			  "{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"accel\",\"rate\":20}\n") == 0);
+	CHECK(c->rate[CH_ACCEL] == 20);
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -352,6 +507,7 @@ static void test_deadline(void)
 	c->get[CH_ACCEL] = false;
 	s.next_check = 10000000;
 	CHECK(sn_server_deadline_ms(&s) == 60000);
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -370,6 +526,7 @@ static void test_reset(void)
 	CHECK(s.st == SMGR_DOWN && s.ch[CH_ACCEL].rate == 0 && !s.ch[CH_ACCEL].busy &&
 	      !s.pend[0].used && s.smgr_resets == 1);
 	CHECK(strstr(all_logs, "lost (test)"));
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -397,6 +554,7 @@ static void test_reg2_bad_write(void)
 	CHECK(strstr(all_logs, "item write 700 from 5:77 (RAM, /run copy) rejected (0 bytes)"));
 	CHECK(s.reg.writes == 0);
 	free(buf);
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -457,14 +615,14 @@ static void test_qmag(void)
 	CHECK(strstr(last_log, "device x -0.25000 y 0.12500 z -0.37500 gauss, accuracy 2"));
 
 	sn_server_publish(&s, CH_MAGN, 5, (int32_t[3]){ 0x10000, 0x20000, 0x30000 });
-	sn_server_flush_all(&s);
+	pump(&s);
 	drain(p, buf, sizeof(buf));
-	CHECK(strcmp(buf, "{\"sensor\":\"magn\",\"t\":5,\"x\":2,\"y\":1,\"z\":-3,\"bias\":[-0.25,0.125,-0.375],"
+	CHECK(strcmp(buf, "{\"type\":\"sample\",\"sensor\":\"magn\",\"t\":5,\"x\":2,\"y\":1,\"z\":-3,\"bias\":[-0.25,0.125,-0.375],"
 			  "\"bias_raw\":[8192,-16384,24576],\"accuracy\":2}\n") == 0);
 	/* other channels are untouched */
 	c->rate[CH_ACCEL] = 10;
 	sn_server_publish(&s, CH_ACCEL, 5, (int32_t[3]){ 0, 0, 0 });
-	sn_server_flush_all(&s);
+	pump(&s);
 	drain(p, buf, sizeof(buf));
 	CHECK(!strstr(buf, "bias"));
 
@@ -538,6 +696,7 @@ static void test_qmag(void)
 	CHECK(!sn_sam_wanted(&s, &s.qmag));
 	s.qmag.opt = false;
 	CHECK(strcmp(sn_sam_state_name(&s.qmag), "off") == 0);
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -578,6 +737,7 @@ static void test_reg_debounce(void)
 	fake_now += 60000;
 	sn_reg_tick(&s);
 	CHECK(s.reg_save_errors == 2);
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -602,7 +762,7 @@ static void feed_flat_east(struct server *s, int64_t ms)
 	sn_server_publish(s, CH_ACCEL, t + 1, a);
 	if (ms % 50 == 0)
 		sn_server_publish(s, CH_MAGN, t + 2, m);
-	sn_server_flush_all(s);
+	pump(s);
 }
 
 static void test_heading(void)
@@ -610,18 +770,16 @@ static void test_heading(void)
 	static struct server s;
 	struct client *c, *o;
 	char buf[8192], *l;
-	int p, po, sv[2];
+	int p, po;
 	int64_t ms;
 
 	c = setup(&s, &p);
 	s.ch[CH_HEADING].max_hz = SENSORD_HEADING_MAX_HZ;
-	socketpair(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0, sv);
-	o = sn_server_add_client(&s, sv[0]);
-	po = sv[1];
+	o = add_client(&s, &po);
 	CHECK(sn_channel_want(&s, CH_ACCEL) == 0 && !s.heading.active);
 	send_line(&s, c, "claim heading 5");
 	drain(p, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"ok\":\"claim\",\"sensor\":\"heading\",\"rate\":5}"));
+	CHECK(strstr(buf, "{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"heading\",\"rate\":5}"));
 	CHECK(s.heading.active && strstr(all_logs, "heading on: accel 50 Hz, anglvel 50 Hz, magn 20 Hz"));
 	CHECK(sn_channel_want(&s, CH_ACCEL) == 50 && sn_channel_want(&s, CH_ANGLVEL) == 50 &&
 	      sn_channel_want(&s, CH_MAGN) == 20 && sn_channel_want(&s, CH_ILLUM) == 0);
@@ -635,7 +793,7 @@ static void test_heading(void)
 	/* heading over 50 Hz is clamped */
 	send_line(&s, o, "claim heading 400");
 	drain(po, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"ok\":\"claim\",\"sensor\":\"heading\",\"rate\":50}"));
+	CHECK(strstr(buf, "{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"heading\",\"rate\":50}"));
 	send_line(&s, o, "release heading");
 	send_line(&s, o, "release magn");
 	drain(po, buf, sizeof(buf));
@@ -646,7 +804,7 @@ static void test_heading(void)
 	{
 		int n = 0;
 
-		for (l = buf; (l = strstr(l, "{\"sensor\":\"heading\"")); l++)
+		for (l = buf; (l = strstr(l, "{\"type\":\"sample\",\"sensor\":\"heading\"")); l++)
 			n++;
 		CHECK(n >= 9 && n <= 11);
 	}
@@ -681,8 +839,10 @@ static void test_heading(void)
 	send_line(&s, c, "declination 181");
 	send_line(&s, c, "declination");
 	drain(p, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"ok\":\"declination\",\"declination\":2.50}\n{\"err\":\"bad declination\"}\n"
-			  "{\"err\":\"bad declination\"}\n{\"ok\":\"declination\",\"declination\":2.50}\n"));
+	CHECK(strstr(buf, "{\"type\":\"ok\",\"cmd\":\"declination\",\"declination\":2.50}\n"
+			  "{\"type\":\"error\",\"cmd\":\"declination\",\"reason\":\"bad declination\"}\n"
+			  "{\"type\":\"error\",\"cmd\":\"declination\",\"reason\":\"bad declination\"}\n"
+			  "{\"type\":\"ok\",\"cmd\":\"declination\",\"declination\":2.50}\n"));
 	for (; ms < 3500; ms += 20)
 		feed_flat_east(&s, ms);
 	drain(p, buf, sizeof(buf));
@@ -697,16 +857,16 @@ static void test_heading(void)
 	CHECK(l && strstr(l, "\"true_heading\":355.00,\"declination\":-95.00}\n"));
 	send_line(&s, c, "declination off");
 	drain(p, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"ok\":\"declination\",\"declination\":null}"));
+	CHECK(strstr(buf, "{\"type\":\"ok\",\"cmd\":\"declination\",\"declination\":null}"));
 	/* get heading from the other client: one line, the claim ends */
 	send_line(&s, o, "get heading");
 	CHECK(o->rate[CH_HEADING] && o->get_only[CH_HEADING]);
 	for (; ms < 3800; ms += 20)
 		feed_flat_east(&s, ms);
 	drain(po, buf, sizeof(buf));
-	l = strstr(buf, "{\"sensor\":\"heading\"");
+	l = strstr(buf, "{\"type\":\"sample\",\"sensor\":\"heading\"");
 	CHECK(l && !o->rate[CH_HEADING]);
-	CHECK(l && !strstr(l + 1, "{\"sensor\":\"heading\""));
+	CHECK(l && !strstr(l + 1, "{\"type\":\"sample\",\"sensor\":\"heading\""));
 	/* anglvel stops: not silent, logged, lines go on from accel + magn */
 	{
 		int32_t a[3] = { 0, 0, q16(-9.80665) }, m[3] = { 0, q16(-0.3), q16(0.2) };
@@ -727,7 +887,7 @@ static void test_heading(void)
 			sn_server_status_line(&s, st, sizeof(st));
 			CHECK(strstr(st, "\"compass_gyro_lost\":1,"));
 		}
-		sn_server_flush_all(&s);
+		pump(&s);
 		drain(p, buf, sizeof(buf));
 	}
 	/* the internal factory magn report: wanted at 5 Hz while heading is
@@ -788,12 +948,19 @@ static void test_heading(void)
 	drain(p, buf, sizeof(buf));
 	sn_notify_claimants(&s, CH_MAGN, "smgr refused report");
 	drain(p, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"err\":\"smgr refused report\",\"sensor\":\"heading\",\"input\":\"magn\"}"));
+	CHECK(strstr(buf, "{\"type\":\"error\",\"reason\":\"smgr refused report\",\"sensor\":\"heading\",\"input\":\"magn\"}"));
+	/* ... and a direct claimant too, no cmd: it answers no request */
+	send_line(&s, o, "claim magn");
+	drain(po, buf, sizeof(buf));
+	sn_notify_claimants(&s, CH_MAGN, "smgr refused report");
+	drain(po, buf, sizeof(buf));
+	CHECK(strcmp(buf, "{\"type\":\"error\",\"reason\":\"smgr refused report\",\"sensor\":\"magn\"}\n") == 0);
+	drain(p, buf, sizeof(buf));
 	/* -M: mount name, parse */
 	CHECK(compass_mount_parse("upright") == COMPASS_UPRIGHT);
+	sn_server_fini(&s);
 	close(p);
 	close(po);
-	close(o->fd);
 }
 
 /* Registry group 2980: calibrated when items 3903..3905 are nonzero, at
@@ -881,6 +1048,7 @@ static void test_mag_cal(void)
 	s.reg.data = NULL;
 	s.reg.groups = s.reg.items = NULL;
 	s.reg.ngroups = s.reg.nitems = 0;
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -907,12 +1075,12 @@ static void test_rotvec(void)
 	/* without -V: refused */
 	send_line(&s, c, "claim rotvec");
 	drain(p, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"err\":\"not enabled (sensord -V)\",\"sensor\":\"rotvec\"}"));
+	CHECK(strstr(buf, "{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"not enabled (sensord -V)\",\"sensor\":\"rotvec\"}"));
 	CHECK(!c->rate[CH_ROTVEC]);
 	s.rotvec.opt = true;
 	send_line(&s, c, "claim rotvec 20");
 	drain(p, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"ok\":\"claim\",\"sensor\":\"rotvec\",\"rate\":20}"));
+	CHECK(strstr(buf, "{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"rotvec\",\"rate\":20}"));
 	CHECK(sn_channel_used(&s, CH_ROTVEC) == 1 && !sn_sam_wanted(&s, &s.rotvec));	/* SMGR down */
 	s.rotvec.on = true;
 	s.rotvec.instance = 4;
@@ -926,10 +1094,10 @@ static void test_rotvec(void)
 	sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 	free(b);
 	CHECK(s.rotvec.inds == 1 && s.rotvec.accuracy == 2 && s.rotvec.coord == 1);
-	sn_server_flush_all(&s);
+	pump(&s);
 	CHECK(strstr(last_log, "rotvec report 1: instance 4 ts 16 q x 0.00000 y 0.00000 z -0.70711 w 0.70711 (|q| 1.0000) accuracy 2 coord 1"));
 	drain(p, buf, sizeof(buf));
-	CHECK(strstr(buf, "{\"sensor\":\"rotvec\",\"t\":"));
+	CHECK(strstr(buf, "{\"type\":\"sample\",\"sensor\":\"rotvec\",\"t\":"));
 	CHECK(strstr(buf, ",\"x\":0,\"y\":0,\"z\":-0.707107,\"w\":0.707107,\"accuracy\":2,\"coord\":1,"
 			  "\"heading\":90.00,\"pitch\":0.00,\"roll\":0.00}\n"));
 	/* the result one byte short (TLV length 17): ignored */
@@ -963,7 +1131,7 @@ static void test_rotvec(void)
 		sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 		free(b);
 		CHECK(strstr(all_logs, "rotvec quaternion norm 2.0000: not a unit quaternion"));
-		sn_server_flush_all(&s);
+		pump(&s);
 		drain(p, buf, sizeof(buf));
 		CHECK(strstr(buf, "\"w\":2,\"accuracy\":2,\"coord\":1}\n"));
 	}
@@ -977,7 +1145,7 @@ static void test_rotvec(void)
 		c->next_t[CH_ROTVEC] = 0;
 		sn_sam_rx(&s, &s.rotvec, &pkt, 5, 12);
 		free(b);
-		sn_server_flush_all(&s);
+		pump(&s);
 		drain(p, buf, sizeof(buf));
 		CHECK(strstr(buf, "\"x\":null,\"y\":null,\"z\":-0.707107,\"w\":0.707107,\"accuracy\":2,\"coord\":1}\n"));
 		CHECK(!strstr(buf, "nan") && !strstr(buf, "inf"));
@@ -1015,6 +1183,7 @@ static void test_rotvec(void)
 		CHECK(strstr(st, "\"rotvec\":\"on\",\"rotvec_instance\":4,\"rotvec_enables\":0,"
 				 "\"rotvec_inds\":3,\"rotvec_errors\":0,\"rotvec_last_error\":-1,"));
 	}
+	sn_server_fini(&s);
 	close(p);
 }
 
@@ -1025,6 +1194,8 @@ int main(void)
 	test_ticks();
 	test_format();
 	test_claims();
+	test_too_many();
+	test_drop_mid_deliver();
 	test_publish_and_get();
 	test_slow_client();
 	test_long_line();

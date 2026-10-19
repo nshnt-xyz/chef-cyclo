@@ -3,44 +3,67 @@
  * list and status lines, requests, delivery of samples to their claimants
  * and the get timeouts. The daemon as a whole is described in main.c.
  *
- * Socket API, /run/sensord.sock, one JSON object per line from sensord,
- * plain-text requests from the client:
- *   (on connect)          {"hello":"sensord","proto":1}
- *   list                  {"ok":"list","smgr":"ready","sensors":[...]}
- *   status                {"ok":"status",...}
- *   claim SENSOR [HZ]     {"ok":"claim","sensor":"accel","rate":50}
- *                         then {"sensor":"accel","t":NS,"x":..,"y":..,"z":..}
- *   release SENSOR        {"ok":"release","sensor":"accel"}
- *   get SENSOR [HZ]       one sample line, or {"err":"timeout",...}
- *   declination [DEG|off] {"ok":"declination","declination":DEG|null}
- *   errors                {"err":"unknown sensor","sensor":"x"} ...
+ * Socket API, /run/sensord.sock: requests are words, one line each; every
+ * line sensord sends is one JSON object with a "type" member (the shared
+ * envelope of docs/features/local-sockets.md, served by
+ * tools/common/linesrv.c), proto 2, written down in
+ * docs/features/sensors.md "Socket contract":
+ *
+ *   (connect)          {"type":"hello","daemon":"sensord","proto":2}
+ *   list               {"type":"list","smgr":"ready","sensors":[...]}
+ *   status             {"type":"status","smgr":"ready",...}
+ *   claim SENSOR [HZ]  {"type":"ok","cmd":"claim","sensor":"accel","rate":50},
+ *                      then {"type":"sample","sensor":"accel","t":NS,"x":..,
+ *                      "y":..,"z":..} (illuminance, proximity, heading and
+ *                      rotvec lines the same way, "type":"sample" first)
+ *   release SENSOR     {"type":"ok","cmd":"release","sensor":"accel"}
+ *   get SENSOR [HZ]    one sample line, or {"type":"error","cmd":"get",
+ *                      "reason":"timeout","sensor":"accel"} after 5 s
+ *   declination [DEG|off]
+ *                      {"type":"ok","cmd":"declination","declination":1.50}
+ *                      (null when off)
+ *   errors             {"type":"error","cmd":"claim","reason":"unknown
+ *                      sensor","sensor":"x"} (also get, release; the name
+ *                      as sent, its first 32 bytes, JSON-escaped), "sensor
+ *                      not present", "bad rate", "not enabled (sensord -V)"
+ *                      (rotvec), "bad declination", "bad arguments" (list
+ *                      and status take no word, claim and get 1 or 2,
+ *                      release 1, declination 0 or 1), {"type":"error",
+ *                      "cmd":"x","reason":"unknown command"} (the word as
+ *                      above), and from the library "line too long" (over
+ *                      127 bytes) and "too many clients" (the 17th
+ *                      connection, then closed)
+ *   events             {"type":"error","reason":"smgr refused report",
+ *                      "sensor":"accel"} to its claimants when the DSP
+ *                      refuses a report later (no cmd: it answers no
+ *                      request; a heading claimant gets "sensor":"heading",
+ *                      "input":"magn")
+ *
  * A sensor is powered (report added on the DSP) only while at least one
  * connection claims it; a claim lives on its connection. Each client has
- * a bounded output queue: a slow reader loses samples, never stalls the
- * daemon, and is told how many with {"dropped":N} before the next line
- * that fits. A client that lets a reply overflow is disconnected.
+ * a 16384-byte output queue: sample lines are lossy (a slow reader loses
+ * them, never stalls the daemon, and is told how many with
+ * {"type":"dropped","count":N} before the next one that fits), every
+ * other line must be delivered (a client that lets one overflow is
+ * dropped, its claims with it).
  */
 #define _GNU_SOURCE
 #include <errno.h>
-#include <inttypes.h>
 #include <math.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <unistd.h>
 
+#include "common/chef_log.h"
+#include "common/json.h"
+#include "common/linesrv.h"
 #include "sensord.h"
 
 void sn_server_init(struct server *s)
 {
-	int i;
-
 	memset(s, 0, sizeof(*s));
 	memcpy(s->ch, sn_channel_defaults, sizeof(s->ch));
-	for (i = 0; i < SENSORD_MAX_CLIENTS; i++)
-		s->clients[i].fd = -1;
 	s->serve_reg2 = true;
 	s->dsps_fd = -1;
 	s->reg_sock = s->time_sock = s->smgr_sock = -1;
@@ -53,7 +76,7 @@ void sn_server_init(struct server *s)
 	compass_init(&s->heading.c, COMPASS_PORTRAIT);
 	s->st = SMGR_DOWN;
 	s->now_ms = sn_real_now_ms;
-	s->log = sn_kmsg_note;
+	s->log = chef_log;
 	s->elog = sn_stderr_note;
 }
 
@@ -62,7 +85,7 @@ int sn_channel_claims(const struct server *s, int c)
 	int i, n = 0;
 
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++)
-		if (s->clients[i].fd >= 0 && s->clients[i].rate[c])
+		if (s->clients[i].lc && s->clients[i].rate[c])
 			n++;
 	return n;
 }
@@ -99,7 +122,7 @@ unsigned sn_channel_want(const struct server *s, int c)
 	int i;
 
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++)
-		if (s->clients[i].fd >= 0 && s->clients[i].rate[c] > want)
+		if (s->clients[i].lc && s->clients[i].rate[c] > want)
 			want = s->clients[i].rate[c];
 	if (want > max)
 		want = max;
@@ -122,117 +145,102 @@ static void channels_idle_reset(struct server *s)
 			s->ch[i].failed = 0;
 }
 
-struct client *sn_server_add_client(struct server *s, int fd)
+static struct client *client_of(struct server *s, struct linesrv_client *lc)
 {
-	int i;
-
-	for (i = 0; i < SENSORD_MAX_CLIENTS; i++) {
-		struct client *c = &s->clients[i];
-
-		if (c->fd >= 0)
-			continue;
-		memset(c, 0, sizeof(*c));
-		c->fd = fd;
-		return c;
-	}
-	return NULL;
+	return &s->clients[linesrv_slot(lc)];
 }
 
-
-void sn_server_drop_client(struct server *s, struct client *c)
+static void on_connect(struct linesrv *srv, struct linesrv_client *lc)
 {
+	struct server *s = linesrv_ctx(srv);
+	struct client *c = client_of(s, lc);
+	int sndbuf = SENSORD_OUTQ;
+
+	memset(c, 0, sizeof(*c));
+	c->lc = lc;
+	/* Keep what a stalled client can have in flight bounded in the
+	 * kernel too, not just in the output queue. */
+	setsockopt(linesrv_fd(lc), SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
+	linesrv_sendf(lc, "{\"type\":\"hello\",\"daemon\":\"sensord\",\"proto\":%d}\n", SENSORD_PROTO);
+}
+
+/* Exactly once per connection, whatever ended it: its claims go. Inside a
+ * loop over the claimants the reports are synced once the loop is over
+ * (sn_deliver's caller), and not at all when sensord is exiting. */
+static void on_close(struct linesrv *srv, struct linesrv_client *lc)
+{
+	struct server *s = linesrv_ctx(srv);
+	struct client *c = client_of(s, lc);
 	int i;
 
-	if (c->fd < 0)
+	if (s->closing) {
+		memset(c, 0, sizeof(*c));
 		return;
+	}
 	for (i = 0; i < CH_COUNT; i++)
 		if (c->rate[i] && !c->get_only[i])
 			s->log("release %s (client gone)", s->ch[i].name);
-	close(c->fd);
-	c->fd = -1;
-	memset(c->rate, 0, sizeof(c->rate));
-	memset(c->get, 0, sizeof(c->get));
+	memset(c, 0, sizeof(*c));
 	channels_idle_reset(s);
-	sn_smgr_sync(s);
+	if (s->delivering)
+		s->sync_pending = true;
+	else
+		sn_smgr_sync(s);
 }
 
-/* Push queued output; the socket is non-blocking. 0, or -errno (drop). */
-static int client_flush(struct client *c)
+static void on_line(struct linesrv *srv, struct linesrv_client *lc, int argc, char **argv);
+
+int sn_server_start(struct server *s)
 {
-	size_t off = 0;
+	struct linesrv_config cfg = {
+		.max_clients = SENSORD_MAX_CLIENTS,
+		.line_max = SENSORD_LINE_MAX,
+		.outq_size = SENSORD_OUTQ,
+		.on_connect = on_connect,
+		.on_line = on_line,
+		.on_close = on_close,
+		.ctx = s,
+		.log = s->log,
+	};
 
-	while (off < c->outlen) {
-		ssize_t n = send(c->fd, c->out + off, c->outlen - off, MSG_NOSIGNAL | MSG_DONTWAIT);
-
-		if (n < 0) {
-			if (errno == EINTR)
-				continue;
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				break;
-			return -errno;
-		}
-		off += (size_t)n;
-	}
-	memmove(c->out, c->out + off, c->outlen - off);
-	c->outlen -= off;
-	return 0;
+	s->srv = linesrv_new(&cfg);
+	return s->srv ? 0 : -ENOMEM;
 }
 
-static bool client_room(const struct client *c, size_t n)
+void sn_server_drop_all(struct server *s)
 {
-	return c->outlen + n <= sizeof(c->out);
+	int i;
+
+	s->closing = true;
+	for (i = 0; s->srv && i < SENSORD_MAX_CLIENTS; i++)
+		if (s->clients[i].lc)
+			linesrv_drop(s->clients[i].lc);
 }
 
-static void client_append(struct client *c, const char *line, size_t n)
+void sn_server_fini(struct server *s)
 {
-	memcpy(c->out + c->outlen, line, n);
-	c->outlen += n;
-}
-
-/* Reply lines must get through: a client that lets them overflow is not
- * reading at all and is dropped. */
-void sn_client_reply(struct server *s, struct client *c, const char *fmt, ...)
-{
-	char buf[2048];
-	va_list ap;
-	int n;
-
-	va_start(ap, fmt);
-	n = vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	if (n < 0 || (size_t)n >= sizeof(buf))
-		n = snprintf(buf, sizeof(buf), "{\"err\":\"internal\"}\n");
-	if (!client_room(c, (size_t)n)) {
-		s->log("client output full, disconnecting it");
-		sn_server_drop_client(s, c);
+	if (!s->srv)
 		return;
-	}
-	client_append(c, buf, (size_t)n);
-	if (client_flush(c))
-		sn_server_drop_client(s, c);
+	s->closing = true;
+	linesrv_close_all(s->srv);
+	s->srv = NULL;
+	s->closing = false;
 }
 
-/* Sample lines are best effort: when one does not fit it is counted, and
- * the count goes out ahead of the next line that does. */
+struct client *sn_server_add_client(struct server *s, int fd)
+{
+	struct linesrv_client *lc = linesrv_adopt(s->srv, fd);
+
+	return lc ? client_of(s, lc) : NULL;
+}
+
+/* Sample lines may be lost: one that does not fit is counted, and the
+ * library sends the count ahead of the next one that fits. */
 static void client_sample(struct client *c, const char *line, size_t n)
 {
-	char note[64];
-	int k = 0;
-
-	if (c->dropped)
-		k = snprintf(note, sizeof(note), "{\"dropped\":%lu}\n", c->dropped);
-	if (!client_room(c, (size_t)k + n)) {
-		c->dropped++;
+	if (linesrv_send_lossy(c->lc, line, n) == 1)
 		c->dropped_total++;
-		return;
-	}
-	if (k) {
-		client_append(c, note, (size_t)k);
-		c->dropped = 0;
-	}
-	client_append(c, line, n);
 }
-
 
 void sn_server_list_line(const struct server *s, char *buf, size_t len)
 {
@@ -240,15 +248,15 @@ void sn_server_list_line(const struct server *s, char *buf, size_t len)
 	size_t off;
 	int i;
 
-	off = (size_t)snprintf(buf, len, "{\"ok\":\"list\",\"smgr\":\"%s\",\"sensors\":[", st[s->st]);
+	off = (size_t)snprintf(buf, len, "{\"type\":\"list\",\"smgr\":\"%s\",\"sensors\":[", st[s->st]);
 	for (i = 0; i < CH_SMGR_COUNT && off < len; i++) {
 		const struct channel *ch = &s->ch[i];
-		char hw[2 * sizeof(ch->hw)], vendor[2 * sizeof(ch->vendor)];
+		char hw[6 * sizeof(ch->hw)], vendor[6 * sizeof(ch->vendor)];
 
 		if (ch->internal)
 			continue;
-		sn_json_escape(hw, sizeof(hw), ch->hw);
-		sn_json_escape(vendor, sizeof(vendor), ch->vendor);
+		json_escape(hw, sizeof(hw), ch->hw);
+		json_escape(vendor, sizeof(vendor), ch->vendor);
 		off += (size_t)snprintf(buf + off, len - off,
 			"%s{\"sensor\":\"%s\",\"unit\":\"%s\",\"smgr_id\":%u,\"data_type\":%u,"
 			"\"present\":%s,\"name\":\"%s\",\"vendor\":\"%s\",\"max_hz\":%u,"
@@ -288,19 +296,19 @@ void sn_server_status_line(const struct server *s, char *buf, size_t len)
 	size_t off;
 
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++)
-		if (s->clients[i].fd >= 0)
+		if (s->clients[i].lc)
 			nc++;
 	if (q->have) {
 		qb[0] = ',';
 		sn_format_qmag_fields(q, qb + 1, sizeof(qb) - 1);
 	}
 	off = (size_t)snprintf(buf, len,
-		 "{\"ok\":\"status\",\"proto\":%d,\"smgr\":\"%s\",\"smgr_node\":%u,\"smgr_port\":%u,"
+		 "{\"type\":\"status\",\"smgr\":\"%s\",\"smgr_node\":%u,\"smgr_port\":%u,"
 		 "\"smgr_resets\":%lu,\"api\":\"%s\",\"reg2\":%s,\"reg2_reads\":%lu,"
 		 "\"reg2_writes\":%lu,\"reg2_misses\":%lu,\"reg2_saves\":%lu,\"reg2_save_errors\":%lu,"
 		 "\"time2\":%s,\"time2_reqs\":%lu,"
 		 "\"unknown_reqs\":%lu,\"ts\":\"%s\",\"clients\":%d",
-		 SENSORD_PROTO, st[s->st], s->smgr_node, s->smgr_port, s->smgr_resets,
+		 st[s->st], s->smgr_node, s->smgr_port, s->smgr_resets,
 		 s->periodic ? "report" : "buffering",
 		 s->serve_reg2 ? "true" : "false", s->reg.reads, s->reg.writes, s->reg.misses,
 		 s->reg_saves, s->reg_save_errors,
@@ -335,68 +343,85 @@ static unsigned parse_rate(const char *arg, unsigned dflt)
 	return (unsigned)v;
 }
 
-/* One complete request line from a client (no trailing newline). */
-void sn_server_handle_line(struct server *s, struct client *c, char *line)
+static void bad_arguments(struct linesrv_client *lc, const char *cmd)
 {
-	char *cmd, *name, *rate_s, *save = NULL;
+	linesrv_sendf(lc, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"bad arguments\"}\n", cmd);
+}
+
+/* The declination request: DEG, off, or no word (a query). */
+static void declination_request(struct server *s, struct linesrv_client *lc, const char *arg)
+{
+	struct heading *h = &s->heading;
+
+	if (arg && strcmp(arg, "off") == 0) {
+		if (h->have_decl)
+			s->log("declination off (magnetic heading only)");
+		h->have_decl = false;
+	} else if (arg) {
+		char *end;
+		double d = strtod(arg, &end);
+
+		if (*end || end == arg || !isfinite(d) || d < -180 || d > 180) {
+			linesrv_sendf(lc, "{\"type\":\"error\",\"cmd\":\"declination\",\"reason\":\"bad declination\"}\n");
+			return;
+		}
+		if (!h->have_decl || h->decl != d)
+			s->log("declination %.2f deg (true_heading = heading + declination)", d);
+		h->have_decl = true;
+		h->decl = d;
+	}
+	if (h->have_decl)
+		linesrv_sendf(lc, "{\"type\":\"ok\",\"cmd\":\"declination\",\"declination\":%.2f}\n", h->decl);
+	else
+		linesrv_sendf(lc, "{\"type\":\"ok\",\"cmd\":\"declination\",\"declination\":null}\n");
+}
+
+/* One request, already split into words by the library. A reply that
+ * drops the client clears its slot (on_close): nothing is written to the
+ * slot after a reply. */
+static void on_line(struct linesrv *srv, struct linesrv_client *lc, int argc, char **argv)
+{
+	struct server *s = linesrv_ctx(srv);
+	struct client *c = client_of(s, lc);
+	const char *cmd = argv[0];
+	char esc[SENSORD_ECHO_MAX * 6 + 1];
 	int ch;
 
-	cmd = strtok_r(line, " \t\r", &save);
-	if (!cmd)
-		return;
-	name = strtok_r(NULL, " \t\r", &save);
-	rate_s = strtok_r(NULL, " \t\r", &save);
-
-	if (strcmp(cmd, "list") == 0) {
+	if (strcmp(cmd, "list") == 0 || strcmp(cmd, "status") == 0) {
 		char buf[3072];
 
-		sn_server_list_line(s, buf, sizeof(buf));
-		sn_client_reply(s, c, "%s", buf);
-		return;
-	}
-	if (strcmp(cmd, "status") == 0) {
-		char buf[3072];
-
-		sn_server_status_line(s, buf, sizeof(buf));
-		sn_client_reply(s, c, "%s", buf);
+		if (argc != 1) {
+			bad_arguments(lc, cmd);
+			return;
+		}
+		if (cmd[0] == 'l')
+			sn_server_list_line(s, buf, sizeof(buf));
+		else
+			sn_server_status_line(s, buf, sizeof(buf));
+		linesrv_send(lc, buf, strlen(buf));
 		return;
 	}
 	if (strcmp(cmd, "declination") == 0) {
-		struct heading *h = &s->heading;
-
-		if (name && strcmp(name, "off") == 0) {
-			if (h->have_decl)
-				s->log("declination off (magnetic heading only)");
-			h->have_decl = false;
-		} else if (name) {
-			char *end;
-			double d = strtod(name, &end);
-
-			if (*end || end == name || !isfinite(d) || d < -180 || d > 180) {
-				sn_client_reply(s, c, "{\"err\":\"bad declination\"}\n");
-				return;
-			}
-			if (!h->have_decl || h->decl != d)
-				s->log("declination %.2f deg (true_heading = heading + declination)", d);
-			h->have_decl = true;
-			h->decl = d;
-		}
-		if (h->have_decl)
-			sn_client_reply(s, c, "{\"ok\":\"declination\",\"declination\":%.2f}\n", h->decl);
+		if (argc > 2)
+			bad_arguments(lc, cmd);
 		else
-			sn_client_reply(s, c, "{\"ok\":\"declination\",\"declination\":null}\n");
+			declination_request(s, lc, argc == 2 ? argv[1] : NULL);
 		return;
 	}
 	if (strcmp(cmd, "claim") && strcmp(cmd, "release") && strcmp(cmd, "get")) {
-		sn_client_reply(s, c, "{\"err\":\"unknown command\",\"command\":\"%.32s\"}\n", cmd);
+		json_escape_n(esc, sizeof(esc), cmd, SENSORD_ECHO_MAX);
+		linesrv_sendf(lc, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"unknown command\"}\n", esc);
 		return;
 	}
-	ch = name ? sn_channel_from_name(name) : -1;
+	if (argc < 2 || argc > (strcmp(cmd, "release") == 0 ? 2 : 3)) {
+		bad_arguments(lc, cmd);
+		return;
+	}
+	ch = sn_channel_from_name(argv[1]);
 	if (ch < 0) {
-		char esc[80];
-
-		sn_json_escape(esc, sizeof(esc), name ? name : "");
-		sn_client_reply(s, c, "{\"err\":\"unknown sensor\",\"sensor\":\"%s\"}\n", esc);
+		json_escape_n(esc, sizeof(esc), argv[1], SENSORD_ECHO_MAX);
+		linesrv_sendf(lc, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"unknown sensor\",\"sensor\":\"%s\"}\n",
+			      cmd, esc);
 		return;
 	}
 	if (strcmp(cmd, "release") == 0) {
@@ -405,25 +430,27 @@ void sn_server_handle_line(struct server *s, struct client *c, char *line)
 		c->rate[ch] = 0;
 		c->get[ch] = c->get_only[ch] = false;
 		channels_idle_reset(s);
-		sn_client_reply(s, c, "{\"ok\":\"release\",\"sensor\":\"%s\"}\n", s->ch[ch].name);
+		linesrv_sendf(lc, "{\"type\":\"ok\",\"cmd\":\"release\",\"sensor\":\"%s\"}\n", s->ch[ch].name);
 		sn_smgr_sync(s);
 		return;
 	}
 	if (ch == CH_ROTVEC && !s->rotvec.opt) {
-		sn_client_reply(s, c, "{\"err\":\"not enabled (sensord -V)\",\"sensor\":\"rotvec\"}\n");
+		linesrv_sendf(lc, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"not enabled (sensord -V)\",\"sensor\":\"rotvec\"}\n",
+			      cmd);
 		return;
 	}
 	if (ch != CH_ROTVEC && s->st == SMGR_READY && !s->ch[ch].present && !s->force) {
-		sn_client_reply(s, c, "{\"err\":\"sensor not present\",\"sensor\":\"%s\"}\n",
-			     s->ch[ch].name);
+		linesrv_sendf(lc, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"sensor not present\",\"sensor\":\"%s\"}\n",
+			      cmd, s->ch[ch].name);
 		return;
 	}
 	{
-		unsigned rate = parse_rate(rate_s, s->ch[ch].default_hz);
+		unsigned rate = parse_rate(argc == 3 ? argv[2] : NULL, s->ch[ch].default_hz);
 		unsigned max = s->ch[ch].max_hz ? s->ch[ch].max_hz : 200;
 
 		if (!rate) {
-			sn_client_reply(s, c, "{\"err\":\"bad rate\",\"sensor\":\"%s\"}\n", s->ch[ch].name);
+			linesrv_sendf(lc, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"bad rate\",\"sensor\":\"%s\"}\n",
+				      cmd, s->ch[ch].name);
 			return;
 		}
 		if (rate > max)
@@ -434,8 +461,8 @@ void sn_server_handle_line(struct server *s, struct client *c, char *line)
 			c->rate[ch] = rate;
 			c->get_only[ch] = false;
 			c->next_t[ch] = 0;
-			sn_client_reply(s, c, "{\"ok\":\"claim\",\"sensor\":\"%s\",\"rate\":%u}\n",
-				     s->ch[ch].name, rate);
+			linesrv_sendf(lc, "{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"%s\",\"rate\":%u}\n",
+				      s->ch[ch].name, rate);
 		} else {
 			if (!c->rate[ch]) {
 				c->rate[ch] = rate;
@@ -448,57 +475,21 @@ void sn_server_handle_line(struct server *s, struct client *c, char *line)
 	}
 }
 
-/* Buffer bytes from a client fd and hand complete lines over. */
-void sn_server_client_input(struct server *s, struct client *c)
-{
-	ssize_t n;
-	char *nl;
-
-	n = recv(c->fd, c->in + c->inlen, sizeof(c->in) - 1 - c->inlen, MSG_DONTWAIT);
-	if (n == 0 || (n < 0 && errno != EAGAIN && errno != EINTR)) {
-		sn_server_drop_client(s, c);
-		return;
-	}
-	if (n < 0)
-		return;
-	c->inlen += (size_t)n;
-	c->in[c->inlen] = '\0';
-	while ((nl = memchr(c->in, '\n', c->inlen))) {
-		size_t used = (size_t)(nl - c->in) + 1;
-
-		*nl = '\0';
-		if (c->discarding)
-			c->discarding = false;
-		else
-			sn_server_handle_line(s, c, c->in);
-		if (c->fd < 0)
-			return;
-		memmove(c->in, c->in + used, c->inlen - used);
-		c->inlen -= used;
-		c->in[c->inlen] = '\0';
-	}
-	if (c->discarding) {
-		c->inlen = 0;
-	} else if (c->inlen == sizeof(c->in) - 1) {
-		sn_client_reply(s, c, "{\"err\":\"line too long\"}\n");
-		c->inlen = 0;
-		c->discarding = true;
-	}
-}
-
 /* One formatted line of channel chn, stamped t, to every client that
  * claims it: a pending get takes it (and ends a get-only claim), other
  * claims are decimated to the client's own rate. Returns true when a
- * get-only claim ended (the caller re-syncs the reports). */
+ * get-only claim ended or a client was dropped meanwhile (the caller
+ * re-syncs the reports, once the loop is over). */
 bool sn_deliver(struct server *s, int chn, int64_t t, const char *line, size_t n)
 {
 	bool released = false;
 	int i;
 
+	s->delivering++;
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++) {
 		struct client *c = &s->clients[i];
 
-		if (c->fd < 0 || !c->rate[chn])
+		if (!c->lc || !c->rate[chn])
 			continue;
 		if (c->get[chn]) {
 			client_sample(c, line, n);
@@ -525,9 +516,12 @@ bool sn_deliver(struct server *s, int chn, int64_t t, const char *line, size_t n
 		}
 		client_sample(c, line, n);
 	}
+	if (--s->delivering == 0 && s->sync_pending) {
+		s->sync_pending = false;
+		released = true;
+	}
 	return released;
 }
-
 
 /* One converted sample to every client that wants it. */
 void sn_server_publish(struct server *s, int chn, int64_t t, const int32_t d[3])
@@ -561,16 +555,6 @@ void sn_server_publish(struct server *s, int chn, int64_t t, const int32_t d[3])
 		sn_smgr_sync(s);
 }
 
-void sn_server_flush_all(struct server *s)
-{
-	int i;
-
-	for (i = 0; i < SENSORD_MAX_CLIENTS; i++)
-		if (s->clients[i].fd >= 0 && s->clients[i].outlen && client_flush(&s->clients[i]))
-			sn_server_drop_client(s, &s->clients[i]);
-}
-
-
 /* Expire gets nobody answered in time. */
 void sn_server_tick_clients(struct server *s)
 {
@@ -580,7 +564,7 @@ void sn_server_tick_clients(struct server *s)
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++) {
 		struct client *cl = &s->clients[i];
 
-		if (cl->fd < 0)
+		if (!cl->lc)
 			continue;
 		for (c = 0; c < CH_COUNT; c++) {
 			if (!cl->get[c] || now < cl->get_deadline[c])
@@ -590,8 +574,9 @@ void sn_server_tick_clients(struct server *s)
 				cl->rate[c] = 0;
 				cl->get_only[c] = false;
 			}
-			sn_client_reply(s, cl, "{\"err\":\"timeout\",\"sensor\":\"%s\"}\n", s->ch[c].name);
-			if (cl->fd < 0)
+			/* a dropped client's claims were synced by on_close */
+			if (linesrv_sendf(cl->lc, "{\"type\":\"error\",\"cmd\":\"get\",\"reason\":\"timeout\",\"sensor\":\"%s\"}\n",
+					  s->ch[c].name))
 				break;
 			sn_smgr_sync(s);
 		}
@@ -614,7 +599,7 @@ int sn_server_deadline_ms(struct server *s)
 		if (s->pend[i].used && s->pend[i].sent + SENSORD_REQ_TIMEOUT_MS < next)
 			next = s->pend[i].sent + SENSORD_REQ_TIMEOUT_MS;
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++)
-		for (c = 0; s->clients[i].fd >= 0 && c < CH_COUNT; c++)
+		for (c = 0; s->clients[i].lc && c < CH_COUNT; c++)
 			if (s->clients[i].get[c] && s->clients[i].get_deadline[c] < next)
 				next = s->clients[i].get_deadline[c];
 	if (next <= now)

@@ -4,7 +4,7 @@
 # to the ADSP as QMI REG2 and is the SMGR client behind
 # /run/sensord.sock), boot the ADSP through audio-up if nothing has yet,
 # and wait for the ADSP's sensor manager (QMI service 0x100) to register.
-# See tools/sensord/sensord.c and docs/features/sensors.md.
+# See tools/sensord/ and docs/features/sensors.md.
 #
 # persist is device-unique and irreplaceable (factory calibration, the
 # registry itself). Before mounting it, this script marks the block

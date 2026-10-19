@@ -169,7 +169,7 @@ def write(d, ph, rng, D, off, magn_name="m-magn-full.jsonl", noise=0.002, steps=
             rec[a] = rec[a] * 3 + 0.5
         mag[400 + 37 * k] = json.dumps(rec)
     with open(os.path.join(d, "m-accel.jsonl"), "w") as f:
-        f.write("\n".join(['{"hello":"sensord","proto":1}'] + acc[:5] + ['{"dropped":3}'] + acc[5:]) + "\n")
+        f.write("\n".join(['{"type":"hello","daemon":"sensord","proto":2}'] + acc[:5] + ['{"type":"dropped","count":3}'] + acc[5:]) + "\n")
     with open(os.path.join(d, "m-anglvel.jsonl"), "w") as f:
         f.write("\n".join(gyr) + "\n")
     with open(os.path.join(d, magn_name), "w") as f:

@@ -856,8 +856,8 @@ static double round_heading(double h)
 int compass_format(char *buf, size_t len, const struct compass_out *o, bool have_decl, double decl,
 		   const char *extra)
 {
-	int n = snprintf(buf, len, "{\"sensor\":\"heading\",\"t\":%" PRId64 ",\"heading\":%.2f,"
-			 "\"pitch\":%.2f,\"roll\":%.2f,\"calibrated\":%s,\"disturbed\":%s,"
+	int n = snprintf(buf, len, "{\"type\":\"sample\",\"sensor\":\"heading\",\"t\":%" PRId64
+			 ",\"heading\":%.2f,\"pitch\":%.2f,\"roll\":%.2f,\"calibrated\":%s,\"disturbed\":%s,"
 			 "\"accuracy\":%.1f%s",
 			 o->t, round_heading(o->heading), compass_round2(o->pitch), compass_round2(o->roll),
 			 o->calibrated ? "true" : "false", o->disturbed ? "true" : "false", o->accuracy,

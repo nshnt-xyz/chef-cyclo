@@ -8,11 +8,23 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "common/json.h"
+#include "common/linesrv.h"
 #include "sensord.h"
 
-/* Client mode: one request, print the reply lines (the hello is not
+/* The line's "type" into TYPE ("" when it has none or is no JSON). */
+static void line_type(const char *line, char *type, size_t len)
+{
+	struct json_obj o;
+
+	if (json_parse(&o, line, strlen(line)) || !json_get_string(&o, "type", type, len))
+		type[0] = '\0';
+}
+
+/* Client mode: one request, print the reply lines raw (the hello is not
  * printed). list/status/get stop after the first reply; watch streams
- * sample lines until ^C, or COUNT of them with -n. */
+ * every later line (not its ok claim reply) until ^C, or COUNT sample
+ * lines with -n. Exit 1 on an error line or no connection. */
 int sn_cli_main(const char *sock_path, long count, int argc, char **argv)
 {
 	const char *cmd = argv[0];
@@ -38,7 +50,7 @@ int sn_cli_main(const char *sock_path, long count, int argc, char **argv)
 		sn_usage();
 		return 64;
 	}
-	fd = sn_sock_connect(sock_path);
+	fd = linesrv_connect(sock_path);
 	if (fd < 0) {
 		fprintf(stderr, "sensord: connect %s: %s\n", sock_path, strerror(-fd));
 		return 1;
@@ -64,17 +76,18 @@ int sn_cli_main(const char *sock_path, long count, int argc, char **argv)
 		buf[have] = '\0';
 		line = buf;
 		while ((nl = strchr(line, '\n'))) {
+			char type[16];
+
 			*nl = '\0';
-			if (strncmp(line, "{\"hello\"", 8) != 0 &&
-			    !(watch && strncmp(line, "{\"ok\"", 5) == 0)) {
+			line_type(line, type, sizeof(type));
+			if (strcmp(type, "hello") != 0 && !(watch && strcmp(type, "ok") == 0)) {
 				puts(line);
 				fflush(stdout);
-				if (strncmp(line, "{\"err\"", 6) == 0)
+				if (strcmp(type, "error") == 0)
 					rc = 1;
 				if (!watch || rc)
 					goto out;
-				if (strncmp(line, "{\"sensor\"", 9) == 0 && count > 0 &&
-				    ++samples >= count)
+				if (strcmp(type, "sample") == 0 && count > 0 && ++samples >= count)
 					goto out;
 			}
 			line = nl + 1;

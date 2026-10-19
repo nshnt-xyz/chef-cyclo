@@ -156,8 +156,8 @@ bool compass_angles(const double q[4], enum compass_mount mount, double *heading
 		    double *roll);
 
 /* The heading line sensord sends and compass-replay prints:
- * {"sensor":"heading","t":NS,"heading":H,"pitch":P,"roll":R,
- *  "calibrated":B,"disturbed":B,"accuracy":A} plus
+ * {"type":"sample","sensor":"heading","t":NS,"heading":H,"pitch":P,
+ *  "roll":R,"calibrated":B,"disturbed":B,"accuracy":A} plus
  * ,"true_heading":T,"declination":D when have_decl; extra (NULL or a
  * string of ,"key":value pairs) goes after accuracy. Returns snprintf's
  * value. */

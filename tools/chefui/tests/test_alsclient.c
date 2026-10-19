@@ -32,6 +32,7 @@ static struct {
 	int lfd, cfd, accepts, status_reqs, claims;
 	bool drop_on_accept, ack, smgr, status_silent, eof, mute;
 	const char *status_line;	/* the status reply, NULL: the short one */
+	const char *hello;		/* the hello, NULL: proto 2 */
 	char in[1024];
 	size_t n;
 	int64_t accept_at[16];
@@ -73,14 +74,14 @@ static void serve_requests(void)
 		if (!strncmp(S.in, "claim illuminance 5\n", len)) {
 			S.claims++;
 			if (S.ack)
-				say("{\"ok\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}\n");
+				say("{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}\n");
 		} else if (!strncmp(S.in, "status\n", len)) {
 			S.status_reqs++;
 			if (!S.status_silent && S.status_line)
 				say(S.status_line);
 			else if (!S.status_silent)
-				say(S.smgr ? "{\"ok\":\"status\",\"proto\":1,\"smgr\":\"ready\",\"clients\":2}\n"
-					   : "{\"ok\":\"status\",\"proto\":1,\"smgr\":\"down\",\"clients\":2}\n");
+				say(S.smgr ? "{\"type\":\"status\",\"smgr\":\"ready\",\"clients\":2}\n"
+					   : "{\"type\":\"status\",\"smgr\":\"down\",\"clients\":2}\n");
 		}
 		memmove(S.in, S.in + len, S.n - len);
 		S.n -= len;
@@ -109,7 +110,7 @@ static void server_io(void)
 				return;
 			}
 			if (!S.mute)
-				say("{\"hello\":\"sensord\",\"proto\":1}\n");
+				say(S.hello ? S.hello : "{\"type\":\"hello\",\"daemon\":\"sensord\",\"proto\":2}\n");
 		}
 	}
 	if (S.cfd >= 0) {
@@ -173,7 +174,7 @@ static void sample_aged(double lux, int age_ms)
 {
 	char line[160];
 
-	snprintf(line, sizeof(line), "{\"sensor\":\"illuminance\",\"t\":%lld,\"illuminance\":%g}\n",
+	snprintf(line, sizeof(line), "{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":%lld,\"illuminance\":%g}\n",
 		 (long long)(mono_ns() - (int64_t)age_ms * 1000000), lux);
 	say(line);
 }
@@ -183,8 +184,9 @@ static void sample(double lux)
 	sample_aged(lux, 0);
 }
 
-/* A live sensord status line (2026-09-26 sensors evidence): 50 members. */
-#define STATUS_50(smgr) "{\"ok\":\"status\",\"proto\":1,\"smgr\":\"" smgr "\",\"smgr_node\":5,\"smgr_port\":90," \
+/* A live sensord status line (2026-09-26 sensors evidence) in its proto 2
+ * shape ("type" for "ok", no "proto"): 49 members. */
+#define STATUS_LIVE(smgr) "{\"type\":\"status\",\"smgr\":\"" smgr "\",\"smgr_node\":5,\"smgr_port\":90," \
 	"\"smgr_resets\":0,\"api\":\"buffering\",\"reg2\":true,\"reg2_reads\":75,\"reg2_writes\":4,\"reg2_misses\":0," \
 	"\"reg2_saves\":3,\"reg2_save_errors\":0,\"time2\":false,\"time2_reqs\":0,\"unknown_reqs\":0,\"ts\":\"dsps\"," \
 	"\"clients\":1,\"compass\":\"off\",\"compass_clients\":0,\"mount\":\"portrait\",\"calibrated\":true," \
@@ -201,28 +203,31 @@ static void test_parse(void)
 {
 	double lux = -1;
 
-	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":312.5}", &lux) == 0 && lux == 312.5);
-	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":0}", &lux) == 0 && lux == 0);
-	CHECK(sys_als_parse_sample("{\"sensor\":\"proximity\",\"t\":5,\"illuminance\":3}", &lux) == -1);
-	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":-1}", &lux) == -1);
-	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":nan}", &lux) == -1);
-	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":inf}", &lux) == -1);
-	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":}", &lux) == -1);
-	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":312.5}", &lux) == 0 && lux == 312.5);
+	CHECK(sys_als_parse_sample("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":0}", &lux) == 0 && lux == 0);
+	CHECK(sys_als_parse_sample("{\"type\":\"sample\",\"sensor\":\"proximity\",\"t\":5,\"illuminance\":3}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":-1}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":nan}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":inf}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":5}", &lux) == -1);
 	{
 		int64_t t = 0;
 
-		CHECK(sys_als_parse_sample_t("{\"sensor\":\"illuminance\",\"t\":1500000000,\"illuminance\":7}", &lux, &t) == 0 &&
+		CHECK(sys_als_parse_sample_t("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":1500000000,\"illuminance\":7}", &lux, &t) == 0 &&
 		      lux == 7 && t == 1500000000);
-		CHECK(sys_als_parse_sample_t("{\"sensor\":\"illuminance\",\"illuminance\":7}", &lux, &t) == 0 && t == -1);
+		CHECK(sys_als_parse_sample_t("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"illuminance\":7}", &lux, &t) == 0 && t == -1);
 	}
 	/* stale: stamped more than the slack before the claim; the boundary is fresh */
 	CHECK(sys_als_sample_stale(1000000000 - 200000001, 1000000000));
 	CHECK(!sys_als_sample_stale(1000000000 - 200000000, 1000000000));
 	CHECK(!sys_als_sample_stale(1000000000, 1000000000) && !sys_als_sample_stale(2000000000, 1000000000));
 	CHECK(!sys_als_sample_stale(-1, 1000000000) && !sys_als_sample_stale(5, 0));
-	CHECK(sys_als_parse_sample("{\"dropped\":3}", &lux) == -1);
-	CHECK(sys_als_parse_sample("{\"ok\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"dropped\",\"count\":3}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}", &lux) == -1);
+	/* a sample needs its type: the pre-envelope line is not one */
+	CHECK(sys_als_parse_sample("{\"sensor\":\"illuminance\",\"t\":5,\"illuminance\":312.5}", &lux) == -1);
+	CHECK(sys_als_parse_sample("{\"type\":\"error\",\"sensor\":\"illuminance\",\"illuminance\":3}", &lux) == -1);
 	CHECK(sys_als_parse_sample("junk", &lux) == -1);
 }
 
@@ -257,9 +262,12 @@ static void test_client(void)
 
 	/* dropped, malformed and foreign lines change nothing */
 	changes = 0;
-	say("{\"dropped\":4}\n{\"ok\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}\n");
-	say("garbage\n{\"sensor\":\"illuminance\",\"t\":1,\"illuminance\":-3}\n");
-	say("{\"sensor\":\"illuminance\",\"t\":1,\"illuminance\":nan}\n{\"sensor\":\"accel\",\"t\":1,\"x\":1}\n");
+	say("{\"type\":\"dropped\",\"count\":4}\n{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}\n");
+	say("garbage\n{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":1,\"illuminance\":-3}\n");
+	say("{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":1,\"illuminance\":nan}\n"
+	    "{\"type\":\"sample\",\"sensor\":\"accel\",\"t\":1,\"x\":1}\n");
+	/* an unknown type and a typeless (pre-envelope) sample: ignored */
+	say("{\"type\":\"future\",\"smgr\":\"down\"}\n{\"sensor\":\"illuminance\",\"t\":1,\"illuminance\":3000}\n");
 	run(100);
 	CHECK(sys_state.als.available && bright_cb == 0 && theme_cb == 0 && !changes);
 	CHECK(fakeloop_log_count("als:") == 0 && S.status_reqs == 1);
@@ -298,21 +306,21 @@ static void test_client(void)
 		run(31000);
 		CHECK(sys_state.als.available && S.accepts == acc && S.claims == claims);
 
-		/* the real 50-member status line, read with the JSON reader: smgr is its
+		/* the real status line (49 members), read with the JSON reader: smgr is its
 		 * top-level member, wherever it stands; one nested in another member is
 		 * not it */
 		{
 			struct json_obj o;
 
-			CHECK(json_parse(&o, STATUS_50("ready"), strlen(STATUS_50("ready")) - 1) == JSON_OK && o.n == 50);
+			CHECK(json_parse(&o, STATUS_LIVE("ready"), strlen(STATUS_LIVE("ready")) - 1) == JSON_OK && o.n == 49);
 		}
-		S.status_line = STATUS_50("down");
+		S.status_line = STATUS_LIVE("down");
 		run(31000);
 		CHECK(!sys_state.als.available && S.cfd >= 0);
-		S.status_line = STATUS_50("ready");
+		S.status_line = STATUS_LIVE("ready");
 		run(31000);
 		CHECK(sys_state.als.available && S.accepts == acc);
-		S.status_line = "{\"x\":{\"smgr\":\"ready\"},\"ok\":\"status\",\"proto\":1,\"smgr\":\"down\"}\n";
+		S.status_line = "{\"x\":{\"smgr\":\"ready\"},\"type\":\"status\",\"smgr\":\"down\"}\n";
 		run(31000);
 		CHECK(!sys_state.als.available && S.cfd >= 0);
 		S.status_line = NULL;
@@ -334,25 +342,25 @@ static void test_client(void)
 	run(100);
 	CHECK(fakeloop_log_count("als: dropped a cached sample") == 2);
 
-	/* an err line: logged once per distinct text, connection closed, retried */
+	/* an error line: logged once per distinct reason, connection closed, retried */
 	S.accepts = 0;
-	say("{\"err\":\"unknown sensor\",\"sensor\":\"illuminance\"}\n");
+	say("{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"unknown sensor\",\"sensor\":\"illuminance\"}\n");
 	run(100);
 	CHECK(fakeloop_log_count("als: sensord error: unknown sensor") == 1 && !sys_state.als.available);
 	CHECK(until_accept(1, 3000));
 	run(100);
-	say("{\"err\":\"unknown sensor\",\"sensor\":\"illuminance\"}\n");
+	say("{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"unknown sensor\",\"sensor\":\"illuminance\"}\n");
 	run(100);
 	CHECK(fakeloop_log_count("als: sensord error: unknown sensor") == 1);
 	CHECK(until_accept(2, 5000));
 	run(100);
-	say("{\"err\":\"other\"}\n");
+	say("{\"type\":\"error\",\"reason\":\"smgr refused report\",\"sensor\":\"illuminance\"}\n");
 	run(100);
-	CHECK(fakeloop_log_count("als: sensord error: other") == 1);
-	/* the err text is a JSON string: escapes decoded */
+	CHECK(fakeloop_log_count("als: sensord error: smgr refused report") == 1);
+	/* the reason is a JSON string: escapes decoded */
 	CHECK(until_accept(3, 9000));
 	run(100);
-	say("{\"err\":\"bad \\\"rate\\\" \\u0041\",\"sensor\":\"illuminance\"}\n");
+	say("{\"type\":\"error\",\"cmd\":\"claim\",\"reason\":\"bad \\\"rate\\\" \\u0041\",\"sensor\":\"illuminance\"}\n");
 	run(100);
 	CHECK(fakeloop_log_count("als: sensord error: bad \"rate\" A") == 1 && !sys_state.als.available);
 
@@ -383,6 +391,21 @@ static void test_client(void)
 	drop_conn();
 	CHECK(until_accept(2, 3000));
 	CHECK(S.accept_at[1] - S.accept_at[0] < 1500);
+
+	/* a hello with another proto: logged once, the client carries on */
+	S.hello = "{\"type\":\"hello\",\"daemon\":\"sensord\",\"proto\":3}\n";
+	S.claims = 0;
+	drop_conn();
+	CHECK(until_accept(3, 3000));
+	run(200);
+	CHECK(S.claims == 1 && sys_state.als.available);
+	CHECK(fakeloop_log_count("als: sensord speaks proto 3, this client 2; carrying on") == 1);
+	drop_conn();
+	CHECK(until_accept(4, 3000));
+	run(200);
+	CHECK(S.claims == 2 && sys_state.als.available);
+	CHECK(fakeloop_log_count("als: sensord speaks proto") == 1);
+	S.hello = NULL;
 
 	/* a claim that is never acknowledged: reconnect 5 s after each connect (L4), no
 	 * status probes, never available */

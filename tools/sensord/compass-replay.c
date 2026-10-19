@@ -4,8 +4,9 @@
  *
  *   compass-replay [-m MOUNT] [-r HZ] [-u] [-d DEG] [-F FACTORY] [-s] FILE...
  *
- * FILEs are sensord JSON-lines captures (sensord watch output); lines with
- * "sensor" accel, anglvel or magn are used, anything else is skipped. The
+ * FILEs are sensord JSON-lines captures (sensord watch output, proto 2 or
+ * the earlier typeless lines); lines with "sensor" accel, anglvel or magn
+ * and a "t" are used, anything else is skipped. The
  * samples of all files are merged in timestamp order (at equal stamps:
  * gyro, then accel, then magn) and fed to the filter as sensord feeds it.
  * Pass one magnetometer capture only (e.g. the *-magn-full one).
@@ -23,7 +24,8 @@
  *       starting not calibrated, and lines carry cal_source and mag_bias
  *   -s  print a summary line to stderr at the end (counters)
  *
- * Output: sensord's heading lines ({"sensor":"heading",...}) on stdout.
+ * Output: sensord's heading lines ({"type":"sample","sensor":"heading",
+ * ...}) on stdout.
  * tools/compass-check.py uses this to replay captures that have no
  * heading channel of their own. */
 #include <errno.h>

@@ -21,10 +21,11 @@
 #define SENSORD_REG_PATH	"/run/sensors/sns.reg"
 #define SENSORD_MAP_PATH	"/usr/share/sensord/sns_reg.map"
 #define SENSORD_DSPS_DEV	"/dev/sensors"
-#define SENSORD_PROTO		1
+#define SENSORD_PROTO		2	/* the socket protocol's version (hello) */
 #define SENSORD_MAX_CLIENTS	16
-#define SENSORD_LINE_MAX	128
-#define SENSORD_OUTQ		16384
+#define SENSORD_LINE_MAX	128	/* a request line, its newline included */
+#define SENSORD_OUTQ		16384	/* per-client output queue */
+#define SENSORD_ECHO_MAX	32	/* bytes of a request word echoed in an error */
 #define SENSORD_QMI_BUF		4096
 #define SENSORD_LOOKUP_MS	1000	/* while SMGR is absent */
 #define SENSORD_CHECK_MS	5000	/* while up: is it still the same port? */
@@ -93,20 +94,15 @@ struct channel {
 
 /* ------------------------------------- clients, SMGR, SAM, the server */
 
+/* A connection's claims, in the slot linesrv gives it (server.c). */
 struct client {
-	int fd;				/* -1 = free slot */
-	bool discarding;		/* overlong request: skip to newline */
+	struct linesrv_client *lc;	/* NULL = free slot */
 	unsigned rate[CH_COUNT];	/* claimed rate, 0 = none */
 	bool get[CH_COUNT];		/* waiting for one sample */
 	bool get_only[CH_COUNT];	/* the claim exists only for that get */
 	int64_t get_deadline[CH_COUNT];
 	int64_t next_t[CH_COUNT];	/* per-client decimation: next sample due */
-	char in[SENSORD_LINE_MAX];
-	size_t inlen;
-	char out[SENSORD_OUTQ];
-	size_t outlen;
-	unsigned long dropped;		/* not yet reported */
-	unsigned long dropped_total;
+	unsigned long dropped_total;	/* samples the queue had no room for */
 };
 
 enum smgr_state { SMGR_DOWN, SMGR_INFO, SMGR_READY };
@@ -196,7 +192,11 @@ struct heading {
 
 struct server {
 	struct channel ch[CH_COUNT];
+	struct linesrv *srv;		/* the socket (sn_server_start) */
 	struct client clients[SENSORD_MAX_CLIENTS];
+	int delivering;			/* inside a loop over the claimants */
+	bool sync_pending;		/* a client went during it: sync after */
+	bool closing;			/* exiting: dropped clients are not synced */
 	struct sns_reg reg;
 	bool serve_reg2, serve_time2, periodic, force;
 	unsigned report_cap;
@@ -229,7 +229,7 @@ struct server {
 	struct heading heading;
 	/* injected for the tests; the defaults are the real clock/logs */
 	int64_t (*now_ms)(void);
-	void (*log)(const char *fmt, ...);	/* kmsg + stderr */
+	void (*log)(const char *fmt, ...);	/* chef_log: kmsg + stderr */
 	void (*elog)(const char *fmt, ...);	/* stderr only */
 };
 
@@ -237,7 +237,6 @@ struct server {
 
 /* channel.c */
 extern bool sn_verbose;
-void sn_kmsg_note(const char *fmt, ...);
 void sn_stderr_note(const char *fmt, ...);
 void sn_vlog(const char *fmt, ...);
 extern const struct channel sn_channel_defaults[CH_COUNT];
@@ -246,30 +245,33 @@ const char *sn_cal_name(uint8_t cal);
 int sn_channel_from_name(const char *name);
 void sn_convert_sample(enum ch_kind kind, const int32_t d[3], double out[3]);
 int sn_format_sample(char *buf, size_t len, const struct channel *ch, int64_t t,
-			 const int32_t d[3]);
+		     const int32_t d[3]);
 int64_t sn_ticks_to_ns(uint32_t ts, uint32_t anchor_ticks, int64_t anchor_ns);
 void sn_copy_name(char *dst, size_t dstsz, const uint8_t *src, uint32_t len);
-void sn_json_escape(char *dst, size_t dstsz, const char *src);
 int64_t sn_real_now_ms(void);
 bool sn_read_dsp_ticks(struct server *s, uint32_t *ticks);
 void sn_time_anchor(struct server *s, uint32_t newest, uint32_t *a_ticks, int64_t *a_ns);
 
 /* server.c */
 void sn_server_init(struct server *s);
+/* The socket server (not listening yet), its log s->log: set the log
+ * first. 0, or -ENOMEM. */
+int sn_server_start(struct server *s);
+/* Exiting: every client dropped, its claims not synced to the DSP. */
+void sn_server_drop_all(struct server *s);
+/* The listener closed and its path unlinked, the table freed. */
+void sn_server_fini(struct server *s);
 int sn_channel_claims(const struct server *s, int c);
 unsigned sn_internal_want(const struct server *s, int c);
 unsigned sn_channel_want(const struct server *s, int c);
 int sn_channel_used(const struct server *s, int c);
+/* A connected fd into the table, as if accepted (the tests); NULL when
+ * refused. */
 struct client *sn_server_add_client(struct server *s, int fd);
-void sn_server_drop_client(struct server *s, struct client *c);
-void sn_client_reply(struct server *s, struct client *c, const char *fmt, ...);
 void sn_server_list_line(const struct server *s, char *buf, size_t len);
 void sn_server_status_line(const struct server *s, char *buf, size_t len);
-void sn_server_handle_line(struct server *s, struct client *c, char *line);
-void sn_server_client_input(struct server *s, struct client *c);
 bool sn_deliver(struct server *s, int chn, int64_t t, const char *line, size_t n);
 void sn_server_publish(struct server *s, int chn, int64_t t, const int32_t d[3]);
-void sn_server_flush_all(struct server *s);
 void sn_server_tick_clients(struct server *s);
 int sn_server_deadline_ms(struct server *s);
 
@@ -287,7 +289,7 @@ void sn_smgr_sync(struct server *s);
 void sn_notify_claimants(struct server *s, int c, const char *err);
 void sn_smgr_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, uint32_t port);
 int sn_svc_lookup(struct server *s, int sock, uint32_t svc, uint32_t want, char *seen_prev,
-		      size_t seen_sz, struct msm_ipc_server_info *out);
+		  size_t seen_sz, struct msm_ipc_server_info *out);
 void sn_smgr_tick(struct server *s);
 
 /* sam.c */
@@ -295,11 +297,11 @@ int sn_format_qmag_fields(const struct sam *q, char *buf, size_t len);
 const char *sn_sam_state_name(const struct sam *q);
 void sn_sam_forget(struct server *s, struct sam *q, const char *why);
 int sn_sam_send(struct server *s, struct sam *q, uint16_t msg, struct qmi_elem_info *ei,
-		    const void *req);
+		const void *req);
 bool sn_sam_wanted(const struct server *s, const struct sam *q);
 void sn_sam_sync_all(struct server *s);
 void sn_sam_rx(struct server *s, struct sam *q, struct qrtr_packet *pkt, uint32_t node,
-		   uint32_t port);
+	       uint32_t port);
 void sn_sam_tick(struct server *s, struct sam *q);
 int64_t sn_sam_deadline(const struct server *s, const struct sam *q, int64_t next);
 
@@ -310,11 +312,10 @@ void sn_reg_tick(struct server *s);
 void sn_reg2_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, uint32_t port);
 void sn_time2_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, uint32_t port);
 int sn_ipc_recv(int sock, char *buf, size_t bsz, struct qrtr_packet *pkt, uint32_t *node,
-		    uint32_t *port);
+		uint32_t *port);
 int sn_publish(struct server *s, int *sock, uint32_t svc, uint16_t vers, uint16_t inst);
 
 /* main.c */
-int sn_sock_connect(const char *path);
 void sn_usage(void);
 
 /* cli.c */

@@ -10,7 +10,7 @@
 #include "chef_log.h"
 
 #define CHEF_LOG_KMSG "/dev/kmsg"
-#define CHEF_LOG_MSG_MAX 256
+#define CHEF_LOG_MSG_MAX 321	/* a message is cut at 320 bytes */
 
 static const char *log_tag = "chef";
 static bool log_echo;

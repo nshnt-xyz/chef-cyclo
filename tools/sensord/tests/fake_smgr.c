@@ -841,7 +841,7 @@ static int slow(const char *path, int secs)
 		total += (size_t)n;
 	}
 	buf[total] = '\0';
-	p = strstr(buf, "{\"dropped\":");
+	p = strstr(buf, "{\"type\":\"dropped\",\"count\":");
 	printf("slow client: %zu bytes, %s\n", total, p ? "dropped reported" : "no drop line");
 	if (p) {
 		char *e = strchr(p, '\n');

@@ -51,45 +51,68 @@ By hand, run it with `setsid` so closing the telnet session does not hang it up.
 
 Without a REG2 server the ADSP boots (audio works) but SMGR never registers: live S0 saw only 5 sensor-range services in 70 s, then 50 once REG2 was served.
 
-## Socket protocol
+## Socket contract
 
-`/run/sensord.sock`, a Unix stream socket. Requests are plain text lines. Every line `sensord` sends is one JSON object.
+`/run/sensord.sock`, a Unix stream socket, speaks the shared [local socket protocol](local-sockets.md): requests are words on one line, every line from `sensord` is one JSON object with a `type`. This is proto 2 (2026-10-19; proto 1 had the same requests, but its replies and samples had no `type` member).
 
 | Request | Reply |
 |---|---|
-| (connect) | `{"hello":"sensord","proto":1}` |
-| `list` | `{"ok":"list","smgr":"ready","sensors":[{"sensor":"accel","unit":"m/s^2","smgr_id":0,"data_type":0,"present":true,"name":"BMI160 Accelerometer","vendor":"BOSCH","max_hz":200,"range":78.45,"resolution":0.002396,"rate":0,"claims":0,"calibration":"full"},...]}` |
-| `status` | `{"ok":"status","proto":1,"smgr":"ready","smgr_node":5,"smgr_port":87,"smgr_resets":0,"api":"buffering","reg2":true,"reg2_reads":...,"reg2_writes":...,"reg2_misses":...,"reg2_saves":...,"reg2_save_errors":...,"time2":false,"time2_reqs":0,"unknown_reqs":0,"ts":"dsps","clients":1,"qmag":"off","qmag_instance":-1,"qmag_enables":0,"qmag_inds":0,"qmag_errors":0,"qmag_last_error":-1}` (with `-Q` and a QMAG_CAL report received, also `"bias"`, `"bias_raw"`, `"accuracy"` as on magn lines) |
-| `claim SENSOR [HZ]` | `{"ok":"claim","sensor":"accel","rate":50}`, then sample lines |
-| `release SENSOR` | `{"ok":"release","sensor":"accel"}` |
-| `get SENSOR [HZ]` | one sample line, or `{"err":"timeout","sensor":"accel"}` after 5 s; for illuminance on a fresh report the line is the DSP's cached reading with its old stamp (see below) |
-| `declination [DEG\|off]` | `{"ok":"declination","declination":1.50}` (or `null`): sets (-180..180, east positive), clears or reads the declination for every heading client; `{"err":"bad declination"}` |
+| (connect) | `{"type":"hello","daemon":"sensord","proto":2}` |
+| `list` | `{"type":"list","smgr":"ready","sensors":[{"sensor":"accel","unit":"m/s^2","smgr_id":0,"data_type":0,"present":true,"name":"BMI160 Accelerometer","vendor":"BOSCH","max_hz":200,"range":78.45,"resolution":0.002396,"rate":0,"claims":0,"calibration":"full"},...]}` |
+| `status` | `{"type":"status","smgr":"ready","smgr_node":5,"smgr_port":87,"smgr_resets":0,"api":"buffering","reg2":true,"reg2_reads":...,"reg2_writes":...,"reg2_misses":...,"reg2_saves":...,"reg2_save_errors":...,"time2":false,"time2_reqs":0,"unknown_reqs":0,"ts":"dsps","clients":1,...,"qmag":"off","qmag_instance":-1,"qmag_enables":0,"qmag_inds":0,"qmag_errors":0,"qmag_last_error":-1}` (with `-Q` and a QMAG_CAL report received, also `"bias"`, `"bias_raw"`, `"accuracy"` as on magn lines) |
+| `claim SENSOR [HZ]` | `{"type":"ok","cmd":"claim","sensor":"accel","rate":50}` (the rate granted, clamped to the sensor's maximum), then sample lines |
+| `release SENSOR` | `{"type":"ok","cmd":"release","sensor":"accel"}`, also when it was not claimed |
+| `get SENSOR [HZ]` | one sample line, or `{"type":"error","cmd":"get","reason":"timeout","sensor":"accel"}` after 5 s; for illuminance on a fresh report the line is the DSP's cached reading with its old stamp (see below) |
+| `declination [DEG\|off]` | `{"type":"ok","cmd":"declination","declination":1.50}` (`null` when off): sets (-180..180, east positive), clears or reads the declination for every heading client |
 
-The illuminance report is on-change only: at steady light samples can be 55 s apart even at a 5 Hz claim (measured). The first line after a new claim is the DSP's cached reading with its old stamp (it can be older than 5 minutes: 302 s after a 5 minute rest in the M5 visit, and not bounded in general); the first fresh sample follows after about 0.2 to 0.4 s, so a consumer compares `t` with the time of its claim. A consumer treats the last value as held until the next sample and checks liveness with `status` (`"smgr":"ready"`), not by waiting for samples. Sample lines, with `t` in CLOCK_MONOTONIC nanoseconds (the accel line is a live sample; the others show the shape):
+`SENSOR` is one of the channels in the table [above](#current-behavior); `magn_factory`, sensord's internal report, is an unknown sensor. `HZ` is 1 to 1000; without it the channel's default rate applies.
+
+Sample lines, `"type":"sample"` first, `t` in CLOCK_MONOTONIC nanoseconds (the accel line is a live sample; the others show the shape):
 
 ```
-{"sensor":"accel","t":667817617363,"x":8.42253,"y":0.173035,"z":5.33611}
-{"sensor":"anglvel","t":NS,"x":X,"y":Y,"z":Z}
-{"sensor":"magn","t":NS,"x":X,"y":Y,"z":Z}
-{"sensor":"magn","t":NS,"x":X,"y":Y,"z":Z,"bias":[BX,BY,BZ],"bias_raw":[R0,R1,R2],"accuracy":A}   (-Q only)
-{"sensor":"illuminance","t":NS,"illuminance":LUX}
-{"sensor":"proximity","t":NS,"near":1,"proximity":RAW}
-{"sensor":"heading","t":NS,"heading":88.13,"pitch":2.90,"roll":-5.81,"calibrated":true,"disturbed":false,"accuracy":3.0,"cal_source":"live","mag_bias":0.528}
-{"sensor":"heading","t":NS,...,"mag_bias":0.528,"rotvec_accuracy":3}   (-V: the ADSP rotation vector's accuracy, 0..3)
-{"sensor":"heading","t":NS,...,"mag_bias":0.528,"true_heading":89.63,"declination":1.50}   (declination set)
-{"sensor":"rotvec","t":NS,"x":0,"y":0,"z":-0.707107,"w":0.707107,"accuracy":2,"coord":1,"heading":90.00,"pitch":0.00,"roll":0.00}   (-V)
+{"type":"sample","sensor":"accel","t":667817617363,"x":8.42253,"y":0.173035,"z":5.33611}
+{"type":"sample","sensor":"anglvel","t":NS,"x":X,"y":Y,"z":Z}
+{"type":"sample","sensor":"magn","t":NS,"x":X,"y":Y,"z":Z}
+{"type":"sample","sensor":"magn","t":NS,"x":X,"y":Y,"z":Z,"bias":[BX,BY,BZ],"bias_raw":[R0,R1,R2],"accuracy":A}   (-Q only)
+{"type":"sample","sensor":"illuminance","t":NS,"illuminance":LUX}
+{"type":"sample","sensor":"proximity","t":NS,"near":1,"proximity":RAW}
+{"type":"sample","sensor":"heading","t":NS,"heading":88.13,"pitch":2.90,"roll":-5.81,"calibrated":true,"disturbed":false,"accuracy":3.0,"cal_source":"live","mag_bias":0.528}
+{"type":"sample","sensor":"heading","t":NS,...,"mag_bias":0.528,"rotvec_accuracy":3}   (-V: the ADSP rotation vector's accuracy, 0..3)
+{"type":"sample","sensor":"heading","t":NS,...,"mag_bias":0.528,"true_heading":89.63,"declination":1.50}   (declination set)
+{"type":"sample","sensor":"rotvec","t":NS,"x":0,"y":0,"z":-0.707107,"w":0.707107,"accuracy":2,"coord":1,"heading":90.00,"pitch":0.00,"roll":0.00}   (-V)
 ```
+
+The illuminance report is on-change only: at steady light samples can be 55 s apart even at a 5 Hz claim (measured). The first line after a new claim is the DSP's cached reading with its old stamp (it can be older than 5 minutes: 302 s after a 5 minute rest in the M5 visit, and not bounded in general); the first fresh sample follows after about 0.2 to 0.4 s, so a consumer compares `t` with the time of its claim. A consumer treats the last value as held until the next sample and checks liveness with `status` (`"smgr":"ready"`), not by waiting for samples.
 
 `status` also carries the compass (`"compass":"off|init|on"`, `compass_clients`, `mount`, `calibrated`, `cal_source` (`live`, `registry` or `none`), `mag_bias` (the live bias, factory minus full, device frame, gauss, or `null` before it is known), `mag_bias_pairs`, `mag_bias_reg` (registry items 3903..3905 as gauss, SMGR frame, or `null`), `disturbed`, `accuracy`, `rotvec_accuracy`, `declination`, the filter's counters `compass_lines`, `compass_dropped`, `compass_gaps`, `compass_resets`, `compass_gyro_lost`, `compass_disturbances`, `compass_reacquired`, and its `gyro_bias` in rad/s) and the rotation vector client (`rotvec`, `rotvec_instance`, `rotvec_enables`, `rotvec_inds`, `rotvec_errors`, `rotvec_last_error`, like the `qmag` fields, which stay last). `list` has an entry for each: heading with `"virtual":true`, its inputs, `mount` and `calibrated`; rotvec with `present` (true with `-V`) and `state`.
 
-Errors are `{"err":"unknown sensor","sensor":"x"}`, `{"err":"sensor not present",...}`, `{"err":"bad rate",...}`, `{"err":"unknown command",...}`, `{"err":"line too long"}` and `{"err":"smgr refused report",...}`.
+Errors:
 
-Rules:
+| Cause | Line |
+|---|---|
+| unknown sensor | `{"type":"error","cmd":"claim","reason":"unknown sensor","sensor":"<as sent>"}` (`cmd` is `get` or `release` for those) |
+| a channel the DSP did not list, once SMGR is ready (unless `-F`) | `{"type":"error","cmd":"claim","reason":"sensor not present","sensor":"anglvel"}` (also `get`) |
+| `HZ` not a number from 1 to 1000 | `{"type":"error","cmd":"claim","reason":"bad rate","sensor":"accel"}` (also `get`) |
+| `rotvec` without `-V` | `{"type":"error","cmd":"claim","reason":"not enabled (sensord -V)","sensor":"rotvec"}` (also `get`) |
+| a declination out of -180..180 or not a number | `{"type":"error","cmd":"declination","reason":"bad declination"}` |
+| missing or extra words | `{"type":"error","cmd":"claim","reason":"bad arguments"}`: `list` and `status` take none, `claim` and `get` 1 or 2, `release` 1, `declination` 0 or 1 |
+| unknown command | `{"type":"error","cmd":"<as sent>","reason":"unknown command"}` |
+| line over 127 bytes | `{"type":"error","reason":"line too long"}`; the rest of the line is discarded |
+| 17th connection | `{"type":"error","reason":"too many clients"}`, then closed |
 
-- A sensor is powered (a report exists on the DSP) only while at least one connection claims it. A claim lives on its connection: disconnecting releases everything that client claimed.
-- Claiming `heading` claims `accel` 50 Hz, `anglvel` 50 Hz and `magn` 20 Hz (calibration as `-c` says, `full` by default) inside `sensord`, plus a second magn report at calibration `factory`, 5 Hz, for the live calibrated flag (internal: report ID base + 6, not listed, not claimable; not added when `-c magn` is not `full`), and with `-V` the rotation vector (its accuracy goes on the heading lines), through the same rate maximum as client claims: another client can raise them, none lowers them while heading is claimed, and they go (with the filter) when the last heading claim goes. A report the DSP refuses for one of them is also reported to the heading's claimants as `{"err":"smgr refused report","sensor":"heading","input":"magn"}`. `rotvec` claims no SMGR report (the DSP's rotation vector gets its own data inside the DSP); without `-V` it answers `{"err":"not enabled (sensord -V)","sensor":"rotvec"}`.
-- The DSP runs at the highest claimed rate, clamped to the sensor's maximum. The default rate is 10 Hz for `accel`/`anglvel`/`magn` and 5 Hz for `illuminance`/`proximity`. A client that claimed a lower rate gets samples decimated to its own rate.
-- Each client has a bounded output queue (16 KiB, plus a 16 KiB socket buffer). A slow reader loses samples instead of stalling the daemon, and before its next sample line it gets `{"dropped":N}`. A client that lets a reply overflow is disconnected.
+A word sent back (`<as sent>`) is its first 32 bytes, JSON-escaped. Empty lines are ignored; a CR before the newline is stripped.
+
+Event: when the DSP refuses a report it had to add or change for a claim (later, not as the answer to a request), every claimant of that channel gets `{"type":"error","reason":"smgr refused report","sensor":"accel"}`, with no `cmd`; a heading claimant whose input it was gets `{"type":"error","reason":"smgr refused report","sensor":"heading","input":"magn"}`. The same rate is not asked for again until the wanted rate changes or the channel is no longer used.
+
+Claim lifetime and rules:
+
+- A sensor is powered (a report exists on the DSP) only while at least one connection claims it. A claim lives on its connection: when the connection closes, whatever the reason (the client exits, is killed or is dropped by sensord), everything it claimed is released. A `get` makes a claim of its own that ends with its sample or its timeout (an existing claim on the same channel is kept).
+- Claiming `heading` claims `accel` 50 Hz, `anglvel` 50 Hz and `magn` 20 Hz (calibration as `-c` says, `full` by default) inside `sensord`, plus a second magn report at calibration `factory`, 5 Hz, for the live calibrated flag (internal: report ID base + 6, not listed, not claimable; not added when `-c magn` is not `full`), and with `-V` the rotation vector (its accuracy goes on the heading lines), through the same rate maximum as client claims: another client can raise them, none lowers them while heading is claimed, and they go (with the filter) when the last heading claim goes. `rotvec` claims no SMGR report (the DSP's rotation vector gets its own data inside the DSP).
+- The DSP runs at the highest claimed rate, clamped to the sensor's maximum. The default rate is 10 Hz for `accel`/`anglvel`/`magn`/`heading`/`rotvec` and 5 Hz for `illuminance`/`proximity`. A client that claimed a lower rate gets samples decimated to its own rate.
+
+Limits and versioning: up to 16 connections. Each has a 16384-byte output queue (and a 16 KiB socket send buffer). Sample lines are lossy: a slow reader loses samples instead of stalling the daemon, and right before its next sample line that fits it gets `{"type":"dropped","count":N}`. Every other line is must-deliver: a client that lets one overflow its queue is dropped like one that closed, and its claims with it. Clients ignore unknown `type`s and members; a new member or type keeps proto 2, a change that breaks a client bumps it (the [compatibility rules](local-sockets.md#replies-and-events-the-envelope)).
+
+The command-line client (`sensord [-S SOCK] [-n COUNT] list | status | get SENSOR [HZ] | watch SENSOR [HZ] | declination [DEG|off]`) never prints the hello and prints every other line raw, one JSON object per line. `list`, `status`, `get` and `declination` print the one reply line and exit 0, or 1 on an `error` line, without a connection or when sensord closes it first; `watch` sends `claim`, does not print its `ok` reply and prints every later line (samples, `dropped`, errors) until ^C, sensord going (exit 0), an `error` line (exit 1), or with `-n` COUNT sample lines (exit 0). Usage errors exit 64.
 
 ## Units and axes
 

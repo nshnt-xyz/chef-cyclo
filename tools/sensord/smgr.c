@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "common/linesrv.h"
 #include "sensord.h"
 
 static struct pending *pend_find(struct server *s, uint16_t txn)
@@ -212,11 +213,12 @@ void sn_notify_claimants(struct server *s, int c, const char *err)
 	for (i = 0; i < SENSORD_MAX_CLIENTS; i++) {
 		struct client *cl = &s->clients[i];
 
-		if (cl->fd >= 0 && cl->rate[c])
-			sn_client_reply(s, cl, "{\"err\":\"%s\",\"sensor\":\"%s\"}\n", err, s->ch[c].name);
-		if (cl->fd >= 0 && cl->rate[CH_HEADING] && sn_internal_want(s, c) && !s->ch[c].internal)
-			sn_client_reply(s, cl, "{\"err\":\"%s\",\"sensor\":\"heading\",\"input\":\"%s\"}\n",
-				     err, s->ch[c].name);
+		if (cl->lc && cl->rate[c])
+			linesrv_sendf(cl->lc, "{\"type\":\"error\",\"reason\":\"%s\",\"sensor\":\"%s\"}\n", err,
+				      s->ch[c].name);
+		if (cl->lc && cl->rate[CH_HEADING] && sn_internal_want(s, c) && !s->ch[c].internal)
+			linesrv_sendf(cl->lc, "{\"type\":\"error\",\"reason\":\"%s\",\"sensor\":\"heading\",\"input\":\"%s\"}\n",
+				      err, s->ch[c].name);
 	}
 }
 
@@ -487,7 +489,7 @@ void sn_smgr_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, uint32
  * seeing); seen[] holds the last logged set.
  * Returns 1 with *out filled, 0 if not registered, -1 on error. */
 int sn_svc_lookup(struct server *s, int sock, uint32_t svc, uint32_t want, char *seen_prev,
-		      size_t seen_sz, struct msm_ipc_server_info *out)
+		  size_t seen_sz, struct msm_ipc_server_info *out)
 {
 	struct msm_ipc_server_info info[8];
 	char seen[160];

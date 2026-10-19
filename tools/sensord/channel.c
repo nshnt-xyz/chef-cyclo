@@ -1,41 +1,21 @@
 /*
  * sensord's channel table and names, sample conversion and the sample
  * lines, timestamps (DSP ticks to CLOCK_MONOTONIC), and the log helpers
- * and clocks every part shares. See main.c for the daemon as a whole.
+ * and clocks every part shares (the kernel log is ../common/chef_log). See
+ * main.c for the daemon as a whole.
  */
 #define _GNU_SOURCE
 #include <errno.h>
-#include <fcntl.h>
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "sensord.h"
 
 bool sn_verbose;
-
-void sn_kmsg_note(const char *fmt, ...)
-{
-	char buf[320];
-	va_list ap;
-	int fd, n;
-
-	va_start(ap, fmt);
-	n = vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	if (n < 0)
-		return;
-	fprintf(stderr, "sensord: %s\n", buf);
-	fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
-	if (fd < 0)
-		return;
-	dprintf(fd, "sensord: %s\n", buf);
-	close(fd);
-}
 
 /* Detail worth keeping but too frequent for the kernel log: stderr. */
 void sn_stderr_note(const char *fmt, ...)
@@ -121,20 +101,20 @@ void sn_convert_sample(enum ch_kind kind, const int32_t d[3], double out[3])
 }
 
 int sn_format_sample(char *buf, size_t len, const struct channel *ch, int64_t t,
-			 const int32_t d[3])
+		     const int32_t d[3])
 {
 	double v[3];
 
 	sn_convert_sample(ch->kind, d, v);
 	switch (ch->kind) {
 	case CH_VEC3:
-		return snprintf(buf, len, "{\"sensor\":\"%s\",\"t\":%" PRId64
+		return snprintf(buf, len, "{\"type\":\"sample\",\"sensor\":\"%s\",\"t\":%" PRId64
 				",\"x\":%.6g,\"y\":%.6g,\"z\":%.6g}\n", ch->name, t, v[0], v[1], v[2]);
 	case CH_SCALAR:
-		return snprintf(buf, len, "{\"sensor\":\"%s\",\"t\":%" PRId64 ",\"%s\":%.6g}\n",
-				ch->name, t, ch->name, v[0]);
+		return snprintf(buf, len, "{\"type\":\"sample\",\"sensor\":\"%s\",\"t\":%" PRId64
+				",\"%s\":%.6g}\n", ch->name, t, ch->name, v[0]);
 	case CH_PROX:
-		return snprintf(buf, len, "{\"sensor\":\"%s\",\"t\":%" PRId64
+		return snprintf(buf, len, "{\"type\":\"sample\",\"sensor\":\"%s\",\"t\":%" PRId64
 				",\"near\":%d,\"proximity\":%.6g}\n", ch->name, t, (int)v[0], v[1]);
 	case CH_VIRT:
 		break;
@@ -160,24 +140,6 @@ void sn_copy_name(char *dst, size_t dstsz, const uint8_t *src, uint32_t len)
 	for (i = 0; i < n && src[i]; i++)
 		dst[i] = (char)src[i];
 	dst[i] = '\0';
-}
-
-/* JSON string body (no quotes); drops what JSON cannot carry raw. */
-void sn_json_escape(char *dst, size_t dstsz, const char *src)
-{
-	size_t o = 0;
-
-	for (; *src && o + 3 < dstsz; src++) {
-		unsigned char c = (unsigned char)*src;
-
-		if (c == '"' || c == '\\') {
-			dst[o++] = '\\';
-			dst[o++] = (char)c;
-		} else if (c >= 0x20 && c < 0x7f) {
-			dst[o++] = (char)c;
-		}
-	}
-	dst[o] = '\0';
 }
 
 static int64_t mono_ns(void)

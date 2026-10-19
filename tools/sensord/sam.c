@@ -54,7 +54,7 @@ void sn_sam_forget(struct server *s, struct sam *q, const char *why)
 }
 
 int sn_sam_send(struct server *s, struct sam *q, uint16_t msg, struct qmi_elem_info *ei,
-		    const void *req)
+		const void *req)
 {
 	ssize_t len;
 	int rc;
@@ -260,9 +260,9 @@ static int format_rotvec(const struct server *s, char *buf, size_t len, int64_t 
 			snprintf(c[i], sizeof(c[i]), "%.6g", r->q[i]);
 		else
 			snprintf(c[i], sizeof(c[i]), "null");
-	k = snprintf(buf, len, "{\"sensor\":\"rotvec\",\"t\":%" PRId64 ",\"x\":%s,\"y\":%s,\"z\":%s,"
-		     "\"w\":%s,\"accuracy\":%" PRIu32 ",\"coord\":%u", t, c[0], c[1], c[2], c[3],
-		     r->accuracy, r->coord);
+	k = snprintf(buf, len, "{\"type\":\"sample\",\"sensor\":\"rotvec\",\"t\":%" PRId64
+		     ",\"x\":%s,\"y\":%s,\"z\":%s,\"w\":%s,\"accuracy\":%" PRIu32 ",\"coord\":%u", t,
+		     c[0], c[1], c[2], c[3], r->accuracy, r->coord);
 	if (k < 0 || (size_t)k >= len)
 		return -1;
 	n = sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
@@ -504,7 +504,7 @@ static void sam_report_ind(struct server *s, struct sam *q, struct qrtr_packet *
 }
 
 void sn_sam_rx(struct server *s, struct sam *q, struct qrtr_packet *pkt, uint32_t node,
-		   uint32_t port)
+	       uint32_t port)
 {
 	const uint8_t *h = pkt->data;
 	unsigned int msg, t;

@@ -102,7 +102,7 @@ echo "$L" | grep -q '"sensor":"illuminance".*"name":"EPL259x ALS/PS ALS \\"q\\""
 	|| fail "list: escaped ALS name: $L"
 
 W=$(cli -n 6 watch accel 50)
-[ "$(echo "$W" | grep -c '^{"sensor":"accel"')" -eq 6 ] || fail "watch accel: $W"
+[ "$(echo "$W" | grep -c '^{"type":"sample","sensor":"accel"')" -eq 6 ] || fail "watch accel: $W"
 echo "$W" | grep -q '"x":1,"y":0.5,"z":9.8066' || fail "accel conversion/axes: $W"
 # timestamps strictly increasing, ~20 ms apart
 echo "$W" | sed 's/.*"t":\([0-9]*\).*/\1/' | awk 'NR > 1 { d = $1 - p; if (d < 15000000 || d > 25000000) bad = 1 } { p = $1 } END { exit bad }' \
@@ -112,11 +112,11 @@ grep -q "ADD report 1 sensor 0 dt 0 rate 50 report_rate 50 notify 1 cal 0 dec 3"
 	|| fail "accel buffering request fields: $(grep ADD "$T/smgr.log")"
 
 G=$(cli get illuminance)
-echo "$G" | grep -q '^{"sensor":"illuminance","t":[0-9]*,"illuminance":123.5}$' || fail "get illuminance: $G"
+echo "$G" | grep -q '^{"type":"sample","sensor":"illuminance","t":[0-9]*,"illuminance":123.5}$' || fail "get illuminance: $G"
 G=$(cli get proximity)
-echo "$G" | grep -q '^{"sensor":"proximity","t":[0-9]*,"near":1,"proximity":42}$' || fail "get proximity: $G"
+echo "$G" | grep -q '^{"type":"sample","sensor":"proximity","t":[0-9]*,"near":1,"proximity":42}$' || fail "get proximity: $G"
 G=$(cli get gyro 2>&1)
-echo "$G" | grep -q '"err":"unknown sensor"' || fail "unknown sensor: $G"
+echo "$G" | grep -q '"type":"error","cmd":"get","reason":"unknown sensor","sensor":"gyro"' || fail "unknown sensor: $G"
 
 # two clients: the report runs at the max, and drops back when one leaves
 bg_cli -n 1000 watch magn 5 >"$T/magn5"
@@ -128,7 +128,7 @@ wait_for "$T/sensord.log" "change report 3: magn 5 Hz" 30 || fail "magn report n
 kill "$W5" 2>/dev/null
 wait "$W5" 2>/dev/null
 wait_for "$T/smgr.log" "DELETE report 3" 30 || fail "magn report not deleted after last client"
-N5=$(grep -c '^{"sensor":"magn"' "$T/magn5")
+N5=$(grep -c '^{"type":"sample","sensor":"magn"' "$T/magn5")
 [ "$N5" -ge 1 ] && [ "$N5" -le 20 ] || fail "5 Hz client got $N5 samples (decimation)"
 
 # a client that never reads: others keep streaming, it learns what it lost
@@ -136,7 +136,7 @@ N5=$(grep -c '^{"sensor":"magn"' "$T/magn5")
 SLOWP=$!
 sleep 1
 W=$(cli -n 20 watch accel 50)
-[ "$(echo "$W" | grep -c '^{"sensor":"accel"')" -eq 20 ] || fail "watch during slow client"
+[ "$(echo "$W" | grep -c '^{"type":"sample","sensor":"accel"')" -eq 20 ] || fail "watch during slow client"
 wait "$SLOWP" || fail "slow client: $(cat "$T/slow")"
 
 # DSP restart: SMGR vanishes and comes back on a new port; sensord
@@ -150,9 +150,9 @@ wait_for "$T/sensord.log" "smgr ready: 4 sensor(s)" 100
 [ "$(grep -c 'sensor 10 dt 0 rate 20 ' "$T/smgr.log")" -ge 2 ] || \
 	{ sleep 2; [ "$(grep -c 'sensor 10 dt 0 rate 20 ' "$T/smgr.log")" -ge 2 ]; } || \
 	fail "gyro report not re-added after restart"
-B=$(grep -c '^{"sensor":"anglvel"' "$T/gyro")
+B=$(grep -c '^{"type":"sample","sensor":"anglvel"' "$T/gyro")
 sleep 1
-A=$(grep -c '^{"sensor":"anglvel"' "$T/gyro")
+A=$(grep -c '^{"type":"sample","sensor":"anglvel"' "$T/gyro")
 [ "$A" -gt "$B" ] || fail "gyro stream did not resume after restart ($B -> $A)"
 kill "$WG" 2>/dev/null
 wait "$WG" 2>/dev/null
@@ -303,7 +303,7 @@ stop_pair
 : >"$T/smgr.log"
 start_pair "-P" "-P"
 W=$(cli -n 3 watch anglvel 10)
-[ "$(echo "$W" | grep -c '^{"sensor":"anglvel","t":[0-9]*,"x":0.00390625,"y":0.00195312,"z":0.000976562}$')" -eq 3 ] \
+[ "$(echo "$W" | grep -c '^{"type":"sample","sensor":"anglvel","t":[0-9]*,"x":0.00390625,"y":0.00195312,"z":0.000976562}$')" -eq 3 ] \
 	|| fail "periodic watch: $W"
 grep -q "ADD report 2 sensor 10 dt 0 rate 10 periodic" "$T/smgr.log" || fail "periodic add"
 stop_pair

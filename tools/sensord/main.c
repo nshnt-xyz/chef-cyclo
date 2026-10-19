@@ -146,57 +146,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/un.h>
 #include <unistd.h>
 
+#include "common/chef_log.h"
+#include "common/linesrv.h"
 #include "sensord.h"
 
 static volatile sig_atomic_t g_stop;
-
-static int sock_listen(const char *path)
-{
-	struct sockaddr_un sa;
-	int fd;
-
-	if (strlen(path) >= sizeof(sa.sun_path))
-		return -ENAMETOOLONG;
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-	if (fd < 0)
-		return -errno;
-	memset(&sa, 0, sizeof(sa));
-	sa.sun_family = AF_UNIX;
-	strcpy(sa.sun_path, path);
-	unlink(path);
-	if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0 || listen(fd, 8) < 0) {
-		int err = errno;
-
-		close(fd);
-		return -err;
-	}
-	return fd;
-}
-
-int sn_sock_connect(const char *path)
-{
-	struct sockaddr_un sa;
-	int fd;
-
-	if (strlen(path) >= sizeof(sa.sun_path))
-		return -ENAMETOOLONG;
-	fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-	if (fd < 0)
-		return -errno;
-	memset(&sa, 0, sizeof(sa));
-	sa.sun_family = AF_UNIX;
-	strcpy(sa.sun_path, path);
-	if (connect(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-		int err = errno;
-
-		close(fd);
-		return -err;
-	}
-	return fd;
-}
 
 /* Self-pipe: the signal handler writes it so a TERM ends poll() at once. */
 static int g_sigpipe[2] = { -1, -1 };
@@ -280,7 +236,7 @@ int main(int argc, char **argv)
 	const char *sock_path = SENSORD_SOCK_PATH, *reg_path = SENSORD_REG_PATH;
 	const char *map_path = SENSORD_MAP_PATH, *ts = "dsps";
 	long count = 0;
-	int lfd, opt, i, line = 0, rc;
+	int opt, i, line = 0, rc;
 	size_t got = 0;
 
 	sn_server_init(&s);
@@ -349,22 +305,23 @@ int main(int argc, char **argv)
 	}
 	if (optind < argc)
 		return sn_cli_main(sock_path, count, argc - optind, argv + optind);
+	chef_log_init("sensord", true);
 
 	/* One daemon per socket: a second one would steal the socket and
 	 * publish REG2 twice. A socket nobody answers on is stale and is
-	 * replaced by sock_listen(). */
+	 * replaced by linesrv_listen(). */
 	{
-		int fd = sn_sock_connect(sock_path);
+		int fd = linesrv_connect(sock_path);
 
 		if (fd >= 0) {
 			close(fd);
-			sn_kmsg_note("another sensord is serving %s; refusing to start", sock_path);
+			chef_log("another sensord is serving %s; refusing to start", sock_path);
 			return 1;
 		}
 	}
 
 	if (pipe2(g_sigpipe, O_CLOEXEC | O_NONBLOCK) < 0) {
-		sn_kmsg_note("pipe: %s", strerror(errno));
+		chef_log("pipe: %s", strerror(errno));
 		return 1;
 	}
 	signal(SIGINT, on_signal);
@@ -376,15 +333,15 @@ int main(int argc, char **argv)
 		s.ts_mode = TS_DSPS;
 		s.dsps_fd = open(SENSORD_DSPS_DEV, O_RDONLY | O_CLOEXEC);
 		if (s.dsps_fd < 0) {
-			sn_kmsg_note("%s: %s; timestamps fall back to receive time (-T rx)",
-				  SENSORD_DSPS_DEV, strerror(errno));
+			chef_log("%s: %s; timestamps fall back to receive time (-T rx)",
+				 SENSORD_DSPS_DEV, strerror(errno));
 			s.ts_mode = TS_RX;
 		}
 	} else if (strcmp(ts, "cntvct") == 0) {
 #if defined(__aarch64__)
 		s.ts_mode = TS_CNTVCT;
 #else
-		sn_kmsg_note("-T cntvct needs aarch64; using rx");
+		chef_log("-T cntvct needs aarch64; using rx");
 		s.ts_mode = TS_RX;
 #endif
 	} else if (strcmp(ts, "rx") == 0) {
@@ -397,54 +354,55 @@ int main(int argc, char **argv)
 	if (s.serve_reg2) {
 		rc = sns_reg_load_map(&s.reg, map_path, &line);
 		if (rc) {
-			sn_kmsg_note("registry map %s: %s%s; exiting", map_path, strerror(-rc),
-				  rc == -EINVAL ? " (bad line)" : "");
+			chef_log("registry map %s: %s%s; exiting", map_path, strerror(-rc),
+				 rc == -EINVAL ? " (bad line)" : "");
 			return 1;
 		}
 		rc = sns_reg_load_data(&s.reg, reg_path, 0, &got);
 		if (rc) {
-			sn_kmsg_note("registry %s: %s (%zu bytes, map wants %zu); exiting", reg_path,
-				  strerror(-rc), got, s.reg.size);
+			chef_log("registry %s: %s (%zu bytes, map wants %zu); exiting", reg_path,
+				 strerror(-rc), got, s.reg.size);
 			return 1;
 		}
-		sn_kmsg_note("registry %s loaded: %zu bytes, %zu groups, %zu items (RAM copy; DSP writes are written back to this file, never to persist)",
-			  reg_path, s.reg.size, s.reg.ngroups, s.reg.nitems);
+		chef_log("registry %s loaded: %zu bytes, %zu groups, %zu items (RAM copy; DSP writes are written back to this file, never to persist)",
+			 reg_path, s.reg.size, s.reg.ngroups, s.reg.nitems);
 		s.reg_path = reg_path;
 		sn_mag_cal_check(&s, "registry loaded");
 		if (sn_publish(&s, &s.reg_sock, SNS_REG2_SVC, SNS_REG2_VERS, SNS_REG2_INST))
 			return 1;
 	} else {
-		sn_kmsg_note("not serving REG2 (-R)");
+		chef_log("not serving REG2 (-R)");
 		sn_mag_cal_check(&s, "no registry (-R)");
 	}
 	if (s.serve_time2 &&
 	    sn_publish(&s, &s.time_sock, SNS_TIME2_SVC, SNS_TIME2_VERS, SNS_TIME2_APPS_INST))
 		return 1;
 
-	lfd = sock_listen(sock_path);
-	if (lfd < 0) {
-		sn_kmsg_note("listen %s: %s; exiting", sock_path, strerror(-lfd));
+	rc = sn_server_start(&s);
+	if (!rc)
+		rc = linesrv_listen(s.srv, sock_path);
+	if (rc) {
+		chef_log("listen %s: %s; exiting", sock_path, strerror(-rc));
 		return 1;
 	}
-	sn_kmsg_note("ready: %s, %s API, timestamps %s%s%s%s%s; heading mount %s%s", sock_path,
-		  s.periodic ? "periodic REPORT" : "BUFFERING",
-		  s.ts_mode == TS_DSPS ? "dsps" : s.ts_mode == TS_CNTVCT ? "cntvct" : "rx",
-		  s.report_cap ? ", report rate capped" : "", s.force ? ", -F" : "",
-		  s.qmag.opt ? ", QMAG_CAL client (-Q)" : "",
-		  s.rotvec.opt ? ", rotation vector client (-V)" : "",
-		  compass_mount_name(s.heading.mount), s.heading.have_decl ? ", declination set (-D)" : "");
+	chef_log("ready: %s, %s API, timestamps %s%s%s%s%s; heading mount %s%s", sock_path,
+		 s.periodic ? "periodic REPORT" : "BUFFERING",
+		 s.ts_mode == TS_DSPS ? "dsps" : s.ts_mode == TS_CNTVCT ? "cntvct" : "rx",
+		 s.report_cap ? ", report rate capped" : "", s.force ? ", -F" : "",
+		 s.qmag.opt ? ", QMAG_CAL client (-Q)" : "",
+		 s.rotvec.opt ? ", rotation vector client (-V)" : "",
+		 compass_mount_name(s.heading.mount), s.heading.have_decl ? ", declination set (-D)" : "");
 	if (s.report_base)
-		sn_kmsg_note("SMGR report IDs %u..%u (-i)", s.report_base + 1, s.report_base + CH_SMGR_COUNT);
+		chef_log("SMGR report IDs %u..%u (-i)", s.report_base + 1, s.report_base + CH_SMGR_COUNT);
 	for (i = 0; i < CH_SMGR_COUNT; i++)
 		if (s.ch[i].cal != SNS_SMGR_CAL_FULL && !s.ch[i].internal)
-			sn_kmsg_note("%s: calibration %s (-c)%s", s.ch[i].name, sn_cal_name(s.ch[i].cal),
-				  s.periodic ? " has no effect with -P: REPORT has no calibration field" : "");
+			chef_log("%s: calibration %s (-c)%s", s.ch[i].name, sn_cal_name(s.ch[i].cal),
+				 s.periodic ? " has no effect with -P: REPORT has no calibration field" : "");
 
 	while (!g_stop) {
-		struct pollfd pfd[7 + SENSORD_MAX_CLIENTS];
-		struct client *cmap[SENSORD_MAX_CLIENTS];
+		struct pollfd pfd[6 + 1 + SENSORD_MAX_CLIENTS];	/* ours, then linesrv's */
 		struct sam *sams[2] = { &s.qmag, &s.rotvec };
-		int n = 0, nclients = 0, ireg = -1, itime = -1, ismgr = -1, isam[2] = { -1, -1 }, ilisten;
+		int n = 0, ireg = -1, itime = -1, ismgr = -1, isam[2] = { -1, -1 }, isrv, nsrv;
 		int k;
 
 		pfd[n++] = (struct pollfd){ .fd = g_sigpipe[0], .events = POLLIN };
@@ -465,15 +423,9 @@ int main(int argc, char **argv)
 				isam[k] = n;
 				pfd[n++] = (struct pollfd){ .fd = sams[k]->sock, .events = POLLIN };
 			}
-		ilisten = n;
-		pfd[n++] = (struct pollfd){ .fd = lfd, .events = POLLIN };
-		for (i = 0; i < SENSORD_MAX_CLIENTS; i++) {
-			if (s.clients[i].fd < 0)
-				continue;
-			cmap[nclients++] = &s.clients[i];
-			pfd[n++] = (struct pollfd){ .fd = s.clients[i].fd,
-				.events = (short)(POLLIN | (s.clients[i].outlen ? POLLOUT : 0)) };
-		}
+		isrv = n;
+		nsrv = linesrv_pollfds(s.srv, pfd + n, (int)(sizeof(pfd) / sizeof(pfd[0])) - n);
+		n += nsrv;
 
 		rc = poll(pfd, (nfds_t)n, sn_server_deadline_ms(&s));
 		if (rc < 0 && errno != EINTR)
@@ -488,7 +440,7 @@ int main(int argc, char **argv)
 
 			rc = sn_ipc_recv(s.reg_sock, buf, sizeof(buf), &pkt, &node, &port);
 			if (rc == -ENETRESET) {
-				sn_kmsg_note("reg2 socket reset by the IPC router; republishing");
+				chef_log("reg2 socket reset by the IPC router; republishing");
 				sn_publish(&s, &s.reg_sock, SNS_REG2_SVC, SNS_REG2_VERS, SNS_REG2_INST);
 			} else if (rc > 0) {
 				sn_reg2_rx(&s, &pkt, node, port);
@@ -532,48 +484,16 @@ int main(int argc, char **argv)
 			else if (rc > 0)
 				sn_sam_rx(&s, q, &pkt, node, port);
 		}
-		if (pfd[ilisten].revents & POLLIN) {
-			int cfd = accept4(lfd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
-
-			if (cfd >= 0) {
-				struct client *c = sn_server_add_client(&s, cfd);
-				int sndbuf = SENSORD_OUTQ;
-
-				/* Keep what a stalled client can have in flight
-				 * bounded in the kernel too, not just in outq. */
-				setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
-
-				if (!c) {
-					sn_kmsg_note("client limit (%d) reached, refusing", SENSORD_MAX_CLIENTS);
-					close(cfd);
-				} else {
-					sn_client_reply(&s, c, "{\"hello\":\"sensord\",\"proto\":%d}\n",
-						     SENSORD_PROTO);
-				}
-			}
-		}
-		for (i = 0; i < nclients; i++) {
-			short re = pfd[ilisten + 1 + i].revents;
-
-			if (cmap[i]->fd < 0)
-				continue;
-			if (re & (POLLIN | POLLERR | POLLHUP))
-				sn_server_client_input(&s, cmap[i]);
-		}
+		linesrv_handle(s.srv, pfd + isrv, nsrv);
 		sn_smgr_tick(&s);
 		sn_sam_tick(&s, &s.qmag);
 		sn_sam_tick(&s, &s.rotvec);
 		sn_reg_tick(&s);
 		sn_server_tick_clients(&s);
-		sn_server_flush_all(&s);
 	}
 
-	sn_kmsg_note("exiting");
-	for (i = 0; i < SENSORD_MAX_CLIENTS; i++)
-		if (s.clients[i].fd >= 0) {
-			close(s.clients[i].fd);
-			s.clients[i].fd = -1;
-		}
+	chef_log("exiting");
+	sn_server_drop_all(&s);
 	/* Best effort: tell the DSP to stop the reports we own (the IPC
 	 * router also tells it when our port closes). Not waited for. */
 	if (s.st == SMGR_READY)
@@ -604,7 +524,7 @@ int main(int argc, char **argv)
 
 					sent[k] = true;
 					if (sn_sam_send(&s, q, SNS_SAM_DISABLE, sns_sam_disable_req_ei, &r) == 0)
-						sn_kmsg_note("%s disable instance %u (exiting)", q->name, r.instance);
+						chef_log("%s disable instance %u (exiting)", q->name, r.instance);
 				}
 				if (q->sock >= 0 && q->busy) {
 					idx[k] = np;
@@ -616,9 +536,9 @@ int main(int argc, char **argv)
 			if (left <= 0) {
 				for (k = 0; k < 2; k++)
 					if (idx[k] >= 0)
-						sn_kmsg_note("%s msg 0x%02x unanswered at exit%s", sams[k]->name,
-							  sams[k]->msg, sams[k]->msg == SNS_SAM_ENABLE ?
-							  "; its instance, if any, lasts until the DSP drops our port" : "");
+						chef_log("%s msg 0x%02x unanswered at exit%s", sams[k]->name,
+							 sams[k]->msg, sams[k]->msg == SNS_SAM_ENABLE ?
+							 "; its instance, if any, lasts until the DSP drops our port" : "");
 				break;
 			}
 			if (poll(pfd, (nfds_t)np, left > 100 ? 100 : (int)left) <= 0)
@@ -641,8 +561,7 @@ int main(int argc, char **argv)
 			if (sams[k]->sock >= 0)
 				qrtr_close(sams[k]->sock);
 	}
-	close(lfd);
-	unlink(sock_path);
+	sn_server_fini(&s);	/* the listener: closed, its path unlinked */
 	if (s.smgr_sock >= 0)
 		qrtr_close(s.smgr_sock);
 	if (s.reg_sock >= 0)

@@ -306,7 +306,7 @@ step() {
 }
 
 lines() {
-	if [ -f "$1" ]; then grep -c '^{"sensor"' "$1"; else echo 0; fi
+	if [ -f "$1" ]; then grep -c '^{"type":"sample"' "$1"; else echo 0; fi
 }
 
 # ------------------------------------------------------------------ main
@@ -405,6 +405,6 @@ nh=$(lines "$O/heading.jsonl")
 ndist=$(grep -c '"disturbed":true' "$O/heading.jsonl" 2>/dev/null)
 ncal=$(grep -c '"calibrated":true' "$O/heading.jsonl" 2>/dev/null)
 nrv=$(lines "$O/rotvec.jsonl")
-errs=$(cat "$O"/*.jsonl 2>/dev/null | grep -c '"err"')
+errs=$(cat "$O"/*.jsonl 2>/dev/null | grep -c '"type":"error"')
 T1=$(now_s)
 echo "compass: done in $(awk -v a="$T0" -v b="$T1" 'BEGIN { printf "%d", b - a }') s, $O; heading lines $nh (calibrated $ncal, disturbed $ndist); calibration $CAL after $CALHOLDS holds; accel $(lines "$O/accel.jsonl") anglvel $(lines "$O/anglvel.jsonl") magn $(lines "$O/magn.jsonl"); rotvec $nrv; error lines $errs"

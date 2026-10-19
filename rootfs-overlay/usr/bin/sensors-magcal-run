@@ -270,7 +270,7 @@ step() {
 }
 
 lines() {
-	if [ -f "$1" ]; then grep -c '^{"sensor"' "$1"; else echo 0; fi
+	if [ -f "$1" ]; then grep -c '^{"type":"sample"' "$1"; else echo 0; fi
 }
 
 # ------------------------------------------------------------------ main
@@ -343,7 +343,7 @@ for f in "$O"/*-magn-*.jsonl; do
 done
 q=$(sed -n 's/.*"qmag":"\([a-z]*\)","qmag_instance":\(-*[0-9]*\),"qmag_enables":\([0-9]*\),"qmag_inds":\([0-9]*\),"qmag_errors":\([0-9]*\).*/state \1 instance \2 enables \3 reports \4 errors \5/p' "$O/status-qmag-end.json" 2>/dev/null)
 acc=$(sed -n 's/.*"accuracy":\([0-9]*\)}.*/\1/p' "$O/status-qmag-end.json" 2>/dev/null)
-refused=$(cat "$O"/*.jsonl 2>/dev/null | grep -c '"err"')
+refused=$(cat "$O"/*.jsonl 2>/dev/null | grep -c '"type":"error"')
 nacc=0
 for f in "$O"/*-accel.jsonl; do nacc=$((nacc + $(lines "$f"))); done
 T1=$(now_s)

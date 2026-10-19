@@ -29,9 +29,13 @@ T := $(H)/tests
 
 COMMON := sns_msgs.c sns_reg.c $(QRTR_DIR)/qmi.c $(QRTR_DIR)/logging.c
 HDRS := sns_msgs.h sns_reg.h compass.h ../msmipc.h $(QRTR_DIR)/libqrtr.h $(H)/include/linux/msm_ipc.h
+# The socket, its JSON lines and the log come from ../common/, compiled
+# in from source.
+SHARED := ../common/chef_log.c ../common/linesrv.c ../common/json.c
+SHARED_H := ../common/chef_log.h ../common/linesrv.h ../common/json.h
 # The daemon's own sources (main.c's header); the unit test links all
 # but main.c and cli.c.
-LIB_SRC := channel.c server.c heading.c smgr.c sam.c regserv.c compass.c
+LIB_SRC := channel.c server.c heading.c smgr.c sam.c regserv.c compass.c $(SHARED)
 SRC := $(LIB_SRC) main.c cli.c
 
 TEST_OUT := $(T)/test-sns-msgs $(T)/test-sns-reg $(T)/test-sensord \
@@ -48,11 +52,11 @@ $(H)/compass-replay: compass-replay.c compass.c compass.h
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -o $@ compass-replay.c compass.c $(LDFLAGS) -lm
 
-$(H)/sensord: $(SRC) $(COMMON) ../msmipc.c sensord.h $(HDRS)
+$(H)/sensord: $(SRC) $(COMMON) ../msmipc.c sensord.h $(SHARED_H) $(HDRS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ $(SRC) $(COMMON) ../msmipc.c $(LDFLAGS) -lm
 
-$(D)/sensord: $(SRC) $(COMMON) ../msmipc.c sensord.h sns_msgs.h sns_reg.h compass.h ../msmipc.h \
+$(D)/sensord: $(SRC) $(COMMON) ../msmipc.c sensord.h $(SHARED_H) sns_msgs.h sns_reg.h compass.h ../msmipc.h \
 		$(QRTR_DIR)/libqrtr.h $(D)/include/linux/msm_ipc.h
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -I$(D)/include -I. -I$(QRTR_DIR) -I.. -o $@ \
@@ -73,12 +77,12 @@ $(T)/test-sns-reg: tests/test_sns_reg.c sns_reg.c sns_reg.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I. -o $@ tests/test_sns_reg.c sns_reg.c $(LDFLAGS)
 
 # Links the daemon's sources but main.c and cli.c.
-$(T)/test-sensord: tests/test_sensord.c $(LIB_SRC) tests/fake_ipc.c $(COMMON) sensord.h $(HDRS)
+$(T)/test-sensord: tests/test_sensord.c $(LIB_SRC) tests/fake_ipc.c $(COMMON) sensord.h $(SHARED_H) $(HDRS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ tests/test_sensord.c $(LIB_SRC) tests/fake_ipc.c $(COMMON) $(LDFLAGS) -lm
 
 # The real daemon, on the fake transport, for the end-to-end test.
-$(T)/sensord-fake: $(SRC) tests/fake_ipc.c $(COMMON) sensord.h $(HDRS)
+$(T)/sensord-fake: $(SRC) tests/fake_ipc.c $(COMMON) sensord.h $(SHARED_H) $(HDRS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -o $@ $(SRC) tests/fake_ipc.c $(COMMON) $(LDFLAGS) -lm
 
@@ -99,7 +103,7 @@ $(T)/test-sns-msgs-san: tests/test_sns_msgs.c $(COMMON) $(HDRS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAN) $(INC) -o $@ tests/test_sns_msgs.c $(COMMON) $(LDFLAGS)
 
-$(T)/test-sensord-san: tests/test_sensord.c $(LIB_SRC) tests/fake_ipc.c $(COMMON) sensord.h $(HDRS)
+$(T)/test-sensord-san: tests/test_sensord.c $(LIB_SRC) tests/fake_ipc.c $(COMMON) sensord.h $(SHARED_H) $(HDRS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAN) $(INC) -o $@ tests/test_sensord.c $(LIB_SRC) tests/fake_ipc.c $(COMMON) $(LDFLAGS) -lm
 
@@ -109,7 +113,7 @@ $(T)/test-compass-san: tests/test_compass.c compass.c compass.h
 
 # The daemon under ASan/UBSan against the fake, for the compass/rotvec
 # part of the end-to-end test.
-$(T)/sensord-fake-san: $(SRC) tests/fake_ipc.c $(COMMON) sensord.h $(HDRS)
+$(T)/sensord-fake-san: $(SRC) tests/fake_ipc.c $(COMMON) sensord.h $(SHARED_H) $(HDRS)
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SAN) $(INC) -o $@ $(SRC) tests/fake_ipc.c $(COMMON) $(LDFLAGS) -lm
 

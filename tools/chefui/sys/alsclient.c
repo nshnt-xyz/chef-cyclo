@@ -4,10 +4,10 @@
  *
  * Wanted state: set by the app (sys_als_want): the screen is on and either
  * Auto brightness or theme Auto is set. Wanted: connect, wait for the
- * hello line, send "claim illuminance 5" and feed every sample line to
- * als_feed(). Not wanted: close the connection (sensord drops the claim
- * with it) and cancel any retry. The socket missing or refused, EOF, an
- * err line, or a hung sensord (no claim acknowledgment within ALS_REPLY_MS
+ * hello line, send "claim illuminance 5" and feed every illuminance sample
+ * line to als_feed(). Not wanted: close the connection (sensord drops the
+ * claim with it) and cancel any retry. The socket missing or refused, EOF,
+ * an error line, or a hung sensord (no claim acknowledgment within ALS_REPLY_MS
  * of the connect, or no status reply): close and retry with a backoff of 1 s
  * doubling to 30 s, only while wanted; a ready status resets it. A
  * reconnect restarts the stream, so the logic's first-sample rules apply.
@@ -23,12 +23,13 @@
  * timer at steady light.
  *
  * The connection is a ../common/lineclient on the chefui loop (lcwatch),
- * on chefui's LVGL tick like the timers here; sensord's lines are read
- * with the shared JSON reader. They are still sensord's pre-envelope
- * shapes ({"hello":...}, {"ok":"claim",...}, {"ok":"status",...},
- * {"err":"..."}, {"dropped":N}, typeless samples): standard interfaces
- * step 4 changes sensord and this client together. Nothing here logs a
- * sample; an err line is logged once per distinct text.
+ * on chefui's LVGL tick like the timers here; sensord's lines (proto 2,
+ * docs/features/sensors.md "Socket contract") are read with the shared
+ * JSON reader by their "type": hello, ok (cmd claim), status, sample,
+ * error; others ({"type":"dropped",...}) and unknown members are ignored.
+ * A hello with another proto is logged once and the client carries on.
+ * Nothing here logs a sample; an error line is logged once per distinct
+ * reason.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -46,6 +47,7 @@
 #include "sysstate.h"
 
 #define SENSORD_SOCK "/run/sensord.sock"
+#define SENSORD_PROTO 2	/* the protocol this client speaks */
 #define ALS_RATE_STR "5"	/* Hz */
 #define BACKOFF_MIN_MS 1000
 #define BACKOFF_MAX_MS 30000
@@ -64,6 +66,7 @@ static struct {
 	int64_t tick_base;
 	int64_t claim_ns;	/* CLOCK_MONOTONIC when the claim line was sent */
 	bool stale_logged;	/* the dropped-sample line was logged for this claim */
+	bool proto_warned;	/* a hello with another proto was logged */
 } A = { .lc = { .fd = -1 }, .w = { .fd = -1 }, .als = { .applied = -1, .above_since = -1, .below_since = -1 } };
 
 /* chefui monotonic ms, extended past the 32-bit LVGL tick wrap */
@@ -99,11 +102,12 @@ bool sys_als_sample_stale(int64_t t_ns, int64_t claim_ns)
 int sys_als_parse_sample_t(const char *line, double *lux, int64_t *t_ns)
 {
 	struct json_obj o;
-	char sensor[16];
+	char type[16], sensor[16];
 	double v;
 	long t;
 
-	if (json_parse(&o, line, strlen(line)) || !json_get_string(&o, "sensor", sensor, sizeof(sensor)) ||
+	if (json_parse(&o, line, strlen(line)) || !json_get_string(&o, "type", type, sizeof(type)) ||
+	    strcmp(type, "sample") || !json_get_string(&o, "sensor", sensor, sizeof(sensor)) ||
 	    strcmp(sensor, "illuminance") || !json_get_double(&o, "illuminance", &v) || !isfinite(v) || v < 0)
 		return -1;
 	*lux = v;
@@ -232,14 +236,20 @@ static void sensord_line(struct lineclient *lc, char *line, size_t len, int64_t 
 {
 	struct json_obj o;
 	struct als_event ev;
-	char ok[16], text[sizeof(A.last_err)];
+	char type[16], cmd[16];
 	double lux;
 	int64_t t_ns;
 
 	(void)now;
-	if (json_parse(&o, line, len))
-		return;		/* not one JSON object: not ours to act on */
-	if (json_find(&o, "hello")) {
+	if (json_parse(&o, line, len) || !json_get_string(&o, "type", type, sizeof(type)))
+		return;		/* not one JSON object with a type: not ours to act on */
+	if (!strcmp(type, "hello")) {
+		long proto = -1;
+
+		if ((!json_get_long(&o, "proto", &proto) || proto != SENSORD_PROTO) && !A.proto_warned) {
+			A.proto_warned = true;
+			chefui_log("als: sensord speaks proto %ld, this client %d; carrying on", proto, SENSORD_PROTO);
+		}
 		if (!A.claimed && !lineclient_send(lc, "claim illuminance " ALS_RATE_STR "\n", now_ms())) {
 			A.claimed = true;
 			A.claim_ns = mono_ns();
@@ -248,7 +258,9 @@ static void sensord_line(struct lineclient *lc, char *line, size_t len, int64_t 
 		}	/* a failed send closed the connection: retried */
 		return;
 	}
-	if (!sys_als_parse_sample_t(line, &lux, &t_ns)) {
+	if (!strcmp(type, "sample")) {
+		if (sys_als_parse_sample_t(line, &lux, &t_ns))
+			return;		/* another sensor, or no usable reading */
 		if (sys_als_sample_stale(t_ns, A.claim_ns)) {
 			if (!A.stale_logged) {
 				A.stale_logged = true;
@@ -263,7 +275,7 @@ static void sensord_line(struct lineclient *lc, char *line, size_t len, int64_t 
 		tick_rearm();
 		return;
 	}
-	if (json_get_string(&o, "ok", ok, sizeof(ok)) && !strcmp(ok, "claim")) {
+	if (!strcmp(type, "ok") && json_get_string(&o, "cmd", cmd, sizeof(cmd)) && !strcmp(cmd, "claim")) {
 		if (A.claimed && !A.acked) {
 			A.acked = true;
 			timer_del(&A.reply);	/* the connect-to-ack deadline is met */
@@ -273,7 +285,7 @@ static void sensord_line(struct lineclient *lc, char *line, size_t len, int64_t 
 		}
 		return;
 	}
-	if (json_get_string(&o, "ok", ok, sizeof(ok)) && !strcmp(ok, "status")) {
+	if (!strcmp(type, "status")) {
 		if (A.status_pending) {
 			char smgr[16];
 
@@ -286,13 +298,13 @@ static void sensord_line(struct lineclient *lc, char *line, size_t len, int64_t 
 		}
 		return;
 	}
-	if (json_find(&o, "err")) {
-		/* the text (cut to fit), "" when it is not a string */
-		const struct json_member *m = json_find(&o, "err");
-		char raw[256];
+	if (!strcmp(type, "error")) {
+		/* the reason (cut to fit), "" when it is not a string */
+		const struct json_member *m = json_find(&o, "reason");
+		char raw[256], text[sizeof(A.last_err)];
 
 		text[0] = '\0';
-		if (m->type == JSON_STRING && json_span_string(m->type, m->val, raw, sizeof(raw)))
+		if (m && m->type == JSON_STRING && json_span_string(m->type, m->val, raw, sizeof(raw)))
 			snprintf(text, sizeof(text), "%.*s", (int)sizeof(text) - 1, raw);
 		if (strcmp(text, A.last_err)) {
 			snprintf(A.last_err, sizeof(A.last_err), "%s", text);
@@ -300,7 +312,7 @@ static void sensord_line(struct lineclient *lc, char *line, size_t len, int64_t 
 		}
 		conn_retry_later();
 	}
-	/* {"dropped":N}, anything else: not ours to act on */
+	/* {"type":"dropped",...}, other types: not ours to act on */
 }
 
 /* Connected: the same deadline covers the hello and the claim acknowledgment. */

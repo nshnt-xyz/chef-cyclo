@@ -125,7 +125,7 @@ S=$(tail -n 1 "$T/run-concurrent.txt")
 echo "$S" | grep -q "^magcal: done in [0-9]* s, $D; magn lines" || fail "summary: $S"
 for f in a-magn-full a-magn-factory a-magn-raw q-magn-full q-magn-qmag q-magn-factory q-magn-raw \
 	 a-accel a-anglvel q-accel q-anglvel; do
-	n=$(grep -c '^{"sensor"' "$D/$f.jsonl" 2>/dev/null)
+	n=$(grep -c '^{"type":"sample"' "$D/$f.jsonl" 2>/dev/null)
 	[ "${n:-0}" -gt 0 ] || fail "$f: no samples"
 done
 echo "$S" | grep -q " a/full=[1-9][0-9]* .* q/qmag=[1-9][0-9]*" || fail "summary counts: $S"
@@ -178,7 +178,7 @@ grep -q "Traceback" "$T/check.txt" && fail "mag-cal-check traceback"
 run_script sequential || fail "sequential run exit $?: $(tail -n 5 "$T/run-sequential.txt")"
 D=$(ls -d "$T"/out/sequential/magcal-* 2>/dev/null | head -n 1)
 for f in full-magn-full factory-magn-factory raw-magn-raw q-magn-qmag; do
-	n=$(grep -c '^{"sensor"' "$D/$f.jsonl" 2>/dev/null)
+	n=$(grep -c '^{"type":"sample"' "$D/$f.jsonl" 2>/dev/null)
 	[ "${n:-0}" -gt 0 ] || fail "sequential $f: no samples"
 done
 [ -e "$D/a-magn-full.jsonl" ] && fail "sequential wrote phase a"

@@ -1,5 +1,5 @@
 /* Host tests for tools/common/chef_log.c: the "<tag>: <msg>\n" line in
- * the kmsg file (a temp file standing in for /dev/kmsg), the 255-byte
+ * the kmsg file (a temp file standing in for /dev/kmsg), the 320-byte
  * message bound, the stderr echo and a missing kmsg that is not an error.
  * Build/run: see tools/common/Makefile ("make test").
  */
@@ -60,11 +60,11 @@ int main(void)
 	chef_log("ready: %s, long %u ms", "/run/buttond.sock", 1500u);
 	CHECK(slurp(kmsg, buf, sizeof(buf)) && !strcmp(buf, "buttond: ready: /run/buttond.sock, long 1500 ms\n"));
 
-	/* the message is cut at 255 bytes; the tag and newline come on top */
-	memset(msg, 'x', 300);
-	msg[300] = '\0';
+	/* the message is cut at 320 bytes; the tag and newline come on top */
+	memset(msg, 'x', 360);
+	msg[360] = '\0';
 	chef_log("%s", msg);
-	CHECK(slurp(kmsg, buf, sizeof(buf)) == strlen("buttond: ") + 255 + 1);
+	CHECK(slurp(kmsg, buf, sizeof(buf)) == strlen("buttond: ") + 320 + 1);
 	CHECK(!strncmp(buf, "buttond: xxx", 12) && buf[strlen(buf) - 1] == '\n' && buf[strlen(buf) - 2] == 'x');
 
 	/* echo: the same line on stderr */

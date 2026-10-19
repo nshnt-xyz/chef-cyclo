@@ -111,7 +111,7 @@ PR='"pitch":\(2\.[6-9][0-9]\|3\.[01][0-9]\),"roll":-5\.[5-9][0-9]'
 # before the live state is known (3 s) the registry is the source; with
 # -V the ADSP rotation vector's accuracy rides along once it reports
 RV='\(,"rotvec_accuracy":[0-3]\)\?'
-[ "$(grep -c '^{"sensor":"heading","t":[0-9]*,"heading":[0-9.]*,'"$PR"',"calibrated":false,"disturbed":false,"accuracy":180.0,"cal_source":"\(registry\|live\)","mag_bias":0.000'"$RV"'}$' "$T/h1")" -eq 25 ] \
+[ "$(grep -c '^{"type":"sample","sensor":"heading","t":[0-9]*,"heading":[0-9.]*,'"$PR"',"calibrated":false,"disturbed":false,"accuracy":180.0,"cal_source":"\(registry\|live\)","mag_bias":0.000'"$RV"'}$' "$T/h1")" -eq 25 ] \
 	|| fail "heading lines: $(head -n 3 "$T/h1")"
 set -- $(heading_range "$T/h1")
 awk -v lo="$1" -v hi="$2" 'BEGIN { exit !(lo >= 87.6 && hi <= 88.7) }' || fail "heading $1..$2, want 88.13 +- 0.5"
@@ -126,7 +126,7 @@ grep -q "heading on: accel 50 Hz, anglvel 50 Hz, magn 20 Hz (calibration full) a
 	"$T/sensord.log" || fail "heading on log: $(grep 'heading on' "$T/sensord.log")"
 cli list | grep -q magn_factory && fail "internal channel listed"
 R=$(cli -n 1 watch magn_factory)
-echo "$R" | grep -q '"err":"unknown sensor","sensor":"magn_factory"' || fail "internal channel claimable: $R"
+echo "$R" | grep -q '"type":"error","cmd":"claim","reason":"unknown sensor","sensor":"magn_factory"' || fail "internal channel claimable: $R"
 # -V: the heading uses the rotation vector (accuracy on its lines)
 grep -q "ROTVEC ENABLE period 0 rate 20" "$T/smgr.log" || fail "rotvec not enabled for the heading with -V"
 grep -q '"rotvec_accuracy":[0-3]}$' "$T/h1" || fail "no rotvec_accuracy on heading lines"
@@ -178,15 +178,15 @@ echo "$S" | grep -q '"compass":"on","compass_clients":[12],"mount":"portrait","c
 
 # declination
 D=$(cli declination 1.5)
-[ "$D" = '{"ok":"declination","declination":1.50}' ] || fail "declination reply: $D"
+[ "$D" = '{"type":"ok","cmd":"declination","declination":1.50}' ] || fail "declination reply: $D"
 cli -n 3 watch heading 10 >"$T/h4"
 grep -q '"true_heading":\(89\.[0-9]*\|90\.[0-2][0-9]\),"declination":1.50}$' "$T/h4" || fail "true_heading: $(tail -n 1 "$T/h4")"
 D=$(cli declination bogus)
-[ "$D" = '{"err":"bad declination"}' ] || fail "bad declination: $D"
+[ "$D" = '{"type":"error","cmd":"declination","reason":"bad declination"}' ] || fail "bad declination: $D"
 D=$(cli declination off)
-[ "$D" = '{"ok":"declination","declination":null}' ] || fail "declination off: $D"
+[ "$D" = '{"type":"ok","cmd":"declination","declination":null}' ] || fail "declination off: $D"
 G=$(cli get heading)
-echo "$G" | grep -q '^{"sensor":"heading","t":[0-9]*,"heading":8[78]\.[0-9]*,'"$PR"',"calibrated":true,"disturbed":false,"accuracy":[0-9.]*,"cal_source":"live","mag_bias":0.52[78]'"$RV"'}$' \
+echo "$G" | grep -q '^{"type":"sample","sensor":"heading","t":[0-9]*,"heading":8[78]\.[0-9]*,'"$PR"',"calibrated":true,"disturbed":false,"accuracy":[0-9.]*,"cal_source":"live","mag_bias":0.52[78]'"$RV"'}$' \
 	|| fail "get heading: $G"
 kill "$WH" 2>/dev/null
 wait "$WH" 2>/dev/null
@@ -217,7 +217,7 @@ if $DAEMON -S "$SOCK" -D 200 2>/dev/null; then fail "-D 200 accepted"; fi
 # ------------------------------------------------------------ rotvec (-V)
 start_pair "" ""
 R=$(cli -n 1 watch rotvec)
-echo "$R" | grep -q '"err":"not enabled (sensord -V)","sensor":"rotvec"' || fail "rotvec without -V: $R"
+echo "$R" | grep -q '"type":"error","cmd":"claim","reason":"not enabled (sensord -V)","sensor":"rotvec"' || fail "rotvec without -V: $R"
 sleep 0.3
 grep -Eq "ROTVEC (ATTR|ENABLE|DISABLE)" "$T/smgr.log" && fail "rotvec service contacted without -V"
 stop_pair
@@ -234,7 +234,7 @@ grep -q "rotvec enable (report period 0, sample rate 20 Hz, suspend notify apps/
 	"$T/sensord.log" || fail "rotvec enable log"
 wait_for "$T/sensord.log" "rotvec error indication: error 3 for our instance 7" 50 || fail "rotvec error indication"
 wait_for "$T/rv" '"heading":90.00,"pitch":0.00,"roll":0.00}$' 50 || fail "rotvec lines: $(tail -n 1 "$T/rv")"
-grep -q '^{"sensor":"rotvec","t":[0-9]*,"x":0,"y":0,"z":-0.707107,"w":0.707107,"accuracy":[0-3],"coord":1,"heading":90.00,' "$T/rv" \
+grep -q '^{"type":"sample","sensor":"rotvec","t":[0-9]*,"x":0,"y":0,"z":-0.707107,"w":0.707107,"accuracy":[0-3],"coord":1,"heading":90.00,' "$T/rv" \
 	|| fail "rotvec line fields: $(tail -n 1 "$T/rv")"
 grep -q "rotvec report 1: instance 7 ts [0-9]* q x 0.00000 y 0.00000 z -0.70711 w 0.70711 (|q| 1.0000) accuracy 0 coord 1" \
 	"$T/sensord.log" || fail "rotvec report log"

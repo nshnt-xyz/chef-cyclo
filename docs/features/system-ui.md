@@ -73,11 +73,13 @@ brightness and theme Auto.
 (`--sensord-sock PATH`) only while the screen is on and Auto brightness or
 theme Auto is set; screen off or both settings off closes the connection (a
 claim lives on its connection, no `release` is sent) and cancels any retry. A
-missing or refusing socket, EOF, an `err` line (logged once per distinct text)
-or a hung sensord closes and retries with a backoff of 1 s doubling to 30 s,
-only while wanted; a ready status resets it. `{"ok":...}` and `{"dropped":N}`
-lines are accepted silently, malformed or negative samples are ignored. Fake
-runs never connect (`als LUX|none` in the fake state).
+missing or refusing socket, EOF, an `error` line (logged once per distinct
+`reason`) or a hung sensord closes and retries with a backoff of 1 s doubling to
+30 s, only while wanted; a ready status resets it. sensord's lines are read by
+their `type` ([socket contract](sensors.md#socket-contract), proto 2; a hello
+with another `proto` is logged once); `dropped` and unknown types are accepted
+silently, malformed or negative samples are ignored. Fake runs never connect
+(`als LUX|none` in the fake state).
 
 **The stream is on-change only.** The DSP reports illuminance when it changes:
 at steady light the gaps between samples were up to 15.8 s at a 5 Hz claim

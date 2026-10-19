@@ -3,7 +3,7 @@
  *
  * chef_log() writes "<tag>: <message>\n" to /dev/kmsg (opened, written and
  * closed per message, so it works before and after /dev is remounted) and,
- * when echo is on, the same line to stderr. A message is cut at 255 bytes.
+ * when echo is on, the same line to stderr. A message is cut at 320 bytes.
  * Step 6 of docs/next-steps/standard-interfaces.md swaps the body for
  * syslog(3), so a daemon on this library never writes /dev/kmsg itself.
  */

@@ -1952,7 +1952,7 @@ static void als_srv_io(void)
 			AS.eof = false;
 			AS.claimed = false;
 			AS.status_seen = AS.status_answered = 0;
-			als_say("{\"hello\":\"sensord\",\"proto\":1}\n");
+			als_say("{\"type\":\"hello\",\"daemon\":\"sensord\",\"proto\":2}\n");
 		}
 	}
 	if (AS.cfd >= 0) {
@@ -1966,13 +1966,13 @@ static void als_srv_io(void)
 				AS.in[AS.n] = 0;
 				if (strstr(AS.in, "claim illuminance 5\n") && !AS.claimed) {
 					AS.claimed = true;
-					als_say("{\"ok\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}\n");
+					als_say("{\"type\":\"ok\",\"cmd\":\"claim\",\"sensor\":\"illuminance\",\"rate\":5}\n");
 				}
 				for (char *q = AS.in; (q = strstr(q, "status\n")); q += 7)
 					AS.status_seen++;
 				if (AS.status_seen > AS.status_answered) {
 					AS.status_answered = AS.status_seen;
-					als_say("{\"ok\":\"status\",\"smgr\":\"ready\"}\n");
+					als_say("{\"type\":\"status\",\"smgr\":\"ready\"}\n");
 				}
 			} else if (r == 0) {
 				AS.eof = true;
@@ -1998,7 +1998,7 @@ static void lux_feed(double lux, int ms)
 
 	for (int i = 0; i < ms; i += 200) {
 		/* stamped now (CLOCK_MONOTONIC ns): a stamp before the claim is dropped as cached */
-		snprintf(line, sizeof(line), "{\"sensor\":\"illuminance\",\"t\":%lld,\"illuminance\":%g}\n",
+		snprintf(line, sizeof(line), "{\"type\":\"sample\",\"sensor\":\"illuminance\",\"t\":%lld,\"illuminance\":%g}\n",
 			 (long long)mono_now() * 1000000, lux);
 		als_say(line);
 		als_adv(200);

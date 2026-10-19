@@ -139,11 +139,11 @@ for id in cal1.up cal2.right turn.0 turn.90 turn.180 turn.270 turn.360 tilt.flat
 done
 grep -q "^# clock uptime [0-9.]* sample_t [0-9]*$" "$D/steps.txt" || fail "clock line"
 grep -q "^# cal not calibrated after 12 holds (2 rounds) at [0-9.]*$" "$D/steps.txt" || fail "cal line: $(grep '^# cal' "$D/steps.txt")"
-grep -q '^{"sensor":"heading","t":[0-9]*,"heading":[0-9.]*,"pitch":[-0-9.]*,"roll":[-0-9.]*,"calibrated":false,"disturbed":false,"accuracy":180.0,"cal_source":"\(registry\|live\)","mag_bias":0.000}$' "$D/heading.jsonl" \
+grep -q '^{"type":"sample","sensor":"heading","t":[0-9]*,"heading":[0-9.]*,"pitch":[-0-9.]*,"roll":[-0-9.]*,"calibrated":false,"disturbed":false,"accuracy":180.0,"cal_source":"\(registry\|live\)","mag_bias":0.000}$' "$D/heading.jsonl" \
 	|| fail "heading capture: $(head -n 2 "$D/heading.jsonl")"
 grep -q '"heading":90.00' "$D/rotvec.jsonl" || fail "rotvec capture: $(head -n 2 "$D/rotvec.jsonl")"
 for f in accel anglvel magn; do
-	[ "$(grep -c "^{\"sensor\":\"$f\"" "$D/$f.jsonl")" -gt 0 ] || fail "$f capture"
+	[ "$(grep -c "^{\"type\":\"sample\",\"sensor\":\"$f\"" "$D/$f.jsonl")" -gt 0 ] || fail "$f capture"
 done
 grep -q '"compass":"on"' "$D/status.jsonl" || fail "status poll"
 grep -q '"rotvec":"on"' "$D/status-rotvec-end.json" || fail "rotvec helper status"
