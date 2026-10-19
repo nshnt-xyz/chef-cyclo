@@ -1,6 +1,8 @@
 # blesensd: the BLE sensor daemon (heart rate, cycling power, speed and
-# cadence), see blesensd.c's file header and docs/features/bluetooth.md
-# ("BLE sensors"). blesens.c is its pure measurement code. The host build
+# cadence), see main.c's file header and docs/features/bluetooth.md
+# ("BLE sensors"). Sources: state.c, server.c, bus.c, link.c, pair.c,
+# records.c, main.c and cli.c with the internal header blesensd.h;
+# blesens.c is its pure measurement code. The host build
 # uses libsystemd's sd-bus; the phone build uses static basu
 # (-DCHEF_BASU; scripts/setup-toolchain.sh fetches it to toolchain/basu).
 # On the phone it is the one owner of the BLE sensors (pairing,
@@ -24,6 +26,8 @@ SDBUS_LIBS ?= $(shell pkg-config --libs libsystemd 2>/dev/null)
 BASU ?= $(REPO_ROOT)/toolchain/basu
 H := build/host
 D := build/device
+SRC := state.c server.c bus.c link.c pair.c records.c main.c cli.c blesens.c
+HDRS := blesensd.h blesens.h
 
 .PHONY: all test clean device install-device check-basu
 
@@ -31,17 +35,17 @@ all: $(H)/blesensd
 
 include ../device.mk
 
-$(H)/blesensd: blesensd.c blesens.c blesens.h
+$(H)/blesensd: $(SRC) $(HDRS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ blesensd.c blesens.c $(LDFLAGS) $(SDBUS_LIBS) -lm
+	$(CC) $(CFLAGS) -o $@ $(SRC) $(LDFLAGS) $(SDBUS_LIBS) -lm
 
 check-basu:
 	@test -f $(BASU)/lib/libbasu.a || { echo "basu not found at $(BASU): run scripts/setup-toolchain.sh" >&2; exit 1; }
 
-$(D)/blesensd: blesensd.c blesens.c blesens.h
+$(D)/blesensd: $(SRC) $(HDRS)
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -DCHEF_BASU -I$(BASU)/include -o $@ \
-		blesensd.c blesens.c $(BASU)/lib/libbasu.a -lm
+		$(SRC) $(BASU)/lib/libbasu.a -lm
 
 device: check-device-cc check-basu $(D)/blesensd
 

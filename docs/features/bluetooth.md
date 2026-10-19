@@ -172,7 +172,7 @@ blesensd forget AA:BB:CC:DD:EE:FF     # waits for confirmed removal
 
 The socket takes one command per line: `status`, `list`, `watch`,
 `scan on|off`, `hold on|off`, `pair ADDR`, `cancel ADDR`, `forget ADDR`.
-Every output line is a JSON object (protocol in `tools/blesensd/blesensd.c`).
+Every output line is a JSON object (protocol in `tools/blesensd/server.c`).
 `ok` acknowledges acceptance; `pair` reports steps/outcomes and `forgotten`
 confirms removal. `sensor` carries identity, kinds, state, battery and RSSI;
 `value` carries HR bpm, power W/cadence rpm or CSC speed km/h/cadence rpm,
