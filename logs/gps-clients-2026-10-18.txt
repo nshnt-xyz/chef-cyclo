@@ -91,3 +91,38 @@ Live check (coordinator alone, 2026-10-19 about 20:39 to 20:47 IST
     Back to the normal app: blesensd held false, scanning false; the
       lease grace ended in OFF; sensord back to the CLI alone.
   kmsg: no Call trace, WARN or segfault.
+
+
+Install (2026-10-19, about 20:48 to 20:58 IST [15:18 to 15:28Z]), on the user's standing request
+  4aa38fe pushed to origin/main first (05185e1..4aa38fe).
+  Built at a clean 4aa38fe (image-info dirty 0) with SKIP_KERNEL=1
+  scripts/mkinstall.sh on the existing kernel #23 (Image.gz-dtb 3a907d00...).
+    system_a  out/system_a-31f1aa31.img
+              sha256 31f1aa316ec4aab5f1e55ddf91f9fa3076234562a0ef8e51b8b6c62e1d28e490
+              stamp 9a565fe7...
+    boot_a    out/boot-stage1-1c1450bb.img
+              sha256 1c1450bbf658184ce9df9508407d6a7c4e32b6d699a50630e04a7aa072bd4933
+    RAM image of the same tree: out/boot-ram-6e63b8cc.img
+  Manifest vs installed 188b83e6: same 1503 paths; only image-info,
+  buttond, chef-settings, chefui-demo and gps-manager differ;
+  gps-manager (803cdc00) and chef-settings (ca641d78) equal to the
+  live-checked 7a7971a5 tree.
+  Backup first: /data/v1 pulled to the evidence dir (mode 600, not in
+  the repository); hashes of the settings, gps/enabled and
+  NetworkManager.state recorded.
+  chef-reboot bootloader; current-slot a; fastboot flash system_a OKAY
+  (write 20.9 s); fastboot boot of the stage-1 image: "system_a build
+  stamp matches; switch_root", stamp 9a565fe7, commit 4aa38fe dirty 0,
+  /data mounted, no rescue; chef-reboot bootloader again; fastboot flash
+  boot_a OKAY; fastboot reboot.
+  Installed regression at 62 s: #23, bootreason reboot, slot _a, / =
+  mmcblk0p67 ro norecovery, /data rw, image-info 4aa38fe dirty 0, boot_a
+  marked successful by abslot, all residents running, settings,
+  gps/enabled (on) and NetworkManager.state byte-identical to before,
+  gps-manager 803cdc00 and buttond answering status in JSON. kmsg: no
+  Call trace, WARNING, dma_comp or clk_branch_wait.
+  Ordinary reboot: fresh boot 15 s after the command (host clock minus
+  uptime), bootreason reboot, same image, residents up, boot_a still
+  successful.
+  Fallbacks in out/: 188b83e6 + c5ed4d0e (3ca4a5f, first), then
+  8b8cddf0 + 41dca3ff, 2faf5f0e + 606bd269.
