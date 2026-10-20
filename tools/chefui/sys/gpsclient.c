@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "common/chef_paths.h"
 #include "common/json.h"
 #include "gpsclient.h"
 
@@ -352,7 +353,7 @@ static void mgr_lost(struct lineclient *lc, int64_t now)
 void gpsclient_init(struct gpsclient *gc, const struct gpsclient_config *cfg)
 {
 	struct lineclient_config m = {
-		.path = cfg->mgr_path ? cfg->mgr_path : GPSC_MGR_SOCK,
+		.path = cfg->mgr_path ? cfg->mgr_path : CHEF_GPS_MANAGER_SOCK,
 		.backoff_min_ms = BACKOFF_MIN_MS, .backoff_max_ms = MGR_BACKOFF_MAX_MS,
 		.on_connected = mgr_connected, .on_line = mgr_line, .on_lost = mgr_lost, .ctx = gc,
 	};

@@ -84,7 +84,7 @@ establish protocol B. Framebuffer geometry may be virtual; use the cached modes
 where provided for visible dimensions. Pixel channel layout is not available
 through these generic attributes, so no framebuffer ioctl is attempted.
 
-Boot coldplugs only network devices, for NetworkManager (`/run/udev-ready`); input
+Boot coldplugs only network devices, for NetworkManager (`/run/chef/udev-ready`); input
 devices are not coldplugged and carry no udev classification. Nothing on the phone
 needs it: chefui, `fbtouch` and `buttond` read evdev directly through
 `tools/evdev.h`, which visits `/dev/input/event*` in numeric order (event2 before

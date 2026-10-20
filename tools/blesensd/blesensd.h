@@ -22,7 +22,6 @@
 #include "common/chef_log.h"
 #include "common/linesrv.h"
 
-#define SOCK_PATH "/run/blesensd.sock"
 #define BLUEZ "org.bluez"
 #define ADAPTER_IF BLUEZ ".Adapter1"
 #define DEVICE_IF BLUEZ ".Device1"

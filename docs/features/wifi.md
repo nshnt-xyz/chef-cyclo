@@ -41,11 +41,11 @@ wifi-down
 
 Association has a 60-second timeout. DHCP then supplies a WLAN address, default
 route and DNS. Logs and the derived WPA key are kept in the root-only directory
-`/run/wifi`; nothing is written to stock partitions or persisted across boots.
+`/run/chef/wifi` ([runtime files](runtime-files.md)); nothing is written to stock partitions or persisted across boots.
 Ctrl-C, TERM or wifi-down stops the owned DHCP/supplicant processes, clears WLAN
 addresses, brings wlan0 down, restores the prior resolver configuration and
 removes session files. `wifi-down` signals the foreground owner asynchronously;
-wait for `/run/wifi` to disappear before starting another session. A hard kill can leave stale state; avoid SIGKILL. Only one
+wait for `/run/chef/wifi` to disappear before starting another session. A hard kill can leave stale state; avoid SIGKILL. Only one
 session is supported, and changing DNS concurrently with it is unsupported.
 There is no boot-time association, open-network mode or enterprise setup.
 Wi-Fi down leaves the module and firmware resident and disables wlan0; it does

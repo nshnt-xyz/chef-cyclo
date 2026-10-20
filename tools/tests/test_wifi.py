@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix='wifi-test-') as directory:
         tool.write_text('#!/bin/sh\nprintf "%s\\n" "' + name + ' $*" >> "$TRACE"\n[ "${FAIL_ROUTE:-0}" != 1 ] || [ "$1" != route ] || exit 1\n')
         tool.chmod(0o755)
     hook = root / 'hook'
-    hook.write_text(source.replace('/run/wifi', str(root / 'wifi')).replace('/etc/resolv.conf', str(root / 'resolver')))
+    hook.write_text(source.replace('/run/chef/wifi', str(root / 'wifi')).replace('/etc/resolv.conf', str(root / 'resolver')))
     env = dict(os.environ, PATH=str(commands) + ':' + os.environ['PATH'], TRACE=str(root / 'trace'), interface='wlan0', ip='192.168.1.10', subnet='255.255.255.0', router='192.168.1.1', dns='1.1.1.1')
     def run(**changes):
         for path in (root / 'wifi').iterdir():

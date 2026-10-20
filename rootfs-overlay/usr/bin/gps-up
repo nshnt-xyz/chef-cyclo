@@ -21,7 +21,7 @@
 # Owner PID/starttime and readiness are published in the private lock directory.
 set -u
 
-LOCK=/run/gps-up.lock
+LOCK=/run/chef/lock/gps-up.lock
 RMTFS_PID=
 SERVREG_PID=
 TFTP_PID=
@@ -366,9 +366,9 @@ if ! kill -0 "$QMUX_PID" 2>/dev/null; then
 	log "qmux bridge failed to stay up"
 	exit 1
 fi
-[ -S /run/qmux_socket ] || { log "qmux socket missing"; exit 1; }
+[ -S /run/chef/qmux_socket ] || { log "qmux socket missing"; exit 1; }
 touch "$LOCK/ready"
-log "modem up, qmux bridge on /run/qmux_socket"
+log "modem up, qmux bridge on /run/chef/qmux_socket"
 
 # Keep the /dev/subsys_modem fd held while all supporting services are
 # alive. A bare wait would wait for *all* children and leave the modem up if

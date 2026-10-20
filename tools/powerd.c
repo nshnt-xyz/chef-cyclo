@@ -12,7 +12,7 @@
  *                               shutdown at 68.0 C battery temperature.
  *   batt_health (vendor_pwric)  a CSV log of power_supply uevents. Stock
  *                               writes it to /data; ours goes to
- *                               /run/power/log.csv, or with -l to a log
+ *                               /run/chef/power/log.csv, or with -l to a log
  *                               directory on /data (inittab passes
  *                               /data/v1/power when /data is ours),
  *                               bounded with one rotation. The persist part (age/cycles in
@@ -31,7 +31,7 @@
  * online (the throttle cadence) or while a shutdown condition is being
  * confirmed. SIGUSR1 forces a sample.
  *
- * Outputs, under the run directory (default /run/power, tmpfs):
+ * Outputs, under the run directory (default /run/chef/power, tmpfs):
  *   state              key=value lines, rewritten atomically (tmp + rename)
  *                      on every sample; `powerd status` prints it
  *   log.csv(.1)        (in the -l log directory if given) one row per
@@ -131,8 +131,9 @@
 #include <unistd.h>
 #include <linux/netlink.h>
 
+#include "common/chef_paths.h"
+
 #define POWERD_SYSFS        "/sys/class/power_supply"
-#define POWERD_RUNDIR       "/run/power"
 #define POWERD_VIB_PATH     "/sys/class/timed_output/vibrator/enable"
 #define POWERD_KMSG_PATH    "/dev/kmsg"
 #define POWERD_WARN_PCT     15
@@ -490,7 +491,7 @@ static void powerd_init(struct powerd *p)
 	memset(p, 0, sizeof(*p));
 	config_defaults(&p->cfg);
 	p->sysfs = POWERD_SYSFS;
-	p->dir = POWERD_RUNDIR;
+	p->dir = CHEF_POWER_DIR;
 	p->vib = POWERD_VIB_PATH;
 	p->log_max = POWERD_LOG_MAX;
 	p->flush_ms = POWERD_FLUSH_MS;
@@ -1536,7 +1537,7 @@ static void usage(void)
 		"           append the pending rows a stopped powerd left; only while no powerd\n"
 		"           daemon runs on RUNDIR (it could duplicate or reorder rows)\n"
 		"  -r  power_supply sysfs root (default " POWERD_SYSFS ", or $POWERD_SYSFS)\n"
-		"  -d  run directory for state, shutdown-pending and log.csv (default " POWERD_RUNDIR ")\n"
+		"  -d  run directory for state, shutdown-pending and log.csv (default " CHEF_POWER_DIR ")\n"
 		"  -l  log directory for log.csv(.1) instead of the run directory; rows wait in\n"
 		"      RUNDIR/log.pending and are appended in batches (see -F)\n"
 		"  -F  with -l: flush pending rows at least every SECS seconds (default 600;\n"

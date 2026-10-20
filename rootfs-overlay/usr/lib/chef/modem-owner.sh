@@ -1,7 +1,7 @@
 # Read-only shared modem ownership; never signals/reaps/restarts its owner.
 modem_owner_pid() {
-    local_lock=${MODEM_OWNER_LOCK:-/run/gps-up.lock}
-    [ -e "$local_lock/ready" ] && [ -S "${MODEM_QMUX_SOCKET:-/run/qmux_socket}" ] || return 1
+    local_lock=${MODEM_OWNER_LOCK:-/run/chef/lock/gps-up.lock}
+    [ -e "$local_lock/ready" ] && [ -S "${MODEM_QMUX_SOCKET:-/run/chef/qmux_socket}" ] || return 1
     read -r owner_pid owner_start < "$local_lock/owner" || return 1
     case "$owner_pid:$owner_start" in *[!0-9:]*|:*|*:) return 1 ;; esac
     [ "$owner_pid" -gt 1 ] || return 1

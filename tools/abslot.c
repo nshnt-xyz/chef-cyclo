@@ -41,7 +41,7 @@
  * Any other difference between the copies, including the reverse (primary
  * marked, backup not), is refused. A torn copy (CRC mismatch) is refused.
  *
- * Every line goes to stdout, /dev/kmsg and /run/abslot.log (appended).
+ * Every line goes to stdout, /dev/kmsg and /run/chef/log/abslot.log (appended).
  * Overrides for host tests (logged as TEST OVERRIDE): -d DISK (image file;
  * buffered I/O if its filesystem refuses O_DIRECT, e.g. tmpfs), -s SYSFS
  * root, -c CMDLINE file, -K KMSG, -L LOG.
@@ -61,6 +61,8 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <linux/fs.h>
+
+#include "common/chef_paths.h"
 
 #define SECTOR		512
 #define ENTRY_SIZE	128
@@ -605,7 +607,7 @@ static void usage(void)
 int main(int argc, char **argv)
 {
 	struct opts o = { "/dev/" DISK_NAME, "/sys", "/proc/cmdline", false };
-	const char *kmsg = "/dev/kmsg", *log = "/run/abslot.log";
+	const char *kmsg = "/dev/kmsg", *log = CHEF_ABSLOT_LOG;
 	int c;
 
 	setvbuf(stdout, NULL, _IOLBF, 0);

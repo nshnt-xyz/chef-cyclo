@@ -6,7 +6,7 @@
 # uses libsystemd's sd-bus; the phone build uses static basu
 # (-DCHEF_BASU; scripts/setup-toolchain.sh fetches it to toolchain/basu).
 # On the phone it is the one owner of the BLE sensors (pairing,
-# reconnection, notifications) behind /run/blesensd.sock, records through
+# reconnection, notifications) behind /run/chef/blesensd.sock, records through
 # chef-state blesens-load/-save, started from inittab (respawn).
 #
 #   make                 host build: build/host/blesensd
@@ -29,7 +29,7 @@ D := build/device
 # The socket, its JSON lines and the log come from ../common/, compiled
 # in from source.
 SHARED := ../common/chef_log.c ../common/linesrv.c ../common/json.c
-SHARED_H := ../common/chef_log.h ../common/linesrv.h ../common/json.h
+SHARED_H := ../common/chef_log.h ../common/linesrv.h ../common/json.h ../common/chef_paths.h
 SRC := state.c server.c bus.c link.c pair.c records.c main.c cli.c blesens.c $(SHARED)
 HDRS := blesensd.h blesens.h $(SHARED_H)
 INC := -I..

@@ -1,5 +1,5 @@
 /*
- * gps-manager's lease server on /run/gps-manager.sock. Requests are
+ * gps-manager's lease server on /run/chef/gps-manager.sock. Requests are
  * words, one line each; every line gps-manager sends is one JSON object
  * with a "type" member (the shared envelope of
  * docs/features/local-sockets.md, served by tools/common/linesrv.c),

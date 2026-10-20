@@ -6,17 +6,17 @@ DEV=${CHEF_STORAGE_DEV:-/dev}
 CMDLINE=${CHEF_STORAGE_CMDLINE:-/proc/cmdline}
 MOUNTS=${CHEF_STORAGE_MOUNTS:-/proc/self/mountinfo}
 DATA=${CHEF_STORAGE_DATA:-/data}
-RUN=${CHEF_STORAGE_RUN:-/run}
+RUN=${CHEF_STORAGE_RUN:-/run/chef}
 CONFIG=${CHEF_STORAGE_CONFIG:-/etc/chef/mke2fs.conf}
 LABEL=chefdata
 MARKER='chef-cyclo-data-v1'
 BYTES=55289298432
-mkdir -p "$RUN"
+mkdir -p "$RUN/log" "$RUN/lock"
 log() {
     # Early /init may inherit unusable console fds (console=null). Logging
     # must not make a successful mount fail or prevent RAM-only boot.
     echo "chef-storage: $*" >&2 || true
-    echo "chef-storage: $*" >> "$RUN/storage.log" || true
+    echo "chef-storage: $*" >> "$RUN/log/storage.log" || true
     [ ! -c /dev/kmsg ] || echo "chef-storage: $*" 2>/dev/null > /dev/kmsg || true
 }
 fail() { log "$*"; return 1; }
@@ -72,7 +72,7 @@ ours() {
     [ "$value" = "$MARKER" ] || { fail 'RAM-only: missing or foreign layout marker'; return 1; }
 }
 check() {
-    if timeout -k 5 60 e2fsck -p "$node" >> "$RUN/storage.log" 2>&1; then rc=0; else rc=$?; fi
+    if timeout -k 5 60 e2fsck -p "$node" >> "$RUN/log/storage.log" 2>&1; then rc=0; else rc=$?; fi
     log "e2fsck -p exit=$rc (60 s bound)"
     case "$rc" in 0|1) return 0;; *) fail 'RAM-only: filesystem check failed'; return 1;; esac
 }
@@ -166,7 +166,7 @@ shutdown() {
     [ -n "$mounted_path" ] || return 0
     if [ "${1:-}" = --pause-init ]; then
         # An independent RAM-only watchdog also recovers SIGKILL/crash.
-        setsid sh -c 'sleep 120; kill -CONT 1' </dev/null >"$RUN/storage-watchdog.log" 2>&1 &
+        setsid sh -c 'sleep 120; kill -CONT 1' </dev/null >"$RUN/log/storage-watchdog.log" 2>&1 &
         watchdog=$!
         trap 'rc=$?; kill "$watchdog" 2>/dev/null || true; kill -CONT 1 2>/dev/null || true; exit "$rc"' 0
         trap 'exit 1' HUP INT TERM
@@ -215,10 +215,10 @@ shutdown() {
 
 }
 case "${1:-status}" in
-status) cat "$RUN/storage.log" 2>/dev/null || true; mountpoint "$DATA" || true;;
+status) cat "$RUN/log/storage.log" 2>/dev/null || true; mountpoint "$DATA" || true;;
 shutdown) shutdown "${2:-}";;
 boot)
-    exec 9>"$RUN/storage.lock"; flock -n 9 || exit 0
+    exec 9>"$RUN/lock/storage.lock"; flock -n 9 || exit 0
     if resolve && ours && check && mount_data; then
         if consumers; then
             log 'layout v1 mounted with BlueZ and NetworkManager'
@@ -229,7 +229,7 @@ boot)
     ;;
 format)
     [ "$#" = 2 ] && [ "$2" = --yes-erase-userdata ] || { fail 'format requires --yes-erase-userdata'; exit 1; }
-    exec 9>"$RUN/storage.lock"; flock -n 9 || { fail 'storage operation in progress'; exit 1; }
+    exec 9>"$RUN/lock/storage.lock"; flock -n 9 || { fail 'storage operation in progress'; exit 1; }
     resolve
     old_label=$(label) || { fail "refusing: cannot read existing ext4 label"; exit 1; }
     [ "$old_label" != "$LABEL" ] || { fail 'refusing: already provisioned'; exit 1; }

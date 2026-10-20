@@ -2,14 +2,14 @@
 
 [Feature index](README.md) · [Build instructions](../building.md)
 
-Our daemons serve contracts that have no standard Linux equivalent (gesture claims, GPS leases, fast sensor streams) on private Unix stream sockets under `/run`, as gpsd and PipeWire do. This page is the shape all of them share: one way to frame requests and replies, one envelope, one set of compatibility rules, and the code in `tools/common/` that implements it. Each daemon's own requests, replies and events are written down in its feature guide.
+Our daemons serve contracts that have no standard Linux equivalent (gesture claims, GPS leases, fast sensor streams) on private Unix stream sockets under `/run/chef` (the [runtime files](runtime-files.md)), as gpsd and PipeWire do. This page is the shape all of them share: one way to frame requests and replies, one envelope, one set of compatibility rules, and the code in `tools/common/` that implements it. Each daemon's own requests, replies and events are written down in its feature guide.
 
 | Socket | Daemon | On this protocol |
 |---|---|---|
-| `/run/buttond.sock` | [buttond](buttons-and-power-off.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
-| `/run/gps-manager.sock` | [gps-manager](gps.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
-| `/run/sensord.sock` | [sensord](sensors.md#socket-contract) | yes, proto 2 (since 2026-10-19) |
-| `/run/blesensd.sock` | [blesensd](bluetooth.md#socket-contract) | yes, proto 1 (since 2026-10-20) |
+| `/run/chef/buttond.sock` | [buttond](buttons-and-power-off.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
+| `/run/chef/gps-manager.sock` | [gps-manager](gps.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
+| `/run/chef/sensord.sock` | [sensord](sensors.md#socket-contract) | yes, proto 2 (since 2026-10-19) |
+| `/run/chef/blesensd.sock` | [blesensd](bluetooth.md#socket-contract) | yes, proto 1 (since 2026-10-20) |
 
 ## Requests
 

@@ -8,7 +8,7 @@
  * double, long, two-button chords) with more than one consumer, and the
  * evdev layer hands every event to every reader, so this daemon is the
  * single owner of those devices (EVIOCGRAB) and publishes gestures on a
- * Unix stream socket, /run/buttond.sock, in the same lease shape the GPS
+ * Unix stream socket, /run/chef/buttond.sock, in the same lease shape the GPS
  * manager uses. Requests are words, one line each; every line buttond
  * sends is one JSON object with a "type" member (the shared envelope of
  * docs/features/local-sockets.md, served by tools/common/linesrv.c), proto
@@ -91,7 +91,7 @@
  *   -d  double-tap window in ms (default 300)
  *   -p  extra hold after power.long before a release powers off
  *       (default 1500; 0 = never power off, only log)
- *   -S  socket path (default /run/buttond.sock)
+ *   -S  socket path (default /run/chef/buttond.sock)
  *   -o  fblog idle flag (default /run/fblog.off)
  *   -V  vibrator (default /sys/class/timed_output/vibrator/enable, ms)
  *   -G  do not EVIOCGRAB the devices (shared, for experiments)
@@ -131,10 +131,10 @@
 
 #include "evdev.h"
 #include "common/chef_log.h"
+#include "common/chef_paths.h"
 #include "common/json.h"
 #include "common/linesrv.h"
 
-#define BUTTOND_SOCK_PATH  "/run/buttond.sock"
 #define BUTTOND_OFF_PATH   "/run/fblog.off"
 #define BUTTOND_VIB_PATH   "/sys/class/timed_output/vibrator/enable"
 #define BUTTOND_LONG_MS    1500
@@ -1020,7 +1020,7 @@ int main(int argc, char **argv)
 	struct server s;
 	struct keydev kds[BUTTOND_MAX_DEVS];
 	const char *explicit[BUTTOND_MAX_DEVS];
-	const char *sock_path = BUTTOND_SOCK_PATH, *off_path = BUTTOND_OFF_PATH;
+	const char *sock_path = CHEF_BUTTOND_SOCK, *off_path = BUTTOND_OFF_PATH;
 	const char *vib_path = BUTTOND_VIB_PATH;
 	unsigned long_ms = BUTTOND_LONG_MS, double_ms = BUTTOND_DOUBLE_MS;
 	unsigned poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;

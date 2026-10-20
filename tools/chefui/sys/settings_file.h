@@ -28,9 +28,9 @@
  *
  * Which file: /data/v1/ui/settings when /data is ours (a mount point
  * whose chef-layout reads chef-cyclo-data-v1, checked again before every
- * /data access), otherwise /run/ui/settings. A file that fails any check
- * (or is over UI_SETTINGS_MAX_BYTES, or not a regular file) gives the
- * defaults.
+ * /data access), otherwise /run/chef/ui/settings. A file that fails any
+ * check (or is over UI_SETTINGS_MAX_BYTES, or not a regular file) gives
+ * the defaults.
  */
 #ifndef CHEF_SETTINGS_FILE_H
 #define CHEF_SETTINGS_FILE_H
@@ -74,7 +74,7 @@ int ui_settings_format(const struct ui_settings *s, char *buf, size_t size);
 bool ui_data_ours(const char *data, bool (*mountpoint)(const char *path));
 bool ui_mountpoint(const char *path);
 
-/* The settings file under DATA (on_data) or RUN (NULL: /data, /run):
+/* The settings file under DATA (on_data) or RUN (NULL: /data, /run/chef):
  * 0, or -ENAMETOOLONG. */
 int ui_settings_file_path(char *buf, size_t size, const char *data, const char *run, bool on_data);
 /* Read the file in use now: *ours whether /data is ours (MOUNTPOINT NULL:

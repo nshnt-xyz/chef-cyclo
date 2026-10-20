@@ -100,7 +100,7 @@ int main(void)
 	CHECK(ui_settings_file_path(path, sizeof(path), NULL, NULL, true) == 0 &&
 	      !strcmp(path, "/data/v1/ui/settings"));
 	CHECK(ui_settings_file_path(path, sizeof(path), NULL, NULL, false) == 0 &&
-	      !strcmp(path, "/run/ui/settings"));
+	      !strcmp(path, "/run/chef/ui/settings"));
 	memset(big, 'x', sizeof(big) - 1);
 	big[0] = '/';
 	big[sizeof(big) - 1] = 0;

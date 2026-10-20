@@ -13,10 +13,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define GM_SOCK_PATH   "/run/gps-manager.sock"
-#define GM_DIR         "/run/gps-manager"
-#define GM_QMUX_SOCK   "/run/qmux_socket"
-#define GM_OWNER_LOCK  "/run/gps-up.lock"
+#include "common/chef_paths.h"
+
 #define GM_NMEA_TYPES  "gga|rmc|gsv|gsa|vtg"
 #define GM_GPSD_SOURCE "udp://127.0.0.1:20175"
 
@@ -185,8 +183,8 @@ void gm_server_set_enabled(struct gm_server *s, bool on, bool persist);
 
 struct gm_paths {
 	const char *proc;	/* "/proc" */
-	const char *owner_lock;	/* "/run/gps-up.lock" */
-	const char *qmux_sock;	/* "/run/qmux_socket" */
+	const char *owner_lock;	/* "/run/chef/lock/gps-up.lock" */
+	const char *qmux_sock;	/* "/run/chef/qmux_socket" */
 };
 
 /* DIR/state: "cid N", "owner PID START", "<child> PID START" lines. */

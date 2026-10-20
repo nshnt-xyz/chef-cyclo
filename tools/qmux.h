@@ -11,7 +11,7 @@
  * Wire formats (verified against libqmi 1.38 sources, see the handoff doc
  * sections 2.3-2.5 for the byte tables this implements):
  *
- *   QMUX frame (what a qmicli process writes/reads on /run/qmux_socket):
+ *   QMUX frame (what a qmicli process writes/reads on /run/chef/qmux_socket):
  *     u8  marker              always 0x01
  *     u16 length      (LE)    byte count following this field: itself (2) +
  *                             flags(1) + service(1) + client(1) + sdu_len

@@ -2,7 +2,7 @@
  * blesensd's clients and requests, and the event lines it sends them.
  * The daemon as a whole is described in main.c.
  *
- * Socket protocol on /run/blesensd.sock: the shared local socket protocol
+ * Socket protocol on /run/chef/blesensd.sock: the shared local socket protocol
  * (docs/features/local-sockets.md, tools/common/linesrv.c), proto 1,
  * written down in docs/features/bluetooth.md ("Socket contract"). One
  * request per line, plain words; every line from the daemon is one JSON

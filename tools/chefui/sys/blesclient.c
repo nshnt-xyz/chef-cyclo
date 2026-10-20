@@ -10,6 +10,7 @@
 #include <string.h>
 
 #include "blesclient.h"
+#include "common/chef_paths.h"
 #include "common/json.h"
 
 #define BACKOFF_MIN_MS 1000
@@ -384,7 +385,7 @@ static void on_lost(struct lineclient *lc, int64_t now)
 void blesclient_init(struct blesclient *bc, const struct blesclient_config *cfg)
 {
 	struct lineclient_config c = {
-		.path = cfg->path ? cfg->path : BLESC_SOCK,
+		.path = cfg->path ? cfg->path : CHEF_BLESENSD_SOCK,
 		.backoff_min_ms = BACKOFF_MIN_MS, .backoff_max_ms = BACKOFF_MAX_MS,
 		.on_connected = on_connected, .on_line = on_line, .on_lost = on_lost, .ctx = bc,
 	};

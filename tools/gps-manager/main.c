@@ -7,7 +7,7 @@
  * GNSS-specific on top of that modem: one QMI LOC client id (CID) with LOC
  * session 1, gpsd, and the `qmicli --loc-follow-nmea | nmea-broker`
  * pipeline. They run only while someone holds a lease on
- * /run/gps-manager.sock (the line protocol is in server.c's header).
+ * /run/chef/gps-manager.sock (the line protocol is in server.c's header).
  *
  * The GPS switch (`enable`/`disable`) persists through `chef-state
  * gps-save 0|1` (a child, so storage never blocks this loop) and is read
@@ -94,7 +94,7 @@
  *   -b  run qmicli, gpsd and nmea-broker from BINDIR (tests); default PATH
  *   -s  the chef-state command for the switch (default chef-state; tests)
  * Logs: "gps-manager:" lines through chef_log (kmsg; transitions, not
- * polls); the children's output in DIR (default /run/gps-manager):
+ * polls); the children's output in DIR (default /run/chef/gps-manager):
  * steps.log, gpsd.log, follow.log and broker.log, each rotated to .1 at a
  * bring-up so the run that failed is kept next to its retry. RAM only.
  *
@@ -784,7 +784,7 @@ static void shell_round(struct shell *sh, bool serving)
 int main(int argc, char **argv)
 {
 	struct shell *sh = &g_sh;
-	const char *sock_path = GM_SOCK_PATH, *bindir = NULL;
+	const char *sock_path = CHEF_GPS_MANAGER_SOCK, *bindir = NULL;
 	struct gm_ops ops = {
 		.ctx = sh, .log = op_log, .owner = op_owner, .bridge = op_bridge,
 		.run_step = op_run_step, .spawn_gpsd = op_spawn_gpsd, .spawn_pipeline = op_spawn_pipeline,
@@ -796,10 +796,10 @@ int main(int argc, char **argv)
 	int rc, lockfd, opt, grace_s = GM_GRACE_MS / 1000;
 
 	memset(sh, 0, sizeof(*sh));
-	sh->dir = GM_DIR;
+	sh->dir = CHEF_GPS_MANAGER_DIR;
 	sh->paths.proc = "/proc";
-	sh->paths.owner_lock = GM_OWNER_LOCK;
-	sh->paths.qmux_sock = GM_QMUX_SOCK;
+	sh->paths.owner_lock = CHEF_GPS_UP_LOCK;
+	sh->paths.qmux_sock = CHEF_QMUX_SOCK;
 	sh->state_cmd = "chef-state";
 	while ((opt = getopt(argc, argv, "S:d:q:o:b:s:g:v")) != -1) {
 		switch (opt) {

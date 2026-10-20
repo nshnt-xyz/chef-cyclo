@@ -1,6 +1,6 @@
 # sensord: SSC sensors daemon (REG2 server + SMGR client + socket API),
 # see main.c's file header and docs/features/sensors.md. On the phone it
-# is the REG2 registry server + SMGR client behind /run/sensord.sock,
+# is the REG2 registry server + SMGR client behind /run/chef/sensord.sock,
 # started by rootfs-overlay/usr/bin/sensors-up (manual opt-in, not in inittab);
 # same transport/codec as servreg-locator.
 #
@@ -32,7 +32,7 @@ HDRS := sns_msgs.h sns_reg.h compass.h ../msmipc.h $(QRTR_DIR)/libqrtr.h $(H)/in
 # The socket, its JSON lines and the log come from ../common/, compiled
 # in from source.
 SHARED := ../common/chef_log.c ../common/linesrv.c ../common/json.c
-SHARED_H := ../common/chef_log.h ../common/linesrv.h ../common/json.h
+SHARED_H := ../common/chef_log.h ../common/linesrv.h ../common/json.h ../common/chef_paths.h
 # The daemon's own sources (main.c's header); the unit test links all
 # but main.c and cli.c.
 LIB_SRC := channel.c server.c heading.c smgr.c sam.c regserv.c compass.c $(SHARED)

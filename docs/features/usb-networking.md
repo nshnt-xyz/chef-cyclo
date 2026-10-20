@@ -4,7 +4,7 @@
 
 ## Current behavior
 
-`rootfs-overlay/init` creates a USB NCM Ethernet gadget through `rootfs-overlay/usr/lib/chef/usb-gadget.sh`, assigns `usb0` 172.16.42.1/24, and configures loopback. `udhcpd` offers the host addresses .2–.9 with no router option, from `/run/udhcpd.conf` (the `/etc/udhcpd.conf` template with the actual interface; the root is read-only). The stage-1 rescue shell uses the same helper, so a refused `system_a` still answers on 172.16.42.1 ([live testing](../live-testing.md#gotchas)). Linux hosts use `cdc_ncm`. The phone buzzes once when `/init` starts and twice when the network is ready.
+`rootfs-overlay/init` creates a USB NCM Ethernet gadget through `rootfs-overlay/usr/lib/chef/usb-gadget.sh`, assigns `usb0` 172.16.42.1/24, and configures loopback. `udhcpd` offers the host addresses .2–.9 with no router option, from `/run/chef/udhcpd.conf` (the `/etc/udhcpd.conf` template with the actual interface; the root is read-only). The stage-1 rescue shell uses the same helper (its files stay in `/run` there, see [runtime files](runtime-files.md#what-stays-outside)), so a refused `system_a` still answers on 172.16.42.1 ([live testing](../live-testing.md#gotchas)). Linux hosts use `cdc_ncm`. The phone buzzes once when `/init` starts and twice when the network is ready.
 
 ## Use
 

@@ -12,7 +12,7 @@
 #                            boot, then every 15 min; rewrites are skipped
 #                            unless the offset moved or 6 h passed)
 #   chef-state time-save     one RTC offset save (needs chrony synchronised)
-#   chef-state mag-save      sensors-up: group 2980 from the /run registry copy
+#   chef-state mag-save      sensors-up: group 2980 from the RAM registry copy
 #   chef-state mag-restore F sensors-up: overlay the saved group 2980 onto F,
 #                            a fresh registry copy from persist
 #   chef-state gps-load      gps-manager: print "enabled 0|1" (the GPS
@@ -32,21 +32,23 @@
 # /data with the chef-layout marker); otherwise every consumer runs from
 # /run as before. Saved files are text with a trailing sha256 line, written
 # as a temp file in the same directory, fsynced, renamed, and the directory
-# fsynced, under a lock on /run per kind. A torn or invalid file is ignored
-# with a kmsg line, never trusted, never fatal. boots.log is appended (one
-# line per boot, fsynced) and its parser skips a torn line. This script
-# never changes directory into /data and never keeps a descriptor there,
-# so chef-storage shutdown's fuser never finds it. No `set -e`: /init runs
-# it before init and a failure must only cost the state, never the boot.
+# fsynced, under a lock per kind in /run/chef/state. A torn or invalid file
+# is ignored with a kmsg line, never trusted, never fatal. boots.log is
+# appended (one line per boot, fsynced) and its parser skips a torn line.
+# This script never changes directory into /data and never keeps a
+# descriptor there, so chef-storage shutdown's fuser never finds it. No
+# `set -e`: /init runs it before init and a failure must only cost the
+# state, never the boot.
 DATA=${CHEF_STATE_DATA:-/data}
-RUN=${CHEF_STATE_RUN:-/run}
+RUN=${CHEF_STATE_RUN:-/run/chef}
+ST=$RUN/state	# this script's own files on /run
 KMSG=${CHEF_STATE_KMSG:-/dev/kmsg}
 CMDLINE=${CHEF_STATE_CMDLINE:-/proc/cmdline}
 BOOT_ID_FILE=${CHEF_STATE_BOOT_ID:-/proc/sys/kernel/random/boot_id}
 RTC=${CHEF_STATE_RTC:-/sys/class/rtc/rtc0}
 PSTORE=${CHEF_STATE_PSTORE:-/sys/fs/pstore}
 CHRONY_SOCK=${CHEF_STATE_CHRONY_SOCK:-/run/chrony/chronyd.sock}
-SNS_RUN=${CHEF_STATE_SENSORS_RUN:-/run/sensors}
+SNS_RUN=${CHEF_STATE_SENSORS_RUN:-$RUN/sensors}
 MAP=${CHEF_STATE_MAP:-/usr/share/sensord/sns_reg.map}
 PROC=${CHEF_STATE_PROC:-/proc}
 MARKER=chef-cyclo-data-v1
@@ -54,9 +56,9 @@ TIME_FILE=$DATA/v1/time/rtc-offset
 CRASH=$DATA/v1/crash
 MAG_FILE=$DATA/v1/sensors/mag-group-2980
 GPS_FILE=$DATA/v1/gps/enabled
-GPS_RUN_FILE=$RUN/chef-state-gps-enabled	# when /data is not ours (lost at reboot)
+GPS_RUN_FILE=$ST/gps-enabled	# when /data is not ours (lost at reboot)
 BLESENS_FILE=$DATA/v1/blesens/sensors
-BLESENS_RUN_FILE=$RUN/chef-state-blesens	# when /data is not ours (lost at reboot)
+BLESENS_RUN_FILE=$ST/blesens	# when /data is not ours (lost at reboot)
 BLESENS_MAX=8
 MAG_GROUP=2980
 MAG_BIAS_ITEM=3903		# 3903..3905: x y z, int32 LE, Q16 gauss
@@ -146,14 +148,13 @@ put() {
 	return 1
 }
 
-# Run "$@" holding the lock for kind $1 (on /run, never /data). Stale temp
+# Run "$@" holding the lock for kind $1 (in $ST, never /data). Stale temp
 # files of that kind are only removed under the lock. With LOCK_TRIES set,
 # give up with 75 after that many 0.1 s retries instead of queueing behind
 # the holder (BusyBox flock has no -w). Commands that may outlive the
 # holder (BusyBox timeout's watchdog daemon) get 8>&- so they never pin it.
 locked() {
 	kind=$1; shift
-	mkdir -p "$RUN" 2>/dev/null
 	(
 		if [ -n "${LOCK_TRIES:-}" ]; then
 			tries=$LOCK_TRIES
@@ -166,7 +167,7 @@ locked() {
 			flock 8 || exit 1
 		fi
 		"$@"
-	) 8>"$RUN/chef-state-$kind.lock"
+	) 8>"$ST/$kind.lock"
 }
 
 # ---------------------------------------------------------------- clock
@@ -175,8 +176,8 @@ locked() {
 # 0: valid, 2: missing, 1: invalid (logged unless $1 = quiet).
 time_load() {
 	quiet=${1:-}
-	body=$(unseal "$TIME_FILE" 2>"$RUN/chef-state-time.err"); rc=$?
-	why=$(cat "$RUN/chef-state-time.err" 2>/dev/null); rm -f "$RUN/chef-state-time.err"
+	body=$(unseal "$TIME_FILE" 2>"$ST/time.err"); rc=$?
+	why=$(cat "$ST/time.err" 2>/dev/null); rm -f "$ST/time.err"
 	[ "$rc" = 2 ] && return 2
 	if [ "$rc" = 0 ]; then
 		# shellcheck disable=SC2086 # word split on purpose
@@ -249,10 +250,10 @@ time_save() {
 	return "$rc"
 }
 
-# Write /run/chef-time: source=rtc-offset|floor|none, reason, saved_age_s.
+# Write /run/chef/state/time: source=rtc-offset|floor|none, reason, saved_age_s.
 time_status() {
-	printf 'source=%s\nreason=%s\nsaved_age_s=%s\n' "$1" "$2" "$3" > "$RUN/chef-time.tmp" &&
-		mv -f "$RUN/chef-time.tmp" "$RUN/chef-time"
+	printf 'source=%s\nreason=%s\nsaved_age_s=%s\n' "$1" "$2" "$3" > "$ST/time.tmp" &&
+		mv -f "$ST/time.tmp" "$ST/time"
 	if [ "$1" = rtc-offset ]; then
 		log "time: clock set from the saved RTC offset (saved $3 s ago by the RTC)"
 	else
@@ -291,7 +292,7 @@ time_restore() {
 
 timekeeper() {
 	cd / || exit 1
-	echo $$ > "$RUN/chef-state-timekeeper.pid"
+	echo $$ > "$ST/timekeeper.pid"
 	said=
 	while :; do
 		if ! ours; then
@@ -402,7 +403,7 @@ crash_boot() {
 	[ -z "$top" ] || [ "$top" -lt "$seq" ] || seq=$((top + 1))
 	reason=$(bootreason) since=$(since_now || echo 0)
 	wall=na
-	case "$(sed -n 's/^source=//p' "$RUN/chef-time" 2>/dev/null)" in
+	case "$(sed -n 's/^source=//p' "$ST/time" 2>/dev/null)" in
 	rtc-offset|floor) wall=$(date -u +%Y-%m-%dT%H:%M:%SZ);;
 	esac
 	crash_collect "$seq" "$reason" "$prev" "$wall" "$since"
@@ -471,8 +472,8 @@ mag_geometry() {
 # invalid (logged unless $1 = quiet). Needs mag_geometry.
 mag_load() {
 	quiet=${1:-}
-	body=$(unseal "$MAG_FILE" 2>"$RUN/chef-state-mag.err"); rc=$?
-	why=$(cat "$RUN/chef-state-mag.err" 2>/dev/null); rm -f "$RUN/chef-state-mag.err"
+	body=$(unseal "$MAG_FILE" 2>"$ST/mag.err"); rc=$?
+	why=$(cat "$ST/mag.err" 2>/dev/null); rm -f "$ST/mag.err"
 	[ "$rc" = 2 ] && return 2
 	if [ "$rc" = 0 ]; then
 		# shellcheck disable=SC2086
@@ -496,7 +497,7 @@ mag_load() {
 mag_save_locked() {
 	read -r mag_now _ < "$PROC/uptime"
 	mag_now=${mag_now%%.*}
-	mag_last=$(cat "$RUN/chef-state-mag-last" 2>/dev/null)
+	mag_last=$(cat "$ST/mag-last" 2>/dev/null)
 	if [ "${CHEF_STATE_MAG_FINAL:-0}" != 1 ] && isint "$mag_now" && isint "$mag_last" &&
 	   [ "$mag_now" -ge "$mag_last" ] && [ $((mag_now - mag_last)) -lt 60 ]; then
 		return 3	# deferred: caller must retain pending snapshot
@@ -520,7 +521,7 @@ mag_save_locked() {
 	printf 'chef-mag-group 1\ngroup %s\nlength %s\npersist_sha256 %s\nmap_sha256 %s\nbytes %s\n' \
 		"$MAG_GROUP" "$MAG_LEN" "$psha" "$msha" "$hex" | seal | put "$MAG_FILE" ||
 		{ log "mag: writing $MAG_FILE failed"; return 1; }
-	printf '%s\n' "$mag_now" > "$RUN/chef-state-mag-last"
+	printf '%s\n' "$mag_now" > "$ST/mag-last"
 	log "mag: saved group $MAG_GROUP bias $(gauss $BIAS) gauss"
 }
 
@@ -572,8 +573,8 @@ gps_file() {
 
 gps_load() {
 	f=$(gps_file)
-	body=$(unseal "$f" 2>"$RUN/chef-state-gps.err"); rc=$?
-	why=$(cat "$RUN/chef-state-gps.err" 2>/dev/null); rm -f "$RUN/chef-state-gps.err"
+	body=$(unseal "$f" 2>"$ST/gps.err"); rc=$?
+	why=$(cat "$ST/gps.err" 2>/dev/null); rm -f "$ST/gps.err"
 	if [ "$rc" = 0 ]; then
 		# shellcheck disable=SC2086
 		set -- $body
@@ -625,8 +626,8 @@ blesens_valid() {
 
 blesens_load() {
 	f=$(blesens_file)
-	body=$(unseal "$f" 2>"$RUN/chef-state-blesens.err"); rc=$?
-	why=$(cat "$RUN/chef-state-blesens.err" 2>/dev/null); rm -f "$RUN/chef-state-blesens.err"
+	body=$(unseal "$f" 2>"$ST/blesens.err"); rc=$?
+	why=$(cat "$ST/blesens.err" 2>/dev/null); rm -f "$ST/blesens.err"
 	if [ "$rc" = 0 ]; then
 		head=$(printf '%s\n' "$body" | head -n 1)
 		recs=$(printf '%s\n' "$body" | sed '1d')
@@ -745,7 +746,7 @@ live_powerd() {
 	return 1
 }
 
-# Power log rows a powerd that is gone left in /run/power/log.pending
+# Power log rows a powerd that is gone left in /run/chef/power/log.pending
 # (normally none: powerd's exit flush on TERM appends and fsyncs them).
 # Only when the powerd seen at entry ($@: its pid:start tokens) is
 # confirmed gone and no other is alive, never while one may still write.
@@ -771,7 +772,7 @@ do_shutdown() {
 	cd / || return 1
 	ours || return 0
 	read -r t0 _ < "$PROC/uptime"
-	keeper=$(cat "$RUN/chef-state-timekeeper.pid" 2>/dev/null)
+	keeper=$(cat "$ST/timekeeper.pid" 2>/dev/null)
 	case "$keeper" in ''|*[!0-9]*) keeper=;; esac
 	[ -z "$keeper" ] || tr '\000' ' ' 2>/dev/null < "$PROC/$keeper/cmdline" | grep -q 'chef-state timekeeper' || keeper=
 	# The whole timekeeper: its locked save runs in a subshell with chronyc
@@ -815,6 +816,9 @@ do_shutdown() {
 	read -r t1 _ < "$PROC/uptime"
 	log "shutdown: time_save_rc=$time_rc (1=skipped/failed) power_flush_rc=$power_rc mag_save_rc=$mag_rc sync_rc=$sync_rc stop_rc=$stop_rc (uptime $t0 -> $t1)"
 }
+
+# Every command but ours may write in $ST.
+[ "${1:-}" = ours ] || mkdir -p "$ST" 2>/dev/null
 
 case "${1:-}" in
 ours) ours;;

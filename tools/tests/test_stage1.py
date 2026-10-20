@@ -318,9 +318,11 @@ class Stage2(unittest.TestCase):
         self.assertLess(init.index('mount --move /run/.var /var'), init.index('dbus-uuidgen --ensure'))
         self.assertIn('mount -t tmpfs -o mode=700 tmpfs /root', init)
         inittab = (ROOT / 'rootfs-overlay/etc/inittab').read_text()
-        self.assertIn('udhcpd -f /run/udhcpd.conf', inittab)
+        self.assertIn('udhcpd -f /run/chef/udhcpd.conf', inittab)
+        # The helper writes to $USB_GADGET_RUN: /run/chef here, /run in stage 1.
+        self.assertLess(init.index('USB_GADGET_RUN=/run/chef'), init.index('. /usr/lib/chef/usb-gadget.sh'))
         gadget = (ROOT / 'rootfs-overlay/usr/lib/chef/usb-gadget.sh').read_text()
-        self.assertIn('/etc/udhcpd.conf > /run/udhcpd.conf', gadget)
+        self.assertIn('/etc/udhcpd.conf > "${USB_GADGET_RUN:-/run}/udhcpd.conf"', gadget)
         self.assertNotIn('sed -i', gadget)
 
 

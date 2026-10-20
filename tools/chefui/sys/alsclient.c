@@ -1,5 +1,5 @@
 /*
- * alsclient.c - the ambient light claim on sensord (/run/sensord.sock) for
+ * alsclient.c - the ambient light claim on sensord (/run/chef/sensord.sock) for
  * Auto brightness and theme Auto, feeding the pure logic in als.c.
  *
  * Wanted state: set by the app (sys_als_want): the screen is on and either
@@ -40,13 +40,13 @@
 
 #include "als.h"
 #include "chefui.h"
+#include "common/chef_paths.h"
 #include "common/json.h"
 #include "common/lineclient.h"
 #include "lcwatch.h"
 #include "sys.h"
 #include "sysstate.h"
 
-#define SENSORD_SOCK "/run/sensord.sock"
 #define SENSORD_PROTO 2	/* the protocol this client speaks */
 #define ALS_RATE_STR "5"	/* Hz */
 #define BACKOFF_MIN_MS 1000
@@ -340,7 +340,7 @@ int sys_als_start(const char *sock, const struct als_params *p)
 	void *cb_user = A.cb_user;
 
 	struct lineclient_config lcfg = {
-		.path = sock ? sock : SENSORD_SOCK, .backoff_min_ms = BACKOFF_MIN_MS,
+		.path = sock ? sock : CHEF_SENSORD_SOCK, .backoff_min_ms = BACKOFF_MIN_MS,
 		.backoff_max_ms = BACKOFF_MAX_MS, .on_connected = sensord_connected,
 		.on_line = sensord_line, .on_lost = conn_lost,
 	};

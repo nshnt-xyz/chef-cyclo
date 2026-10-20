@@ -38,9 +38,9 @@ with tempfile.TemporaryDirectory() as t:
     assert result.returncode and (p/'calls').exists()
 # Mode reservation precedes init concurrency; manual refuses the marker.
 init=(R/'rootfs-overlay/init').read_text()
-assert init.index('touch /run/wifi-nm-mode') < init.index('exec /sbin/init')
+assert init.index('touch /run/chef/wifi-nm-mode') < init.index('exec /sbin/init')
 manual=(R/'rootfs-overlay/usr/bin/wifi-up').read_text()
-assert 'if [ -e /etc/NetworkManager/conf.d/90-chef.conf ] || [ -e /run/wifi-nm-mode ] || pidof NetworkManager' in manual
+assert 'if [ -e /etc/NetworkManager/conf.d/90-chef.conf ] || [ -e /run/chef/wifi-nm-mode ] || pidof NetworkManager' in manual
 nm=(R/'rootfs-overlay/usr/bin/wifi-nm').read_text()
 assert nm.index('wifi-usb-guard ||') < nm.index('wifi-prepare ||') < nm.index('exec /usr/sbin/NetworkManager')
 print('test_wifi_nm: owner identity, dispatcher overlap/error, boot ownership PASS')
@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory() as t:
     (b/'udevd').write_text('#!/bin/sh\n[ "${UDEV_FAIL:-}" != daemon ]\n')
     (b/'udevadm').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALLS"\n[ "${UDEV_FAIL:-}" != "$1" ]\n')
     for f in b.iterdir():f.chmod(0o755)
-    code='log() { :; }; '+coldplug.replace('/sbin/udevd',str(b/'udevd')).replace('/run/udev',str(p/'udev'))
+    code='log() { :; }; '+coldplug.replace('/sbin/udevd',str(b/'udevd')).replace('/run/chef/udev-ready',str(p/'udev-ready')).replace('/run/udev',str(p/'udev'))
     # No input coldplug or background udev work: nothing consumes input metadata.
     assert 'subsystem-match=input' not in init and ') &' not in coldplug
     for failure in ('','daemon','trigger','settle'):
@@ -121,7 +121,7 @@ with tempfile.TemporaryDirectory() as t:
         (b/command).chmod(0o755)
     (b/'stat').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$STATS"\necho "$MODE"\n')
     (b/'stat').chmod(0o755)
-    code='log() { :; }; '+setup.replace('/run/dbus-helper-ready',str(p/'ready'))
+    code='log() { :; }; '+setup.replace('/run/chef/dbus-helper-ready',str(p/'ready'))
     for mode,failure,ready,calls in [('0:101 4750','',True,False),('0:101 4750','chown',True,False),
                                      ('0:0 755','',True,True),('0:0 755','chown',False,True),('0:0 755','chmod',False,True)]:
         (p/'ready').unlink(missing_ok=True);(p/'calls').unlink(missing_ok=True)

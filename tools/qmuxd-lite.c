@@ -11,7 +11,7 @@
  * file. This file is deliberately just the poll() loop wiring that logic to
  * real sockets.
  *
- * Usage: qmuxd-lite [-v] [-s /run/qmux_socket]
+ * Usage: qmuxd-lite [-v] [-s /run/chef/qmux_socket]
  */
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -25,10 +25,10 @@
 #include <sys/un.h>
 #include <sys/stat.h>
 
+#include "common/chef_paths.h"
 #include "msmipc.h"
 #include "qmux.h"
 
-#define QMUXD_DEFAULT_SOCKET "/run/qmux_socket"
 #define QMUXD_MAX_CLIENTS    32
 #define QMUXD_MAX_CIDS       256
 
@@ -437,7 +437,7 @@ static void shutdown_all(void)
 
 int main(int argc, char **argv)
 {
-	const char *path = QMUXD_DEFAULT_SOCKET;
+	const char *path = CHEF_QMUX_SOCK;
 	int listen_fd;
 	int i, opt;
 
@@ -450,7 +450,7 @@ int main(int argc, char **argv)
 			path = optarg;
 			break;
 		default:
-			fprintf(stderr, "usage: %s [-v] [-s /run/qmux_socket]\n", argv[0]);
+			fprintf(stderr, "usage: %s [-v] [-s /run/chef/qmux_socket]\n", argv[0]);
 			return 2;
 		}
 	}

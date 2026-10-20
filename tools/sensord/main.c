@@ -84,7 +84,7 @@
  * CLOCK_MONOTONIC. -T cntvct reads the QTimer directly instead; -T rx
  * pins the newest sample of each indication to its receive time.
  *
- * Socket API: /run/sensord.sock, plain-text requests, one JSON object per
+ * Socket API: /run/chef/sensord.sock, plain-text requests, one JSON object per
  * line back; the protocol is in server.c's header. A sensor is powered
  * (report added on the DSP) only while at least one connection claims
  * it; a claim lives on its connection.
@@ -92,9 +92,9 @@
  * Usage: sensord [-r REG] [-m MAP] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ]
  *                [-s CH=ID:DT]... [-c CH=full|factory|raw]... [-i BASE]
  *                [-M MOUNT] [-D DEG] [-Q] [-V] [-P] [-t] [-R] [-F] [-v]
- *   -r  registry copy to serve (default /run/sensors/sns.reg)
+ *   -r  registry copy to serve (default /run/chef/sensors/sns.reg)
  *   -m  registry map (default /usr/share/sensord/sns_reg.map)
- *   -S  socket path (default /run/sensord.sock)
+ *   -S  socket path (default /run/chef/sensord.sock)
  *   -T  timestamp source (default dsps, falls back to rx if /dev/sensors
  *       cannot be opened)
  *   -b  cap the SMGR report rate (indications/s) below the sample rate,
@@ -149,6 +149,7 @@
 #include <unistd.h>
 
 #include "common/chef_log.h"
+#include "common/chef_paths.h"
 #include "common/linesrv.h"
 #include "sensord.h"
 
@@ -233,7 +234,7 @@ static int parse_u32(const char *arg, uint32_t *out)
 int main(int argc, char **argv)
 {
 	static struct server s;
-	const char *sock_path = SENSORD_SOCK_PATH, *reg_path = SENSORD_REG_PATH;
+	const char *sock_path = CHEF_SENSORD_SOCK, *reg_path = CHEF_SENSORS_REG;
 	const char *map_path = SENSORD_MAP_PATH, *ts = "dsps";
 	long count = 0;
 	int opt, i, line = 0, rc;

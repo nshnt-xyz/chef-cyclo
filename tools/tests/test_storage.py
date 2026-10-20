@@ -59,6 +59,8 @@ esac
         for name in ['stat','blockdev','e2label','debugfs','e2fsck','mount','umount','mke2fs','sync','mkdir','chmod','chown','find','fuser','setsid','sleep','mountpoint']:
             f=self.bin/name;f.write_text(stub);f.chmod(0o755)
         self.runpath=self.p/'run';self.runpath.mkdir();self.data=self.p/'data';self.data.mkdir()
+        # mkdir is a stub here: log/ and lock/ exist as /init makes them on the phone.
+        (self.runpath/'log').mkdir();(self.runpath/'lock').mkdir()
         # Mock the block-file predicate; never relax production safeguards.
         wrapper='''kill() { echo "kill $*" >> "$TRACE"; }
 [() { if command [ "$#" = 3 ] && command [ "$1" = -b ]; then command [ -f "$2" ]; else command [ "$@"; fi; }
@@ -229,7 +231,7 @@ esac
         # Mirror PID1 with stderr closed, rather than writable /dev/null.
         r=subprocess.run(['bash','-c','exec 2>&-; exec "$@" boot','sh',*self.shell,str(self.script)],env=self.env,stdout=subprocess.DEVNULL)
         self.assertEqual(r.returncode,0)
-        self.assertIn('layout v1 mounted',(self.runpath/'storage.log').read_text())
+        self.assertIn('layout v1 mounted',(self.runpath/'log/storage.log').read_text())
     def test_format_features(self):
         r,t=self.call('format','--yes-erase-userdata',LABEL='android');self.assertEqual(r.returncode,0,r.stderr)
         self.assertIn('-F -L chefdata',t);self.assertNotIn('-F -F',t);self.assertIn('-O none,has_journal',t);self.assertIn('nodiscard,lazy_itable_init=0,lazy_journal_init=0',t)

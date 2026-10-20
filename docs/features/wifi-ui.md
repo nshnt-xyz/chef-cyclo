@@ -26,7 +26,7 @@ modem after failure. `wifi-nm` starts NM with `--state-file`, which is
 the tmpfs `/var/lib/NetworkManager/NetworkManager.state`). NM keeps `WirelessEnabled`
 (the Wi-Fi switch), `NetworkingEnabled` and `WWANEnabled` there, so all three persist
 across reboots; with no file yet NM starts enabled. The modem stays resident even when Wi-Fi is idle; power consumption remains to be measured.
-`/run/gps-up.log` holds shared support logs. Do not start another gps-up.
+`/run/chef/log/gps-up.log` ([runtime files](runtime-files.md)) holds shared support logs. Do not start another gps-up.
 
 Only wlan0 and Bluetooth devices (NM type `bt`, for PAN) are managed. USB,
 loopback and WWAN devices are explicitly unmanaged; USB's existing udhcpd is a server for the attached host. Before WLAN

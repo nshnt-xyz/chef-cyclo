@@ -124,7 +124,7 @@ static void test_claims_on_connect(void)
 	/* defaults: only power.short */
 	cu_buttons_init(&b, NULL, NULL, NULL);
 	CHECK(b.nclaims == 1 && strcmp(b.claims[0], "power.short") == 0);
-	CHECK(strcmp(b.sock_path, "/run/buttond.sock") == 0);
+	CHECK(strcmp(b.sock_path, "/run/chef/buttond.sock") == 0);
 }
 
 static void test_partial_lines(void)

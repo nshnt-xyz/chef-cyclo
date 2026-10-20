@@ -10,7 +10,7 @@ The clean standard-NetworkManager baseline verifies one shared resident modem ow
 
 ## Components and lifecycle
 
-`rootfs-overlay/usr/bin/gps-up` starts the modem dependencies, exposes `/run/qmux_socket`, and owns cleanup. Its helpers are:
+`rootfs-overlay/usr/bin/gps-up` starts the modem dependencies, exposes `/run/chef/qmux_socket` ([runtime files](runtime-files.md)), and owns cleanup. Its helpers are:
 
 - `tools/msmipc.{c,h}`, `tools/qrtr/`: AF_MSM_IPC adaptation and QMI support.
 - `tools/irsc.c`: opens the IPC-router security gate before clients send.
@@ -19,13 +19,13 @@ The clean standard-NetworkManager baseline verifies one shared resident modem ow
 - `tools/tftp/`: bounded TFTP/RFS service with read-only firmware and a RAM-backed writable namespace seeded from the stock persist backup at build time.
 - `tools/qmux.{c,h}`, `tools/qmuxd-lite.c`: the bridge used by stock Alpine `qmicli`.
 - `tools/nmea-broker.c`: follower stdout to checksum-verified NMEA UDP datagrams for gpsd.
-- `tools/gps-manager/` (`main.c`, with the state machine in `core.c`, the lease server in `server.c`, the owner check and state file in `owner.c` and the command-line client in `cli.c`): leases on `/run/gps-manager.sock` run the LOC session, gpsd and the follower/broker pipeline on demand ([below](#use-gnss-gps-manager)).
+- `tools/gps-manager/` (`main.c`, with the state machine in `core.c`, the lease server in `server.c`, the owner check and state file in `owner.c` and the command-line client in `cli.c`): leases on `/run/chef/gps-manager.sock` run the LOC session, gpsd and the follower/broker pipeline on demand ([below](#use-gnss-gps-manager)).
 
 The modem needs both service-registry and TFTP/RFS support to survive startup. `gps-up` does not automatically restart a crashed modem. Do not run competing owners or reopen the modem repeatedly after failure; retain evidence and reboot.
 
 ## Use GNSS: gps-manager
 
-`gps-manager` (`tools/gps-manager/`, inittab `::respawn:`) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `gps-up` and never changes the modem's operating mode. Idle, it only listens on `/run/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
+`gps-manager` (`tools/gps-manager/`, inittab `::respawn:`) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `gps-up` and never changes the modem's operating mode. Idle, it only listens on `/run/chef/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
 
 ```sh
 gps-manager hold map          # lease, then print the watch lines until killed (kinds: map, ride)
@@ -47,11 +47,11 @@ The manager is the only user of its CID. The bridge hands a CID's indications to
 
 Idle cost, measured 2026-10-04 (one unattended run, panel off, USB out, Wi-Fi radio off, BT as booted, 180 s blocks with the first 45 s skipped, four leased and three usable `OFF` blocks; a fourth `OFF` block was spoiled by a power-key press that turned the panel on between 1394 s and 1452 s): leased and `RUNNING` with a fix at a window (LOC engine plus gpsd, qmicli, broker and manager CPU) 125.9 mA (124.9 to 127.2 per block) against 95.4 mA `OFF` (94.3 to 97.1), +30.8 mA on block means (standard error 0.4) and +31.2 mA on medians. Indoor or cold acquisition, or Wi-Fi in use, may differ. So release leases when GNSS is not needed; the 30 s grace keeps short page changes cheap.
 
-Restart safety: one instance holds an flock on `/run/gps-manager/lock`; a second exits. `/run/gps-manager/state` records the CID with the owner that served it and every child's pid and start time as soon as they exist. If the manager is killed, init respawns it; the new instance stops the recorded follower, broker and gpsd whose start time and name still match, then stops and releases the old CID once that same owner is ready (a replaced owner means the CID died with its bridge). Clients of the dead instance lost their leases with the connection and must lease again. The follower, the broker and the qmicli steps also get `PR_SET_PDEATHSIG` and die with the manager; gpsd loses it when it drops privileges, so the respawned instance is what stops it. Logs: `gps-manager:` lines through the shared `chef_log` (kmsg; transitions only) and `/run/gps-manager/{steps,gpsd,follow,broker}.log`, each rotated to `.1` at a bring-up. RAM only.
+Restart safety: one instance holds an flock on `/run/chef/gps-manager/lock`; a second exits. `/run/chef/gps-manager/state` records the CID with the owner that served it and every child's pid and start time as soon as they exist. If the manager is killed, init respawns it; the new instance stops the recorded follower, broker and gpsd whose start time and name still match, then stops and releases the old CID once that same owner is ready (a replaced owner means the CID died with its bridge). Clients of the dead instance lost their leases with the connection and must lease again. The follower, the broker and the qmicli steps also get `PR_SET_PDEATHSIG` and die with the manager; gpsd loses it when it drops privileges, so the respawned instance is what stops it. Logs: `gps-manager:` lines through the shared `chef_log` (kmsg; transitions only) and `/run/chef/gps-manager/{steps,gpsd,follow,broker}.log`, each rotated to `.1` at a bring-up. RAM only.
 
 ## Socket contract
 
-`/run/gps-manager.sock` speaks the shared [local socket protocol](local-sockets.md): requests are words on one line, every line from the manager is a JSON object with a `type`. This is proto 1 (2026-10-18; before it the manager spoke plain `ok`/`err`/`state`/`acq`/`enabled` lines).
+`/run/chef/gps-manager.sock` speaks the shared [local socket protocol](local-sockets.md): requests are words on one line, every line from the manager is a JSON object with a `type`. This is proto 1 (2026-10-18; before it the manager spoke plain `ok`/`err`/`state`/`acq`/`enabled` lines).
 
 | Request | Reply |
 |---|---|
@@ -95,7 +95,7 @@ The command-line client never prints the hello. `status`, `retry`, `enable` and 
 
 ## Start and inspect manually
 
-For debugging only, with the manager `OFF` (no leases). Use a fresh baseline boot and the phone's telnet shell. New builds already start gps-up once. If readiness does not appear, inspect `/run/gps-up.log` rather than launching another copy. Proceed only once the service-version query succeeds. Substitute the allocated CID below; it is not guaranteed to be 1.
+For debugging only, with the manager `OFF` (no leases). Use a fresh baseline boot and the phone's telnet shell. New builds already start gps-up once. If readiness does not appear, inspect `/run/chef/log/gps-up.log` rather than launching another copy. Proceed only once the service-version query succeeds. Substitute the allocated CID below; it is not guaranteed to be 1.
 
 ```sh
 . /usr/lib/chef/modem-owner.sh
@@ -103,14 +103,14 @@ n=0; until modem_owner_pid >/dev/null; do
     n=$((n+1)); [ "$n" -lt 240 ] || break; sleep 1
 done
 modem_owner_pid >/dev/null || exit 1
-qmicli -d /run/qmux_socket --get-service-version-info > /dev/null   # bridge ready (retry if it times out)
-qmicli -d /run/qmux_socket --loc-noop --client-no-release-cid         # note the CID
+qmicli -d /run/chef/qmux_socket --get-service-version-info > /dev/null   # bridge ready (retry if it times out)
+qmicli -d /run/chef/qmux_socket --loc-noop --client-no-release-cid         # note the CID
 CID=1   # replace 1 with the CID returned above
-qmicli -d /run/qmux_socket --client-cid=$CID --client-no-release-cid --loc-set-nmea-types='gga|rmc|gsv|gsa|vtg'
-qmicli -d /run/qmux_socket --client-cid=$CID --client-no-release-cid --loc-start --loc-session-id=1
+qmicli -d /run/chef/qmux_socket --client-cid=$CID --client-no-release-cid --loc-set-nmea-types='gga|rmc|gsv|gsa|vtg'
+qmicli -d /run/chef/qmux_socket --client-cid=$CID --client-no-release-cid --loc-start --loc-session-id=1
 gpsd -N -n -b -D2 udp://127.0.0.1:20175 > /run/gpsd.log 2>&1 &
 mkdir -p /run/gps
-qmicli -d /run/qmux_socket --client-cid=$CID --client-no-release-cid --loc-follow-nmea 2> /run/gps/follow.err \
+qmicli -d /run/chef/qmux_socket --client-cid=$CID --client-no-release-cid --loc-follow-nmea 2> /run/gps/follow.err \
   | nmea-broker -n -t -l /run/gps/nmea.log > /run/gps/follow.raw 2> /run/gps/broker.log &
 (printf '?WATCH={"enable":true,"json":true}\n'; sleep 15) | nc 127.0.0.1 2947 | tee /run/gps/gpsd-watch.json
 ```
@@ -134,9 +134,9 @@ There is no SIM and no RIL, and nothing in the image changes the modem's operati
 So the baseline sets no mode at boot. Read or change it by hand through the shared bridge:
 
 ```sh
-qmicli -d /run/qmux_socket --dms-get-operating-mode
-qmicli -d /run/qmux_socket --nas-get-serving-system     # registration state
-qmicli -d /run/qmux_socket --dms-set-operating-mode=low-power
+qmicli -d /run/chef/qmux_socket --dms-get-operating-mode
+qmicli -d /run/chef/qmux_socket --nas-get-serving-system     # registration state
+qmicli -d /run/chef/qmux_socket --dms-set-operating-mode=low-power
 ```
 
 Treat setting a mode as one-way: once anything sets `online` (or `low-power`) we know no way back to `shutting-down` short of a reboot (every fresh boot came back in it); behavior after a modem subsystem restart is untested. Use `low-power` to turn cellular RF off again. Never use `persistent-low-power` (written to NV) or `offline` (leaving it needs a modem reset). A readback straight after a set can still show the old mode; it settles within 3 s, so sleep briefly before reading back.
@@ -157,7 +157,7 @@ chrony (client-only, no UDP server or command listener) owns the wall clock, and
 - **When samples flow.** After more than 3 fixes, gpsd ships one sample a second. It latches `CLOCK_REALTIME` on the first timed sentence of each burst: the modem delivers 4 GSV, GGA, VTG, RMC and GSA within about 1 ms, so that is the GGA after the GSVs. The 1970 boot clock does not stop the samples. On the NTP-disciplined clock the bursts arrived about 6 ms after the second. Against NTP the latched time was 13 ms late, with 0.15 to 0.7 ms standard deviation, hence `offset 0.013` and `precision 1e-3`. That NTP ran over Wi-Fi to pool servers that disagreed with each other by up to 55 ms. A cross-check against the USB host gave 13.8 ms, but the host is itself only within about ±80 ms of UTC. So the offset is calibrated to tens of ms of absolute accuracy, not better. With no PPS, treat GPS as a coarse source for the boot step and offline holdover, not a precision reference.
 - **Selection.** `delay 1.0` gives GPS a root distance of about 0.5 s. The pool servers seen over Wi-Fi measured ±20 to 140 ms, so NTP was selected and GPS was neither combined nor marked a falseticker (`#-` in `chronyc sources`, `D` in `selectdata`). A server between about ±170 ms (combinelimit 3) and ±0.5 s would get GPS combined, which is harmless for a calibrated GPS; only a server worse than GPS's own 0.5 s would lose to it. With `delay 0.5` a ±130 ms server got GPS combined (`#+`); with `0.2` GPS was selected over NTP.
 - **Steps.** `makestep 1.0 -1`: chrony steps any correction over 1 s whenever it occurs, not only during its first updates. The RTC does not hold the wall time, so without a saved offset the clock boots at 1970. GPS can arrive long after chronyd starts, or after a source that was off by seconds. Smaller corrections, such as NTP replacing GPS (tens of ms), are slewed.
-- **Clock at boot.** Since 2026-10-06 `/init` sets the clock from the wall-minus-RTC offset saved on `/data` while chrony was synchronised ([storage: persistent state](storage.md#persistent-state)); `/run/chef-time` says whether it did (`source=rtc-offset`) and how old the offset is. That time is unverified until chrony syncs, and chrony corrects it from GPS or NTP the same way (a step over 1 s, a slew below). Live, the first NTP update after a restore found the clock 6 ms off. The broker's own fallback below never acts on a restored clock, because it only sets a clock before 2000; on this image it runs with `-n` anyway.
+- **Clock at boot.** Since 2026-10-06 `/init` sets the clock from the wall-minus-RTC offset saved on `/data` while chrony was synchronised ([storage: persistent state](storage.md#persistent-state)); `/run/chef/state/time` says whether it did (`source=rtc-offset`) and how old the offset is. That time is unverified until chrony syncs, and chrony corrects it from GPS or NTP the same way (a step over 1 s, a slew below). Live, the first NTP update after a restore found the clock 6 ms off. The broker's own fallback below never acts on a restored clock, because it only sets a clock before 2000; on this image it runs with `-n` anyway.
 - **Drift.** chrony's frequency estimate is in `/var/lib/chrony/drift`, which is `/data/v1/chrony` when `/data` is ours, so it carries over a reboot; `chef-state shutdown` stops chronyd before `/data` goes read-only so the file is written on exit.
 
 Offline acceptance on 2026-10-04 (image `boot-gpstime2`, fresh boot at a window, no Wi-Fi profile, clock at 1970; see the [build log](../build-log.md)):

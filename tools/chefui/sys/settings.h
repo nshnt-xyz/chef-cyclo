@@ -7,10 +7,10 @@
  * debounced (UI_SETTINGS_DEBOUNCE_MS after the last change) and flushed at
  * exit; a write makes the ui directory (0700, its parent fsynced), writes
  * a 0600 temp file in it, fsyncs, renames and fsyncs the directory, under
- * a lock on /run. /data/v1 itself is never created (chef-storage owns the
- * layout). A file that fails any check is ignored with a kmsg line and the
- * defaults are used; it is replaced at the next save. No descriptor on
- * /data is kept open between writes.
+ * a lock in /run/chef/lock. /data/v1 itself is never created (chef-storage
+ * owns the layout). A file that fails any check is ignored with a kmsg
+ * line and the defaults are used; it is replaced at the next save. No
+ * descriptor on /data is kept open between writes.
  */
 #ifndef CHEF_SETTINGS_H
 #define CHEF_SETTINGS_H
@@ -29,7 +29,7 @@
 #define UI_SETTINGS_EXIT_WAIT_MS 2000	/* exit flush */
 #define UI_SETTINGS_PROBE_MS 30000	/* looking for a late /data */
 struct ui_store_paths {
-	const char *data, *run;			/* NULL: /data, /run */
+	const char *data, *run;			/* NULL: /data, /run/chef */
 	bool (*mountpoint)(const char *path);	/* NULL: st_dev against the parent */
 	int load_wait_ms, exit_wait_ms, probe_ms;
 };

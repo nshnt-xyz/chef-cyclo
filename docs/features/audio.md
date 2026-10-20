@@ -61,8 +61,10 @@ Without `-M` every play on this card XRUN-loops: live, `state: XRUN`, `hw_ptr 10
 
 ## Run it from the telnet shell
 
+The log path below follows the [runtime files](runtime-files.md) layout.
+
 ```sh
-audio-up > /run/audio-up.log 2>&1 &
+audio-up > /run/chef/log/audio-up.log 2>&1 &
 while ! grep -q sdm660 /proc/asound/cards; do sleep 1; done
 speaker-test-tone -s                   # status: card, MultiMedia1 device, the three control values
 speaker-test-tone                      # 1000 Hz, 1 s, -20 dBFS, vol 10, mmap, protection untouched

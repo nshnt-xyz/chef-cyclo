@@ -65,7 +65,7 @@ HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
 # core), compiled into each configuration's libchefui as
 # build/<config>/common/*.o.
 COMMON_SRCS := json.c lineclient.c
-HDRS += ../common/json.h ../common/lineclient.h
+HDRS += ../common/json.h ../common/lineclient.h ../common/chef_paths.h
 common_objs = $(patsubst %.c,$(B)/$(1)/common/%.o,$(COMMON_SRCS))
 
 # System UI kit + state sources (libchefkit) and the chef-settings app.
@@ -201,14 +201,14 @@ NOLVGL_CFLAGS := $(CHEF_WARN) -g -O1 $(SAN) -I.. -Isys -Itests
 GPSCLIENT_SRCS := sys/gpsclient.c sys/gpsview.c ../common/lineclient.c ../common/json.c
 
 $(T)/test-gpsclient: tests/test_gpsclient.c $(GPSCLIENT_SRCS) sys/gpsclient.h sys/gpsview.h \
-		../common/lineclient.h ../common/json.h tests/check.h
+		../common/lineclient.h ../common/json.h ../common/chef_paths.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_gpsclient.c $(GPSCLIENT_SRCS) -lm
 
 BLESCLIENT_SRCS := sys/blesclient.c ../common/lineclient.c ../common/json.c
 
 $(T)/test-blesclient: tests/test_blesclient.c $(BLESCLIENT_SRCS) sys/blesclient.h \
-		../common/lineclient.h ../common/json.h tests/check.h
+		../common/lineclient.h ../common/json.h ../common/chef_paths.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_blesclient.c $(BLESCLIENT_SRCS) -lm
 
@@ -237,7 +237,7 @@ $(T)/test-touch: tests/test_touch.c touch.c copy.c touch.h copy.h ../evdev.h tes
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_touch.c touch.c copy.c -Wl,--wrap=ioctl
 
-$(T)/test-buttons: tests/test_buttons.c buttons.c buttons.h ../common/json.c ../common/json.h tests/check.h
+$(T)/test-buttons: tests/test_buttons.c buttons.c buttons.h ../common/json.c ../common/json.h ../common/chef_paths.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_buttons.c buttons.c ../common/json.c
 

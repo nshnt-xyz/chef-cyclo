@@ -3,7 +3,7 @@
  * list and status lines, requests, delivery of samples to their claimants
  * and the get timeouts. The daemon as a whole is described in main.c.
  *
- * Socket API, /run/sensord.sock: requests are words, one line each; every
+ * Socket API, /run/chef/sensord.sock: requests are words, one line each; every
  * line sensord sends is one JSON object with a "type" member (the shared
  * envelope of docs/features/local-sockets.md, served by
  * tools/common/linesrv.c), proto 2, written down in

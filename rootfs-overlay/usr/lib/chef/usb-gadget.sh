@@ -4,8 +4,10 @@
 # Needs configfs mounted at /sys/kernel/config and a log function.
 #
 # usb_gadget_up: one NCM ethernet function (phone = 172.16.42.1, DHCP for the
-# host). Sets IFACE and writes /run/usb-interface and /run/udhcpd.conf (the
-# /etc/udhcpd.conf template with the actual interface; the root is read-only).
+# host). Sets IFACE and writes usb-interface and udhcpd.conf (the
+# /etc/udhcpd.conf template with the actual interface; the root is read-only)
+# into $USB_GADGET_RUN: /run/chef from the stage-2 /init, the default /run
+# in stage 1.
 # Returns 0 when the interface is up with its address.
 usb_gadget_up() {
     SERIAL=chef
@@ -51,8 +53,8 @@ usb_gadget_up() {
     fi
 
     IFACE=${IFACE:-usb0}
-    printf '%s\n' "$IFACE" > /run/usb-interface
-    sed "s/^interface .*/interface $IFACE/" /etc/udhcpd.conf > /run/udhcpd.conf
+    printf '%s\n' "$IFACE" > "${USB_GADGET_RUN:-/run}/usb-interface"
+    sed "s/^interface .*/interface $IFACE/" /etc/udhcpd.conf > "${USB_GADGET_RUN:-/run}/udhcpd.conf"
     if ip link set "$IFACE" up 2>/dev/null; then
         ip addr add 172.16.42.1/24 dev "$IFACE"
         touch /tmp/udhcpd.leases

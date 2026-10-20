@@ -165,7 +165,7 @@ static void reset(struct gm *m)
 }
 
 static const char ALLOC_OUT[] =
-	"[/run/qmux_socket] Client ID not released:\n\tService: 'loc'\n\t    CID: '3'\n";
+	"[/run/chef/qmux_socket] Client ID not released:\n\tService: 'loc'\n\t    CID: '3'\n";
 
 /* lease at t, bring it all the way to ACQUIRING with CID 3; returns time */
 static int64_t bring_up(struct gm *m, int64_t t)

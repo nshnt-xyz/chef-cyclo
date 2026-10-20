@@ -17,8 +17,6 @@
 #include "sns_msgs.h"
 #include "sns_reg.h"
 
-#define SENSORD_SOCK_PATH	"/run/sensord.sock"
-#define SENSORD_REG_PATH	"/run/sensors/sns.reg"
 #define SENSORD_MAP_PATH	"/usr/share/sensord/sns_reg.map"
 #define SENSORD_DSPS_DEV	"/dev/sensors"
 #define SENSORD_PROTO		2	/* the socket protocol's version (hello) */

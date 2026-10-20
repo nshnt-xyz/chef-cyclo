@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "buttons.h"
+#include "common/chef_paths.h"
 #include "common/json.h"
 
 #define CU_BTN_PROTO 1
@@ -48,7 +49,7 @@ void cu_buttons_init(struct cu_buttons *b, const char *sock_path, const char *co
 	memset(b, 0, sizeof(*b));
 	b->fd = -1;
 	b->log = log ? log : nolog;
-	snprintf(b->sock_path, sizeof(b->sock_path), "%s", sock_path ? sock_path : CU_BTN_SOCK_PATH);
+	snprintf(b->sock_path, sizeof(b->sock_path), "%s", sock_path ? sock_path : CHEF_BUTTOND_SOCK);
 	add_claim(b, "power.short");
 	for (; extra && *extra; extra++)
 		add_claim(b, *extra);

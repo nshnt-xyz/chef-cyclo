@@ -69,7 +69,7 @@ ink). A theme switch restyles every widget in place.
 its lines read with the shared JSON reader, `test-alsclient`) drive Auto
 brightness and theme Auto.
 
-**Claim rules.** The UI claims `illuminance` at 5 Hz on `/run/sensord.sock`
+**Claim rules.** The UI claims `illuminance` at 5 Hz on `/run/chef/sensord.sock` ([runtime files](runtime-files.md))
 (`--sensord-sock PATH`) only while the screen is on and Auto brightness or
 theme Auto is set; screen off or both settings off closes the connection (a
 claim lives on its connection, no `release` is sent) and cancels any retry. A
@@ -150,7 +150,7 @@ or the change caused by choosing Auto. Brightness changes are not logged. Tunabl
 ## Guided prompts (testing)
 
 A live test that needs the user shows its steps on the phone: a script writes
-`/run/chef-settings/prompt` and `chef-settings` shows a card over the bottom of the
+`/run/chef/chef-settings/prompt` and `chef-settings` shows a card over the bottom of the
 screen (3 px accent frame, theme-aware, never clickable, no activity, never wakes
 the screen) until the file is removed. One `key value` per line, unknown keys
 ignored:
@@ -164,16 +164,16 @@ until 123456789            CLOCK_MONOTONIC ms when the step ends (optional)
 With `until` the card counts down whole seconds (`12 s`); a single 1 s timer exists
 only while such a card is shown, so a screen without a prompt costs nothing. The
 file is noticed by inotify on the directory (no polling); a writer makes a temp file
-in `/run/chef-settings` and renames it over `prompt`. Same trust rules as the args
+in `/run/chef/chef-settings` and renames it over `prompt`. Same trust rules as the args
 file: a regular file owned by root, not group or other writable, not a symlink, at
 most 1 KiB, otherwise ignored with one kmsg line. Text is ASCII, other bytes show as
 `?`. Example writer:
 
 ```sh
 now=$(awk '{printf "%d", $1 * 1000}' /proc/uptime)
-printf 'title STEP 3/9\ntext COVER the sensor\nuntil %d\n' $((now + 12000)) > /run/chef-settings/prompt.tmp
-chmod 600 /run/chef-settings/prompt.tmp && mv /run/chef-settings/prompt.tmp /run/chef-settings/prompt
-rm -f /run/chef-settings/prompt      # hide it
+printf 'title STEP 3/9\ntext COVER the sensor\nuntil %d\n' $((now + 12000)) > /run/chef/chef-settings/prompt.tmp
+chmod 600 /run/chef/chef-settings/prompt.tmp && mv /run/chef/chef-settings/prompt.tmp /run/chef/chef-settings/prompt
+rm -f /run/chef/chef-settings/prompt      # hide it
 ```
 
 Host runs pass `--prompt-uid UID` to trust a prompt file of their own user (the
@@ -226,7 +226,7 @@ chevron, derived from the current local offset) and the 24-hour switch with
 its example (`14:16 instead of 2:16 pm`). The last-sync line is
 `Last synced 14:02 via GPS.` (a date is added when it is not today).
 
-*Where the time came from.* `/run/chef-time` is boot provenance only. The
+*Where the time came from.* `/run/chef/state/time` is boot provenance only. The
 page therefore asks chrony while it is visible: on entry or wake, then every
 30 s, `chronyc -c -n -h /run/chrony/chronyd.sock tracking` (fixed argv,
 `LC_ALL=C`, posix_spawn, no shell), parsed strictly (14 CSV columns, leap
@@ -235,7 +235,7 @@ Reference `GPS` with refid `47505300` reads `Set by GPS`, a numeric NTP
 address `Set by network`; anything else is unverified. Failure or leaving the
 page clears the verified state at once (no stale claim). The last-sync time
 is chrony's reference time (when it last processed a measurement), not when
-the page opened. Unverified text comes from `/run/chef-time`: `Restored at
+the page opened. Unverified text comes from `/run/chef/state/time`: `Restored at
 boot, not yet verified`, `Restored boot-time floor, not yet verified`, `Time
 not yet verified`, else `Time source unavailable`. The query supervision
 timer runs while the query is unsettled (2 s deadline, 4 KiB cap, own process
@@ -474,7 +474,7 @@ reconnect re-sends the page's hold and scan wants. See the
 ## Settings
 
 `/data/v1/ui/settings` when `/data` is ours ([storage](storage.md#persistent-state)),
-else `/run/ui/settings` with one kmsg line (lost at reboot):
+else `/run/chef/ui/settings` with one kmsg line (lost at reboot):
 
 ```
 chef-ui-settings 3
@@ -508,7 +508,7 @@ file ignored with a kmsg line (defaults, replaced at the next save), never
 fatal. Writes are debounced 2 s after the last change and flushed at exit:
 the `ui` directory (0700; `/data/v1` itself is never created here) has its
 parent fsynced on every save, then a 0600 temp file is written, fsynced,
-renamed and the directory fsynced, under `/run/ui-settings.lock`. A failed
+renamed and the directory fsynced, under `/run/chef/lock/ui-settings.lock`. A failed
 save is logged once per kind of error and retried at the next change or at
 exit; the change stays in memory.
 
@@ -555,9 +555,9 @@ second reader such as the ride recorder links it alone. The contract:
   read-only).
 - Which file: `/data/v1/ui/settings` when `/data` is ours (a mount point
   whose `chef-layout` is exactly `chef-cyclo-data-v1`, trailing newlines
-  allowed: the `chef-state ours` rule), else `/run/ui/settings`. The writer
+  allowed: the `chef-state ours` rule), else `/run/chef/ui/settings`. The writer
   moves from `/run` to `/data` when `/data` becomes ours later (above). A
-  reader watching `/run/ui` gets no event for that move, whether the writer
+  reader watching `/run/chef/ui` gets no event for that move, whether the writer
   then writes this boot's changes to `/data` or adopts a valid `/data` file
   without writing, so a reader re-applies the rule on every reload and,
   while on `/run`, also re-applies it when the
@@ -606,9 +606,9 @@ cycle (`/run` is fresh at every boot).
 To keep the UI off the panel, for example to run another screen client:
 
 ```sh
-mkdir -p /run/chef-settings; touch /run/chef-settings/stop
+mkdir -p /run/chef/chef-settings; touch /run/chef/chef-settings/stop
 kill $(pidof chef-settings)                                    # the panel goes dark and stays dark
-rm /run/chef-settings/stop                                     # the UI comes back within 1 s
+rm /run/chef/chef-settings/stop                                     # the UI comes back within 1 s
 ```
 
 ## State sources
@@ -621,7 +621,7 @@ All on the chefui loop, nonblocking, none polling while idle:
 - **Clock**: a `CLOCK_REALTIME` timerfd armed for the next minute with
   `TFD_TIMER_CANCEL_ON_SET`, so a clock step (chrony's first step after the
   1970 boot clock, the chef-state restore) redraws at once.
-- **GPS**: a `watch` connection to `/run/gps-manager.sock` (its JSON
+- **GPS**: a `watch` connection to `/run/chef/gps-manager.sock` (its JSON
   lines, the [socket contract](gps.md#socket-contract), read with the
   shared reader), reconnected with backoff 1 s doubling to 8 s. It carries
   no lease, except one `map` lease while a GPS page is seen (sent after
@@ -647,7 +647,7 @@ All on the chefui loop, nonblocking, none polling while idle:
   1 s doubling to 10 s.
 - **BLE sensors** (`sys/blesclient.c`, no LVGL, with `sys/blesens.c` its
   chefui wrapper through `sys/lcwatch.c`): a nonblocking watch connection
-  to `/run/blesensd.sock` (a `tools/common/lineclient`), retrying from 1 to
+  to `/run/chef/blesensd.sock` (a `tools/common/lineclient`), retrying from 1 to
   8 seconds when absent; structured JSON updates, read with the shared
   reader, for records, values, advertisements and our pairing.
 - **Storage**: the ownership check and `statvfs` on hub entry, run on the
@@ -681,9 +681,9 @@ the open entry page's keyboard, for captures; a real passphrase never comes
 from arguments), `--page gps|gps-sats|bt|bt-sensor|sound|time|storage|about` (sensor detail uses the first listed kind), `--prompt-uid UID`, `--theme dark|light|auto`, `--auto-brightness on|off`, `--brightness PCT`, `--clock 12|24` and `--sleep
 30|60|300|0` (this run only, not saved), `--snapshot PATH [--snapshot-after MS]` (write the frame as PPM and
 exit), `--data DIR --run DIR` (settings roots). On the phone a root-owned
-`/run/chef-settings/args` (options, one per line) is read once at start and
+`/run/chef/chef-settings/args` (options, one per line) is read once at start and
 deleted, and `kill -USR1 $(pidof chef-settings)` writes the current frame to
-`/run/chef-settings/snapshot.ppm` (see `chefui_snapshot()` in the
+`/run/chef/chef-settings/snapshot.ppm` (see `chefui_snapshot()` in the
 [platform guide](ui-platform.md#snapshots)).
 
 Tests (`make -C tools/chefui test`): `test-settings` (file format, ownership

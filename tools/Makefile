@@ -94,7 +94,7 @@ $(D)/irsc: irsc.c msmipc.c msmipc.h qrtr/libqrtr.h $(D)/include/linux/msm_ipc.h
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -I$(D)/include -Iqrtr -I. -o $@ irsc.c msmipc.c
 
 $(D)/qmuxd-lite: qmuxd-lite.c qmux.c qmux.h msmipc.c msmipc.h qrtr/qmi.c qrtr/logging.c qrtr/libqrtr.h \
-		$(D)/include/linux/msm_ipc.h
+		common/chef_paths.h $(D)/include/linux/msm_ipc.h
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -I$(D)/include -Iqrtr -I. -o $@ qmuxd-lite.c qmux.c msmipc.c \
 		qrtr/qmi.c qrtr/logging.c -lpthread
@@ -147,7 +147,7 @@ $(H)/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h
 # the common/ sources buttond is built with.
 BUTTOND_COMMON := common/chef_log.c common/linesrv.c common/json.c
 $(H)/tests/test-fblog: tests/test_fblog.c buttond/buttond.c fblog/fblog.c fblog/font9x15.h fbdev.h evdev.h \
-		$(BUTTOND_COMMON) $(BUTTOND_COMMON:.c=.h)
+		$(BUTTOND_COMMON) $(BUTTOND_COMMON:.c=.h) common/chef_paths.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -I. -o $@ $< $(BUTTOND_COMMON) $(LDFLAGS) -Wl,--wrap=ioctl
 
@@ -174,21 +174,21 @@ $(D)/nmea-broker: nmea-broker.c
 # Battery daemon (powerd.c, docs/features/battery-and-charging.md):
 # BatteryService low-battery warn/critical and over-temperature clean
 # shutdown, batt_health-style power_supply CSV log (/data/v1/power or
-# /run/power) and state file under /run/power, and the thermal-engine
+# /run/chef/power) and state file under /run/chef/power, and the thermal-engine
 # SS-BATT-BATT 44/42 C charge throttle on battery/system_temp_level.
 # Started from both inittabs (respawn). Plain libc + <linux/netlink.h>.
 # The test includes the .c with POWERD_NO_MAIN against a fake sysfs tree
 # with injected hooks; tests/test_powerd.sh runs the host binary end to end
 # with -x so nothing powers off.
-$(H)/powerd: powerd.c
+$(H)/powerd: powerd.c common/chef_paths.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-$(H)/tests/test-powerd: tests/test_powerd.c powerd.c
+$(H)/tests/test-powerd: tests/test_powerd.c powerd.c common/chef_paths.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-$(D)/powerd: powerd.c
+$(D)/powerd: powerd.c common/chef_paths.h
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ powerd.c
 
@@ -251,11 +251,11 @@ $(D)/wlan-fw: wlan-fw.c qmux.c qmux.h msmipc.c msmipc.h qrtr/libqrtr.h $(D)/incl
 # boot; inittab runs `abslot mark-successful` 30 s into each boot, the job
 # Android's boot_control HAL did. Plain libc. tests/test_abslot.py runs the
 # host binary against synthetic GPT disk images and a fake sysfs.
-$(H)/abslot: abslot.c
+$(H)/abslot: abslot.c common/chef_paths.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-$(D)/abslot: abslot.c
+$(D)/abslot: abslot.c common/chef_paths.h
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ abslot.c
 

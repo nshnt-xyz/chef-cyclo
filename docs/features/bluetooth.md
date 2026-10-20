@@ -112,7 +112,7 @@ See the [2026-09-15 build-log entries](../build-log.md) for firmware details, me
 `blesensd` is the resident owner of Heart Rate (0x180D/0x2A37), Cycling
 Power (0x1818/0x2A63) and Cycling Speed and Cadence (0x1816/0x2A5B).
 Inittab respawns it. Settings and future ride clients share its Unix socket,
-`/run/blesensd.sock`; they never own separate notification sessions.
+`/run/chef/blesensd.sock`; they never own separate notification sessions.
 One device has one saved record and connection, even with several services;
 the [Bluetooth pages](system-ui.md#bluetooth-pages) show one row per kind.
 
@@ -172,7 +172,7 @@ blesensd forget AA:BB:CC:DD:EE:FF     # waits for confirmed removal
 
 ### Socket contract
 
-`/run/blesensd.sock` speaks the shared [local socket protocol](local-sockets.md):
+`/run/chef/blesensd.sock` ([runtime files](runtime-files.md)) speaks the shared [local socket protocol](local-sockets.md):
 requests are words on one line, every line from the daemon is a JSON object
 with a `type`. This is proto 1 (2026-10-20; before it the lines had the
 `type` envelope but no hello, and every refusal was `unknown request`). The
@@ -264,7 +264,7 @@ Records use `chef-state blesens-load` and `blesens-save` under
 `/data/v1/blesens/sensors` (directory 0700, file 0600, sealed version
 `chef-blesens 1`, at most eight records). Each line is
 `sensor ADDR hr,power,csc DATE|- -|forget NAME`. Without owned storage,
-`/run/chef-state-blesens` is the fallback. Forget first durably marks its
+`/run/chef/state/blesens` is the fallback. Forget first durably marks its
 record `forget`, then removes the BlueZ device and only after confirmation
 saves the record deletion before reporting `forgotten`. Both saves must
 succeed; failed saves retry, leaving the pending removal visible to watchers.

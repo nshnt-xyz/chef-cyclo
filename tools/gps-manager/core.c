@@ -72,7 +72,7 @@ void gm_init(struct gm *m, const struct gm_ops *ops)
 	memset(m, 0, sizeof(*m));
 	m->ops = *ops;
 	m->qmicli = "qmicli";
-	m->qmux_sock = GM_QMUX_SOCK;
+	m->qmux_sock = CHEF_QMUX_SOCK;
 	m->grace_ms = GM_GRACE_MS;
 	m->cid = -1;
 	m->stale_cid = -1;

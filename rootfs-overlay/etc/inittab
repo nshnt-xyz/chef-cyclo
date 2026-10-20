@@ -1,8 +1,8 @@
 # busybox init. /init has already done the mounts and USB gadget setup.
 # The shell gets root's home and session bus (below) the way a desktop login would.
 ::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'
-::respawn:/usr/sbin/udhcpd -f /run/udhcpd.conf
-::respawn:/bin/sh -c 'if [ ! -e /run/dbus-helper-ready ]; then sleep 10; exit 1; fi; exec /usr/bin/dbus-daemon --system --nofork --nopidfile'
+::respawn:/usr/sbin/udhcpd -f /run/chef/udhcpd.conf
+::respawn:/bin/sh -c 'if [ ! -e /run/chef/dbus-helper-ready ]; then sleep 10; exit 1; fi; exec /usr/bin/dbus-daemon --system --nofork --nopidfile'
 # A PAN link (bnep*) must not reach the root telnet on the USB subnet (Linux
 # answers for 172.16.42.1 on any interface), the same rule wifi-usb-guard sets
 # for wlan0. bluetoothd does not start without it.
@@ -11,14 +11,14 @@
 # obexd (bluez-obexd, D-Bus activated) and PipeWire run by hand, without
 # dbus-run-session. Volatile.
 ::respawn:/bin/sh -c 'mkdir -p /run/user/0 && chmod 700 /run/user/0 || exit 1; export HOME=/root XDG_RUNTIME_DIR=/run/user/0; exec /usr/bin/dbus-daemon --session --nofork --nopidfile --address=unix:path=/run/user/0/bus'
-::once:/bin/sh -c 'exec /usr/bin/gps-up > /run/gps-up.log 2>&1'
+::once:/bin/sh -c 'exec /usr/bin/gps-up > /run/chef/log/gps-up.log 2>&1'
 ::respawn:/usr/bin/wifi-nm
 # SSH on port 22 of every interface (USB, Wi-Fi, PAN), key login only:
 # dropbear under chef-sshd, authorized keys baked into the image, host key on
-# /data/v1/ssh (ephemeral in /run/ssh when /data is not ours). The telnetd
+# /data/v1/ssh (ephemeral in /run/chef/ssh when /data is not ours). The telnetd
 # above stays as it is: the passwordless USB-only recovery shell.
 ::respawn:/usr/bin/chef-sshd
-# GNSS on demand: idle until a client leases it on /run/gps-manager.sock
+# GNSS on demand: idle until a client leases it on /run/chef/gps-manager.sock
 # (`gps-manager hold map`), then runs the LOC session, gpsd and the NMEA
 # pipeline on top of the gps-up modem; never starts or stops gps-up.
 ::respawn:/usr/bin/gps-manager
@@ -32,33 +32,34 @@
 ::respawn:/usr/bin/bt-up
 # BLE sensors (heart rate, power, speed/cadence): pairs them, reconnects them
 # during a client hold or a bounded 300 s window; notifications stay on
-# /run/blesensd.sock
+# /run/chef/blesensd.sock
 # (`blesensd status|list|watch`); records via chef-state on /data/v1/blesens.
 ::respawn:/usr/bin/blesensd
 # Side buttons: grabs the power/volume evdev nodes and publishes gestures on
-# /run/buttond.sock; with nothing claiming them a short power press toggles
+# /run/chef/buttond.sock; with nothing claiming them a short power press toggles
 # the screen-off flag /run/fblog.off (historical name), and power held 3 s (buzz
 # at 1.5 s, long buzz at 3 s) then released runs `poweroff` -- the orderly
 # way down through this init (::shutdown, SIGTERM to all, RB_POWER_OFF).
 # The PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look.
 ::respawn:/usr/bin/buttond
 # Battery: low-battery warn (15 %) / critical (5 %) and a clean poweroff when
-# empty and unpowered or at 68 C, state in /run/power (`powerd status`), the
-# power_supply log in /data/v1/power (4 MiB + one rotation) when /data is
-# ours, else in /run/power (1 MiB), and the 44/42 C charge throttle on
-# system_temp_level.
+# empty and unpowered or at 68 C, state in /run/chef/power (`powerd
+# status`), the power_supply log in /data/v1/power (4 MiB + one rotation)
+# when /data is ours, else in /run/chef/power (1 MiB), and the 44/42 C
+# charge throttle on system_temp_level.
 ::respawn:/bin/sh -c 'if /usr/bin/chef-state ours; then exec /usr/bin/powerd -l /data/v1/power -L 4194304; else exec /usr/bin/powerd; fi'
 # Sensors: sensors-up boots the ADSP through audio-up (no sensor needs the
 # panel or the speaker), copies the registry out of persist (read-only, see
 # docs/features/sensors.md) and supervises sensord, the SMGR client behind
-# /run/sensord.sock (`sensord list|status`). The UI claims the ambient light
-# sensor only while the screen is on and Auto brightness or theme Auto is set.
-# It exits when sensord does; the 10 s wait keeps a failing start from
-# spinning. Log: /run/sensors-up.log and kmsg; before each start the log is moved
-# to /run/sensors-up.log.1 when it is over 256 KiB. sensord runs without -v and with
-# its stderr on /dev/null (its notes still reach kmsg), so the log holds only
-# sensors-up's own lines: bounded by the rotation, about 512 KiB at most.
-::respawn:/bin/sh -c 'f=/run/sensors-up.log; [ "$(stat -c %s $f 2>/dev/null || echo 0)" -gt 262144 ] && mv -f $f $f.1; SENSORD_ARGS= SENSORD_STDERR=/dev/null /usr/bin/sensors-up >> $f 2>&1; sleep 10'
+# /run/chef/sensord.sock (`sensord list|status`). The UI claims the ambient
+# light sensor only while the screen is on and Auto brightness or theme Auto
+# is set. It exits when sensord does; the 10 s wait keeps a failing start
+# from spinning. Log: /run/chef/log/sensors-up.log and kmsg; before each
+# start the log is moved to /run/chef/log/sensors-up.log.1 when it is over
+# 256 KiB. sensord runs without -v and with its stderr on /dev/null (its
+# notes still reach kmsg), so the log holds only sensors-up's own lines:
+# bounded by the rotation, about 512 KiB at most.
+::respawn:/bin/sh -c 'f=/run/chef/log/sensors-up.log; [ "$(stat -c %s $f 2>/dev/null || echo 0)" -gt 262144 ] && mv -f $f $f.1; SENSORD_ARGS= SENSORD_STDERR=/dev/null /usr/bin/sensors-up >> $f 2>&1; sleep 10'
 # The system UI (chef-settings: status bar, settings hub, Display page). It
 # takes the panel through /run/fb0.lock, claims power.short from
 # buttond (Back on a page, screen off on the hub) and picks up
@@ -66,13 +67,14 @@
 # with /run/fblog.off present stays dark. If it dies with the panel lit, the
 # next start power-cycles the panel once so touch resumes (/run/fb0.lit,
 # docs/features/ui-platform.md); a failed start
-# waits 5 s first. Settings: /data/v1/ui/settings (or /run/ui when /data is
+# waits 5 s first. Settings: /data/v1/ui/settings (or /run/chef/ui when /data is
 # not ours). See docs/features/system-ui.md.
 ::respawn:/usr/bin/chef-settings
 # A/B slot: mark boot_a successful once this boot has lasted 30 s, as
 # Android's boot_control HAL did, so abl stops counting retries down (it
 # would mark the slot unbootable after 7 boots). A build that dies earlier
-# keeps counting and ends in fastboot. Logs to kmsg and /run/abslot.log.
+# keeps counting and ends in fastboot. Logs to kmsg and
+# /run/chef/log/abslot.log.
 ::once:/bin/sh -c 'sleep 30; exec /usr/bin/abslot mark-successful >/dev/null'
 ::ctrlaltdel:/sbin/reboot
 # chef-state first (last RTC offset, chronyd stopped so its drift file is

@@ -28,7 +28,7 @@ Gestures are `<button>.short`, `.double`, `.long` for `power`, `volup`, and `vol
 
 ## Socket contract
 
-`/run/buttond.sock` speaks the shared [local socket protocol](local-sockets.md): requests are words on one line, every line from buttond is a JSON object with a `type`. This is proto 1 (2026-10-18; before it buttond spoke plain `ok`/`err`/`event` lines).
+`/run/chef/buttond.sock` ([runtime files](runtime-files.md)) speaks the shared [local socket protocol](local-sockets.md): requests are words on one line, every line from buttond is a JSON object with a `type`. This is proto 1 (2026-10-18; before it buttond spoke plain `ok`/`err`/`event` lines).
 
 | Request | Reply |
 |---|---|

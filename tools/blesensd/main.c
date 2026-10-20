@@ -7,7 +7,7 @@
  * that client leaves the bus, so one long-lived owner is needed. See
  * docs/features/bluetooth.md ("BLE sensors").
  *
- * Socket protocol on /run/blesensd.sock: the shared local socket protocol
+ * Socket protocol on /run/chef/blesensd.sock: the shared local socket protocol
  * (docs/features/local-sockets.md), proto 1; the requests, replies and
  * events are in server.c's header.
  *
@@ -75,6 +75,7 @@
 #include <unistd.h>
 
 #include "blesensd.h"
+#include "common/chef_paths.h"
 
 static volatile sig_atomic_t g_stop;
 static int g_sigpipe[2] = { -1, -1 };
@@ -206,7 +207,7 @@ int main(int argc, char **argv)
 	struct sigaction sa;
 	int opt, rc;
 
-	D.sock_path = SOCK_PATH;
+	D.sock_path = CHEF_BLESENSD_SOCK;
 	D.state_cmd = "chef-state";
 	D.wheel_mm = 2105;
 	while ((opt = getopt(argc, argv, "+S:s:w:r:Tv")) != -1) {

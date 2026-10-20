@@ -57,8 +57,8 @@ int main(void)
 
 	fd = open(kmsg, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	close(fd);
-	chef_log("ready: %s, long %u ms", "/run/buttond.sock", 1500u);
-	CHECK(slurp(kmsg, buf, sizeof(buf)) && !strcmp(buf, "buttond: ready: /run/buttond.sock, long 1500 ms\n"));
+	chef_log("ready: %s, long %u ms", "/run/chef/buttond.sock", 1500u);
+	CHECK(slurp(kmsg, buf, sizeof(buf)) && !strcmp(buf, "buttond: ready: /run/chef/buttond.sock, long 1500 ms\n"));
 
 	/* the message is cut at 320 bytes; the tag and newline come on top */
 	memset(msg, 'x', 360);

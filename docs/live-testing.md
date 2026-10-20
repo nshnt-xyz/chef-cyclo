@@ -31,7 +31,7 @@ bootloader` (in a telnet session or detached with `setsid`) rather than a bare
 offset, chronyd's drift file, pending power log rows) and `chef-storage
 shutdown` (`/data` read-only and detached), syncs and then calls `btprobe
 restart bootloader`. A failing or hanging step is logged to kmsg and
-`/run/chef-reboot.log` and the reboot still happens; if btprobe itself returns,
+`/run/chef/log/chef-reboot.log` and the reboot still happens; if btprobe itself returns,
 init is resumed. Images built before the helper (2026-10-10) lack it;
 `scripts/phone-boot.sh` falls back to `chef-storage shutdown --pause-init; sync;
 sleep 2; btprobe restart bootloader` there, which loses that state. Stage 1's
@@ -87,6 +87,11 @@ Push a rebuilt static binary instead of rebooting when iterating on a tool;
   `/run/rescue-reason` and `dmesg | grep cyclo-stage1`. Only busybox and
   `btprobe` are there; `scripts/phone-boot.sh` gets from it to fastboot as
   from any of our images.
+- **Our runtime files are under `/run/chef`** (sockets, markers, logs, locks;
+  [runtime files](features/runtime-files.md)) in images built since
+  2026-10-20. Older images, the installed fallbacks among them, keep the
+  same names directly under `/run`. The scratch names above (`/run/push`,
+  `/run/x`, `/run/CMD.out`) work on both.
 - **Evidence under `/run` and `/tmp` is in RAM.** Pull it before rebooting. A phase 2 image persists the reviewed BlueZ and NetworkManager directories under `/data`; see [storage](features/storage.md).
 - **`poweroff` with USB attached comes back.** The cable re-powers the phone in
   about 24 s (`androidboot.mode=charger`), and the installed image boots (the stage-1 layout ran the full OS on such a charger-mode boot on 2026-10-05). Unplug

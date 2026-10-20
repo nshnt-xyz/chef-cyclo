@@ -1,5 +1,5 @@
 # gps-manager: the GNSS demand manager (main.c's header,
-# docs/features/gps.md). Leases on /run/gps-manager.sock drive the LOC
+# docs/features/gps.md). Leases on /run/chef/gps-manager.sock drive the LOC
 # CID/session, gpsd and the follower | nmea-broker pipeline on top of
 # gps-up's shared modem, and stop them after the last release. Never
 # touches gps-up. Started from inittab (respawn). Plain libc. Sources:
@@ -30,7 +30,7 @@ H := build/host
 D := build/device
 SAN := -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all
 COMMON := ../common/chef_log.c ../common/linesrv.c ../common/json.c
-COMMON_H := ../common/chef_log.h ../common/linesrv.h ../common/json.h
+COMMON_H := ../common/chef_log.h ../common/linesrv.h ../common/json.h ../common/chef_paths.h
 LIB_SRC := core.c server.c owner.c $(COMMON)
 SRC := $(LIB_SRC) main.c cli.c
 

@@ -2,9 +2,9 @@
  * timeview.c - where the current time came from, for the Time page. While
  * the page is visible it asks chrony (`chronyc -c -n -h <socket> tracking`,
  * posix_spawn, no shell) on entry and every 30 s, and parses the answer
- * strictly; the boot provenance in /run/chef-time is read on the settings
- * worker. All of it runs on the UI thread (the loop's fd watch and LVGL
- * timers) except the provenance read; nothing blocks.
+ * strictly; the boot provenance in /run/chef/state/time is read on the
+ * settings worker. All of it runs on the UI thread (the loop's fd watch and
+ * LVGL timers) except the provenance read; nothing blocks.
  *
  * A query is settled when stdout reached EOF and the direct child was reaped
  * with exit 0, or on its 2 s deadline (whichever comes first, even for a
@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 
 #include "chefui.h"
+#include "common/chef_paths.h"
 #include "settings.h"
 #include "sys.h"
 #include "sysstate.h"
@@ -544,7 +545,7 @@ enum sys_time_source sys_time_read_boot(const char *path)
 	char b[513];
 	struct stat st;
 	size_t used;
-	int fd = open(path ? path : "/run/chef-time", O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+	int fd = open(path ? path : CHEF_STATE_TIME, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
 	if (fd < 0)
 		return SYS_TIME_UNKNOWN;
 	if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size < 0 || st.st_size > 512) {

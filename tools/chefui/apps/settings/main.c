@@ -25,21 +25,23 @@
  * --sleep        this auto-sleep (seconds, 0 = never) for this run (not saved)
  * --clock        12 or 24 hour time for this run (not saved)
  * --snapshot     write the frame as PPM after MS (default 500) and exit
- * --data/--run   settings roots instead of /data and /run (host runs)
+ * --data/--run   settings roots instead of /data and /run/chef (host runs)
  * --prompt-uid   host captures: trust a prompt file owned by this uid (default root)
- * --sensord-sock the light sensor's socket (default /run/sensord.sock)
+ * --sensord-sock the light sensor's socket (default /run/chef/sensord.sock)
  * --als-light/--als-dark   theme Auto thresholds in lux (defaults 2500 and
  *                800; dark must be below light)
  * --als-light-hold/--als-dark-hold   seconds the light/dark condition must
  *                hold (1..600; defaults 5 and 20)
  *
- * Device captures: the running app writes /run/chef-settings/snapshot.ppm
- * (<--run DIR>/chef-settings/snapshot.ppm) on SIGUSR1. A root-owned /run/chef-settings/args (one option per line)
+ * Device captures: the running app writes
+ * /run/chef/chef-settings/snapshot.ppm (<--run DIR>/chef-settings/snapshot.ppm)
+ * on SIGUSR1. A root-owned /run/chef/chef-settings/args (one option per line)
  * is read once at start and deleted, so the next respawn runs normally:
  * that is how a capture with --fake-state/--page/--theme runs under init.
  *
- * Holding the UI off the panel: `mkdir -p /run/chef-settings;
- * touch /run/chef-settings/stop; kill $(pidof chef-settings)` (the app also creates the directory at start).
+ * Holding the UI off the panel: `mkdir -p /run/chef/chef-settings;
+ * touch /run/chef/chef-settings/stop; kill $(pidof chef-settings)` (the app
+ * also creates the directory at start).
  * Started with that file present, the app waits (polling once a second)
  * without taking the panel; removing the file lets it start.
  */
@@ -61,6 +63,7 @@
 #include "app.h"
 #include "blesens.h"
 #include "chefui.h"
+#include "common/chef_paths.h"
 #include "pages.h"
 #include "prompt.h"
 #include "settings.h"
@@ -68,9 +71,8 @@
 #include "sys.h"
 #include "wifi.h"
 
-#define RUN_DIR "/run/chef-settings"
-#define ARGS_FILE RUN_DIR "/args"
-#define STOP_FILE RUN_DIR "/stop"
+#define ARGS_FILE CHEF_SETTINGS_APP_DIR "/args"
+#define STOP_FILE CHEF_SETTINGS_APP_DIR "/stop"
 #define INIT_FAIL_SLEEP_S 5	/* so init's respawn does not spin */
 
 #define FAKE_MAX 4
@@ -275,7 +277,7 @@ static void early_log(const char *fmt, ...)
 	}
 }
 
-/* One-shot extra options from root's /run/chef-settings/args. */
+/* One-shot extra options from root's /run/chef/chef-settings/args. */
 static void args_file(struct opts *o)
 {
 	static char buf[1024];
@@ -421,9 +423,9 @@ static void sigusr1(int fd, short revents, void *user)
 
 	while (read(fd, &si, sizeof(si)) == sizeof(si))
 		;
-	snprintf(dir, sizeof(dir), "%s/chef-settings", O.run ? O.run : "/run");
+	snprintf(dir, sizeof(dir), "%s/chef-settings", O.run ? O.run : CHEF_RUN_DIR);
 	snprintf(path, sizeof(path), "%s/snapshot.ppm", dir);
-	mkdir(O.run ? O.run : "/run", 0755);	/* exists on the phone */
+	mkdir(O.run ? O.run : CHEF_RUN_DIR, 0755);	/* exists on the phone */
 	mkdir(dir, 0755);
 	r = O.n_fake ? chefui_snapshot(path) : snapshot_guarded(path);
 	chefui_log("snapshot %s: %s", path, r ? strerror(-r) : "written");
@@ -452,7 +454,7 @@ int main(int argc, char **argv)
 
 	if (parse(argc - 1, argv + 1, &O))
 		return usage();
-	mkdir(RUN_DIR, 0755);	/* for stop, args and captures; fails harmlessly off the phone */
+	mkdir(CHEF_SETTINGS_APP_DIR, 0755);	/* for stop, args and captures; fails harmlessly off the phone */
 	args_file(&O);
 	wait_while_stopped();
 
@@ -518,8 +520,8 @@ int main(int argc, char **argv)
 	{	/* the guided-test prompt card: <run>/chef-settings/prompt (prompt.h) */
 		char pdir[300];
 
-		snprintf(pdir, sizeof(pdir), "%s/chef-settings", O.run ? O.run : "/run");
-		mkdir(O.run ? O.run : "/run", 0755);
+		snprintf(pdir, sizeof(pdir), "%s/chef-settings", O.run ? O.run : CHEF_RUN_DIR);
+		mkdir(O.run ? O.run : CHEF_RUN_DIR, 0755);
 		mkdir(pdir, 0755);
 		prompt_set_trusted_uid(O.prompt_uid >= 0 ? (uid_t)O.prompt_uid : 0);
 		if ((r = prompt_start(pdir, now_ms)))

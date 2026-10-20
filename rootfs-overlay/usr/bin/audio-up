@@ -23,7 +23,7 @@
 # the ADSP is up if it started nothing that needs supervising).
 set -u
 
-LOCK=/run/audio-up.lock
+LOCK=/run/chef/lock/audio-up.lock
 SERVREG_PID=
 FIRMWARE_MOUNTED=0
 ADSP_BOOT_ATTEMPTED=0

@@ -42,7 +42,6 @@
 #include "common/lineclient.h"
 #include "gpsview.h"
 
-#define GPSC_MGR_SOCK "/run/gps-manager.sock"
 #define GPSC_GPSD_PORT 2947
 #define GPSC_PROTO 1
 #define GPSC_DETAIL_MAX 112
@@ -60,7 +59,7 @@ enum { GPSC_CH_STATE = 1 << 0, GPSC_CH_VIEW = 1 << 1 };
 struct gpsclient;
 
 struct gpsclient_config {
-	const char *mgr_path;	/* NULL: GPSC_MGR_SOCK */
+	const char *mgr_path;	/* NULL: CHEF_GPS_MANAGER_SOCK */
 	int gpsd_port;		/* 0: GPSC_GPSD_PORT */
 	void (*changed)(struct gpsclient *gc, unsigned what, void *ctx);
 	void (*log)(const char *fmt, ...) __attribute__((format(printf, 1, 2)));	/* NULL: none */

@@ -90,7 +90,7 @@ static uint32_t fake_px(const struct fake *f, int x, int y)
 static void test_kmsg_parse(void)
 {
 	struct kmsg_rec r;
-	const char *rec = "12,345,6789012,-;gps-up: modem up, qmux bridge on /run/qmux_socket\n";
+	const char *rec = "12,345,6789012,-;gps-up: modem up, qmux bridge on /run/chef/qmux_socket\n";
 	const char *kern = "3,12,44113000,c;pil-q6v5-mss 4080000.qcom,mss: modem: ERR_FATAL\n SUBSYSTEM=pil\n DEVICE=+platform:4080000.qcom,mss\n";
 	const char *esc = "12,1,2000,-;tab\\x09here \\xc3\\xa9 end\n";
 	const char *trunc = "12,1,2000,-;no newline at all";
@@ -100,7 +100,7 @@ static void test_kmsg_parse(void)
 	CHECK(r.facility == 1 && r.level == 4);	/* 12 = LOG_USER<<3 | KERN_WARNING */
 	CHECK(r.seq == 345);
 	CHECK(r.ts_us == 6789012);
-	CHECK(strcmp(r.msg, "gps-up: modem up, qmux bridge on /run/qmux_socket") == 0);
+	CHECK(strcmp(r.msg, "gps-up: modem up, qmux bridge on /run/chef/qmux_socket") == 0);
 
 	CHECK(kmsg_parse(kern, strlen(kern), &r) == 0);
 	CHECK(r.facility == 0 && r.level == 3);

@@ -26,6 +26,11 @@ mkdir -p /dev/pts
 mount -t devpts   devpts   /dev/pts
 mount -t tmpfs    tmpfs    /tmp
 mount -t tmpfs    tmpfs    /run
+# Our runtime files live under /run/chef (docs/features/runtime-files.md),
+# made before anything writes under /run. Root's and 0755, never group or
+# world writable: root-only files (the SSH host key in /run/chef/ssh) sit
+# below them.
+mkdir -p -m 0755 /run/chef /run/chef/log /run/chef/lock
 mount -t configfs configfs /sys/kernel/config
 
 # Volatile /var: a tmpfs seeded with the image's /var (NetworkManager, dbus,
@@ -55,7 +60,7 @@ dbus-uuidgen --ensure 2>/dev/null
 HELPER=/usr/libexec/dbus-daemon-launch-helper
 if [ "$(stat -c '%u:%g %a' "$HELPER")" = '0:101 4750' ] ||
    { chown root:messagebus "$HELPER" && chmod 4750 "$HELPER"; }; then
-    touch /run/dbus-helper-ready
+    touch /run/chef/dbus-helper-ready
 else
     log "D-Bus launch-helper setup failed; system bus will remain unavailable"
 fi
@@ -75,7 +80,9 @@ fi
 
 # --- USB gadget: one NCM ethernet function, via configfs ------------------
 # Shared with the stage-1 rescue shell. A failed `.` would end this shell
-# (PID 1), so a missing helper only costs the USB network.
+# (PID 1), so a missing helper only costs the USB network. Its files go to
+# /run/chef here; stage 1 keeps the helper's default, /run.
+USB_GADGET_RUN=/run/chef
 if [ -r /usr/lib/chef/usb-gadget.sh ] && . /usr/lib/chef/usb-gadget.sh; then
     if usb_gadget_up; then
         buzz 150; sleep 0.3; buzz 150
@@ -92,7 +99,7 @@ fi
 mkdir -p /run/udev
 if /sbin/udevd --daemon; then
     if udevadm trigger --action=add --subsystem-match=net && udevadm settle --timeout=20; then
-        touch /run/udev-ready
+        touch /run/chef/udev-ready
     else
         log "network udev initialization failed; NetworkManager will remain unavailable"
     fi
@@ -102,13 +109,13 @@ fi
 
 # Reserve WLAN ownership before any concurrent init consumers exist.
 # No manual supplicant/DHCP may run in this standard-NM image, even on failure.
-touch /run/wifi-nm-mode
+touch /run/chef/wifi-nm-mode
 
 # Hand over to busybox init: /etc/inittab keeps telnetd, udhcpd, dbus,
 # bluetoothd and the Bluetooth attach (bt-up) running.
 /usr/bin/chef-storage boot || log "storage boot failed; continuing RAM-only"
 # Clock from the saved RTC offset, the previous boot's pstore records and a
-# boot history line, on /data (chef-state; RAM-only: /run/chef-time only).
+# boot history line, on /data (chef-state; RAM-only: /run/chef/state/time only).
 # Bounded: nothing in it may hold up the boot.
 /usr/bin/timeout -k 2 25 /usr/bin/chef-state boot || log "state restore failed; continuing"
 log "exec init"

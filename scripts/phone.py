@@ -56,8 +56,8 @@ SSH_ALIAS = "chef-cyclo"
 SSH_ENV = ("export PATH=/sbin:/usr/sbin:/bin:/usr/bin HOME=/root XDG_RUNTIME_DIR=/run/user/0 "
            "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; ")
 HOSTKEY_HELP = f"""phone.py: the phone's SSH host key does not match {SSH_KNOWN}.
-A RAM-only boot (/data not ours) serves an ephemeral key from /run/ssh: check
-`cat /run/ssh/host-key-source` over telnet. If the change is expected, drop
+A RAM-only boot (/data not ours) serves an ephemeral key from /run/chef/ssh: check
+`cat /run/chef/ssh/host-key-source` over telnet. If the change is expected, drop
 the old entry with: ssh-keygen -R {SSH_ALIAS} -f {SSH_KNOWN}"""
 
 

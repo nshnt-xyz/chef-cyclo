@@ -3,7 +3,7 @@
  * docs/features/bluetooth.md "BLE sensors"): the view of saved sensors
  * with their state and live values, devices found while scanning and the
  * pairing in progress, kept from a `watch` connection on
- * /run/blesensd.sock (a ../common/lineclient, reconnected with backoff 1 s
+ * /run/chef/blesensd.sock (a ../common/lineclient, reconnected with backoff 1 s
  * doubling to 8 s, back to 1 s on `ok watch`). blesensd's lines are read
  * with the shared JSON reader; a hello with a proto other than
  * BLESC_PROTO is logged once and the client carries on (the compatibility
@@ -23,7 +23,6 @@
 
 #include "common/lineclient.h"
 
-#define BLESC_SOCK "/run/blesensd.sock"
 #define BLESC_PROTO 1	/* the protocol this client speaks */
 
 #define BLE_SENSORS_MAX 8
@@ -106,7 +105,7 @@ int ble_first_kind(unsigned kinds);
 struct blesclient;
 
 struct blesclient_config {
-	const char *path;	/* NULL: BLESC_SOCK */
+	const char *path;	/* NULL: CHEF_BLESENSD_SOCK */
 	void (*changed)(struct blesclient *bc, void *ctx);	/* the view changed */
 	void *ctx;
 	void (*log)(const char *fmt, ...) __attribute__((format(printf, 1, 2)));	/* NULL: none */

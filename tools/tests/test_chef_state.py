@@ -164,7 +164,12 @@ class ChefState(unittest.TestCase):
         return r
 
     def chef_time(self):
-        return dict(l.split("=", 1) for l in (self.p / "run/chef-time").read_text().split())
+        return dict(l.split("=", 1) for l in (self.p / "run/state/time").read_text().split())
+
+    def state(self, name):
+        """A file in chef-state's run directory, made before the script does."""
+        (self.p / "run/state").mkdir(exist_ok=True)
+        return self.p / "run/state" / name
 
     def edge(self, since, wall_ns):
         (self.p / "edge.out").write_text(f"{since} {wall_ns}\n")
@@ -624,7 +629,7 @@ class ChefState(unittest.TestCase):
             self.assertIn("switch kept on /run", self.kmsg)
             self.assertEqual(self.call("gps-load", **env).stdout, "enabled 0\n")
             self.assertFalse(f.exists())
-            (self.p / "run/chef-state-gps-enabled").unlink()
+            (self.p / "run/state/gps-enabled").unlink()
         self.call("gps-save", "1")
         self.assertIn("flock", self.trace)	# under the gps lock
 
@@ -699,7 +704,7 @@ class ChefState(unittest.TestCase):
             self.assertIn("sensors kept on /run", self.kmsg)
             self.assertEqual(self.call("blesens-load", **env).stdout, self.BS1)
             self.assertFalse(f.exists())
-            (self.p / "run/chef-state-blesens").unlink()
+            (self.p / "run/state/blesens").unlink()
 
     def test_blesens_save_syncs_and_fails_cleanly(self):
         v1 = str(self.data / "v1")
@@ -848,7 +853,7 @@ class ChefState(unittest.TestCase):
 
     def test_shutdown_order(self):
         keeper, chronyd, sensors = self.spawn(), self.spawn(), self.spawn()
-        (self.p / "run/chef-state-timekeeper.pid").write_text(f"{keeper.pid}\n")
+        self.state("timekeeper.pid").write_text(f"{keeper.pid}\n")
         (self.p / f"proc/{keeper.pid}").mkdir()
         (self.p / f"proc/{keeper.pid}/cmdline").write_bytes(b"/bin/sh\0/usr/bin/chef-state\0timekeeper\0")
         (self.p / "sensors/sns.reg").write_bytes(self.reg_with_bias(100, 0, 0))
@@ -888,7 +893,7 @@ class ChefState(unittest.TestCase):
         # Hold the bias-save lock (unbounded wait) beyond the entire outer
         # hook budget; the time-save lock is bounded, see below. Real
         # BusyBox timeout is the same 5s TERM +1s KILL as inittab.
-        with open(self.p / "run/chef-state-mag.lock", "w") as lock:
+        with open(self.state("mag.lock"), "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             with open(self.p / "outer.out", "w") as output:
                 start = time.monotonic()
@@ -920,7 +925,7 @@ class ChefState(unittest.TestCase):
         r = self.call("time-save")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("timeout -k 1 3 rtc-edge", self.trace)
-        with open(self.p / "run/chef-state-time.lock", "w") as lock:
+        with open(self.p / "run/state/time.lock", "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def test_shutdown_skips_time_save_on_busy_lock(self):
@@ -930,7 +935,7 @@ class ChefState(unittest.TestCase):
         chronyd = self.spawn()
         (self.p / "sensors/sns.reg").write_bytes(self.reg_with_bias(100, 0, 0))
         self.edge(1_700_000, 1_791_000_000 * NS)
-        with open(self.p / "run/chef-state-time.lock", "w") as lock:
+        with open(self.state("time.lock"), "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             start = time.monotonic()
             # real /proc: the TERMed, unreaped chronyd reads as a zombie
@@ -1238,12 +1243,12 @@ class ChefState(unittest.TestCase):
 
     def test_shutdown_foreign_pidfile_not_killed(self):
         other = self.spawn()
-        (self.p / "run/chef-state-timekeeper.pid").write_text(f"{other.pid}\n")
+        self.state("timekeeper.pid").write_text(f"{other.pid}\n")
         (self.p / f"proc/{other.pid}").mkdir()
         (self.p / f"proc/{other.pid}/cmdline").write_bytes(b"sleep\0" + b"30\0")
         self.call("shutdown")
         self.assertIsNone(other.poll())
-        (self.p / "run/chef-state-timekeeper.pid").write_text("12x\n")
+        self.state("timekeeper.pid").write_text("12x\n")
         self.assertEqual(self.call("shutdown").returncode, 0)
 
     def test_shutdown_after_detach_is_quiet(self):

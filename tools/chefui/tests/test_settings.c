@@ -517,6 +517,8 @@ static void setup_dirs(void)
 	snprintf(run, sizeof(run), "%s/run", tmp);
 	mkdir(data, 0755);
 	mkdir(run, 0755);
+	snprintf(p, sizeof(p), "%s/lock", run);	/* /init's on the phone */
+	mkdir(p, 0755);
 	snprintf(p, sizeof(p), "%s/v1", data);
 	mkdir(p, 0755);
 	snprintf(p, sizeof(p), "%s/chef-layout", data);
@@ -950,9 +952,16 @@ static void test_store(void)
 	/* ... and with edits this boot: RAM wins and is written to /data */
 	set_mounted(0);
 	CHECK(ui_store_load(&t) == 0 && !ui_store_on_data());
+	/* a run base without lock/ (a host run): the save makes it */
+	snprintf(want, sizeof(want), "%s/lock/ui-settings.lock", run);
+	unlink(want);
+	snprintf(want, sizeof(want), "%s/lock", run);
+	CHECK(rmdir(want) == 0);
 	t.brightness = 44;
 	ui_store_changed(&t);
 	CHECK(await_saved());		/* saved to /run */
+	snprintf(want, sizeof(want), "%s/lock/ui-settings.lock", run);
+	CHECK(stat(want, &st) == 0 && (st.st_mode & 0777) == 0600);
 	snprintf(want, sizeof(want), "%s/ui/settings", run);
 	CHECK(read_back(want, &s) == 0 && s.brightness == 44);
 	CHECK(stat(want, &st) == 0 && (st.st_mode & 0777) == 0600);

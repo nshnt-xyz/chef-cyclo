@@ -1,8 +1,8 @@
 #!/bin/sh
 # Device-specific readiness only; NetworkManager owns association/DHCP.
 set -eu
-if [ -e /run/wifi-nm-mode ]; then
-    [ -e /run/wifi-usb-guard-ready ] || { echo 'USB protection not ready' >&2; exit 1; }
+if [ -e /run/chef/wifi-nm-mode ]; then
+    [ -e /run/chef/wifi-usb-guard-ready ] || { echo 'USB protection not ready' >&2; exit 1; }
 fi
 IFACE=wlan0
 . /usr/lib/chef/modem-owner.sh
@@ -10,8 +10,8 @@ modem_owner_pid >/dev/null || { echo "shared modem owner is not ready" >&2; exit
 if [ ! -d "/sys/class/net/$IFACE" ]; then
     # One initialization attempt per boot. Failure remains diagnosable and
     # cannot trigger repeated board downloads when NM is respawned.
-    mkdir /run/wlan-prepare || { echo 'WLAN preparation already attempted this boot' >&2; exit 1; }
-    [ -S /run/qmux_socket ] || { echo 'start gps-up first; Wi-Fi currently requires its resident modem/support stack' >&2; exit 1; }
+    mkdir /run/chef/wlan-prepare || { echo 'WLAN preparation already attempted this boot' >&2; exit 1; }
+    [ -S /run/chef/qmux_socket ] || { echo 'start gps-up first; Wi-Fi currently requires its resident modem/support stack' >&2; exit 1; }
     # Motorola's matching driver consumes the two device-specific bootarg MACs.
     # Require valid unicast addresses; never print or generate a shared fallback.
     awk '

@@ -144,7 +144,7 @@ class ChefReboot(unittest.TestCase):
         return [l for l in self.trace.read_text().splitlines()]
 
     def log(self):
-        return (self.p / "run/chef-reboot.log").read_text()
+        return (self.p / "run/log/chef-reboot.log").read_text()
 
     def index(self, trace, prefix):
         hits = [i for i, l in enumerate(trace) if l.startswith(prefix)]
@@ -245,7 +245,8 @@ class ChefReboot(unittest.TestCase):
         self.fail(f"{line!r} never ran")
 
     def test_lock_refuses_second_run(self):
-        with open(self.p / "run/chef-reboot.lock", "w") as f:
+        (self.p / "run/lock").mkdir()
+        with open(self.p / "run/lock/chef-reboot.lock", "w") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             rc, err, t = self.call("bootloader")
         self.assertEqual(rc, 1, err)

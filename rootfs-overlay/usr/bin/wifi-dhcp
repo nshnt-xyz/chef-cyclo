@@ -2,7 +2,7 @@
 # udhcpc hook, deliberately restricted to Wi-Fi; never alter USB addressing.
 set -eu
 [ "${interface:-}" = wlan0 ] || exit 1
-trap 'touch /run/wifi/dhcp.failed' EXIT
+trap 'touch /run/chef/wifi/dhcp.failed' EXIT
 case "$1" in
 bound|renew)
     # Refuse any offered subnet overlapping the USB /24, including broad masks.
@@ -32,11 +32,11 @@ bound|renew)
     done
     : > /etc/resolv.conf
     for server in ${dns:-}; do printf 'nameserver %s\n' "$server" >> /etc/resolv.conf; done
-    touch /run/wifi/dhcp.ready
+    touch /run/chef/wifi/dhcp.ready
     ;;
 deconfig)
     ip addr flush dev wlan0
-    rm -f /run/wifi/dhcp.ready
+    rm -f /run/chef/wifi/dhcp.ready
     ;;
 esac
 trap - EXIT

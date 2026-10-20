@@ -349,7 +349,7 @@ wl=$(grep "^::respawn:/bin/sh -c '.*sensors-up" rootfs-overlay/etc/inittab)
 [ -n "$wl" ] || bad "no sensors-up respawn line in inittab"
 wcmd=${wl#::respawn:/bin/sh -c \'}
 wcmd=${wcmd%\'}
-wcmd=$(printf '%s' "$wcmd" | sed "s|/run/sensors-up.log|$T/up.log|; s|/usr/bin/sensors-up|$T/fake-up|; s|sleep 10|sleep 0|")
+wcmd=$(printf '%s' "$wcmd" | sed "s|/run/chef/log/sensors-up.log|$T/up.log|; s|/usr/bin/sensors-up|$T/fake-up|; s|sleep 10|sleep 0|")
 printf '#!/bin/sh\necho "start $$"\n' > "$T/fake-up"
 chmod +x "$T/fake-up"
 rm -f "$T/up.log" "$T/up.log.1"

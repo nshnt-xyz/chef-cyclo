@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "common/chef_paths.h"
 #include "settings_file.h"
 #include "sha256.h"
 
@@ -361,7 +362,7 @@ bool ui_data_ours(const char *data, bool (*mountpoint)(const char *path))
 int ui_settings_file_path(char *buf, size_t size, const char *data, const char *run, bool on_data)
 {
 	int n = on_data ? snprintf(buf, size, "%s/v1/ui/settings", data ? data : "/data")
-			: snprintf(buf, size, "%s/ui/settings", run ? run : "/run");
+			: snprintf(buf, size, "%s/ui/settings", run ? run : CHEF_RUN_DIR);
 
 	return n < 0 || (size_t)n >= size ? -ENAMETOOLONG : 0;
 }

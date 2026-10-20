@@ -12,10 +12,10 @@
 #      ours (chef-state ours): kept if `dropbearkey -y` reads it, else a
 #      broken key is moved aside to .bad and a new one generated (temp
 #      name, sync, rename, sync). Otherwise (RAM-only boot, or the /data
-#      step failed) it is generated in /run/ssh for this boot only, and a
+#      step failed) it is generated in /run/chef/ssh for this boot only, and a
 #      kmsg line says the host key is ephemeral. Private host keys are never
 #      in the image or the repository.
-#   3. dropbear gets a copy in /run/ssh: it re-executes itself for every
+#   3. dropbear gets a copy in /run/chef/ssh: it re-executes itself for every
 #      connection and reads the host key again each time, so it never opens
 #      anything under /data (chef-storage shutdown's fuser finds nothing).
 #   4. dropbear runs in the foreground: -s (no password logins at all, so
@@ -34,7 +34,7 @@
 # A failure sleeps before exiting, so init's respawn cannot spin.
 KEYS=${CHEF_SSHD_KEYS:-/etc/chef/ssh}
 DATA=${CHEF_SSHD_DATA:-/data}
-RUN=${CHEF_SSHD_RUN:-/run/ssh}
+RUN=${CHEF_SSHD_RUN:-/run/chef/ssh}
 KMSG=${CHEF_SSHD_KMSG:-/dev/kmsg}
 UPTIME=${CHEF_SSHD_UPTIME:-/proc/uptime}
 DROPBEAR=${CHEF_SSHD_DROPBEAR:-/usr/sbin/dropbear}

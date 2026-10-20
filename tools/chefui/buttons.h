@@ -1,5 +1,5 @@
 /*
- * buttons.h - buttond client (/run/buttond.sock, protocol in
+ * buttons.h - buttond client (/run/chef/buttond.sock, protocol in
  * tools/buttond/buttond.c's header) and gesture dispatch. No LVGL: covered
  * by tests/test_buttons.c over a real AF_UNIX listener.
  *
@@ -25,7 +25,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define CU_BTN_SOCK_PATH   "/run/buttond.sock"
 #define CU_BTN_MAX_CLAIMS  12
 #define CU_BTN_NAME_MAX    24
 #define CU_BTN_RETRY_MS    1000
@@ -54,7 +53,7 @@ struct cu_buttons {
 	cu_btn_log_fn log;
 };
 
-/* sock_path NULL = CU_BTN_SOCK_PATH; extra: NULL-terminated gesture names
+/* sock_path NULL = CHEF_BUTTOND_SOCK; extra: NULL-terminated gesture names
  * (power.short is added if absent; "power+voldown" is refused). */
 void cu_buttons_init(struct cu_buttons *b, const char *sock_path, const char *const *extra,
 		     cu_btn_log_fn log);

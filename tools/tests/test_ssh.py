@@ -565,7 +565,7 @@ class PhoneSsh(unittest.TestCase):
         r = self.phone("--ssh", "h", "run", "true", MODE="changed")
         self.assertEqual(r.returncode, 1)
         self.assertIn(b"ssh-keygen -R chef-cyclo -f /k/known", r.stderr)
-        self.assertIn(b"/run/ssh/host-key-source", r.stderr)
+        self.assertIn(b"/run/chef/ssh/host-key-source", r.stderr)
 
 
 if __name__ == "__main__":

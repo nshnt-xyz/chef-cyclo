@@ -51,7 +51,7 @@ CTL_FF_MODULE="TAS2560_ALGO_FF_MODULE"
 # stub tinymix/tinyplay/wavtone in tools/tests/test_speaker-test-tone.sh;
 # unset in production, so these default to the real device paths/binaries.
 ASOUND_DIR=${ASOUND_DIR:-/proc/asound}
-RUN_DIR=${RUN_DIR:-/run}
+RUN_DIR=${RUN_DIR:-/run/chef}
 SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
 MOUNTS_FILE=${MOUNTS_FILE:-/proc/mounts}
 PERSIST_MOUNT=${PERSIST_MOUNT:-/factory}

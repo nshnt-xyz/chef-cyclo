@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "chefui.h"
+#include "common/chef_paths.h"
 #include "settings.h"
 #include "storage_usage.h"
 
@@ -209,7 +210,7 @@ static const char *data_root(void)
 
 static const char *run_root(void)
 {
-	return St.p.run ? St.p.run : "/run";
+	return St.p.run ? St.p.run : CHEF_RUN_DIR;
 }
 
 static void set_path(void)
@@ -248,10 +249,11 @@ static int write_all(int fd, const char *p, size_t n)
 
 /* mkdir 0700 (or keep it), make the entry durable in its parent (every
  * time: a previous fsync may have failed), tmp 0600 in the same
- * directory, fsync, rename, fsync the directory; under a lock on run. */
+ * directory, fsync, rename, fsync the directory; under a lock in
+ * <run>/lock. */
 static int do_save(const struct job *j)
 {
-	char buf[512], parent[260], dir[280], path[300], tmp[300], lock[260];
+	char buf[512], parent[260], dir[280], path[300], tmp[300], lockdir[260], lock[280];
 	int n, fd, r, lfd;
 
 	n = ui_settings_format(&j->s, buf, sizeof(buf));
@@ -267,8 +269,15 @@ static int do_save(const struct job *j)
 	snprintf(dir, sizeof(dir), "%s/ui", parent);
 	snprintf(path, sizeof(path), "%s/settings", dir);
 	snprintf(tmp, sizeof(tmp), "%s/settings.tmp", dir);
-	snprintf(lock, sizeof(lock), "%s/ui-settings.lock", j->run);
+	snprintf(lockdir, sizeof(lockdir), "%s/lock", j->run);
+	snprintf(lock, sizeof(lock), "%s/ui-settings.lock", lockdir);
 	lfd = open(lock, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (lfd < 0 && errno == ENOENT) {
+		/* /init makes <run>/lock on the phone; a host run may not have it */
+		if (mkdir(lockdir, 0755) && errno != EEXIST)
+			return -errno;
+		lfd = open(lock, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
+	}
 	if (lfd < 0)
 		return -errno;
 	if (flock(lfd, LOCK_EX | LOCK_NB)) {
@@ -406,7 +415,7 @@ static bool submit(enum job_kind kind)
 	snprintf(j.run, sizeof(j.run), "%s", run_root());
 	j.mountpoint = St.p.mountpoint;
 	j.info_request = St.info_request;
-	snprintf(j.time_boot_path, sizeof(j.time_boot_path), "%s", St.time_boot_path[0] ? St.time_boot_path : "/run/chef-time");
+	snprintf(j.time_boot_path, sizeof(j.time_boot_path), "%s", St.time_boot_path[0] ? St.time_boot_path : CHEF_STATE_TIME);
 	pthread_mutex_lock(&St.mu);
 	St.job = j;
 	St.queued = true;
@@ -811,7 +820,7 @@ void ui_store_time_boot(const char *path)
 {
 	if (!St.started)
 		return;
-	snprintf(St.time_boot_path, sizeof(St.time_boot_path), "%s", path && *path ? path : "/run/chef-time");
+	snprintf(St.time_boot_path, sizeof(St.time_boot_path), "%s", path && *path ? path : CHEF_STATE_TIME);
 	if (St.busy || St.quiesce || save_due() || St.timer)
 		St.time_boot_wanted = true;
 	else

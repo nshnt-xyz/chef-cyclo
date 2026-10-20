@@ -1,12 +1,12 @@
 #!/bin/sh
 # Manual foreground Wi-Fi session. Secrets exist only in private /run files.
 set -eu
-if [ -e /etc/NetworkManager/conf.d/90-chef.conf ] || [ -e /run/wifi-nm-mode ] || pidof NetworkManager >/dev/null 2>&1; then
+if [ -e /etc/NetworkManager/conf.d/90-chef.conf ] || [ -e /run/chef/wifi-nm-mode ] || pidof NetworkManager >/dev/null 2>&1; then
     echo "NetworkManager owns WLAN; use nmcli/nmtui (manual wifi-up refused)" >&2
     exit 1
 fi
 IFACE=wlan0
-RUN=/run/wifi
+RUN=/run/chef/wifi
 case "${1:-}" in
 --status)
     iw dev "$IFACE" link

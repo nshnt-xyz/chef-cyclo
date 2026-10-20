@@ -2,13 +2,13 @@
 # Guided magnetometer calibration capture (docs/research/sensors.md
 # section 7): announces each step on the panel through /dev/kmsg and the
 # vibrator, records sensord JSON lines under
-# /run/sensortest/magcal-<stamp>/, and prints a one-line summary. Analyse
+# /run/chef/sensortest/magcal-<stamp>/, and prints a one-line summary. Analyse
 # on the host with tools/mag-cal-check.py.
 #
 #   sensors-magcal-run            run it (sensors-up must be running)
 #   sensors-magcal-run --list     print the step list and exit
 #
-# Needs sensors-up running (sensord on /run/sensord.sock, SMGR ready). The
+# Needs sensors-up running (sensord on /run/chef/sensord.sock, SMGR ready). The
 # production sensord is not touched: extra sensord instances with -R (no
 # REG2 server, only an SMGR client, each on its own socket under the
 # output directory) supply the other calibration selects and the
@@ -58,14 +58,14 @@
 set -u
 
 SENSORD=${SENSORD:-sensord}
-MAIN_SOCK=${MAIN_SOCK:-/run/sensord.sock}
-OUT_BASE=${OUT_BASE:-/run/sensortest}
+MAIN_SOCK=${MAIN_SOCK:-/run/chef/sensord.sock}
+OUT_BASE=${OUT_BASE:-/run/chef/sensortest}
 KMSG=${KMSG:-/dev/kmsg}
 # timed_output, as init, buttond and powerd use it: each write is a
 # one-shot duration in ms, so there is no state to contend for.
 VIB=${VIB:-/sys/class/timed_output/vibrator/enable}
 NOW_CMD=${NOW_CMD:-}
-SENSORS_UP_LOG=${SENSORS_UP_LOG:-/run/sensors-up.log}
+SENSORS_UP_LOG=${SENSORS_UP_LOG:-/run/chef/log/sensors-up.log}
 MODE=${MODE:-concurrent}
 # Defaults are the timings of the 2026-09-27 live run: long enough gaps
 # to read the panel and move without rushing.
