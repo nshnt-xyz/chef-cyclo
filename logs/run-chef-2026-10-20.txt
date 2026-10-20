@@ -1,0 +1,95 @@
+/run/chef, the screen handover and tzdata (standard interfaces step 5), 2026-10-20
+==================================================================================
+
+Plan: docs/archive/run-chef-handoff.md (step 5: section 4 of
+docs/next-steps/standard-interfaces.md, the /run/chef and tzdata items of
+its section 5).
+Pair: runchef_impl and runchef_review (Claude Opus 5.5, the step 4 panes
+cleared), coordinator runchef_coord.
+Evidence: ~/chef-cyclo-evidence/run-chef-20261020/ (review/ diffs, notes,
+reviews, m3/ size and file lists).
+
+Commits on main (each approved by runchef_review and checked against the
+reviewed snapshot):
+  f745ab6  M1 our runtime files under /run/chef: /init makes /run/chef,
+           log/ and lock/ (0755); sockets, qmux_socket and markers flat,
+           logs in log/, cross-program locks in lock/, per-component
+           directories, chef-state's files in state/ (chef-time ->
+           state/time); run bases default to /run/chef; usb-gadget.sh
+           takes USB_GADGET_RUN (default /run, so stage 1 is unchanged);
+           tools/common/chef_paths.h replaces 15 duplicate path defines;
+           scripts/tests/test_run_layout.py (fails on the pre-M1 tree);
+           docs/features/runtime-files.md linked from ten guides
+  5180d67  M2 screen handover: fb0.lock, fb0.lit and screen-off (was
+           fblog.off) under /run/chef from chef_paths.h; buttond's
+           default power.short only creates or removes the flag (the
+           /proc scan and SIGTERM of fblog removed); hand-run fblog
+           watches the flag while lit (inotify on /run/chef, 250 ms
+           fallback) and stays out of a lock holder's way
+  151c524  M3 tzdata 2026e-r0 (452 KB installed; ramdisk +96,522 bytes,
+           loader margin 22,790,144); /etc/localtime -> Asia/Kolkata and
+           /etc/timezone; chefui sets TZ=":/etc/localtime" when it is
+           TZif, else the settings file's POSIX tz (format unchanged)
+
+Decided during the work (coordinator): chef-reboot.lock and the settings
+store's ui-settings.lock in lock/; speaker-test-tone RUN_DIR default
+/run/chef; chef-time.tmp -> state/time.tmp; temp files beside the file
+they replace, an ownerless lock in lock/; the hand-run debug logs in the
+guides (/run/gpsd.log and similar) stay scratch like /run/push; the
+handoff wrongly put dropbear's -D walk under /run/chef/ssh (it is
+/etc/chef/ssh; the 0755 mode stands). Host tests use glibc, so musl
+reading the zone file was left to the live check.
+
+RAM image (coordinator, SKIP_KERNEL=1 scripts/mkinstall.sh at 151c524,
+kernel #23 Image.gz-dtb 3a907d00..., only the handoff and the plan edit
+uncommitted, so image-info says dirty 1)
+  out/boot-ram-0893646a.img
+  sha256 0893646ad74efbd50e2527e002395263627d18eec6b3d3097971151526247017
+  system_a of the same tree b473edb5 (2129 paths, 136868 KiB)
+
+Live check (coordinator, 2026-10-20 about 23:00 to 23:13 IST
+[17:30 to 17:43Z], user present)
+  phone-boot.sh from the installed pair (272b512); network up 16 s after
+    the fastboot boot.
+  ls -a /run: NetworkManager chef chrony dbus udev user wpa_supplicant,
+    plus udhcpd.pid (busybox udhcpd's default) and xtables.lock
+    (iptables'); runtime-files.md now names both. /run/chef as in the
+    guide: the four sockets and qmux_socket, markers, udhcpd.conf, log/
+    (gps-up, sensors-up, storage, later abslot), lock/ (gps-up.lock
+    directory, sensors-up.lock, storage.lock), chef-settings, gps-manager,
+    power, sensors, ssh, state.
+  date: "Tue Oct 20 23:00:52 IST 2026" (musl reads the slim TZif2 file);
+    chef-settings: "clock: system zone /etc/localtime".
+  ssh (phone.py --ssh) logs in; host key source persistent; /data mounted.
+  buttond, sensord, gps-manager, blesensd and powerd answer status;
+    kmsg has only the usual kernel noise, no path errors.
+  Zone fallback: /dev/null bind-mounted over /etc/localtime, chef-settings
+    restarted: "clock: no usable /etc/localtime; POSIX TZ IST-5:30 from
+    the settings"; it also started "screen off (flag present)". date
+    showed UTC while hidden, IST after the umount.
+  GPS: a map lease brought the GNSS up, fix after 100 s, NMEA flowing,
+    "CID 1, fix". Light: sensord watch illuminance streams samples.
+    Wi-Fi (switched off in the saved settings): radio on, connected to
+    the home network with an address in 25 s, radio off again.
+    blesensd: adapter powered, saved sensor loaded.
+  1. Short power presses with chef-settings running: on, off, on through
+     its power.short claim; the user saw the status bar clock in IST.
+  2. kill -9 of chef-settings with /run/chef/fb0.lit present: respawn
+     "fb0.lit present ... power cycling once so touch resumes", screen
+     on, system zone again; the user tapped Storage and went Back.
+  3. chef-settings held off by its stop file: two presses gave
+     "buttond: screen on: removed /run/chef/screen-off" and "screen off:
+     created ..." with nothing else (no /proc scan, no signal). With the
+     flag present chef-settings started "screen off (flag present)",
+     no fb0.lit, dark; a press lit it.
+  4. Exec handover with chefui-demo: switch to peer and back, each
+     "handoff to /usr/bin/chefui-demo" then "lock inherited (fd 5)";
+     --dark: both directions handed over dark ("screen-off present:
+     starting dark"), a press lit each side.
+  5. fblog built by the guide's command (8c759d17), pushed and run with
+     chef-settings held off: log screen up; the flag set gave
+     "/run/chef/screen-off appeared: screen off, /dev/fb0 closed", its
+     removal "removed: leaving idle" and the screen back. The user saw
+     all three.
+  Cleaned up: fblog killed and removed, stop file removed, chef-settings
+  back in charge with the system zone.
