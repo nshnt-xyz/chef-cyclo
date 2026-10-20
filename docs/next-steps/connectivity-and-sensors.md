@@ -35,6 +35,23 @@ Remaining:
   an absent sensor (the ride app holds it): a design question for the retry backoff (the
   5 to 30 s Connect cycle) once the ride app exists, for example a longer backoff or
   an advertising-driven reconnect after the first minutes.
+- No scan for new sensors while a saved one is being reconnected (found
+  live 2026-10-20 in the step 4 check, [log](../../logs/sensors-blesensd-2026-10-19.txt);
+  the blesensd installed before step 4 does the same). With a saved sensor
+  switched off, the Bluetooth page's hold makes `blesensd` retry
+  `Device1.Connect` (an LE create-connection that waits for the sensor's
+  advertisement), and while that is pending BlueZ answers `StartDiscovery`
+  with `org.bluez.Error.InProgress` or not at all (`NoReply` after 25 s):
+  `scanning` stays false, the page never shows "Scanning", and a new sensor
+  cannot be found or paired until the saved one is back or forgotten.
+  Candidate fixes, to check against BlueZ first: no `Connect` in flight
+  while any client wants a scan (cancel the pending one, scan, and connect
+  a saved sensor when the scan sees its advertisement); or leave the
+  reconnection to BlueZ's own LE auto-connect for these devices if it can
+  be enabled without a profile. Acceptance: with a saved sensor off and
+  the page open, `blesensd status` shows `scanning` true within a few
+  seconds, a second (emulated) sensor is found and paired, and the saved
+  one still reconnects when it comes back, with and without the page open.
 - Re-pair the PC as a classic peer for HID/PAN/A2DP after the LE emulator
   tests, which remove only the test peer's previous classic bond. Needs: the
   PC adapter free (the emulator and the classic tests share it) and the pairing
