@@ -1,0 +1,94 @@
+sensord and blesensd on the shared library (standard interfaces step 4), 2026-10-19 to 2026-10-20
+==============================================================================================
+
+Plan: docs/archive/sensors-blesensd-handoff.md (step 4, section 2 of
+docs/next-steps/standard-interfaces.md for sensord and blesensd).
+Pair: sensors_impl and sensors_review (Claude Opus 5.5), coordinator
+sensors_coord. Both agents hit a session limit after M3 (2026-10-19
+about 22:13 IST); a fresh pair took over for M4 on 2026-10-20 from the
+handoff's "Progress and decisions" section.
+Evidence: ~/chef-cyclo-evidence/sensors-blesensd-20261019/ (review/
+diffs, reviewed snapshots, notes and scripts; end/; live/).
+
+Commits on main (each approved by sensors_review and checked against the
+reviewed snapshot):
+  99b5948  M1 sensord.c split along its sections (sensord.h, channel.c,
+           server.c, heading.c, smgr.c, sam.c, regserv.c, main.c,
+           cli.c); cross-file functions sn_; tests link the modules, the
+           test diff is include/link lines plus a sed rename; device
+           sensord 324008 -> 334232 bytes
+  c534f0e  M2 sensord on linesrv/chef_log, proto 2 with the envelope
+           (hello, list, status, ok/error with cmd, "type":"sample"
+           lossy, async "smgr refused report" without cmd, bad
+           arguments, unknown command, echoed sensor name cut to 32
+           bytes); contract in docs/features/sensors.md; alsclient.c,
+           the sensors-*-run scripts, the Python tools and their
+           fixtures, compass_format; chef_log cut 255 -> 320 bytes;
+           sensors-up points at tools/sensord/; 344360 bytes
+  6f21dd0  M3 blesensd.c split (blesensd.h, state.c, server.c, bus.c,
+           link.c, pair.c, records.c, main.c, cli.c); bd_ prefix;
+           782088 -> 784328 bytes
+  ce182df  M4 blesensd on linesrv/chef_log, proto 1 (hello, unknown
+           command, bad arguments, 16384-byte all must-deliver queue,
+           socket still 0600); CLI on the JSON reader; blesclient and
+           alsclient log an unknown proto once; contract in
+           docs/features/bluetooth.md; 790464 bytes
+
+Coordinator decisions: sensord proto 2 table; blesensd proto 1 (no
+lossy lines: a lost null value or sensor state would stick); chef_log
+echo to stderr always (sensors-magcal-run and test_blesensd.py read it)
+and a 320-byte cut; sn_/bd_ prefixes with the rename's sed script in the
+review notes; state.c accepted; echoed arguments cut to 32 bytes like
+request words; compass-replay.c keeps its strstr parsing (host-only
+capture replayer, not a socket client).
+
+RAM image (sensors_impl, committed tree at ce182df, only the handoff
+untracked, so image-info says dirty 1)
+  out/boot-ram-b0813ef0.img
+  sha256 b0813ef04ba89e596fe8308827c2d6a53d791c993241e6a46a315530d4847cea
+  Staged tree vs installed 31f1aa31: same 1503 paths; differ
+  image-info, sensord, blesensd, chef-settings, sensors-compass-run,
+  sensors-magcal-run, sensors-up, and buttond and gps-manager (sources
+  unchanged since d53650a; only chef_log's 320-byte cut).
+  chefui-demo identical (does not link the changed clients).
+
+Live check (coordinator, 2026-10-20 about 20:52 to 21:00 IST
+[15:22 to 15:30Z], user present)
+  Before: installed 4aa38fe up 23 h 59 min; load average 4.6 with the
+    CPU 98 % idle, from kernel threads in D sleep (mdss_dsi_event,
+    mmc-cmdqd/0, msm-core:sampli, a kworker), not a spin.
+  phone-boot.sh of b0813ef0 from the installed pair (chef-reboot
+    bootloader), network up 18 s after boot.
+  sensord: status one {"type":"status",...} object without proto, smgr
+    ready, calibrated true (registry); list {"type":"list",...} with the
+    7 channels; get illuminance one "type":"sample" line, exit 0; get
+    nosuch {"type":"error","cmd":"get","reason":"unknown sensor",
+    "sensor":"nosuch"}, exit 1; watch accel 50 -n 20: 20 sample lines
+    20 ms apart, no ok line printed; watch heading 5 -n 5: sample lines
+    with heading/pitch/roll, calibrated true, cal_source registry;
+    declination 1.5 -> ok 1.50, bogus -> error "bad declination" exit 1,
+    off -> null.
+  kill -9 of a `sensord watch magn 10`: magn rate 10 claims 1 while it
+    ran, rate 0 claims 0 one second after; kmsg "release magn (client
+    gone)", "delete report 3". (A first try with pkill -f killed the
+    remote shell itself: the pattern matched its own command line.)
+  chef-settings through the one-shot args file (--page bt
+    --auto-brightness on --sleep 0, /run/fblog.off removed first, app
+    restarted): sensord clients 2, illuminance rate 5 claims 1, the
+    stale cached sample dropped and logged (33.8 s older than the
+    claim); blesensd held true; snapshot live/bt-page.png shows the
+    Bluetooth page, CHEF-SENSOR in 3 roles "looking...", no "Scanning".
+  BLE scan finding (pre-existing, not this step): scanning stayed false
+    on the page and with `blesensd scan`; kmsg "discovery:
+    org.bluez.Error.InProgress" every 5 s. The installed blesensd
+    (d95eb8bd, bind-mounted over /usr/bin/blesensd and restarted) does
+    the same ("discovery: org.freedesktop.DBus.Error.NoReply"). The
+    saved sensor is off and in "connecting" (a pending Device1.Connect
+    while the page holds), and BlueZ does not start discovery while that
+    LE connect is pending, so a new sensor cannot be found while a saved
+    one is being reconnected. Step 3's check saw scanning true, probably
+    before the reconnect started. Open; not fixed here.
+  Restored: the new blesensd (32df6e78) running again, chef-settings
+    back to its saved options; buttond and gps-manager answer status in
+    JSON; kmsg: no Call trace, WARNING, segfault or BUG (only the usual
+    boot lines).
