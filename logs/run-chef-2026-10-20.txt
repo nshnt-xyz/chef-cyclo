@@ -93,3 +93,33 @@ Live check (coordinator, 2026-10-20 about 23:00 to 23:13 IST
      all three.
   Cleaned up: fblog killed and removed, stop file removed, chef-settings
   back in charge with the system zone.
+
+Install (coordinator, 2026-10-20 about 23:14 to 23:19 IST, user's okay)
+  Built at a clean aa051eb (the record commit; image-info dirty 0) with
+  SKIP_KERNEL=1 scripts/mkinstall.sh on the existing kernel #23
+  (Image.gz-dtb 3a907d00...). Code identical to the live-checked 151c524
+  tree (only docs and this log changed since).
+    system_a  out/system_a-77dd0a57.img
+              sha256 77dd0a57627f922bd88d05495195d3c8935813f74dd06252b9f58527f30755fe
+              stamp 0f2b239f...
+    boot_a    out/boot-stage1-f5338097.img
+              sha256 f533809700ef68ffa967f948e81c5ea0df17c77a1a94e56a715b845067799b7b
+    RAM image of the same tree: out/boot-ram-e4ba7677.img
+  Backup first: /data/v1 pulled to the evidence dir (install/, mode 600,
+  not in the repository); hashes of the settings, gps/enabled and
+  NetworkManager.state recorded.
+  chef-reboot bootloader from the RAM image; current-slot a; fastboot
+  flash system_a OKAY (write 20.8 s); fastboot boot of the stage-1
+  image: "system_a build stamp matches; switch_root", commit aa051eb
+  dirty 0, / ro norecovery, /data rw; chef-reboot bootloader again;
+  fastboot flash boot_a OKAY; fastboot reboot (network up 11 s later).
+  Installed regression: #23, bootreason reboot, slot _a, image-info
+  aa051eb dirty 0, boot_a marked successful by abslot, the ten residents
+  running, /run as in the live check, date in IST and chef-settings on
+  the system zone, settings, gps/enabled and NetworkManager.state
+  byte-identical to before, buttond and gps-manager answering status.
+  kmsg: no Call trace, WARNING, dma_comp or clk_branch_wait.
+  Ordinary reboot: network back 25 s after the command, bootreason
+  reboot, same image, residents up, boot_a still successful.
+  Fallbacks in out/: 61048eae + 087d3c7c (272b512, first), then
+  31f1aa31 + 1c1450bb, 188b83e6 + c5ed4d0e.
