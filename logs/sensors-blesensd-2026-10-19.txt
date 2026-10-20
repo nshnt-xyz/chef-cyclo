@@ -92,3 +92,40 @@ Live check (coordinator, 2026-10-20 about 20:52 to 21:00 IST
     back to its saved options; buttond and gps-manager answer status in
     JSON; kmsg: no Call trace, WARNING, segfault or BUG (only the usual
     boot lines).
+
+
+Install (2026-10-20, about 20:58 to 21:03 IST [15:28 to 15:33Z]), on the user's request
+  272b512 (the record above) pushed to origin/main first
+  (d53650a..272b512).
+  Built at a clean 272b512 (image-info dirty 0) with SKIP_KERNEL=1
+  scripts/mkinstall.sh on the existing kernel #23 (Image.gz-dtb 3a907d00...).
+    system_a  out/system_a-61048eae.img
+              sha256 61048eaed1e6985b8feea2a49750beedc4cbcaf82b8bdd4595e315bb119c4775
+              stamp a5f3863e...
+    boot_a    out/boot-stage1-087d3c7c.img
+              sha256 087d3c7c96b060a9534859980a25cf09101bb63507c90d049fd8de8b158a4269
+    RAM image of the same tree: out/boot-ram-16a717cb.img
+  Manifest vs the live-checked b0813ef0 tree (system_a-4401377e): only
+  /etc/chef/image-info differs. Vs installed 31f1aa31: same 1503 paths;
+  image-info, blesensd, buttond, chef-settings, gps-manager, sensord and
+  the three sensors-* scripts differ.
+  Backup first: /data/v1 pulled to the evidence dir (mode 600, not in
+  the repository); hashes of the settings, gps/enabled and
+  NetworkManager.state recorded.
+  chef-reboot bootloader from the RAM image; current-slot a; fastboot
+  flash system_a OKAY (write 20.7 s); fastboot boot of the stage-1
+  image: "system_a build stamp matches; switch_root", commit 272b512
+  dirty 0, / ro norecovery, /data rw; chef-reboot bootloader again;
+  fastboot flash boot_a OKAY; fastboot reboot (network up 21 s later).
+  Installed regression: #23, bootreason reboot, slot _a, / = mmcblk0p67
+  ro norecovery, /data rw, image-info 272b512 dirty 0, boot_a marked
+  successful by abslot, all residents running, settings, gps/enabled and
+  NetworkManager.state byte-identical to before, sensord 8bfde6b6 and
+  blesensd 32df6e78 (the live-checked binaries), sensord, blesensd,
+  buttond and gps-manager answering status in JSON. kmsg: no Call trace,
+  WARNING, dma_comp or clk_branch_wait (only the usual console line).
+  Ordinary reboot: fresh boot 14 s after the command (host clock minus
+  uptime), bootreason reboot, same image, residents up, boot_a still
+  successful.
+  Fallbacks in out/: 31f1aa31 + 1c1450bb (4aa38fe, first), then
+  188b83e6 + c5ed4d0e, 8b8cddf0 + 41dca3ff.
