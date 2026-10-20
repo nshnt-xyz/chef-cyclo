@@ -52,7 +52,7 @@ struct ui_settings {
 	int brightness;			/* percent */
 	enum ui_theme_mode theme;
 	int sleep_s;			/* 30, 60, 300; 0 = never */
-	char tz[UI_TZ_MAX + 1];		/* POSIX TZ, no tzdata */
+	char tz[UI_TZ_MAX + 1];		/* POSIX TZ, the fallback without /etc/localtime */
 	int alert_volume;			/* alert preference, 0..100 */
 	bool haptics, alert_sounds, quiet_paused, clock_24h;
 	bool auto_brightness;		/* brightness follows the light sensor */

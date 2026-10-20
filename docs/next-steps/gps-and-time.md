@@ -22,11 +22,12 @@ Left out of slice 2 (the Time page shows the fixed `tz` setting and the source,
 see the [system UI guide](../features/system-ui.md#device-pages-m4)):
 
 - **Manual time setting and a time zone picker.** The design has none; today the
-  zone is the `tz` setting (a POSIX string, default `IST-5:30`, no tzdata) and
-  the clock comes from GPS, chrony or the saved offset. Needs: a small zone table
-  (tzdata is not shipped, a fixed list of POSIX strings per region is enough), a
-  picker page, and a manual set that goes through chrony (`chronyc settime`) or
-  the RTC without fighting the sources. Blocked on whether a bike computer ever
+  zone is the system zone file (tzdata since 2026-10-20, `/etc/localtime` linked
+  to Asia/Kolkata), with the `tz` setting (a POSIX string, default `IST-5:30`) as
+  the fallback when that file is missing, and the clock comes from GPS, chrony
+  or the saved offset. Needs: a zone choice (tzdata is shipped, so a zone name
+  per region), a picker page, and a manual set that goes through chrony
+  (`chronyc settime`) or the RTC without fighting the sources. Blocked on whether a bike computer ever
   needs it: GPS gives UTC and the zone changes rarely, so decide after real use.
 - **GPS power modes** (Precise, Balanced, Saver). The design has a mode row on the
   GPS page and a section on P13. Needs: a measurement of what each mode costs and

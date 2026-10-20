@@ -492,8 +492,14 @@ auto_offset 0
 sha256 <hex of the lines above>
 ```
 
-Defaults as shown. `tz` is a POSIX `TZ` string (no tzdata); POSIX reverses
-the sign, so `IST-5:30` means UTC+05:30. Version 1 files are accepted with
+Defaults as shown. `tz` is a POSIX `TZ` string, the fallback used only when
+the system zone file is missing: since 2026-10-20 the image has tzdata and
+`/etc/localtime` (a link to `/usr/share/zoneinfo/Asia/Kolkata`, with
+`/etc/timezone` naming it), and when that file opens and starts with `TZif`
+the clock uses it (`TZ=":/etc/localtime"`) and logs `clock: system zone
+/etc/localtime` at start; otherwise it uses `tz` and logs that instead. The
+format and version did not change, so an older image reads these files as
+before. POSIX reverses the sign, so `IST-5:30` means UTC+05:30. Version 1 files are accepted with
 the five new preferences filled from defaults. They are not rewritten just
 for migration: the next actual setting change saves canonical version 2.
 **The migration is one-way:** images from before M4 (M1 to M3) parse only

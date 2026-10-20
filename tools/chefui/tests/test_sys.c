@@ -13,6 +13,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <pthread.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -656,6 +657,55 @@ static void test_clock(void)
 	sys_clock_refresh();
 	CHECK(!(changes & SYS_CLOCK));	/* no change, no notification */
 	sys_clock_stop();
+}
+
+/* The system zone file, when it is one, wins over the settings' POSIX
+ * string; a missing or non-TZif file falls back to it. */
+static void test_clock_zone_file(void)
+{
+	static const char *const kolkata[] = {
+		"../../out/rootfs/usr/share/zoneinfo/Asia/Kolkata",	/* the image's */
+		"/usr/share/zoneinfo/Asia/Kolkata",
+	};
+	char abs[PATH_MAX], junk[300];
+	const char *zone = NULL;
+	FILE *f;
+
+	/* absolute: glibc reads a relative ":path" under its zoneinfo dir */
+	for (size_t i = 0; i < sizeof(kolkata) / sizeof(kolkata[0]) && !zone; i++)
+		if (realpath(kolkata[i], abs))
+			zone = abs;
+	if (zone) {
+		sys_clock_zone_file(zone);
+		CHECK(sys_clock_start("UTC0") == 0);	/* the POSIX string is not used */
+		CHECK(!strcmp(getenv("TZ") + 1, zone) && getenv("TZ")[0] == ':');
+		CHECK(!strcmp(sys_state.clock.zone, "IST"));
+		CHECK(sys_state.clock.utc_offset_min == 330);
+		sys_clock_set_tz("");
+		CHECK(!strcmp(sys_state.clock.zone, "IST"));
+		sys_clock_stop();
+	} else {
+		printf("test-sys: no Asia/Kolkata zone file (out/rootfs or the host); zone file case skipped\n");
+	}
+
+	/* not a TZif file: the POSIX fallback */
+	snprintf(junk, sizeof(junk), "%s/localtime", tmp);
+	f = fopen(junk, "w");
+	fputs("IST-5:30\n", f);
+	fclose(f);
+	sys_clock_zone_file(junk);
+	CHECK(sys_clock_start("IST-5:30") == 0);
+	CHECK(!strcmp(getenv("TZ"), "IST-5:30"));
+	CHECK(!strcmp(sys_state.clock.zone, "IST") && sys_state.clock.utc_offset_min == 330);
+	sys_clock_set_tz("");
+	CHECK(!strcmp(sys_state.clock.zone, "UTC") && sys_state.clock.utc_offset_min == 0);
+	sys_clock_stop();
+	unlink(junk);
+
+	/* missing (the rest of this file's POSIX cases) */
+	sys_clock_zone_file("/nonexistent/localtime");
+	sys_clock_set_tz("IST-5:30");
+	CHECK(!strcmp(getenv("TZ"), "IST-5:30"));
 }
 
 static void test_timeview_parsers(void)
@@ -1705,12 +1755,16 @@ int main(void)
 		return 1;
 	fakeloop_init(false);
 	sys_on_change(on_change, NULL);
+	/* POSIX TZ cases unless a test says otherwise: this host's own
+	 * /etc/localtime must not decide them */
+	sys_clock_zone_file("/nonexistent/localtime");
 	test_parsers();
 	test_gps();
 	test_gps_view_parsers();
 	test_gps_page();
 	test_battery();
 	test_clock();
+	test_clock_zone_file();
 	test_timeview_parsers();
 	test_deviceinfo_parsers();
 	test_storage_usage_scan();

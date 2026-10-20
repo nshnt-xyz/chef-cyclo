@@ -23,9 +23,14 @@ void sys_battery_refresh(void);
 void sys_battery_stop(void);
 bool sys_uevent_is_power_supply(const char *msg, size_t len);
 
-/* Clock: local hh:mm under a POSIX TZ, updated at each minute and after
- * a clock step (timerfd with TFD_TIMER_CANCEL_ON_SET). */
+/* Clock: local hh:mm, updated at each minute and after a clock step
+ * (timerfd with TFD_TIMER_CANCEL_ON_SET). The zone: the system zone file
+ * when it is a TZif file, else TZ, the settings' POSIX string (UTC0 if
+ * empty); sys_clock_start() logs which. */
+#define SYS_CLOCK_ZONE_FILE "/etc/localtime"
 int sys_clock_start(const char *tz);
+/* Tests: another zone file, an absolute path (NULL: SYS_CLOCK_ZONE_FILE). */
+void sys_clock_zone_file(const char *path);
 /* Local fields of an epoch under the current TZ into out->clock; and
  * setting the TZ without reading the clock (fake runs). */
 void sys_clock_fields(time_t t, struct sys_state *out);

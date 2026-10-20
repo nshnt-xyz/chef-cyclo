@@ -2,11 +2,15 @@
  * clock.c - local time for the status bar. A CLOCK_REALTIME timerfd armed
  * for the next minute boundary with TFD_TIMER_CANCEL_ON_SET wakes once a
  * minute and also at once when the clock is set (chrony's first step after
- * the 1970 boot clock, chef-state's restore). The zone is a POSIX TZ
- * string (no tzdata).
+ * the 1970 boot clock, chef-state's restore). The zone is the system's:
+ * when the zone file (/etc/localtime, the tzdata link to Asia/Kolkata)
+ * opens and starts with "TZif", TZ=":/etc/localtime" (the path form musl
+ * and glibc both read); otherwise the settings file's POSIX TZ string
+ * (UTC0 if empty), as images without tzdata had it.
  */
 #define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +24,27 @@
 #include "sysstate.h"
 
 static int clock_fd = -1;
+static const char *zone_file = SYS_CLOCK_ZONE_FILE;
+
+void sys_clock_zone_file(const char *path)
+{
+	zone_file = path ? path : SYS_CLOCK_ZONE_FILE;
+}
+
+/* The zone file opens and starts with the TZif magic. */
+static bool zone_file_usable(void)
+{
+	char magic[4];
+	int fd = open(zone_file, O_RDONLY | O_CLOEXEC);
+	bool ok;
+
+	if (fd < 0)
+		return false;
+	ok = read(fd, magic, sizeof(magic)) == (ssize_t)sizeof(magic) &&
+	     !memcmp(magic, "TZif", sizeof(magic));
+	close(fd);
+	return ok;
+}
 
 static void arm(void)
 {
@@ -101,7 +126,14 @@ static void readable(int fd, short revents, void *user)
 
 void sys_clock_use_tz(const char *tz)
 {
-	setenv("TZ", tz && *tz ? tz : "UTC0", 1);
+	char path[300];
+
+	if (zone_file_usable()) {
+		snprintf(path, sizeof(path), ":%s", zone_file);
+		setenv("TZ", path, 1);
+	} else {
+		setenv("TZ", tz && *tz ? tz : "UTC0", 1);
+	}
 	tzset();
 }
 
@@ -122,6 +154,10 @@ int sys_clock_start(const char *tz)
 	}
 	chefui_watch_fd(clock_fd, POLLIN, readable, NULL);
 	sys_clock_set_tz(tz);
+	if (getenv("TZ")[0] == ':')
+		chefui_log("clock: system zone %s", zone_file);
+	else
+		chefui_log("clock: no usable %s; POSIX TZ %s from the settings", zone_file, getenv("TZ"));
 	arm();
 	return 0;
 }

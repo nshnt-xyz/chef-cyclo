@@ -30,6 +30,11 @@ CACHE=$PWD/toolchain/apk/cache
 # /usr/lib/ssh/sftp-server, the path compiled into Alpine's dropbear. Modern
 # scp speaks SFTP, so that gives both scp and sftp; dropbear-scp (67 KB plus
 # the 331 KB dbclient it depends on) would only add the legacy `scp -O`.
+# tzdata (2026e-r0, 191 KB apk, 452 KB installed): the zone files under
+# /usr/share/zoneinfo. The system zone is Asia/Kolkata the Alpine way,
+# /etc/localtime linking to it and /etc/timezone naming it (both from
+# rootfs-overlay/etc/), so date, logs and chefui all show IST; chefui falls
+# back to the settings' POSIX TZ string only when the zone file is missing.
 # UI/network tools: real iproute2 (ip/tc/ss), util-linux-misc provides rfkill.
 # The prebuilt CA bundle works with --no-scripts; no trust-store regeneration
 # is required. jq supports native ip/rfkill JSON workflows. tcpdump/iperf3
@@ -40,7 +45,7 @@ PKGS="alpine-baselayout musl busybox busybox-extras
       iproute2 util-linux-misc curl ca-certificates-bundle jq tcpdump iperf3
       networkmanager networkmanager-wifi networkmanager-cli networkmanager-tui
       eudev glib apk-tools iptables iptables-legacy chrony e2fsprogs e2fsprogs-extra
-      dropbear openssh-sftp-server"
+      dropbear openssh-sftp-server tzdata"
 
 rm -rf "$ROOT"
 mkdir -p "$ROOT" "$CACHE"
@@ -61,4 +66,5 @@ ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/
    "$ROOT/usr/bin/qmicli" "$ROOT/usr/sbin/gpsd" "$ROOT/usr/lib/libgps.so.32" \
    "$ROOT/bin/busybox" "$ROOT/bin/busybox-extras" \
    "$ROOT/usr/bin/tinymix" "$ROOT/usr/bin/tinyplay" \
-   "$ROOT/usr/sbin/dropbear" "$ROOT/usr/bin/dropbearkey" "$ROOT/usr/lib/ssh/sftp-server"
+   "$ROOT/usr/sbin/dropbear" "$ROOT/usr/bin/dropbearkey" "$ROOT/usr/lib/ssh/sftp-server" \
+   "$ROOT/usr/share/zoneinfo/Asia/Kolkata"

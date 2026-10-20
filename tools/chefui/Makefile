@@ -384,7 +384,9 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 		cap bt-sensor --fake-state apps/settings/bt.state --page bt-sensor || exit; \
 	done
 	@# the device pages P03 to P06 and their states (12-hour, unverified time,
-	@# partial/RAM/calculating storage, unknown firmware metadata)
+	@# partial/RAM/calculating storage, unknown firmware metadata). The clock
+	@# follows this host's /etc/localtime when it is a zone file (sys/clock.c),
+	@# else the design state's POSIX tz: the references assume IST.
 	@for t in dark light; do \
 		cap() { n=$$1; shift; SDL_VIDEODRIVER=offscreen $(B)/host/chef-settings \
 			--fake-state apps/settings/design.state --theme $$t --brightness 70 \

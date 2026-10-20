@@ -53,7 +53,7 @@ Decided 2026-10-11 (implemented in slice 1 unless noted):
 - **Power short press**: Back on every page except the hub, where it turns the screen off. Menus also auto-sleep after the Display page's timeout, and Power wakes. In menus, the volume rocker and `power.double` stay unclaimed (they are reserved for ride pages).
 - **Dark and light**: a manual Dark/Light/Auto setting. Auto switches to Light in bright sun from the ALS with hysteresis, so Light doubles as the sunlight theme (implemented in slice 2 M5).
 - **Status bar**: no temperature (there is no ambient sensor).
-- **Local time**: a POSIX `TZ` setting, default `IST-5:30`, no tzdata.
+- **Local time**: a POSIX `TZ` setting, default `IST-5:30`. Since 2026-10-20 the image ships tzdata with `/etc/localtime` linked to Asia/Kolkata, and the UI uses that zone file; the setting is the fallback when the file is missing ([system UI](../features/system-ui.md#settings)).
 - **Landscape** waits for a design pass that respects the notch on the short edge. L01 to L04 put content under it (not yet implemented).
 - The system UI app starts at boot and owns the panel.
 
@@ -102,7 +102,7 @@ Opening the map acquires a temporary `map` lease from the GPS manager; leaving i
 
 Order: (a) **UI first** — the data pages on the panel with touch/buttons on the chosen UI stack, driven by gpsd and the sensors, ride recording underneath; (b) **then a map source** — offline tiles or vector data on the writable storage ([persistent storage](../features/storage.md): OSM extracts, e.g. MBTiles/PMTiles or a raster tile cache pre-fetched over Wi-Fi/USB), rendered under the position with track-up rotation, then route following on top; no online map dependency on a ride; GPS altitude is noisy and there is no barometer, so take **elevation** from a DEM shipped with the map data (climb totals, gradient). The map design is settled in [offline maps](#offline-maps) below.
 
-**Time zone**: chrony ([time synchronization](gps-and-time.md#time-synchronization)) gives UTC; the UI needs local time (tzdata or a fixed `TZ`). Written as an ordinary Linux app against gpsd/BlueZ and the chosen toolkit/input stack so it is testable on the host with replayed `nmea.log` from the ride runs.
+**Time zone**: chrony ([time synchronization](gps-and-time.md#time-synchronization)) gives UTC; the UI needs local time: the system zone (tzdata, `/etc/localtime`), with the settings' POSIX `TZ` as the fallback, as the system UI does. Written as an ordinary Linux app against gpsd/BlueZ and the chosen toolkit/input stack so it is testable on the host with replayed `nmea.log` from the ride runs.
 
 ## Offline maps
 
