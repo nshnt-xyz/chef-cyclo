@@ -1,12 +1,12 @@
 /*
  * fbscreen.h - fb0 ownership and screen state for the device backend:
- * the screen lock, /run/fblog.off, FBIOBLANK, the page mapping, pans,
- * the backlight and exec handoff. No LVGL: covered by
+ * the screen lock, /run/chef/screen-off, FBIOBLANK, the page mapping,
+ * pans, the backlight and exec handoff. No LVGL: covered by
  * tests/test_fbscreen.c with a wrapped ioctl() and temporary paths.
  *
  * Contract (tools/fbdev.h, docs/features/display-and-touch.md):
- *  - LOCK_EX on /run/fb0.lock before fb0 is opened, held until after the
- *    final POWERDOWN + close; or adopt the lock fd a previous chefui
+ *  - LOCK_EX on /run/chef/fb0.lock before fb0 is opened, held until after
+ *    the final POWERDOWN + close; or adopt the lock fd a previous chefui
  *    process handed over in CHEFUI_LOCK_FD (no unlocked gap, so another
  *    screen client cannot take it in between).
  *  - open, FBIOBLANK UNBLANK, mmap; never FBIOPUT_VSCREENINFO (a format
@@ -16,7 +16,7 @@
  *  - a backlight write lands at the next pan (commit).
  *  - FBIOBLANK POWERDOWN before every close.
  *
- * /run/fblog.off is the system-wide "screen deliberately off" flag:
+ * /run/chef/screen-off is the system-wide "screen deliberately off" flag:
  *   off:   POWERDOWN, then create the flag
  *   on:    remove the flag, UNBLANK (or the first open), backlight
  *   start with the flag present: lock taken, fb0 not opened (the first
@@ -25,7 +25,7 @@
  *   handoff: flag removed (or created for a dark handoff), POWERDOWN,
  *          close, lock fd kept open across exec in CHEFUI_LOCK_FD
  *
- * /run/fb0.lit: created before every UNBLANK, removed after every
+ * /run/chef/fb0.lit: created before every UNBLANK, removed after every
  * successful POWERDOWN. A start that finds it (the previous owner died with
  * the panel lit; its last close powered the panel down behind the touch
  * driver) does one POWERDOWN before its UNBLANK so the touch driver suspends
@@ -41,8 +41,6 @@
 
 #define CU_FB_PATH       "/dev/fb0"
 #define CU_FB_MODES_PATH "/sys/class/graphics/fb0/modes"
-#define CU_FB_FLAG_PATH  "/run/fblog.off"
-#define CU_FB_LIT_PATH   "/run/fb0.lit"
 #define CU_FB_BL_PATH    "/sys/class/leds/lcd-backlight/brightness"
 #define CU_FB_LOCK_ENV   "CHEFUI_LOCK_FD"
 #define CU_FB_LOCK_WAIT_MS 10000

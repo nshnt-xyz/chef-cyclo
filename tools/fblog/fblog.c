@@ -41,24 +41,25 @@
  * panel-on/touch-resume path fbtouch's own -c cycle exercises. Killing
  * fbtouch mid-run releases the lock the same way.
  *
- * /run/fblog.off is the system-wide "screen deliberately off" flag
- * (buttond's default power.short toggle, chefui applications). fblog honours it in three places:
+ * /run/chef/screen-off is the system-wide "screen deliberately off" flag
+ * (buttond's default power.short toggle, chefui applications, a shell).
+ * Nobody signals fblog: it watches the flag itself, in four places:
  *   - at startup: with the flag present it idles without touching fb0
  *     (panel and touch IC stay powered down);
+ *   - while lit: an inotify watch on the flag's directory (the quiet
+ *     /run/chef) wakes fblog when an entry there is created or renamed
+ *     in; once the flag exists it does POWERDOWN, closes fb0 and idles;
  *   - when resuming after a borrow: a foreground client (a chefui
  *     application) that exited or died with the screen deliberately off
  *     leaves the flag behind, so instead of UNBLANK fblog does POWERDOWN
  *     (harmless when already off), closes fb0 and idles the same way;
- *   - while idle: an inotify watch on the flag's directory wakes fblog
- *     only when an entry there is deleted or renamed away (no periodic
- *     wakeups while the screen is off); once the flag is gone fblog
- *     starts drawing normally, or, if a foreground client holds the
- *     screen lock by then, waits in the usual borrowed state. If inotify
- *     is unavailable it rechecks the flag every FB_LOCK_RETRY_MS instead.
- * Off: create the flag and signal fblog. On: remove the flag only; killing
- * a just-woken daemon would blink the panel. Init respawn handles an absent
- * daemon using the current flag. Legacy restart requests still stop the
- * running fblog; init respawns it.
+ *   - while idle: the same watch wakes fblog only when an entry there is
+ *     deleted or renamed away (no periodic wakeups while the screen is
+ *     off); once the flag is gone fblog starts drawing normally, or, if a
+ *     foreground client holds the screen lock by then, waits in the usual
+ *     borrowed state.
+ * If inotify is unavailable it rechecks the flag every FB_LOCK_RETRY_MS
+ * instead, lit or idle.
  *
  * Usage: fblog [-f /dev/fb0] [-b LEVEL] [-s SCALE] [-k LEVEL] [-a]
  *   -b  backlight 0-255 (default 96)
@@ -71,8 +72,8 @@
  * rendering, header) are separated from the syscalls and covered by
  * tools/tests/test_fblog.c, which includes this file with FBLOG_NO_MAIN
  * (only main() is compiled out). The same test drives the daemon's
- * borrow/resume/idle path (tick(), idle_until_flag_gone()) against a
- * temporary fb file, lock and flag with ioctl() wrapped.
+ * borrow/resume/idle path (tick(), loop_once(), idle_until_flag_gone())
+ * against a temporary fb file, lock and flag with ioctl() wrapped.
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -95,7 +96,6 @@
 
 #define FBLOG_MAX_LINE   240	/* chars kept per line, incl. the timestamp */
 #define FBLOG_RING_LINES 512
-#define FBLOG_OFF_PATH   "/run/fblog.off"
 #define FBLOG_BL_PATH    "/sys/class/leds/lcd-backlight/brightness"
 #define FBLOG_BATT_PATH  "/sys/class/power_supply/battery/capacity"
 #define FBLOG_KMSG_MAX   8192	/* >= the kernel's LOG_LINE_MAX + prefix */
@@ -568,13 +568,14 @@ static unsigned long uptime_s(void)
 
 struct daemon {
 	const char *fbpath;
-	const char *off_path;	/* the screen-off flag, FBLOG_OFF_PATH */
+	const char *off_path;	/* the screen-off flag, CHEF_SCREEN_OFF */
 	int bl, scale;
 	unsigned max_kern_level;
 	bool all;
 	bool idle_poll_only;	/* tests: skip inotify, use the fallback */
 
 	int kfd, lockfd;
+	int wfd;		/* inotify on the flag's directory, -1: recheck */
 	struct fbdev fb;
 	bool fb_open, mapped, paused;
 	bool idle;		/* flag present: fb0 closed, waiting for its removal */
@@ -686,6 +687,44 @@ static void screen_off(struct daemon *d)
 }
 
 /*
+ * An inotify fd watching the flag's directory for MASK, or -1 (logged once
+ * per call; callers then recheck every FB_LOCK_RETRY_MS). The tests'
+ * idle_poll_only forces -1.
+ */
+static int flag_watch(struct daemon *d, uint32_t mask)
+{
+	char dir[256];
+	const char *slash = strrchr(d->off_path, '/');
+	int ifd;
+
+	if (d->idle_poll_only)
+		return -1;
+	if (slash == d->off_path)
+		snprintf(dir, sizeof(dir), "/");
+	else if (slash)
+		snprintf(dir, sizeof(dir), "%.*s", (int)(slash - d->off_path), d->off_path);
+	else
+		snprintf(dir, sizeof(dir), ".");
+	ifd = inotify_init1(IN_CLOEXEC | IN_NONBLOCK);
+	if (ifd >= 0 && inotify_add_watch(ifd, dir, mask) < 0) {
+		close(ifd);
+		ifd = -1;
+	}
+	if (ifd < 0)
+		kmsg_note("inotify on %s: %s; rechecking %s every %d ms",
+			  dir, strerror(errno), d->off_path, FB_LOCK_RETRY_MS);
+	return ifd;
+}
+
+static void drain_watch(int ifd)
+{
+	char buf[4096];
+
+	while (ifd >= 0 && read(ifd, buf, sizeof(buf)) > 0)
+		;
+}
+
+/*
  * Idle while the screen-off flag exists. Returns 0 once it is gone, 1 when
  * asked to stop. Sleeps in poll() on an inotify watch of the flag's
  * directory (IN_DELETE | IN_MOVED_FROM), so it wakes only when something
@@ -695,27 +734,9 @@ static void screen_off(struct daemon *d)
  */
 static int idle_until_flag_gone(struct daemon *d)
 {
-	char dir[256];
-	const char *slash = strrchr(d->off_path, '/');
 	sigset_t block, old;
-	int ifd = -1;
+	int ifd = flag_watch(d, IN_DELETE | IN_MOVED_FROM);
 
-	if (slash == d->off_path)
-		snprintf(dir, sizeof(dir), "/");
-	else if (slash)
-		snprintf(dir, sizeof(dir), "%.*s", (int)(slash - d->off_path), d->off_path);
-	else
-		snprintf(dir, sizeof(dir), ".");
-	if (!d->idle_poll_only) {
-		ifd = inotify_init1(IN_CLOEXEC | IN_NONBLOCK);
-		if (ifd >= 0 && inotify_add_watch(ifd, dir, IN_DELETE | IN_MOVED_FROM) < 0) {
-			close(ifd);
-			ifd = -1;
-		}
-		if (ifd < 0)
-			kmsg_note("inotify on %s: %s; rechecking %s every %d ms",
-				  dir, strerror(errno), d->off_path, FB_LOCK_RETRY_MS);
-	}
 	/* SIGTERM/SIGINT stay blocked except inside ppoll(), so a signal
 	 * arriving between the g_stop check and the wait cannot be lost */
 	sigemptyset(&block);
@@ -725,11 +746,9 @@ static int idle_until_flag_gone(struct daemon *d)
 	while (!g_stop && access(d->off_path, F_OK) == 0) {
 		struct pollfd pfd = { .fd = ifd, .events = POLLIN };
 		struct timespec retry = { 0, FB_LOCK_RETRY_MS * 1000000L };
-		char buf[4096];
 
 		if (ppoll(&pfd, ifd >= 0 ? 1 : 0, ifd >= 0 ? NULL : &retry, &old) > 0)
-			while (read(ifd, buf, sizeof(buf)) > 0)
-				;
+			drain_watch(ifd);
 		d->idle_wakeups++;
 	}
 	sigprocmask(SIG_SETMASK, &old, NULL);
@@ -740,6 +759,27 @@ static int idle_until_flag_gone(struct daemon *d)
 	d->idle = false;
 	kmsg_note("%s removed: leaving idle", d->off_path);
 	return 0;
+}
+
+/*
+ * While lit (not idle, not borrowed): the flag appeared, so POWERDOWN,
+ * close fb0 and idle, what buttond's SIGTERM plus a respawn used to do.
+ * Under the shared lock, so a foreground client that took the screen
+ * meanwhile is left alone (tick() pauses, and the resume checks the
+ * flag). Returns true when it went idle.
+ */
+static bool off_if_flagged(struct daemon *d)
+{
+	if (d->idle || d->paused || access(d->off_path, F_OK) != 0)
+		return false;
+	if (d->lockfd >= 0 && fb_lock_try_shared(d->lockfd) == -EWOULDBLOCK)
+		return false;
+	screen_off(d);
+	if (d->lockfd >= 0)
+		fb_lock_release(d->lockfd);
+	d->idle = true;
+	kmsg_note("%s appeared: screen off, %s closed", d->off_path, d->fbpath);
+	return true;
 }
 
 /* One tick: try to own the screen briefly; pause or resume accordingly. */
@@ -755,12 +795,12 @@ static int tick(struct daemon *d)
 				d->paused = true;
 				fb_unmap(&d->fb);
 				d->mapped = false;
-				kmsg_note("paused: screen borrowed (%s)", FB_LOCK_PATH);
+				kmsg_note("paused: screen borrowed (%s)", CHEF_FB0_LOCK);
 			}
 			return 0;
 		}
 		if (rc)
-			kmsg_note("flock %s: %s (continuing unlocked)", FB_LOCK_PATH, strerror(-rc));
+			kmsg_note("flock %s: %s (continuing unlocked)", CHEF_FB0_LOCK, strerror(-rc));
 	}
 	if (d->paused) {
 		if (access(d->off_path, F_OK) == 0) {
@@ -802,6 +842,64 @@ static int tick(struct daemon *d)
 	return rc;
 }
 
+/*
+ * One pass of the main loop: idle while the flag exists; otherwise wait
+ * for kmsg, the flag's watch (d->wfd: IN_CREATE | IN_MOVED_TO on its
+ * directory; without it a recheck every FB_LOCK_RETRY_MS) or the next
+ * repaint, heartbeat or retry, then act. -1: stop (a signal, or poll()
+ * failing).
+ */
+static int loop_once(struct daemon *d)
+{
+	struct pollfd pfd[2] = {
+		{ .fd = d->kfd, .events = POLLIN },
+		{ .fd = d->wfd, .events = POLLIN },
+	};
+	double now = now_s();
+	long since_ms = (long)((now - d->last_commit) * 1000);
+	long retry_ms = d->fails ? (long)((d->next_try - now) * 1000) + 1 : 0;
+	int timeout_ms, rc;
+
+	if (d->idle) {
+		/* no fb0, no kmsg wakeups until the flag goes away */
+		if (idle_until_flag_gone(d))
+			return -1;
+		(void)tick(d);
+		return 0;
+	}
+
+	/* repaint promptly when lines arrived, else heartbeat at 1 Hz
+	 * (header uptime + quirk-1 backlight pickup); after a failure
+	 * wait out the backoff (retry_delay_ms) instead of spinning */
+	timeout_ms = next_timeout_ms(d->dirty, since_ms, d->paused, retry_ms);
+	if (d->wfd < 0 && timeout_ms > FB_LOCK_RETRY_MS)
+		timeout_ms = FB_LOCK_RETRY_MS;
+
+	rc = poll(pfd, 2, timeout_ms);
+	if (rc < 0 && errno != EINTR)
+		return -1;
+	/* devkmsg_poll() reports a ring overrun as POLLERR|POLLPRI, not
+	 * POLLIN: drain on those too so the EPIPE is consumed and the
+	 * reader moves on to the next record */
+	if (rc > 0 && (pfd[0].revents & (POLLIN | POLLERR | POLLPRI)) && drain_kmsg(d))
+		d->dirty = true;
+	if (rc > 0 && pfd[1].revents)
+		drain_watch(d->wfd);
+	if (g_stop)
+		return -1;
+	if (off_if_flagged(d))
+		return 0;
+
+	now = now_s();
+	if (d->fails && now < d->next_try)
+		return 0;
+	since_ms = (long)((now - d->last_commit) * 1000);
+	if ((d->dirty && since_ms >= FBLOG_REPAINT_MS) || since_ms >= FBLOG_HEARTBEAT_MS ||
+	    d->paused || d->fails)
+		(void)tick(d);
+	return 0;
+}
+
 #ifndef FBLOG_NO_MAIN
 
 static void on_signal(int sig)
@@ -823,12 +921,13 @@ int main(int argc, char **argv)
 
 	memset(&d, 0, sizeof(d));
 	d.fbpath = "/dev/fb0";
-	d.off_path = FBLOG_OFF_PATH;
+	d.off_path = CHEF_SCREEN_OFF;
 	d.bl = 96;
 	d.scale = 2;
 	d.max_kern_level = 3;
 	d.kfd = -1;
 	d.lockfd = -1;
+	d.wfd = -1;
 	d.fb.fd = -1;
 	ring_init(&d.ring);
 
@@ -867,9 +966,11 @@ int main(int argc, char **argv)
 		kmsg_note("open /dev/kmsg: %s (screen will show only the header)", strerror(errno));
 	d.lockfd = fb_lock_open(NULL);
 	if (d.lockfd < 0) {
-		kmsg_note("lock %s: %s (continuing unlocked)", FB_LOCK_PATH, strerror(-d.lockfd));
+		kmsg_note("lock %s: %s (continuing unlocked)", CHEF_FB0_LOCK, strerror(-d.lockfd));
 		d.lockfd = -1;
 	}
+
+	d.wfd = flag_watch(&d, IN_CREATE | IN_MOVED_TO);
 
 	kmsg_note("starting (backlight %d, scale %d, kernel level <= %u%s)",
 		  d.bl, d.scale, d.max_kern_level, d.all ? ", all" : "");
@@ -881,46 +982,8 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	while (!g_stop) {
-		struct pollfd pfd = { .fd = d.kfd, .events = POLLIN };
-		double now = now_s();
-		long since_ms = (long)((now - d.last_commit) * 1000);
-		long retry_ms = d.fails ? (long)((d.next_try - now) * 1000) + 1 : 0;
-		int timeout_ms;
-
-		if (d.idle) {
-			/* a borrower left the screen off: no fb0, no kmsg
-			 * wakeups until the flag goes away */
-			if (idle_until_flag_gone(&d))
-				break;
-			(void)tick(&d);
-			continue;
-		}
-
-		/* repaint promptly when lines arrived, else heartbeat at 1 Hz
-		 * (header uptime + quirk-1 backlight pickup); after a failure
-		 * wait out the backoff (retry_delay_ms) instead of spinning */
-		timeout_ms = next_timeout_ms(d.dirty, since_ms, d.paused, retry_ms);
-
-		rc = poll(&pfd, d.kfd >= 0 ? 1 : 0, timeout_ms);
-		if (rc < 0 && errno != EINTR)
-			break;
-		/* devkmsg_poll() reports a ring overrun as POLLERR|POLLPRI, not
-		 * POLLIN: drain on those too so the EPIPE is consumed and the
-		 * reader moves on to the next record */
-		if (rc > 0 && (pfd.revents & (POLLIN | POLLERR | POLLPRI)) && drain_kmsg(&d))
-			d.dirty = true;
-		if (g_stop)
-			break;
-
-		now = now_s();
-		if (d.fails && now < d.next_try)
-			continue;
-		since_ms = (long)((now - d.last_commit) * 1000);
-		if ((d.dirty && since_ms >= FBLOG_REPAINT_MS) || since_ms >= FBLOG_HEARTBEAT_MS ||
-		    d.paused || d.fails)
-			(void)tick(&d);
-	}
+	while (!g_stop && loop_once(&d) == 0)
+		;
 
 	kmsg_note("exiting: blanking before close");
 	screen_off(&d);
@@ -928,6 +991,8 @@ int main(int argc, char **argv)
 		close(d.kfd);
 	if (d.lockfd >= 0)
 		close(d.lockfd);
+	if (d.wfd >= 0)
+		close(d.wfd);
 	return 0;
 }
 

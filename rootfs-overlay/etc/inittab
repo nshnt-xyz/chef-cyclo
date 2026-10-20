@@ -36,8 +36,8 @@
 # (`blesensd status|list|watch`); records via chef-state on /data/v1/blesens.
 ::respawn:/usr/bin/blesensd
 # Side buttons: grabs the power/volume evdev nodes and publishes gestures on
-# /run/chef/buttond.sock; with nothing claiming them a short power press toggles
-# the screen-off flag /run/fblog.off (historical name), and power held 3 s (buzz
+# /run/chef/buttond.sock; with nothing claiming them a short power press
+# toggles the screen-off flag /run/chef/screen-off, and power held 3 s (buzz
 # at 1.5 s, long buzz at 3 s) then released runs `poweroff` -- the orderly
 # way down through this init (::shutdown, SIGTERM to all, RB_POWER_OFF).
 # The PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look.
@@ -61,13 +61,13 @@
 # bounded by the rotation, about 512 KiB at most.
 ::respawn:/bin/sh -c 'f=/run/chef/log/sensors-up.log; [ "$(stat -c %s $f 2>/dev/null || echo 0)" -gt 262144 ] && mv -f $f $f.1; SENSORD_ARGS= SENSORD_STDERR=/dev/null /usr/bin/sensors-up >> $f 2>&1; sleep 10'
 # The system UI (chef-settings: status bar, settings hub, Display page). It
-# takes the panel through /run/fb0.lock, claims power.short from
+# takes the panel through /run/chef/fb0.lock, claims power.short from
 # buttond (Back on a page, screen off on the hub) and picks up
 # NetworkManager, BlueZ, gps-manager and /data whenever they appear. A boot
-# with /run/fblog.off present stays dark. If it dies with the panel lit, the
-# next start power-cycles the panel once so touch resumes (/run/fb0.lit,
-# docs/features/ui-platform.md); a failed start
-# waits 5 s first. Settings: /data/v1/ui/settings (or /run/chef/ui when /data is
+# with /run/chef/screen-off present stays dark. If it dies with the panel
+# lit, the next start power-cycles the panel once so touch resumes
+# (/run/chef/fb0.lit, docs/features/ui-platform.md); a failed start waits
+# 5 s first. Settings: /data/v1/ui/settings (or /run/chef/ui when /data is
 # not ours). See docs/features/system-ui.md.
 ::respawn:/usr/bin/chef-settings
 # A/B slot: mark boot_a successful once this boot has lasted 30 s, as

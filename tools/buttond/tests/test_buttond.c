@@ -5,8 +5,8 @@
  * deadlines), the gesture name table, the claim registry and its
  * double-arming, the line protocol over real socketpairs (partial lines,
  * bad input, dead peers), dispatch to claimants/watchers vs. the built-in
- * default, the screen toggle against a temp flag file with an injected
- * kill, and the power-off state machine (arm at long, cancel on early
+ * default, the screen toggle against a temp flag file (it only creates
+ * and removes the flag), and the power-off state machine (arm at long, cancel on early
  * release or re-press, READY buzz, act on release, claimed/-p 0 variants)
  * with an injected poweroff and a temp vibrator file. buttond.c is
  * included with BUTTOND_NO_MAIN; no evdev device, socket path or process
@@ -52,15 +52,6 @@ static void test_log(const char *fmt, ...)
 static const char *last_log(void)
 {
 	return g_nlog ? g_log[(g_nlog - 1) % 8] : "";
-}
-
-static char g_killed[32];
-static int g_kill_rc = 1;
-
-static int test_kill(const char *comm, int sig)
-{
-	snprintf(g_killed, sizeof(g_killed), "%s/%d", comm, sig);
-	return g_kill_rc;
 }
 
 static int g_poweroffs;
@@ -368,8 +359,7 @@ static void test_server_claims(void)
 	char buf[512];
 
 	CHECK(server_init(&s, 1500, 300, test_log) == 0);
-	s.kill_comm = test_kill;
-	CHECK(s.off_path && strcmp(s.off_path, "/run/fblog.off") == 0);
+	CHECK(s.off_path && strcmp(s.off_path, "/run/chef/screen-off") == 0);
 
 	a = connect_peer(&s);
 	ask(&s, &a, "claim power.long\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.long\"}\n");
@@ -504,9 +494,8 @@ static void test_server_slow_claimant(void)
 	int i, early, sz = 1;
 
 	CHECK(mkdtemp(dir) != NULL);
-	snprintf(off, sizeof(off), "%s/fblog.off", dir);
+	snprintf(off, sizeof(off), "%s/screen-off", dir);
 	CHECK(server_init(&s, 1500, 300, test_log) == 0);
-	s.kill_comm = test_kill;
 	s.off_path = off;
 
 	a = connect_peer(&s);
@@ -524,7 +513,6 @@ static void test_server_slow_claimant(void)
 	/* the dropping dispatch itself already fell back to the default */
 	CHECK(access(off, F_OK) == 0);
 	CHECK(strstr(last_log(), "screen off") != NULL);
-	g_killed[0] = '\0';
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	CHECK(access(off, F_OK) != 0 && strstr(last_log(), "screen on") != NULL);
 	/* what it did get was whole lines */
@@ -551,60 +539,44 @@ static void test_server_dispatch(void)
 	int rc;
 
 	CHECK(mkdtemp(dir) != NULL);
-	snprintf(off, sizeof(off), "%s/fblog.off", dir);
+	snprintf(off, sizeof(off), "%s/screen-off", dir);
 
 	CHECK(server_init(&s, 1500, 300, test_log) == 0);
-	s.kill_comm = test_kill;
 	s.off_path = off;
 
-	/* nobody claims power.short: default toggles the screen off, then on */
-	g_killed[0] = '\0';
+	/* nobody claims power.short: default toggles the flag, nothing else */
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	CHECK(access(off, F_OK) == 0);
-	CHECK(strcmp(g_killed, "fblog/15") == 0);
-	CHECK(strstr(last_log(), "screen off: created") != NULL);
-	CHECK(strstr(last_log(), "signalled fblog (1 process)") != NULL);
-	g_killed[0] = '\0';
+	CHECK(strncmp(last_log(), "screen off: created ", 20) == 0 && strstr(last_log(), off) != NULL);
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	CHECK(access(off, F_OK) != 0);
-	CHECK(g_killed[0] == '\0');
 	CHECK(strstr(last_log(), "screen on: removed") != NULL);
-	CHECK(strstr(last_log(), "next init respawn") != NULL);
-	/* fblog not running: the flag is still set, the log says so */
-	g_kill_rc = -ESRCH;
 	rc = screen_toggle(&s);
 	CHECK(rc == 1 && access(off, F_OK) == 0);
-	CHECK(strstr(last_log(), "fblog not running") != NULL);
-	g_killed[0] = '\0';
 	rc = screen_toggle(&s);
 	CHECK(rc == 0 && access(off, F_OK) != 0);
-	CHECK(g_killed[0] == '\0');
-	g_kill_rc = 1;
-	/* flag directory missing: negative errno, nothing signalled */
-	s.off_path = "/nonexistent-dir/fblog.off";
-	g_killed[0] = '\0';
+	/* flag directory missing: negative errno, logged */
+	s.off_path = "/nonexistent-dir/screen-off";
 	rc = screen_toggle(&s);
-	CHECK(rc == -ENOENT && g_killed[0] == '\0');
+	CHECK(rc == -ENOENT);
 	CHECK(strstr(last_log(), "screen off: create") != NULL);
 	s.off_path = off;
 
 	/* other unclaimed gestures only log (power.long is test_server_poweroff) */
-	g_killed[0] = '\0';
 	server_dispatch(&s, GES_POWER_VOLDOWN, 0);
 	CHECK(strstr(last_log(), "power+voldown unclaimed: no default yet") != NULL);
 	server_dispatch(&s, GES_VOLUP_SHORT, 0);
 	CHECK(strcmp(last_log(), "volup.short unclaimed: no default") == 0);
-	CHECK(g_killed[0] == '\0' && access(off, F_OK) != 0);
+	CHECK(access(off, F_OK) != 0);
 
 	/* a claimant gets the event and the default is suppressed */
 	a = connect_peer(&s);
 	say(&s, &a, "claim power.short\n");
 	recv_line(a.fd, buf, sizeof(buf));
-	g_killed[0] = '\0';
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	recv_line(a.fd, buf, sizeof(buf));
 	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n") == 0);
-	CHECK(g_killed[0] == '\0' && access(off, F_OK) != 0);
+	CHECK(access(off, F_OK) != 0);
 	CHECK(strcmp(last_log(), "power.short -> 1 claimant") == 0);
 	/* unclaimed gestures do not reach a plain claimant */
 	server_dispatch(&s, GES_VOLUP_SHORT, 0);
@@ -619,13 +591,13 @@ static void test_server_dispatch(void)
 	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n") == 0);
 	recv_line(a.fd, buf, sizeof(buf));
 	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n") == 0);
-	CHECK(g_killed[0] == '\0');		/* still claimed by a */
+	CHECK(access(off, F_OK) != 0);		/* still claimed by a */
 	close(a.fd);
 	pump(&s);				/* a is gone */
 	server_dispatch(&s, GES_POWER_SHORT, 0);
 	recv_line(w.fd, buf, sizeof(buf));
 	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.short\"}\n") == 0);
-	CHECK(strcmp(g_killed, "fblog/15") == 0 && access(off, F_OK) == 0);	/* default is back */
+	CHECK(access(off, F_OK) == 0);	/* default is back */
 	unlink(off);
 
 	/* a peer that vanished without us noticing is dropped at dispatch */
@@ -673,7 +645,6 @@ static void test_server_poweroff(void)
 	CHECK(vib_read(vib) == -1);		/* creates the empty node */
 
 	CHECK(server_init(&s, 1500, 300, test_log) == 0);
-	s.kill_comm = test_kill;
 	s.poweroff = test_poweroff;
 	s.vib_path = vib;
 	CHECK(s.poweroff_hold_ms == 1500);

@@ -629,12 +629,12 @@ static int cmd_show(const char *fbpath, const char *inpath, int secs,
 	 * POWERDOWN + close below. */
 	lockfd = fb_lock_open(NULL);
 	if (lockfd < 0)
-		printf("lock: %s: %s (continuing without)\n", FB_LOCK_PATH, strerror(-lockfd));
+		printf("lock: %s: %s (continuing without)\n", CHEF_FB0_LOCK, strerror(-lockfd));
 	else {
 		rc = fb_lock_exclusive(lockfd, 10000);
 		if (rc) {
 			printf("lock: %s held by another screen client: %s\n",
-			       FB_LOCK_PATH, strerror(-rc));
+			       CHEF_FB0_LOCK, strerror(-rc));
 			close(lockfd);
 			return 1;
 		}

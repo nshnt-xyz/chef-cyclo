@@ -110,11 +110,11 @@ $(H)/tests/test-evdev: tests/test_evdev.c evdev.h
 # own <linux/fb.h>/<linux/input.h>, so it is built without the include
 # path the QMI code needs. The test includes the .c with FBTOUCH_NO_MAIN to
 # reach the pure functions.
-$(H)/fbtouch: fbtouch.c fbdev.h evdev.h
+$(H)/fbtouch: fbtouch.c fbdev.h evdev.h common/chef_paths.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
-$(H)/tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h evdev.h
+$(H)/tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h evdev.h common/chef_paths.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 
@@ -122,7 +122,7 @@ $(H)/tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h evdev.h
 # FBIOPAN_DISPLAY, drives lcd-backlight and decodes the NT36xxx evdev
 # stream. Manual opt-in from the shell, not in inittab (same policy as
 # gps-up).
-$(D)/fbtouch: fbtouch.c fbdev.h evdev.h
+$(D)/fbtouch: fbtouch.c fbdev.h evdev.h common/chef_paths.h
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ fbtouch.c
 
@@ -137,7 +137,7 @@ test-display-inventory:
 # Read-only boot/probe output screen (fblog/fblog.c): tails /dev/kmsg onto
 # the panel through the same fbdev.h contract, never opens an input
 # device. Font table is generated (fblog/mkfont.py) and committed.
-$(H)/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h
+$(H)/fblog: fblog/fblog.c fblog/font9x15.h fbdev.h common/chef_paths.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
 

@@ -1,8 +1,10 @@
 /* Host unit tests for tools/fblog/fblog.c: /dev/kmsg record parsing, the
  * show/hide policy, the line ring, the wrapping layout, glyph rendering
  * into a fake RGBA8888 surface, the font table and the header; and the
- * daemon's borrow/resume path with the screen-off flag (tick(),
- * idle_until_flag_gone()) against a temporary "fb" file, lock and flag,
+ * daemon's borrow/resume/lit/idle paths with the screen-off flag (tick(),
+ * loop_once(), idle_until_flag_gone()) against a temporary "fb" file,
+ * lock and flag, and buttond's default screen toggle driving fblog through
+ * the flag alone,
  * with ioctl() wrapped (-Wl,--wrap=ioctl) to play the MDSS fb ioctls and
  * record their order. No real framebuffer or kmsg -- fblog.c is included
  * with FBLOG_NO_MAIN so only main() is compiled out.
@@ -603,7 +605,7 @@ static void dfix_init(struct dfix *f)
 	CHECK(mkdtemp(f->dir) != NULL);
 	snprintf(f->fb, sizeof(f->fb), "%s/fb0", f->dir);
 	snprintf(f->lock, sizeof(f->lock), "%s/fb0.lock", f->dir);
-	snprintf(f->flag, sizeof(f->flag), "%s/fblog.off", f->dir);
+	snprintf(f->flag, sizeof(f->flag), "%s/screen-off", f->dir);
 	fd = open(f->fb, O_RDWR | O_CREAT, 0600);
 	CHECK(fd >= 0 && ftruncate(fd, (off_t)FAKE_STRIDE * 2 * FAKE_H) == 0);
 	close(fd);
@@ -618,6 +620,7 @@ static void dfix_init(struct dfix *f)
 	f->d.scale = 1;
 	f->d.max_kern_level = 3;
 	f->d.kfd = -1;
+	f->d.wfd = -1;
 	f->d.fb.fd = -1;
 	snprintf(f->d.release, sizeof(f->d.release), "test");
 	ring_init(&f->d.ring);
@@ -630,6 +633,8 @@ static void dfix_done(struct dfix *f)
 	screen_off(&f->d);
 	if (f->d.lockfd >= 0)
 		close(f->d.lockfd);
+	if (f->d.wfd >= 0)
+		close(f->d.wfd);
 	unlink(f->fb);
 	unlink(f->lock);
 	unlink(f->flag);
@@ -857,21 +862,66 @@ static void test_daemon_idle_flag_removed_while_locked(void)
 	dfix_done(&f);
 }
 
-static pid_t protocol_child;
-static int protocol_signals;
-static const char *protocol_flag;
+/* Lit, the flag appears (a shell's touch, buttond's default): fblog
+ * notices through its watch (or the 250 ms recheck), does POWERDOWN, closes
+ * fb0 and idles; a borrower that holds the screen is left alone. */
+static void lit_flag_appears(bool poll_only)
+{
+	struct dfix f;
+	double t0;
+	int fg, n;
+
+	dfix_init(&f);
+	f.d.idle_poll_only = poll_only;
+	f.d.wfd = flag_watch(&f.d, IN_CREATE | IN_MOVED_TO);
+	CHECK(poll_only ? f.d.wfd == -1 : f.d.wfd >= 0);
+	CHECK(tick(&f.d) == 0 && f.d.fb_open && f.d.mapped);
+	g_nioc = 0;
+	touch_file(f.flag);
+	t0 = mono_ms();
+	for (n = 0; n < 50 && !f.d.idle; n++)
+		CHECK(loop_once(&f.d) == 0);
+	CHECK(f.d.idle && !f.d.fb_open && !f.d.mapped && f.d.fb.fd == -1);
+	CHECK(mono_ms() - t0 < (poll_only ? 400 : 150));	/* not the 1 s heartbeat */
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_POWERDOWN) == 1);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 0);
+	CHECK(g_nioc >= 1 && g_ioc[g_nioc - 1].req == FBIOBLANK && g_ioc[g_nioc - 1].flag);
+	/* the shared lock is not left held */
+	fg = borrow(&f);
+	close(fg);
+
+	/* removed: idle wakes, the next pass lights the panel again */
+	unlink(f.flag);
+	CHECK(loop_once(&f.d) == 0);
+	CHECK(!f.d.idle && f.d.fb_open && f.d.mapped);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);
+
+	/* borrowed when the flag appears: the borrower owns the panel, so no
+	 * POWERDOWN from fblog; when it lets go, the resume stays dark */
+	fg = borrow(&f);
+	g_nioc = 0;
+	touch_file(f.flag);
+	for (n = 0; n < 10 && !f.d.paused; n++)
+		CHECK(loop_once(&f.d) == 0);
+	CHECK(f.d.paused && !f.d.idle && g_nioc == 0);
+	close(fg);
+	for (n = 0; n < 10 && !f.d.idle; n++)
+		CHECK(loop_once(&f.d) == 0);
+	CHECK(f.d.idle && !f.d.fb_open);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_POWERDOWN) == 1);
+	CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 0);
+	dfix_done(&f);
+}
+
+static void test_daemon_lit_flag_appears(void)
+{
+	lit_flag_appears(false);
+	lit_flag_appears(true);
+}
 
 static void protocol_log(const char *fmt, ...)
 {
 	(void)fmt;
-}
-
-static int protocol_kill(const char *comm, int signal_number)
-{
-	CHECK(strcmp(comm, "fblog") == 0 && signal_number == SIGTERM);
-	CHECK(access(protocol_flag, F_OK) == 0); /* flag first, only off signals */
-	protocol_signals++;
-	return protocol_child > 0 && kill(protocol_child, signal_number) == 0 ? 1 : -ESRCH;
 }
 
 static int protocol_read(int fd, char expected)
@@ -881,13 +931,17 @@ static int protocol_read(int fd, char expected)
 	return poll(&pfd, 1, 700) > 0 && read(fd, &value, 1) == 1 && value == expected;
 }
 
-static void test_buttond_fblog_wake_protocol(void)
+/* buttond's default power.short against a running fblog, through the flag
+ * only (buttond signals nothing): on lights it, off darkens the same
+ * process, on again lights it. */
+static void test_buttond_fblog_flag_protocol(void)
 {
 	for (int fallback = 0; fallback < 2; fallback++) {
 		struct dfix f;
 		struct server buttons;
 		int ready[2], status;
 		pid_t child;
+
 		dfix_init(&f);
 		touch_file(f.flag);
 		f.d.idle = true;
@@ -899,43 +953,41 @@ static void test_buttond_fblog_wake_protocol(void)
 			close(ready[0]);
 			g_stop = 0;
 			signal(SIGTERM, idle_stop_signal);
-			alarm(3);
+			alarm(5);
+			f.d.wfd = flag_watch(&f.d, IN_CREATE | IN_MOVED_TO);
 			(void)!write(ready[1], "r", 1);
 			if (idle_until_flag_gone(&f.d) || tick(&f.d) || !f.d.fb_open)
 				_exit(2);
 			(void)!write(ready[1], "o", 1);
-			/* Stay resident: a wake signal would cause premature blank. */
-			while (!g_stop) poll(NULL, 0, 100);
+			while (!g_stop && !f.d.idle)
+				if (loop_once(&f.d))
+					_exit(3);
+			if (f.d.fb_open || ioc_count(FBIOBLANK, FB_BLANK_POWERDOWN) != 1)
+				_exit(4);
+			(void)!write(ready[1], "d", 1);
+			if (loop_once(&f.d) || f.d.idle || !f.d.fb_open)	/* idles, then lights */
+				_exit(5);
+			(void)!write(ready[1], "o", 1);
+			while (!g_stop && loop_once(&f.d) == 0)
+				;
 			screen_off(&f.d);
-			(void)!write(ready[1], "c", 1);
 			_exit(0);
 		}
 		close(ready[1]);
-		protocol_child = child;
-		protocol_signals = 0;
-		protocol_flag = f.flag;
 		CHECK(server_init(&buttons, 1500, 300, protocol_log) == 0);
 		buttons.off_path = f.flag;
-		buttons.kill_comm = protocol_kill;
 		CHECK(protocol_read(ready[0], 'r'));
-		CHECK(screen_toggle(&buttons) == 0);
-		CHECK(protocol_signals == 0);
+		CHECK(screen_toggle(&buttons) == 0 && access(f.flag, F_OK) != 0);
 		CHECK(protocol_read(ready[0], 'o'));
-		CHECK(waitpid(child, &status, WNOHANG) == 0); /* same daemon alive */
-		CHECK(screen_toggle(&buttons) == 1);
-		CHECK(protocol_signals == 1 && access(f.flag, F_OK) == 0);
-		CHECK(protocol_read(ready[0], 'c'));
+		CHECK(screen_toggle(&buttons) == 1 && access(f.flag, F_OK) == 0);
+		CHECK(protocol_read(ready[0], 'd'));
+		CHECK(waitpid(child, &status, WNOHANG) == 0);	/* the same fblog, dark */
+		CHECK(screen_toggle(&buttons) == 0 && access(f.flag, F_OK) != 0);
+		CHECK(protocol_read(ready[0], 'o'));
+		CHECK(kill(child, SIGTERM) == 0);
 		CHECK(waitpid(child, &status, 0) == child);
 		CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
 		close(ready[0]);
-		/* No daemon / delayed init respawn: wake is persistent state,
-		 * never a launch or signal. Next fblog start sees flag absent. */
-		protocol_child = -1;
-		CHECK(screen_toggle(&buttons) == 0 && access(f.flag, F_OK) != 0);
-		CHECK(protocol_signals == 1);
-		CHECK(idle_until_flag_gone(&f.d) == 0);
-		CHECK(tick(&f.d) == 0 && f.d.fb_open && !f.d.idle);
-		CHECK(ioc_count(FBIOBLANK, FB_BLANK_UNBLANK) == 1);
 		server_fini(&buttons);
 		dfix_done(&f);
 	}
@@ -943,8 +995,8 @@ static void test_buttond_fblog_wake_protocol(void)
 
 int main(void)
 {
-	(void)drain_kmsg;
-	test_buttond_fblog_wake_protocol();
+	test_buttond_fblog_flag_protocol();
+	test_daemon_lit_flag_appears();
 	test_daemon_resume_without_flag();
 	test_daemon_resume_with_flag();
 	test_daemon_idle_flag_removed();

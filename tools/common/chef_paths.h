@@ -24,6 +24,12 @@
 #define CHEF_BLESENSD_SOCK	"/run/chef/blesensd.sock"
 #define CHEF_QMUX_SOCK		"/run/chef/qmux_socket"
 
+/* The screen handover (tools/fbdev.h, tools/chefui/fbscreen.h): the fb0
+ * lock, the panel-lit marker and the system-wide screen-off flag */
+#define CHEF_FB0_LOCK		"/run/chef/fb0.lock"
+#define CHEF_FB0_LIT		"/run/chef/fb0.lit"
+#define CHEF_SCREEN_OFF		"/run/chef/screen-off"
+
 /* Component directories and files in them */
 #define CHEF_POWER_DIR		"/run/chef/power"
 #define CHEF_SENSORS_REG	"/run/chef/sensors/sns.reg"

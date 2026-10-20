@@ -241,7 +241,7 @@ $(T)/test-buttons: tests/test_buttons.c buttons.c buttons.h ../common/json.c ../
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_buttons.c buttons.c ../common/json.c
 
-$(T)/test-fbscreen: tests/test_fbscreen.c fbscreen.c fbscreen.h ../fbdev.h tests/check.h
+$(T)/test-fbscreen: tests/test_fbscreen.c fbscreen.c fbscreen.h ../fbdev.h ../common/chef_paths.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(TEST_CFLAGS) -o $@ tests/test_fbscreen.c fbscreen.c -Wl,--wrap=ioctl
 

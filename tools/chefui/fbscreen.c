@@ -19,9 +19,9 @@ void cu_fb_init(struct cu_fbscreen *s, cu_fb_log_fn log)
 {
 	memset(s, 0, sizeof(*s));
 	s->p.fb = CU_FB_PATH;
-	s->p.lock = FB_LOCK_PATH;
-	s->p.flag = CU_FB_FLAG_PATH;
-	s->p.lit = CU_FB_LIT_PATH;
+	s->p.lock = CHEF_FB0_LOCK;
+	s->p.flag = CHEF_SCREEN_OFF;
+	s->p.lit = CHEF_FB0_LIT;
 	s->p.backlight = CU_FB_BL_PATH;
 	s->p.modes = CU_FB_MODES_PATH;
 	s->log = log ? log : nolog;

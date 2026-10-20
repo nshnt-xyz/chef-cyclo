@@ -90,7 +90,8 @@ Push a rebuilt static binary instead of rebooting when iterating on a tool;
 - **Our runtime files are under `/run/chef`** (sockets, markers, logs, locks;
   [runtime files](features/runtime-files.md)) in images built since
   2026-10-20. Older images, the installed fallbacks among them, keep the
-  same names directly under `/run`. The scratch names above (`/run/push`,
+  same names directly under `/run`, and the screen-off flag there is
+  `/run/fblog.off`. The scratch names above (`/run/push`,
   `/run/x`, `/run/CMD.out`) work on both.
 - **Evidence under `/run` and `/tmp` is in RAM.** Pull it before rebooting. A phase 2 image persists the reviewed BlueZ and NetworkManager directories under `/data`; see [storage](features/storage.md).
 - **`poweroff` with USB attached comes back.** The cable re-powers the phone in

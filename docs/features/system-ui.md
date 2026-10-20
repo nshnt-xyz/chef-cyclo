@@ -589,11 +589,11 @@ inittab respawns `/usr/bin/chef-settings` after buttond and powerd. It takes
 the panel through the fb0 lock and tolerates NetworkManager,
 BlueZ, gps-manager and `/data` appearing later (each source retries with
 backoff or follows D-Bus name changes). A boot that starts with
-`/run/fblog.off` stays dark. If `chefui_init()` fails the app sleeps 5 s
+`/run/chef/screen-off` stays dark. If `chefui_init()` fails the app sleeps 5 s
 before exiting so respawn does not spin. When it dies (`kill -9` included),
 the lock is released and respawn takes the panel back.
 
-While the panel is lit the screen layer keeps a marker `/run/fb0.lit`
+While the panel is lit the screen layer keeps a marker `/run/chef/fb0.lit`
 (created before every UNBLANK, removed after every successful POWERDOWN). A
 clean exit or a screen-off removes it. If the app dies with the screen on,
 the kernel's last close of fb0 powers the panel down behind the touch driver,

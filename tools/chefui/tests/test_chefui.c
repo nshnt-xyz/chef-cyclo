@@ -7,7 +7,7 @@
  *   input/event0  a FIFO the parent writes input_events into (the evdev
  *             ioctls are wrapped to describe a 720x1600 MT touchscreen)
  *   buttond.sock  a listener played by the parent
- *   fb0.lock, fblog.off, brightness, modes
+ *   fb0.lock, screen-off, brightness, modes
  * Covered: first frame (R/B swap, alpha, page 1 pan), taps delivered as
  * press+release batches reaching LVGL as separate clicks, signal exit
  * (POWERDOWN, close, unlock, flag untouched), buttond claims and the
@@ -188,7 +188,7 @@ static void set_paths(const char *dir)
 	snprintf(D, sizeof(D), "%s", dir);
 	snprintf(P_FB, sizeof(P_FB), "%s/fb0", D);
 	snprintf(P_LOCK, sizeof(P_LOCK), "%s/fb0.lock", D);
-	snprintf(P_FLAG, sizeof(P_FLAG), "%s/fblog.off", D);
+	snprintf(P_FLAG, sizeof(P_FLAG), "%s/screen-off", D);
 	snprintf(P_LIT, sizeof(P_LIT), "%s/fb0.lit", D);
 	snprintf(P_BL, sizeof(P_BL), "%s/brightness", D);
 	snprintf(P_MODES, sizeof(P_MODES), "%s/modes", D);

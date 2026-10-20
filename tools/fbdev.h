@@ -25,7 +25,8 @@
  *
  * Screen lock: several processes may hold fb0 open (the driver refcounts
  * opens), so two clients drawing into the same buffer is the real hazard.
- * The convention here is an advisory flock(2) on FB_LOCK_PATH:
+ * The convention here is an advisory flock(2) on CHEF_FB0_LOCK
+ * (/run/chef/fb0.lock):
  *   - a resident background client (fblog) takes LOCK_SH|LOCK_NB only for
  *     the milliseconds it draws and commits, never while idle, and treats
  *     a failed try as "someone borrowed the screen": it stops drawing,
@@ -40,12 +41,13 @@
  * tools/chefui/fbscreen.c), so the background client never sees the
  * screen free in between. Nothing here touches any input device.
  *
- * Screen-off flag: /run/fblog.off (the path is historical) means "screen
+ * Screen-off flag: /run/chef/screen-off (CHEF_SCREEN_OFF) means "screen
  * deliberately off" system-wide. Whoever turns the panel off with
  * POWERDOWN creates it afterwards and removes it before the next UNBLANK;
  * a client started with it present does not open fb0 (the first open
- * would light the panel); fblog checks it before resuming after a borrow
- * and idles instead of unblanking (tools/fblog/fblog.c).
+ * would light the panel); fblog watches it while lit and checks it before
+ * resuming after a borrow, and idles instead of unblanking
+ * (tools/fblog/fblog.c).
  */
 #ifndef CHEF_CYCLO_FBDEV_H
 #define CHEF_CYCLO_FBDEV_H
@@ -62,7 +64,8 @@
 
 #include <linux/fb.h>
 
-#define FB_LOCK_PATH     "/run/fb0.lock"
+#include "common/chef_paths.h"
+
 #define FB_LOCK_RETRY_MS 250
 
 /* ---------------------------------------------------------------- pixels */
@@ -235,7 +238,7 @@ static inline void fb_powerdown_close(struct fbdev *fb)
 /* Open (creating) the lock file; -errno on failure. The fd is the lock. */
 static inline int fb_lock_open(const char *path)
 {
-	int fd = open(path ? path : FB_LOCK_PATH, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+	int fd = open(path ? path : CHEF_FB0_LOCK, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
 	return fd < 0 ? -errno : fd;
 }
 

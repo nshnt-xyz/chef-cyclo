@@ -30,7 +30,7 @@ struct rec {
 	unsigned long req;
 	long arg;
 	bool flag;		/* flag present at the call */
-	bool lit;		/* /run/fb0.lit stand-in present at the call */
+	bool lit;		/* /run/chef/fb0.lit stand-in present at the call */
 	char bl[8];		/* backlight file content at the call */
 };
 
@@ -498,7 +498,7 @@ static void test_handoff_exec_fails(void)
 	cu_fb_shutdown(&s);
 }
 
-/* --- /run/fb0.lit (lit marker, 2026-10-17) --- */
+/* --- /run/chef/fb0.lit (lit marker, 2026-10-17) --- */
 
 static void test_lit_marker(void)
 {
@@ -599,7 +599,7 @@ static void set_paths(const char *dir)
 	snprintf(g_dir, sizeof(g_dir), "%s", dir);
 	snprintf(g_fb, sizeof(g_fb), "%s/fb0", g_dir);
 	snprintf(g_lock, sizeof(g_lock), "%s/fb0.lock", g_dir);
-	snprintf(g_flag, sizeof(g_flag), "%s/fblog.off", g_dir);
+	snprintf(g_flag, sizeof(g_flag), "%s/screen-off", g_dir);
 	snprintf(g_lit, sizeof(g_lit), "%s/fb0.lit", g_dir);
 	snprintf(g_bl, sizeof(g_bl), "%s/brightness", g_dir);
 	snprintf(g_modes, sizeof(g_modes), "%s/modes", g_dir);

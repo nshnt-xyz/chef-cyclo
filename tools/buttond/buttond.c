@@ -52,11 +52,13 @@
  * the screen toggle stays snappy.
  *
  * Built-in defaults (used when nobody claims the gesture):
- *   power.short  toggle the panel through the system-wide screen-off flag:
- *                off creates /run/fblog.off then SIGTERMs fblog; on only
- *                removes the flag to wake its resident idle loop. init
- *                respawn observes the flag if fblog is absent. chefui
- *                applications claim power.short and use the same flag.
+ *   power.short  toggle the system-wide screen-off flag
+ *                /run/chef/screen-off: off creates it, on removes it,
+ *                nothing else. Unclaimed means no chefui application runs,
+ *                so nobody holds fb0 and the panel is already off; the next
+ *                screen owner honours the flag (a hand-run fblog watches
+ *                it). chefui applications claim power.short and use the
+ *                same flag.
  *   power.long   clean power-off, in three steps so a 1.5 s hold on its own
  *                does nothing irreversible: at the long threshold a short
  *                buzz ("keep holding, release to cancel"); if the key is
@@ -92,7 +94,7 @@
  *   -p  extra hold after power.long before a release powers off
  *       (default 1500; 0 = never power off, only log)
  *   -S  socket path (default /run/chef/buttond.sock)
- *   -o  fblog idle flag (default /run/fblog.off)
+ *   -o  screen-off flag (default /run/chef/screen-off)
  *   -V  vibrator (default /sys/class/timed_output/vibrator/enable, ms)
  *   -G  do not EVIOCGRAB the devices (shared, for experiments)
  *   -v  echo the log lines to stderr as well
@@ -109,7 +111,6 @@
  * includes this file with BUTTOND_NO_MAIN and never powers anything off.
  */
 #define _GNU_SOURCE
-#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -135,7 +136,6 @@
 #include "common/json.h"
 #include "common/linesrv.h"
 
-#define BUTTOND_OFF_PATH   "/run/fblog.off"
 #define BUTTOND_VIB_PATH   "/sys/class/timed_output/vibrator/enable"
 #define BUTTOND_LONG_MS    1500
 #define BUTTOND_DOUBLE_MS  300
@@ -419,11 +419,9 @@ struct server {
 	unsigned po_presses;		/* recog presses at arm time: re-press cancels */
 	/* injected for the tests; the defaults are the real actions */
 	void (*log)(const char *fmt, ...);
-	int (*kill_comm)(const char *comm, int sig);
 	void (*poweroff)(struct server *s);
 };
 
-static int kill_by_comm(const char *comm, int sig);
 static void system_poweroff(struct server *s);
 static void on_connect(struct linesrv *srv, struct linesrv_client *c);
 static void on_line(struct linesrv *srv, struct linesrv_client *c, int argc, char **argv);
@@ -447,11 +445,10 @@ static int server_init(struct server *s, unsigned long_ms, unsigned double_ms,
 
 	memset(s, 0, sizeof(*s));
 	recog_init(&s->recog, long_ms, double_ms);
-	s->off_path = BUTTOND_OFF_PATH;
+	s->off_path = CHEF_SCREEN_OFF;
 	s->vib_path = BUTTOND_VIB_PATH;
 	s->poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;
 	s->log = cfg.log;
-	s->kill_comm = kill_by_comm;
 	s->poweroff = system_poweroff;
 	s->srv = linesrv_new(&cfg);
 	return s->srv ? 0 : -ENOMEM;
@@ -584,45 +581,33 @@ static void on_line(struct linesrv *srv, struct linesrv_client *c, int argc, cha
 /* -------------------------------------------------- default actions */
 
 /*
- * Screen-off: create the flag and signal fblog to POWERDOWN, then init
- * respawns it idle. Screen-on: remove the flag only; resident fblog wakes
- * via inotify (or fallback recheck). If absent/exiting, init's next spawn
- * sees the removed flag. Signalling after removal would kill a just-woken
- * fblog and blink the panel until init respawns it again.
- * Returns 1 for off, 0 for on, or negative errno on flag failure.
+ * Screen-off creates the flag, screen-on removes it; nothing else. The
+ * next screen owner honours it (a hand-run fblog watches it while
+ * running). Returns 1 for off, 0 for on, or negative errno on flag failure.
  */
 static int screen_toggle(struct server *s)
 {
 	bool off = access(s->off_path, F_OK) != 0;	/* absent -> go off */
-	int rc, killed;
+	int fd, e;
 
 	if (off) {
-		int fd = open(s->off_path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
-
+		fd = open(s->off_path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
 		if (fd < 0) {
-			s->log("screen off: create %s: %s", s->off_path, strerror(errno));
-			return -errno;
+			e = errno;
+			s->log("screen off: create %s: %s", s->off_path, strerror(e));
+			return -e;
 		}
 		close(fd);
-	} else if (unlink(s->off_path) && errno != ENOENT) {
-		s->log("screen on: remove %s: %s", s->off_path, strerror(errno));
-		return -errno;
+		s->log("screen off: created %s", s->off_path);
+		return 1;
 	}
-	if (!off) {
-		s->log("screen on: removed %s; fblog wakes on flag removal or next init respawn", s->off_path);
-		return 0;
+	if (unlink(s->off_path) && errno != ENOENT) {
+		e = errno;
+		s->log("screen on: remove %s: %s", s->off_path, strerror(e));
+		return -e;
 	}
-	killed = s->kill_comm("fblog", SIGTERM);
-	rc = off ? 1 : 0;
-	if (killed < 0)
-		s->log("screen %s: %s %s, but fblog not running (%s); it will honour the flag when started",
-		       off ? "off" : "on", off ? "created" : "removed", s->off_path,
-		       strerror(-killed));
-	else
-		s->log("screen %s: %s %s, signalled fblog (%d process%s); init respawns it",
-		       off ? "off" : "on", off ? "created" : "removed", s->off_path,
-		       killed, killed == 1 ? "" : "es");
-	return rc;
+	s->log("screen on: removed %s", s->off_path);
+	return 0;
 }
 
 /* timed_output: a duration in ms, the driver stops by itself. */
@@ -753,44 +738,6 @@ static void server_drain(struct server *s, int64_t now)
 }
 
 /* --------------------------------------------------------- syscalls */
-
-/* SIGTERM every process whose /proc/PID/comm is `comm` (busybox pidof). */
-static int kill_by_comm(const char *comm, int sig)
-{
-	DIR *d = opendir("/proc");
-	struct dirent *de;
-	int n = 0;
-
-	if (!d)
-		return -errno;
-	while ((de = readdir(d))) {
-		char path[64], buf[32];
-		int fd;
-		ssize_t len;
-		pid_t pid;
-
-		if (de->d_name[0] < '1' || de->d_name[0] > '9')
-			continue;
-		pid = (pid_t)atoi(de->d_name);
-		if (pid <= 0 || pid == getpid())
-			continue;
-		snprintf(path, sizeof(path), "/proc/%ld/comm", (long)pid);
-		fd = open(path, O_RDONLY | O_CLOEXEC);
-		if (fd < 0)
-			continue;
-		len = read(fd, buf, sizeof(buf) - 1);
-		close(fd);
-		if (len <= 0)
-			continue;
-		buf[len] = '\0';
-		if (len && buf[len - 1] == '\n')
-			buf[len - 1] = '\0';
-		if (strcmp(buf, comm) == 0 && kill(pid, sig) == 0)
-			n++;
-	}
-	closedir(d);
-	return n ? n : -ESRCH;
-}
 
 /*
  * The orderly way down: sync, then `poweroff` (busybox: SIGUSR2 to init,
@@ -1020,7 +967,7 @@ int main(int argc, char **argv)
 	struct server s;
 	struct keydev kds[BUTTOND_MAX_DEVS];
 	const char *explicit[BUTTOND_MAX_DEVS];
-	const char *sock_path = CHEF_BUTTOND_SOCK, *off_path = BUTTOND_OFF_PATH;
+	const char *sock_path = CHEF_BUTTOND_SOCK, *off_path = CHEF_SCREEN_OFF;
 	const char *vib_path = BUTTOND_VIB_PATH;
 	unsigned long_ms = BUTTOND_LONG_MS, double_ms = BUTTOND_DOUBLE_MS;
 	unsigned poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;

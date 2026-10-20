@@ -23,10 +23,6 @@ ALLOWED = {
     "user": "the XDG runtime directory /run/user/0 (session bus, PipeWire)",
     "lock": "the standard lock directory",
     ".var": "/init's transient mount point while it moves the volatile /var",
-    # Standard interfaces step 5 M2 moves these to /run/chef.
-    "fb0.lock": "screen lock, moved in M2",
-    "fb0.lit": "panel-lit flag, moved in M2",
-    "fblog.off": "screen-off flag, renamed and moved in M2",
 }
 
 # A bare /run as a variable's default: the directory the names go into.

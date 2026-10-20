@@ -1,8 +1,8 @@
 # buttond: the side-button gesture daemon (buttond.c), see buttond.c's file
 # header and docs/features/buttons-and-power-off.md. It grabs the
 # qpnp_pon/gpio-keys evdev nodes, turns presses into
-# short/double/long/chord gestures, publishes them on /run/chef/buttond.sock to
-# claimants, by default toggles the panel (fblog's /run/fblog.off protocol)
+# short/double/long/chord gestures, publishes them on /run/chef/buttond.sock
+# to claimants, by default toggles the screen-off flag /run/chef/screen-off
 # on an unclaimed power.short and powers off cleanly (sync + busybox
 # `poweroff`) when power is held 3 s and released. Started from inittab
 # (respawn). Only libc's <linux/input.h> (device discovery through the
