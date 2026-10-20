@@ -48,7 +48,7 @@ static int g_pan_brightness;
 
 static char g_self[300];
 static char D[64], P_FB[96], P_LOCK[96], P_FLAG[96], P_LIT[96], P_BL[96], P_MODES[96], P_INPUT[96],
-	    P_EV[112], P_SOCK[96], P_LOG[96];
+	    P_EV[112], P_SOCK[96], P_LOG[96], P_NOLOG[96];
 
 /* ------------------------------------------------------- wrapped ioctl */
 
@@ -196,13 +196,14 @@ static void set_paths(const char *dir)
 	snprintf(P_EV, sizeof(P_EV), "%s/event0", P_INPUT);
 	snprintf(P_SOCK, sizeof(P_SOCK), "%s/buttond.sock", D);
 	snprintf(P_LOG, sizeof(P_LOG), "%s/ioctl.log", D);
+	snprintf(P_NOLOG, sizeof(P_NOLOG), "%s/no-syslog", D);	/* never the host's /dev/log */
 }
 
 static void use_paths(void)
 {
 	struct cu_test_paths p = {
 		.fb = P_FB, .lock = P_LOCK, .flag = P_FLAG, .lit = P_LIT, .backlight = P_BL, .modes = P_MODES,
-		.input_dir = P_INPUT, .buttond_sock = P_SOCK, .kmsg = "/dev/null",
+		.input_dir = P_INPUT, .buttond_sock = P_SOCK, .kmsg = "/dev/null", .log_socket = P_NOLOG,
 	};
 
 	cu_set_test_paths(&p);

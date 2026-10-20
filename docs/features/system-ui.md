@@ -9,7 +9,7 @@ Slice 2 ([spec](../next-steps/system-ui-2-handoff.md)) adds the remaining
 pages milestone by milestone: Wi-Fi, GPS and Bluetooth sensors, and (M4) the four
 device pages below.
 It starts at boot and owns the panel (there is no log screen; read the log
-with `dmesg` over USB telnet or SSH). Portrait only. Live-verified on a RAM image on 2026-10-11
+with `logread` over USB telnet or SSH). Portrait only. Live-verified on a RAM image on 2026-10-11
 ([evidence](../../logs/system-ui-slice1-2026-10-11.txt)); not installed yet. Source: `tools/chefui/apps/settings/`
 (the app), `tools/chefui/kit/` (tokens, fonts, icons, widgets) and
 `tools/chefui/sys/` (state sources and the settings file).
@@ -99,7 +99,7 @@ timer.
 with its old stamp (6 to 302 s old in the M5 visit); the first fresh sample is stamped about 0.23 to
 0.42 s after the claim. The client takes CLOCK_MONOTONIC when it sends the claim and drops every
 sample whose `t` is more than 200 ms (`ALS_STALE_SLACK_MS`) before that, before the logic sees it.
-One kmsg line per claim names the dropped reading and its age
+One log line per claim names the dropped reading and its age
 (`als: dropped a cached sample (N lux, X s older than the claim)`). Without it a bright cached value at
 a dark wake would give Light at once and full backlight for about 25 s. With no fresh sample there is
 no decision; the status probe still covers liveness.
@@ -139,9 +139,9 @@ and no dimming inside the window; at its end the latest sample takes over and th
 normal hysteresis runs from there (a Dark change needs its 20 s counted from the end
 of the window). A Dark flash outdoors on every wake is what this prevents. The window
 length is a starting value to be set from live data (`live/coldstart.sh` checked a
-cold sensor on 2026-10-16: no under-read in three rounds; the first line of a claim is a cached reading, see above). One kmsg line per change of the effective theme under Auto (no line when a
+cold sensor on 2026-10-16: no under-read in three rounds; the first line of a claim is a cached reading, see above). One log line per change of the effective theme under Auto (no line when a
 decision keeps the theme), as the app prints it:
-`chefui[chef-settings]: theme auto -> light (lux 3120, held 5.0 s)`, with
+`chef-settings[PID]: theme auto -> light (lux 3120, held 5.0 s)`, with
 `wake grace` or `selected` in place of the hold for a decision inside the wake window
 or the change caused by choosing Auto. Brightness changes are not logged. Tunables (also through the one-shot args file):
 `--als-light LUX`, `--als-dark LUX` (dark below light), `--als-light-hold S`,
@@ -166,7 +166,7 @@ only while such a card is shown, so a screen without a prompt costs nothing. The
 file is noticed by inotify on the directory (no polling); a writer makes a temp file
 in `/run/chef/chef-settings` and renames it over `prompt`. Same trust rules as the args
 file: a regular file owned by root, not group or other writable, not a symlink, at
-most 1 KiB, otherwise ignored with one kmsg line. Text is ASCII, other bytes show as
+most 1 KiB, otherwise ignored with one log line. Text is ASCII, other bytes show as
 `?`. Example writer:
 
 ```sh
@@ -474,7 +474,7 @@ reconnect re-sends the page's hold and scan wants. See the
 ## Settings
 
 `/data/v1/ui/settings` when `/data` is ours ([storage](storage.md#persistent-state)),
-else `/run/chef/ui/settings` with one kmsg line (lost at reboot):
+else `/run/chef/ui/settings` with one log line (lost at reboot):
 
 ```
 chef-ui-settings 3
@@ -510,7 +510,7 @@ load with the defaults for the new lines and the next save writes v3, one-way
 again (an older image rejects v3 and uses its defaults). There is no zone
 picker. The file follows
 the chef-state rules: checked version, layout, ranges and checksum, a bad
-file ignored with a kmsg line (defaults, replaced at the next save), never
+file ignored with a log line (defaults, replaced at the next save), never
 fatal. Writes are debounced 2 s after the last change and flushed at exit:
 the `ui` directory (0700; `/data/v1` itself is never created here) has its
 parent fsynced on every save, then a 0600 temp file is written, fsynced,

@@ -3,12 +3,12 @@
  * mode, auto-sleep, time zone and the alert preferences. The file, its
  * format and checks are settings_file.h; this is chef-settings' store.
  *
- * On /run (lost at reboot, one kmsg line) until /data is ours. Writes are
+ * On /run (lost at reboot, one log line) until /data is ours. Writes are
  * debounced (UI_SETTINGS_DEBOUNCE_MS after the last change) and flushed at
  * exit; a write makes the ui directory (0700, its parent fsynced), writes
  * a 0600 temp file in it, fsyncs, renames and fsyncs the directory, under
  * a lock in /run/chef/lock. /data/v1 itself is never created (chef-storage
- * owns the layout). A file that fails any check is ignored with a kmsg
+ * owns the layout). A file that fails any check is ignored with a log
  * line and the defaults are used; it is replaced at the next save. No
  * descriptor on /data is kept open between writes.
  */

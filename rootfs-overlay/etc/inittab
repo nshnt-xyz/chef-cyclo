@@ -1,7 +1,12 @@
 # busybox init. /init has already done the mounts and USB gadget setup.
+# System log first: busybox syslogd on /dev/log with a 1 MiB RAM ring
+# (shared memory; `logread`, `logread -f`), nothing on disk, no klogd (the
+# kernel's lines stay in dmesg). Our programs fall back to /dev/kmsg while
+# it is not up. See docs/features/logging.md.
+::respawn:/sbin/syslogd -n -C1024
 # The shell gets root's home and session bus (below) the way a desktop login would.
 ::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'
-::respawn:/usr/sbin/udhcpd -f /run/chef/udhcpd.conf
+::respawn:/usr/sbin/udhcpd -f -S /run/chef/udhcpd.conf
 ::respawn:/bin/sh -c 'if [ ! -e /run/chef/dbus-helper-ready ]; then sleep 10; exit 1; fi; exec /usr/bin/dbus-daemon --system --nofork --nopidfile'
 # A PAN link (bnep*) must not reach the root telnet on the USB subnet (Linux
 # answers for 172.16.42.1 on any interface), the same rule wifi-usb-guard sets
@@ -22,10 +27,11 @@
 # (`gps-manager hold map`), then runs the LOC session, gpsd and the NMEA
 # pipeline on top of the gps-up modem; never starts or stops gps-up.
 ::respawn:/usr/bin/gps-manager
-# Client-only NTP, no network command/server listener. The drift file is in
+# Client-only NTP, no network command/server listener, logging to syslog
+# (-n; -d would log to the console). The drift file is in
 # /var/lib/chrony: /data/v1/chrony bound there by chef-storage when /data is
 # ours, else the tmpfs directory (chronyd as `chrony` must own it either way).
-::respawn:/bin/sh -c 'mkdir -p /run/chrony /var/lib/chrony && chown chrony:chrony /run/chrony /var/lib/chrony && chmod 700 /run/chrony /var/lib/chrony && exec /usr/sbin/chronyd -d -u chrony -f /etc/chrony/chrony.conf'
+::respawn:/bin/sh -c 'mkdir -p /run/chrony /var/lib/chrony && chown chrony:chrony /run/chrony /var/lib/chrony && chmod 700 /run/chrony /var/lib/chrony && exec /usr/sbin/chronyd -n -u chrony -f /etc/chrony/chrony.conf'
 # Wall clock against the RTC on /data (chef-state): saved while chrony is
 # synchronised, restored by /init on the next boot.
 ::respawn:/usr/bin/chef-state timekeeper
@@ -57,7 +63,7 @@
 # from spinning. Log: /run/chef/log/sensors-up.log and kmsg; before each
 # start the log is moved to /run/chef/log/sensors-up.log.1 when it is over
 # 256 KiB. sensord runs without -v and with its stderr on /dev/null (its
-# notes still reach kmsg), so the log holds only sensors-up's own lines:
+# notes still reach syslog), so the log holds only sensors-up's own lines:
 # bounded by the rotation, about 512 KiB at most.
 ::respawn:/bin/sh -c 'f=/run/chef/log/sensors-up.log; [ "$(stat -c %s $f 2>/dev/null || echo 0)" -gt 262144 ] && mv -f $f $f.1; SENSORD_ARGS= SENSORD_STDERR=/dev/null /usr/bin/sensors-up >> $f 2>&1; sleep 10'
 # The system UI (chef-settings: status bar, settings hub, Display page). It
@@ -73,7 +79,7 @@
 # A/B slot: mark boot_a successful once this boot has lasted 30 s, as
 # Android's boot_control HAL did, so abl stops counting retries down (it
 # would mark the slot unbootable after 7 boots). A build that dies earlier
-# keeps counting and ends in fastboot. Logs to kmsg and
+# keeps counting and ends in fastboot. Logs to syslog and
 # /run/chef/log/abslot.log.
 ::once:/bin/sh -c 'sleep 30; exec /usr/bin/abslot mark-successful >/dev/null'
 ::ctrlaltdel:/sbin/reboot

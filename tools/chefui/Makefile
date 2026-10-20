@@ -61,11 +61,11 @@ HDRS := chefui.h chefui_internal.h copy.h plan.h touch.h buttons.h fbscreen.h lv
 DEV_LIB_SRCS := chefui.c backend_fb.c backends_device.c $(PURE)
 HOST_LIB_SRCS := chefui.c backend_sdl.c backends_host.c $(PURE)
 # Shared code from ../common/ (the JSON line reader buttons.c and the
-# state sources parse daemon lines with, and lineclient, their connection
-# core), compiled into each configuration's libchefui as
-# build/<config>/common/*.o.
-COMMON_SRCS := json.c lineclient.c
-HDRS += ../common/json.h ../common/lineclient.h ../common/chef_paths.h
+# state sources parse daemon lines with, lineclient, their connection
+# core, and chef_log behind chefui_log()), compiled into each
+# configuration's libchefui as build/<config>/common/*.o.
+COMMON_SRCS := json.c lineclient.c chef_log.c
+HDRS += ../common/json.h ../common/lineclient.h ../common/chef_log.h ../common/chef_paths.h
 common_objs = $(patsubst %.c,$(B)/$(1)/common/%.o,$(COMMON_SRCS))
 
 # System UI kit + state sources (libchefkit) and the chef-settings app.
@@ -90,6 +90,9 @@ HOST_NETBUS := sys/netbus_none.c
 endif
 
 B := build
+# No test reaches the host's syslog: chef_log() (../common/) finds no
+# socket at this path and writes the kmsg path each test sets instead.
+export CHEF_LOG_SOCKET := /nonexistent/chef-log-socket
 
 .PHONY: all device install-device host test clean check-lvgl
 

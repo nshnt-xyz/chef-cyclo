@@ -60,8 +60,9 @@
  *                      dropping its oldest rows. On abrupt power loss up to
  *                      one interval of ordinary rows is lost.
  *   shutdown-pending   written with the reason just before a shutdown
- * and "powerd: ..." kmsg lines for transitions only (plug/unplug, status,
- * warn/critical, throttle level, shutdown), in kmsg.
+ * and "powerd: ..." log lines (chef_log: syslog, kmsg when syslogd cannot
+ * take them) for transitions only (plug/unplug, status, warn/critical,
+ * throttle level, shutdown).
  *
  * Policy (stock-derived defaults; every threshold overridable, overrides
  * are logged loudly as TEST OVERRIDE at start and listed in the state file):
@@ -131,11 +132,11 @@
 #include <unistd.h>
 #include <linux/netlink.h>
 
+#include "common/chef_log.h"
 #include "common/chef_paths.h"
 
 #define POWERD_SYSFS        "/sys/class/power_supply"
 #define POWERD_VIB_PATH     "/sys/class/timed_output/vibrator/enable"
-#define POWERD_KMSG_PATH    "/dev/kmsg"
 #define POWERD_WARN_PCT     15
 #define POWERD_CRIT_PCT     5
 #define POWERD_REARM_PCT    20
@@ -157,30 +158,8 @@
 #define POWERD_NA           INT_MIN		/* unreadable, -22, not a number */
 #define POWERD_ABSENT       (INT_MIN + 1)	/* online of a psy that does not exist */
 
-static bool g_verbose;
-static const char *g_kmsg_path = POWERD_KMSG_PATH;
 static volatile sig_atomic_t g_stop;
 static volatile sig_atomic_t g_kick;
-
-static void kmsg_note(const char *fmt, ...)
-{
-	char buf[320];
-	va_list ap;
-	int fd, n;
-
-	va_start(ap, fmt);
-	n = vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	if (n < 0)
-		return;
-	if (g_verbose)
-		fprintf(stderr, "powerd: %s\n", buf);
-	fd = open(g_kmsg_path, O_WRONLY | O_APPEND | O_CLOEXEC);
-	if (fd < 0)
-		return;
-	dprintf(fd, "powerd: %s\n", buf);
-	close(fd);
-}
 
 /* ------------------------------------------------------------- sample */
 
@@ -497,7 +476,7 @@ static void powerd_init(struct powerd *p)
 	p->flush_ms = POWERD_FLUSH_MS;
 	p->pending_max = POWERD_PENDING_MAX;
 	p->flush_due = -1;
-	p->log = kmsg_note;
+	p->log = chef_log;
 	p->write_level = sysfs_write_level;
 	p->shutdown = system_shutdown;
 	p->buzz = vib_buzz;
@@ -1544,7 +1523,7 @@ static void usage(void)
 		"      0 = every row); important rows always flush at once\n"
 		"  -x  shutdown command (sh -c CMD) instead of sync + poweroff; no fallback\n"
 		"  -V  vibrator for the critical buzz ('' = none; default " POWERD_VIB_PATH ")\n"
-		"  -K  kmsg path (default " POWERD_KMSG_PATH ")\n"
+		"  -K  kmsg path for log lines syslogd cannot take (default /dev/kmsg)\n"
 		"  -L  log.csv size limit in bytes before rotation (default 1048576)\n"
 		"test options (each logged as TEST OVERRIDE):\n"
 		"  --warn PCT --critical PCT --rearm PCT --empty-pct PCT --empty-mv MV\n"
@@ -1635,7 +1614,7 @@ int main(int argc, char **argv)
 	int64_t next_at, uevent_at = -1, last_uevent_sample = INT64_MIN / 2;
 	int opt, ufd, ms, rc;
 	char logdesc[600];
-	bool ok = true;
+	bool ok = true, verbose = false;
 
 	powerd_init(&p);
 	env = getenv("POWERD_SYSFS");
@@ -1652,9 +1631,9 @@ int main(int argc, char **argv)
 			break;
 		case 'x': g_shutdown_cmd = optarg; add_override(&p, "shutdown-cmd", NULL); break;
 		case 'V': p.vib = optarg; break;
-		case 'K': g_kmsg_path = optarg; break;
+		case 'K': chef_log_set_kmsg(optarg); break;
 		case 'L': p.log_max = atol(optarg); ok = p.log_max >= 1024; break;
-		case 'v': g_verbose = true; break;
+		case 'v': verbose = true; break;
 		case OPT_WARN: ok = parse_int(optarg, 0, 100, &c->warn_pct); break;
 		case OPT_CRIT: ok = parse_int(optarg, 0, 100, &c->crit_pct); break;
 		case OPT_REARM: ok = parse_int(optarg, 0, 101, &c->rearm_pct); break;
@@ -1686,6 +1665,7 @@ int main(int argc, char **argv)
 			add_override(&p, longopts[opt - OPT_WARN].name,
 				     longopts[opt - OPT_WARN].has_arg ? optarg : NULL);
 	}
+	chef_log_init("powerd", verbose);
 	if (optind < argc) {
 		if (strcmp(argv[optind], "status") == 0 && optind + 1 == argc)
 			return status_main(p.dir);
@@ -1706,14 +1686,14 @@ int main(int argc, char **argv)
 
 	rc = mkdir_p(p.dir);
 	if (rc < 0) {
-		kmsg_note("mkdir %s: %s; exiting in 5 s", p.dir, strerror(-rc));
+		chef_log("mkdir %s: %s; exiting in 5 s", p.dir, strerror(-rc));
 		sleep(5);
 		return 1;
 	}
 	if (p.logdir) {
 		rc = mkdir_p(p.logdir);
 		if (rc < 0) {
-			kmsg_note("mkdir %s: %s; logging to %s", p.logdir, strerror(-rc), p.dir);
+			chef_log("mkdir %s: %s; logging to %s", p.logdir, strerror(-rc), p.dir);
 			p.logdir = NULL;
 		}
 	}
@@ -1741,16 +1721,16 @@ int main(int argc, char **argv)
 
 	ufd = uevent_open();
 	if (ufd < 0)
-		kmsg_note("uevent socket: %s; polling only", strerror(-ufd));
+		chef_log("uevent socket: %s; polling only", strerror(-ufd));
 	if (p.overrides[0])
-		kmsg_note("TEST OVERRIDE: %s", p.overrides);
+		chef_log("TEST OVERRIDE: %s", p.overrides);
 	if (c->act_when_online)
-		kmsg_note("TEST OVERRIDE: --shutdown-when-online: low-battery policy acts with a supply attached");
+		chef_log("TEST OVERRIDE: --shutdown-when-online: low-battery policy acts with a supply attached");
 	if (p.logdir)
 		snprintf(logdesc, sizeof(logdesc), "%s (batched every %d s)", p.logdir, p.flush_ms / 1000);
 	else
 		snprintf(logdesc, sizeof(logdesc), "%s", p.dir);
-	kmsg_note("ready: %s -> %s, log %s, warn %d %%, critical %d %%, off at %d %% / %d mV / %d.%d C, throttle %s",
+	chef_log("ready: %s -> %s, log %s, warn %d %%, critical %d %%, off at %d %% / %d mV / %d.%d C, throttle %s",
 		  p.sysfs, p.dir, logdesc, c->warn_pct, c->crit_pct, c->empty_pct, c->empty_mv,
 		  c->overtemp_dc / 10, abs(c->overtemp_dc) % 10,
 		  c->throttle ? "on" : "off");
@@ -1759,7 +1739,7 @@ int main(int argc, char **argv)
 	if (c->throttle) {
 		rc = p.write_level(&p, 0);
 		if (rc < 0 && rc != -ENOENT)
-			kmsg_note("system_temp_level reset: %s", strerror(-rc));
+			chef_log("system_temp_level reset: %s", strerror(-rc));
 	}
 
 	ms = powerd_sample(&p, "start", now_ms(), uptime_s());
@@ -1778,7 +1758,7 @@ int main(int argc, char **argv)
 			timeout = 0;
 		rc = poll(&pfd, ufd >= 0 ? 1 : 0, timeout);
 		if (rc < 0 && errno != EINTR) {
-			kmsg_note("poll: %s; exiting for a respawn", strerror(errno));
+			chef_log("poll: %s; exiting for a respawn", strerror(errno));
 			break;
 		}
 		now = now_ms();
@@ -1816,7 +1796,7 @@ int main(int argc, char **argv)
 		log_flush_now(&p, true, now_ms());
 	if (c->throttle && !p.shutdown_fired && p.level != 0)
 		p.write_level(&p, 0);
-	kmsg_note("exiting");
+	chef_log("exiting");
 	return 0;
 }
 

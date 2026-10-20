@@ -42,7 +42,7 @@ enum chefui_backend {
 };
 
 struct chefui_config {
-	const char *app_name;		/* kmsg prefix chefui[<app>]; required */
+	const char *app_name;		/* syslog tag, the program's name; required */
 	uint32_t refresh_ms;		/* 0 = 16 ms (~60 fps target); 33 for ~30 fps */
 	int rotation;			/* 0, 90, 180, 270 (clockwise) */
 	int brightness;			/* 1..255; 0 = 96 */
@@ -150,7 +150,8 @@ int chefui_handoff_exec(const char *path, char *const argv[], bool dark);
  */
 int chefui_snapshot(const char *path);
 
-/* Lifecycle note to /dev/kmsg as "chefui[<app>]: ..." (and stderr). */
+/* Lifecycle note to syslog through chef_log, tagged with the app name
+ * (kmsg when syslogd cannot take it), and stderr; stderr only on a PC. */
 void chefui_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 /* With CHEFUI_STATS=1 in the environment: the last one-second stats line

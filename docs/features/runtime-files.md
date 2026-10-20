@@ -54,7 +54,7 @@ C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen f
 
 ## What stays outside
 
-- **Other packages' standard names:** `/run/dbus`, `/run/udev`, `/run/NetworkManager`, `/run/wpa_supplicant`, `/run/chrony`, `/run/user` and `/run/lock`, plus the default files of busybox `udhcpd` (`/run/udhcpd.pid`) and iptables (`/run/xtables.lock`). `/init`'s `/run/.var` exists only while it moves the volatile `/var` into place.
+- **Other packages' standard names:** `/run/dbus`, `/run/udev`, `/run/NetworkManager`, `/run/wpa_supplicant`, `/run/chrony`, `/run/user` and `/run/lock`, plus the default files of busybox `udhcpd` (`/run/udhcpd.pid`) and `syslogd` (`/run/syslogd.pid`, [logging](logging.md)) and iptables (`/run/xtables.lock`). `/init`'s `/run/.var` exists only while it moves the volatile `/var` into place.
 - **Stage 1.** The boot image's rescue world (`stage1/init`) keeps `/run`: `/run/rescue-reason`, `/run/usb-interface` and `/run/udhcpd.conf`. `usr/lib/chef/usb-gadget.sh` is shared with it, so it writes into `$USB_GADGET_RUN`, default `/run` for stage 1; the stage-2 `/init` sets `USB_GADGET_RUN=/run/chef` before sourcing it.
 - **Live-test scratch** that host tooling uses on any image, including the installed fallbacks: `/run/push` (`phone.py push`), `/run/x`, `/run/test`, `/run/evidence`, `/run/CMD.out` and `/run/bootloader-restart.log` (`phone-boot.sh`). Logs started by hand from a guide (`/run/gpsd.log`, `/run/compass.log` and the like) are scratch too.
 

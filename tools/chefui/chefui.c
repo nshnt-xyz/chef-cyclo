@@ -24,6 +24,7 @@
 #include "buttons.h"
 #include "copy.h"
 #include "chefui_internal.h"
+#include "common/chef_log.h"
 
 #define CU_MAX_WATCH 16
 #define CU_DEFAULT_REFRESH_MS 16
@@ -104,23 +105,22 @@ void cu_set_test_paths(const struct cu_test_paths *p)
 
 void chefui_log(const char *fmt, ...)
 {
-	char buf[320];
+	char buf[321];
 	va_list ap;
-	int fd, n;
+	int n;
 
 	va_start(ap, fmt);
 	n = vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
 	if (n < 0)
 		return;
-	fprintf(stderr, "chefui[%s]: %s\n", G.app[0] ? G.app : "?", buf);
-	if (!cu_paths.kmsg && G.be && G.be->kind == CHEFUI_BACKEND_SDL)
-		return;		/* host: no device paths, stderr only */
-	fd = open(cu_paths.kmsg ? cu_paths.kmsg : "/dev/kmsg", O_WRONLY | O_CLOEXEC);
-	if (fd < 0)
+#if CHEFUI_SDL
+	if (!cu_paths.kmsg) {	/* a PC build: no device paths, stderr only */
+		fprintf(stderr, "%s: %s\n", G.app[0] ? G.app : "chefui", buf);
 		return;
-	dprintf(fd, "chefui[%s]: %s\n", G.app[0] ? G.app : "?", buf);
-	close(fd);
+	}
+#endif
+	chef_log("%s", buf);	/* tag and stderr echo set by chefui_init() */
 }
 
 static void on_signal(int sig)
@@ -223,6 +223,11 @@ lv_display_t *chefui_init(const struct chefui_config *cfg)
 		return NULL;
 	G.cfg = *cfg;
 	snprintf(G.app, sizeof(G.app), "%s", cfg->app_name);
+	chef_log_init(G.app, true);
+	if (cu_paths.kmsg)
+		chef_log_set_kmsg(cu_paths.kmsg);
+	if (cu_paths.log_socket)
+		chef_log_set_socket(cu_paths.log_socket);
 	G.refresh_ms = cfg->refresh_ms ? cfg->refresh_ms : CU_DEFAULT_REFRESH_MS;
 	if (!G.cfg.brightness)
 		G.cfg.brightness = CU_DEFAULT_BRIGHTNESS;

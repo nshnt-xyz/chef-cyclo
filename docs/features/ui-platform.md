@@ -210,8 +210,9 @@ A static 1 Hz label remains about two wakeups/second in the host fbdev simulatio
 SDL window event handling has its own wakeups.
 
 `CHEFUI_STATS=1` logs fps, process CPU, pixels/copy time, pan mean/max and wakeups
-to stderr once per second. Device lifecycle notes also go to `/dev/kmsg` as
-`chefui[app]:`; host logs only to stderr. Demo options include `-t secs`, `-a`
+to stderr once per second. Device lifecycle notes also go to syslog
+([logging](logging.md)) tagged with the app name (`cfg.app_name`, the
+program's name: `chef-settings`, `chefui-demo`); host logs only to stderr. Demo options include `-t secs`, `-a`
 animation, `-F` full invalidation, `-r`, `-f 30|60`, `-b`, `--peer` and `--dark`.
 
 As reported by the coordinator on 2026-10-03, live checks passed LZMA boot,

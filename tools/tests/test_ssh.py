@@ -435,8 +435,8 @@ class Dispatcher(unittest.TestCase):
 class Wiring(unittest.TestCase):
     def test_inittab(self):
         lines = (ROOT / "rootfs-overlay/etc/inittab").read_text().splitlines()
-        self.assertEqual(lines[2], "::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 "
-                         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'")
+        self.assertEqual(lines.count("::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 "
+                         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'"), 1)
         self.assertEqual(lines.count("::respawn:/usr/bin/chef-sshd"), 1)
         self.assertFalse(any("dropbear" in l for l in lines if not l.startswith("#")))
 

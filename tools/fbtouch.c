@@ -75,10 +75,11 @@
  * tools/evdev.h; there is no single-touch BTN_TOUCH/ABS_X/ABS_Y fallback.
  *
  * Output is one line per event on stdout (line-buffered) plus "fbtouch:"
- * markers on /dev/kmsg so the run can be correlated with dmesg. The pure
- * parts (pixel packing, the down/move/up tracker over evdev.h's frames,
- * the test pattern) are separated from the syscalls and covered by
- * tools/tests/test_fbtouch.c, which includes this file with
+ * markers on /dev/kmsg so the run can be correlated with dmesg (kmsg on
+ * purpose, not syslog: they interleave with the kernel's display lines).
+ * The pure parts (pixel packing, the down/move/up tracker over evdev.h's
+ * frames, the test pattern) are separated from the syscalls and covered
+ * by tools/tests/test_fbtouch.c, which includes this file with
  * FBTOUCH_NO_MAIN defined.
  */
 #define _GNU_SOURCE

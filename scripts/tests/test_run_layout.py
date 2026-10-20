@@ -22,6 +22,8 @@ ALLOWED = {
     "chrony": "chronyd's standard pid and command socket directory",
     "user": "the XDG runtime directory /run/user/0 (session bus, PipeWire)",
     "lock": "the standard lock directory",
+    "syslogd.pid": "busybox syslogd's own default pid file (CONFIG_PID_FILE_PATH is /run); "
+                   "the shell log helper checks it to know syslogd is up",
     ".var": "/init's transient mount point while it moves the volatile /var",
 }
 

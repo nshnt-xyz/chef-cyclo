@@ -63,6 +63,7 @@
 #include "app.h"
 #include "blesens.h"
 #include "chefui.h"
+#include "common/chef_log.h"
 #include "common/chef_paths.h"
 #include "pages.h"
 #include "prompt.h"
@@ -258,23 +259,23 @@ static int parse(int argc, char **argv, struct opts *o)
 	return 0;
 }
 
-/* Before chefui_init() (no app name there yet): kmsg and stderr. */
+/* Before chefui_init() (chefui_log() has no backend yet): syslog
+ * through chef_log, tag chef-settings (main() sets it first), and
+ * stderr; stderr only on a PC, as chefui_log() does. */
 static void early_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void early_log(const char *fmt, ...)
 {
 	char buf[256];
 	va_list ap;
-	int fd;
 
 	va_start(ap, fmt);
 	vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
+#if CHEFUI_SDL
 	fprintf(stderr, "chef-settings: %s\n", buf);
-	fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
-	if (fd >= 0) {
-		dprintf(fd, "chef-settings: %s\n", buf);
-		close(fd);
-	}
+#else
+	chef_log("%s", buf);
+#endif
 }
 
 /* One-shot extra options from root's /run/chef/chef-settings/args. */
@@ -454,6 +455,7 @@ int main(int argc, char **argv)
 
 	if (parse(argc - 1, argv + 1, &O))
 		return usage();
+	chef_log_init(cfg.app_name, true);	/* early_log(); chefui_init() sets the same */
 	mkdir(CHEF_SETTINGS_APP_DIR, 0755);	/* for stop, args and captures; fails harmlessly off the phone */
 	args_file(&O);
 	wait_while_stopped();

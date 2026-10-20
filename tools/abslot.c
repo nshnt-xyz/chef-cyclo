@@ -41,10 +41,12 @@
  * Any other difference between the copies, including the reverse (primary
  * marked, backup not), is refused. A torn copy (CRC mismatch) is refused.
  *
- * Every line goes to stdout, /dev/kmsg and /run/chef/log/abslot.log (appended).
+ * Every line goes to stdout, syslog (chef_log, tag abslot: kmsg when syslogd
+ * cannot take it) and /run/chef/log/abslot.log (appended).
  * Overrides for host tests (logged as TEST OVERRIDE): -d DISK (image file;
  * buffered I/O if its filesystem refuses O_DIRECT, e.g. tmpfs), -s SYSFS
- * root, -c CMDLINE file, -K KMSG, -L LOG.
+ * root, -c CMDLINE file, -K KMSG (the fallback for lines syslogd cannot
+ * take), -L LOG; CHEF_LOG_SOCKET in the environment replaces /dev/log.
  */
 #define _GNU_SOURCE	/* O_DIRECT */
 #include <errno.h>
@@ -62,6 +64,7 @@
 #include <sys/stat.h>
 #include <linux/fs.h>
 
+#include "common/chef_log.h"
 #include "common/chef_paths.h"
 
 #define SECTOR		512
@@ -89,7 +92,7 @@ struct opts {
 	bool test_disk;		/* -d given: a regular file may fall back to buffered I/O */
 };
 
-static FILE *g_kmsg, *g_log;
+static FILE *g_log;
 
 static uint32_t crc32_le(const uint8_t *p, size_t n)
 {
@@ -116,10 +119,7 @@ static void say(const char *fmt, ...)
 	vsnprintf(line, sizeof(line), fmt, ap);
 	va_end(ap);
 	printf("abslot: %s\n", line);
-	if (g_kmsg) {
-		fprintf(g_kmsg, "abslot: %s\n", line);
-		fflush(g_kmsg);
-	}
+	chef_log("%s", line);
 	if (g_log) {
 		fprintf(g_log, "%s\n", line);
 		fflush(g_log);
@@ -607,7 +607,7 @@ static void usage(void)
 int main(int argc, char **argv)
 {
 	struct opts o = { "/dev/" DISK_NAME, "/sys", "/proc/cmdline", false };
-	const char *kmsg = "/dev/kmsg", *log = CHEF_ABSLOT_LOG;
+	const char *kmsg = NULL, *log = CHEF_ABSLOT_LOG;
 	int c;
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
@@ -615,7 +615,8 @@ int main(int argc, char **argv)
 	while ((c = getopt(argc, argv, "d:s:c:K:L:")) != -1)
 		if (c == 'K') kmsg = optarg;
 		else if (c == 'L') log = optarg;
-	g_kmsg = fopen(kmsg, "w");
+	chef_log_init("abslot", false);
+	chef_log_set_kmsg(kmsg);
 	g_log = fopen(log, "a");
 	optind = 1;
 	opterr = 1;

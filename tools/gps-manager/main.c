@@ -93,7 +93,7 @@
  *                    hold KIND...
  *   -b  run qmicli, gpsd and nmea-broker from BINDIR (tests); default PATH
  *   -s  the chef-state command for the switch (default chef-state; tests)
- * Logs: "gps-manager:" lines through chef_log (kmsg; transitions, not
+ * Logs: "gps-manager" lines through chef_log (syslog; transitions, not
  * polls); the children's output in DIR (default /run/chef/gps-manager):
  * steps.log, gpsd.log, follow.log and broker.log, each rotated to .1 at a
  * bring-up so the run that failed is kept next to its retry. RAM only.

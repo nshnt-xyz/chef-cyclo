@@ -13,8 +13,11 @@ Both copies are re-validated with scripts/gpt-slots.py's parser.
 """
 
 import importlib.util
+import os
+import re
 from pathlib import Path
 import struct
+import socket
 import subprocess
 import tempfile
 import unittest
@@ -103,6 +106,9 @@ class AbslotTests(unittest.TestCase):
         t = Path(self.tmp.name)
         self.disk, self.sys, self.cmdline = t / "disk.img", t / "sys", t / "cmdline"
         self.kmsg, self.log = t / "kmsg", t / "abslot.log"
+        self.kmsg.touch()  # /dev/kmsg always exists; chef_log never creates it
+        # no syslog socket (never the host's /dev/log): the log lines land in -K
+        self.env = dict(os.environ, CHEF_LOG_SOCKET=str(t / "no-syslog"))
         self.cmdline.write_text("root=/dev/mmcblk0p67 androidboot.slot_suffix=_a skip_initramfs\n")
         self.sysfs(partno=44, start=LAYOUT[43][1], size=LAYOUT[43][2])
 
@@ -131,7 +137,7 @@ class AbslotTests(unittest.TestCase):
             self.disk.write_bytes(data)
         return subprocess.run([str(BIN), "-d", str(self.disk), "-s", str(self.sys),
                                "-c", str(self.cmdline), "-K", str(self.kmsg), "-L", str(self.log), cmd],
-                              capture_output=True, text=True)
+                              capture_output=True, text=True, env=self.env)
 
     def assert_refused(self, data, cmd="mark-successful", needle=None):
         r = self.run_abslot(cmd, data)
@@ -311,8 +317,27 @@ class AbslotTests(unittest.TestCase):
 
     def test_bad_usage(self):
         r = subprocess.run([str(BIN), "-K", "/dev/null", "-L", "/dev/null", "frobnicate"],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, env=self.env)
         self.assertEqual(r.returncode, 64)
+
+    def test_lines_go_to_syslog(self):
+        path = Path(self.tmp.name) / "log"
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as srv:
+            srv.bind(str(path))
+            self.env["CHEF_LOG_SOCKET"] = str(path)
+            r = self.run_abslot("mark-successful", build_disk())
+            self.assertEqual(r.returncode, 0, r.stdout)
+            srv.setblocking(False)
+            lines = []
+            while True:
+                try:
+                    lines.append(srv.recv(2048).decode())
+                except BlockingIOError:
+                    break
+        self.assertTrue(lines)
+        self.assertTrue(all(re.fullmatch(r"<30>abslot\[\d+\]: .+", x) for x in lines), lines)
+        self.assertTrue(any("]: boot_a attr 0x0037000000000048 -> 0x0077000000000048" in x for x in lines), lines)
+        self.assertEqual(self.kmsg.read_text(), "")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,7 @@
+# Replaces the wpa_supplicant package's file (rootfs-overlay/ is copied
+# over the package root): -O for the control sockets in /run/wpa_supplicant,
+# -s to log to syslog (its stdout goes nowhere when D-Bus activates it).
 [D-BUS Service]
 Name=fi.w1.wpa_supplicant1
-Exec=/sbin/wpa_supplicant -u -O /run/wpa_supplicant
+Exec=/sbin/wpa_supplicant -u -s -O /run/wpa_supplicant
 User=root

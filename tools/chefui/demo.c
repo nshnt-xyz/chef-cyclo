@@ -111,7 +111,7 @@ static void switch_cb(lv_event_t *e)
 		argv[n++] = "--peer";
 	argv[n] = NULL;
 	chefui_handoff_exec(self, argv, opt.dark != 0);
-	lv_label_set_text(lbl_btn, "switch failed (see kmsg)");
+	lv_label_set_text(lbl_btn, "switch failed (see logread)");
 }
 
 static const char *dir_name(lv_dir_t d)
@@ -408,7 +408,7 @@ int main(int argc, char **argv)
 		return 64;
 	}
 	memset(&cfg, 0, sizeof(cfg));
-	cfg.app_name = opt.peer ? "demo-peer" : "demo";
+	cfg.app_name = "chefui-demo";	/* the syslog tag; the peer is told apart by its pid */
 	cfg.refresh_ms = opt.fps == 60 ? 16 : 33;
 	cfg.rotation = opt.rot;
 	cfg.brightness = opt.bright;

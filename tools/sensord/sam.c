@@ -299,7 +299,7 @@ static void rotvec_report(struct server *s, const struct sns_sam_rotvec_ind *ind
 		memcpy(&r->q[i], &ind->r.q[i], sizeof(float));
 	n = sqrt((double)r->q[0] * r->q[0] + (double)r->q[1] * r->q[1] + (double)r->q[2] * r->q[2] +
 		 (double)r->q[3] * r->q[3]);
-	/* the first, accuracy or coordinate changes, and one per 5 s to kmsg */
+	/* the first, accuracy or coordinate changes, and one per 5 s to the log */
 	if (r->inds == 1 || !r->have || ind->r.accuracy != r->accuracy || ind->r.coord != r->coord ||
 	    now - r->last_note >= 5000) {
 		r->last_note = now;

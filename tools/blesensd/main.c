@@ -48,7 +48,7 @@
  * Everything runs on one poll loop: the bus (sd-bus, static basu on the
  * phone), the socket and its clients (tools/common/linesrv.c), the
  * chef-state children and a 1 s housekeeping tick. Nothing here logs a
- * value; kmsg (chef_log, stderr too) gets transitions.
+ * value; syslog (chef_log, stderr too) gets transitions.
  *
  * Usage: blesensd [-S SOCK] [-s STATE_CMD] [-w WHEEL_MM] [-r RETRY_S] [-T] [-v]
  *        blesensd [-S SOCK] status | list | watch | scan | pair ADDR |

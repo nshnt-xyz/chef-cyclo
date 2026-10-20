@@ -21,6 +21,9 @@ QRTR_DIR := ../qrtr
 CC ?= cc
 CFLAGS ?= -std=gnu11 -Wall -Wextra -Werror -g -O2
 H := build/host
+# No test reaches the host's syslog: chef_log() (../common/) finds no
+# socket at this path and writes the kmsg path each test sets instead.
+export CHEF_LOG_SOCKET := /nonexistent/chef-log-socket
 D := build/device
 # msmipc.h needs <linux/msm_ipc.h>, which ../device.mk copies into the
 # build tree.

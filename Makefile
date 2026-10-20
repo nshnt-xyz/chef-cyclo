@@ -23,6 +23,9 @@ SUITES := $(COMPONENTS) $(LIBS) scripts/tests
 LOGS := build/test-logs
 # Nothing is written into the source tree, not even Python's bytecode cache.
 export PYTHONDONTWRITEBYTECODE := 1
+# Nor into the host's syslog: chef_log() (tools/common/) finds no socket
+# at this path. Each suite also sets it; this is the backstop.
+export CHEF_LOG_SOCKET := /nonexistent/chef-log-socket
 
 .PHONY: all device install-device test clean \
 	$(COMPONENTS:%=%.device) $(COMPONENTS:%=%.install) $(COMPONENTS:%=%.clean) $(LIBS:%=%.clean) \

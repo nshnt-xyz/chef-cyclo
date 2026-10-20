@@ -57,7 +57,8 @@ struct cu_test_paths {
 	const char *fb, *lock, *flag, *lit, *backlight, *modes;
 	const char *input_dir;		/* instead of /dev/input */
 	const char *buttond_sock;
-	const char *kmsg;		/* instead of /dev/kmsg */
+	const char *kmsg;		/* instead of /dev/kmsg (chef_log's fallback) */
+	const char *log_socket;		/* instead of /dev/log */
 };
 void cu_set_test_paths(const struct cu_test_paths *p);
 extern struct cu_test_paths cu_paths;

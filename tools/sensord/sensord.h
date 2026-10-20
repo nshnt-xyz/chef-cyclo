@@ -163,7 +163,7 @@ struct sam {
 	uint8_t last_error;		/* from the latest error indication */
 	bool had_error;
 	unsigned long enables, inds, errors;
-	int64_t last_note;		/* last report that went to kmsg */
+	int64_t last_note;		/* last report that went to the log */
 	unsigned long foreign;		/* reports for an instance not ours */
 	int64_t last_foreign;		/* last one logged */
 };
@@ -227,7 +227,7 @@ struct server {
 	struct heading heading;
 	/* injected for the tests; the defaults are the real clock/logs */
 	int64_t (*now_ms)(void);
-	void (*log)(const char *fmt, ...);	/* chef_log: kmsg + stderr */
+	void (*log)(const char *fmt, ...);	/* chef_log: syslog + stderr */
 	void (*elog)(const char *fmt, ...);	/* stderr only */
 };
 

@@ -25,6 +25,9 @@ CFLAGS ?= -std=gnu11 -Wall -Wextra -Werror -O2 -g
 SDBUS_LIBS ?= $(shell pkg-config --libs libsystemd 2>/dev/null)
 BASU ?= $(REPO_ROOT)/toolchain/basu
 H := build/host
+# No test reaches the host's syslog: chef_log() (../common/) finds no
+# socket at this path and writes the kmsg path each test sets instead.
+export CHEF_LOG_SOCKET := /nonexistent/chef-log-socket
 D := build/device
 # The socket, its JSON lines and the log come from ../common/, compiled
 # in from source.

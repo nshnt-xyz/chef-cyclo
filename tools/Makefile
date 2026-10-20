@@ -30,6 +30,9 @@ CC ?= gcc
 CFLAGS ?= -std=gnu11 -Wall -Wextra -Werror -O2 -g
 LDFLAGS ?=
 H := build/host
+# No test reaches the host's syslog: chef_log() (common/) finds no
+# socket at this path and writes the kmsg path each test sets instead.
+export CHEF_LOG_SOCKET := /nonexistent/chef-log-socket
 D := build/device
 INCLUDES := -I. -Iqrtr -I$(H)/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
@@ -179,18 +182,21 @@ $(D)/nmea-broker: nmea-broker.c
 # Started from both inittabs (respawn). Plain libc + <linux/netlink.h>.
 # The test includes the .c with POWERD_NO_MAIN against a fake sysfs tree
 # with injected hooks; tests/test_powerd.sh runs the host binary end to end
-# with -x so nothing powers off.
-$(H)/powerd: powerd.c common/chef_paths.h
+# with -x so nothing powers off. Logs through common/chef_log.c, compiled
+# in from source as the daemons under tools/common/'s other consumers do.
+CHEF_LOG := common/chef_log.c
+CHEF_LOG_DEPS := $(CHEF_LOG) common/chef_log.h
+$(H)/powerd: powerd.c common/chef_paths.h $(CHEF_LOG_DEPS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $< $(CHEF_LOG) $(LDFLAGS)
 
-$(H)/tests/test-powerd: tests/test_powerd.c powerd.c common/chef_paths.h
+$(H)/tests/test-powerd: tests/test_powerd.c powerd.c common/chef_paths.h $(CHEF_LOG_DEPS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $< $(CHEF_LOG) $(LDFLAGS)
 
-$(D)/powerd: powerd.c common/chef_paths.h
+$(D)/powerd: powerd.c common/chef_paths.h $(CHEF_LOG_DEPS)
 	@mkdir -p $(@D)
-	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ powerd.c
+	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ powerd.c $(CHEF_LOG)
 
 # WAV sine-tone generator for the speaker test (wavtone.c,
 # docs/features/audio.md): tinyalsa's tinyplay only plays WAV files, so
@@ -250,14 +256,15 @@ $(D)/wlan-fw: wlan-fw.c qmux.c qmux.h msmipc.c msmipc.h qrtr/libqrtr.h $(D)/incl
 # boot_a` leaves boot_a unsuccessful with 7 retries and abl spends one per
 # boot; inittab runs `abslot mark-successful` 30 s into each boot, the job
 # Android's boot_control HAL did. Plain libc. tests/test_abslot.py runs the
-# host binary against synthetic GPT disk images and a fake sysfs.
-$(H)/abslot: abslot.c common/chef_paths.h
+# host binary against synthetic GPT disk images and a fake sysfs. Logs
+# through common/chef_log.c, like powerd.
+$(H)/abslot: abslot.c common/chef_paths.h $(CHEF_LOG_DEPS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $< $(CHEF_LOG) $(LDFLAGS)
 
-$(D)/abslot: abslot.c common/chef_paths.h
+$(D)/abslot: abslot.c common/chef_paths.h $(CHEF_LOG_DEPS)
 	@mkdir -p $(@D)
-	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ abslot.c
+	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ abslot.c $(CHEF_LOG)
 
 # Sub-second wall clock against the PMIC RTC (rtc-edge.c,
 # docs/features/storage.md): chef-state saves and restores the

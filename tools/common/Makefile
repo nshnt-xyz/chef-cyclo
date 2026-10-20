@@ -1,7 +1,7 @@
 # tools/common/: code shared by the chef-cyclo daemons and their clients,
 # compiled from source by each consumer (as ../qrtr/qmi.c is); no
 # archive and no phone binary of its own. chef_log.{h,c} is the one log
-# call (kmsg today, syslog from standard interfaces step 6), linesrv.{h,c}
+# call (syslog, kmsg when syslogd cannot take a line), linesrv.{h,c}
 # the server side of a local socket (listener, client table, line framing,
 # bounded output queues), lineclient.{h,c} the client side (a connection
 # with framing and backoff, driven by the caller's loop and clock) and
@@ -18,6 +18,9 @@ CC ?= cc
 CFLAGS ?= -std=gnu11 -Wall -Wextra -Werror -O2 -g
 LDFLAGS ?=
 H := build/host
+# No test reaches the host's syslog: chef_log() finds no
+# socket at this path and writes the kmsg path each test sets instead.
+export CHEF_LOG_SOCKET := /nonexistent/chef-log-socket
 T := $(H)/tests
 SAN := -fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all
 

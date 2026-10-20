@@ -15,6 +15,8 @@ BIN=$PWD/build/host/powerd
 [ -x "$BIN" ] || { echo "build tools/build/host/powerd first (make -C tools)" >&2; exit 1; }
 
 T=$(mktemp -d /tmp/powerd-test.XXXXXX)
+# no syslog socket (never the host's /dev/log): the log lines land in -K
+export CHEF_LOG_SOCKET="$T/no-syslog"
 PID=
 cleanup() {
 	[ -n "$PID" ] && kill "$PID" 2>/dev/null

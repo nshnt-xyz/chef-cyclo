@@ -8,7 +8,7 @@ Charging is done by the kernel, the same way stock Android does it: `qpnp-smb2` 
 
 `tools/powerd.c` adds the small policy layer stock userspace puts on top. It runs from the image's `inittab` (`::respawn:`):
 
-- **Low battery** (a clone of Android `BatteryService`). With no power attached, it warns once at 15 % and again at 5 % (critical, plus a 600 ms vibrator pulse), as `powerd:` kmsg lines. Both warnings re-arm when power is attached or the capacity is back at 20 %.
+- **Low battery** (a clone of Android `BatteryService`). With no power attached, it warns once at 15 % and again at 5 % (critical, plus a 600 ms vibrator pulse), as `powerd` log lines ([logging](logging.md)). Both warnings re-arm when power is attached or the capacity is back at 20 %.
 - **Clean shutdown** when unpowered, `battery/present == 1`, `bms/soc_reporting_ready == 1` and either the capacity is 0 % or `voltage_now` is below 3300 mV with the capacity at or below 5 %. Also when the battery is **above 68.0 °C**, whether or not a charger is attached: this is the only shutdown allowed while powered. Every condition must hold on 3 samples at least 5 s apart. An unreadable or `-22` value counts as unknown and restarts the count. The shutdown is `sync` then busybox `poweroff`, the same orderly path as `buttond`.
 - **"Unpowered"** means `battery/status` reads exactly `Discharging` **and** `usb/online`, `pc_port/online` and `dc/online` each read 0 or their supply does not exist. An SDP (PC USB 2) port reads `usb/online = 0` and reports the input on `pc_port/online`, and an attached charger that is not charging reads `Not charging`, so neither counts as unplugged. Anything unreadable counts as powered. The sign of `current_now` is never used (positive = discharging, negative = charging on this fuel gauge).
 - **Charge thermal throttle** (a clone of thermal-engine's `SS-BATT-BATT` rule). While a supply is online it checks every 5 s: battery ≥ 44.0 °C raises `battery/system_temp_level` by one step (up to level 7), ≤ 42.0 °C lowers it. The level indexes the DT `qcom,thermal-mitigation` FCC table (3000, 2500, 2000, 1500, 1200, 900, 700, 300 mA). It is written back to 0 at start, on unplug and on a clean exit.
@@ -24,7 +24,7 @@ In the phone shell:
 ```sh
 powerd status                 # the state file
 cat /data/v1/power/log.csv    # history across boots (/run/chef/power/log.csv on a RAM-only boot)
-dmesg | grep powerd:          # transitions: plug/unplug, status, warnings, throttle, shutdown
+logread | grep powerd        # transitions: plug/unplug, status, warnings, throttle, shutdown
 ```
 
 State keys include `status`, `source` (`usb`, `dc`, `battery` or `unknown`), `usb_type` (`USB_CDP`, `USB_DCP`, `USB` for SDP, ...), `capacity`, `voltage_mv`, `current_ma`, `temp_c`, `charge_counter_uah`, `usb_input_ma`, `usb_voltage_mv`, `input_settled_ma`, `throttle_level`, `alert` (`none`, `low`, `critical`, `confirming`, `shutdown`) and `overrides` (empty in production).
@@ -33,7 +33,7 @@ State keys include `status`, `source` (`usb`, `dc`, `battery` or `unknown`), `us
 
 ## Test options
 
-Each of these is logged as `TEST OVERRIDE` in kmsg and listed in the state file's `overrides=`:
+Each of these is logged as `TEST OVERRIDE` and listed in the state file's `overrides=`:
 `--warn`, `--critical`, `--rearm`, `--empty-pct`, `--empty-mv`, `--overtemp`, `--throttle-set`, `--throttle-clear`, `--no-throttle`, `--confirm`, `--confirm-gap-ms`, `--step-ms`, `--poll-s`, `-x CMD` (run `sh -c CMD` instead of powering off, with no fallback) and `--shutdown-when-online` (run the low-battery policy as if unpowered, to test the shutdown with the USB control link attached). `powerd` refuses `critical > warn` or `rearm <= warn`.
 
 ## Modify and verify

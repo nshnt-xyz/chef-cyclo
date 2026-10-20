@@ -14,7 +14,7 @@
  * exists only while such a card is shown. The file is noticed by inotify (a
  * writer renames a temp file over it); same trust rules as the args file:
  * a regular file, owned by root, not group/other writable, not a symlink,
- * at most 1 KiB; anything else is ignored with one kmsg line. Text is
+ * at most 1 KiB; anything else is ignored with one log line. Text is
  * ASCII (other bytes show as '?'). The card is never clickable, never counts
  * as activity and never wakes the screen. See docs/features/system-ui.md.
  */

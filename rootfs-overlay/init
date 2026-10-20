@@ -118,5 +118,9 @@ touch /run/chef/wifi-nm-mode
 # boot history line, on /data (chef-state; RAM-only: /run/chef/state/time only).
 # Bounded: nothing in it may hold up the boot.
 /usr/bin/timeout -k 2 25 /usr/bin/chef-state boot || log "state restore failed; continuing"
+# syslogd's /dev/log queue: the kernel default of 10 datagrams fills in the
+# boot burst (every daemon starting at once), after which chef_log falls
+# back to kmsg and syslog(3) callers block. 512, as systemd sets at boot.
+echo 512 > /proc/sys/net/unix/max_dgram_qlen 2>/dev/null || log "max_dgram_qlen not set; /dev/log queue stays at the kernel default"
 log "exec init"
 exec /sbin/init

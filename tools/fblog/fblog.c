@@ -512,6 +512,8 @@ static double now_s(void)
 	return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
+/* kmsg on purpose, not syslog: the note lands on fblog's own screen, which
+ * tails kmsg, next to the kernel's display lines it explains. */
 static void kmsg_note(const char *fmt, ...)
 {
 	char buf[256];

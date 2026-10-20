@@ -318,12 +318,21 @@ class Stage2(unittest.TestCase):
         self.assertLess(init.index('mount --move /run/.var /var'), init.index('dbus-uuidgen --ensure'))
         self.assertIn('mount -t tmpfs -o mode=700 tmpfs /root', init)
         inittab = (ROOT / 'rootfs-overlay/etc/inittab').read_text()
-        self.assertIn('udhcpd -f /run/chef/udhcpd.conf', inittab)
+        self.assertIn('udhcpd -f -S /run/chef/udhcpd.conf', inittab)
         # The helper writes to $USB_GADGET_RUN: /run/chef here, /run in stage 1.
         self.assertLess(init.index('USB_GADGET_RUN=/run/chef'), init.index('. /usr/lib/chef/usb-gadget.sh'))
         gadget = (ROOT / 'rootfs-overlay/usr/lib/chef/usb-gadget.sh').read_text()
         self.assertIn('/etc/udhcpd.conf > "${USB_GADGET_RUN:-/run}/udhcpd.conf"', gadget)
         self.assertNotIn('sed -i', gadget)
+
+    def test_syslog_queue(self):
+        # syslogd's /dev/log queue is raised before init starts the daemons;
+        # a failed write is logged, never fatal.
+        init = (ROOT / 'rootfs-overlay/init').read_text()
+        line = ('echo 512 > /proc/sys/net/unix/max_dgram_qlen 2>/dev/null || '
+                'log "max_dgram_qlen not set; /dev/log queue stays at the kernel default"')
+        self.assertEqual(init.count(line), 1)
+        self.assertLess(init.index(line), init.index('exec /sbin/init'))
 
 
 if __name__ == '__main__':
