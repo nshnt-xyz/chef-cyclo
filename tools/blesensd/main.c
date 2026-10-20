@@ -7,9 +7,9 @@
  * that client leaves the bus, so one long-lived owner is needed. See
  * docs/features/bluetooth.md ("BLE sensors").
  *
- * Line protocol on /run/blesensd.sock: one request per line, every line
- * from the daemon one JSON object; the requests, replies and events are
- * in server.c's header.
+ * Socket protocol on /run/blesensd.sock: the shared local socket protocol
+ * (docs/features/local-sockets.md), proto 1; the requests, replies and
+ * events are in server.c's header.
  *
  * A device may carry several sensor kinds (a power meter with cadence, or
  * the PC emulator with all three): one record, one connection, one value
@@ -46,8 +46,9 @@
  * identity and dropped.
  *
  * Everything runs on one poll loop: the bus (sd-bus, static basu on the
- * phone), the socket and its clients, the chef-state children and a 1 s
- * housekeeping tick. Nothing here logs a value; kmsg gets transitions.
+ * phone), the socket and its clients (tools/common/linesrv.c), the
+ * chef-state children and a 1 s housekeeping tick. Nothing here logs a
+ * value; kmsg (chef_log, stderr too) gets transitions.
  *
  * Usage: blesensd [-S SOCK] [-s STATE_CMD] [-w WHEEL_MM] [-r RETRY_S] [-T] [-v]
  *        blesensd [-S SOCK] status | list | watch | scan | pair ADDR |
@@ -70,9 +71,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -91,7 +89,7 @@ static void tick(void)
 	if (wanted != bd_links_wanted()) {
 		wanted = !wanted;
 		if (!wanted)
-			bd_notef("no sensor holder: reconnection paused");
+			chef_log("no sensor holder: reconnection paused");
 		bd_links_sync();
 	}
 	bd_children_tick(now);
@@ -120,24 +118,6 @@ static void tick(void)
 	bd_scan_sync();
 }
 
-static int sock_listen(const char *path)
-{
-	struct sockaddr_un sa = { .sun_family = AF_UNIX };
-	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
-
-	if (fd < 0)
-		return -errno;
-	snprintf(sa.sun_path, sizeof(sa.sun_path), "%s", path);
-	unlink(path);
-	if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0 || chmod(path, 0600) < 0 || listen(fd, 8) < 0) {
-		int e = errno;
-
-		close(fd);
-		return -e;
-	}
-	return fd;
-}
-
 static void on_stop(int sig)
 {
 	(void)sig;
@@ -155,11 +135,10 @@ static void on_chld(int sig)
 	}
 }
 
-static void loop_round(int lfd)
+static void loop_round(void)
 {
-	struct pollfd pfd[4 + MAX_CLIENTS];
-	struct client *cmap[MAX_CLIENTS];
-	int n = 0, nc = 0, iload = -1, ilisten = -1, iclients, timeout = TICK_MS;
+	struct pollfd pfd[3 + 1 + MAX_CLIENTS];	/* ours, then linesrv's */
+	int n = 0, iload = -1, isrv, nsrv = 0, timeout = TICK_MS;
 	static int64_t next_tick;
 	uint64_t usec = UINT64_MAX;
 	int64_t now = bd_now_ms();
@@ -167,10 +146,6 @@ static void loop_round(int lfd)
 	if (next_tick - now < timeout)
 		timeout = next_tick > now ? (int)(next_tick - now) : 0;
 	pfd[n++] = (struct pollfd){ .fd = g_sigpipe[0], .events = POLLIN };
-	if (lfd >= 0) {
-		ilisten = n;
-		pfd[n++] = (struct pollfd){ .fd = lfd, .events = POLLIN };
-	}
 	if (D.bus) {
 		int ev = sd_bus_get_events(D.bus);
 
@@ -191,12 +166,10 @@ static void loop_round(int lfd)
 		iload = n;
 		pfd[n++] = (struct pollfd){ .fd = D.load_fd, .events = POLLIN };
 	}
-	iclients = n;
-	for (int i = 0; i < MAX_CLIENTS; i++)
-		if (D.clients[i].fd >= 0) {
-			cmap[nc++] = &D.clients[i];
-			pfd[n++] = (struct pollfd){ .fd = D.clients[i].fd, .events = POLLIN };
-		}
+	isrv = n;
+	if (D.srv)
+		nsrv = linesrv_pollfds(D.srv, pfd + n, (int)(sizeof(pfd) / sizeof(pfd[0])) - n);
+	n += nsrv;
 	if (poll(pfd, (nfds_t)n, timeout) < 0 && errno != EINTR)
 		return;
 	if (pfd[0].revents & POLLIN) {
@@ -220,23 +193,8 @@ static void loop_round(int lfd)
 				break;
 		}
 	}
-	if (ilisten >= 0 && (pfd[ilisten].revents & POLLIN)) {
-		int cfd = accept4(lfd, NULL, NULL, SOCK_NONBLOCK | SOCK_CLOEXEC);
-		struct client *c = NULL;
-
-		for (int i = 0; i < MAX_CLIENTS && !c && cfd >= 0; i++)
-			if (D.clients[i].fd < 0)
-				c = &D.clients[i];
-		if (c) {
-			memset(c, 0, sizeof(*c));
-			c->fd = cfd;
-		} else if (cfd >= 0) {
-			close(cfd);
-		}
-	}
-	for (int i = 0; i < nc; i++)
-		if (cmap[i]->fd >= 0 && (pfd[iclients + i].revents & (POLLIN | POLLHUP | POLLERR)))
-			bd_client_input(cmap[i]);
+	if (D.srv)
+		linesrv_handle(D.srv, pfd + isrv, nsrv);
 	if (bd_now_ms() >= next_tick) {
 		next_tick = bd_now_ms() + TICK_MS;
 		tick();
@@ -246,7 +204,7 @@ static void loop_round(int lfd)
 int main(int argc, char **argv)
 {
 	struct sigaction sa;
-	int opt, lfd;
+	int opt, rc;
 
 	D.sock_path = SOCK_PATH;
 	D.state_cmd = "chef-state";
@@ -271,9 +229,8 @@ int main(int argc, char **argv)
 		fprintf(stderr, "blesensd: wheel circumference %d mm out of range (500 to 4000)\n", D.wheel_mm);
 		return 64;
 	}
+	chef_log_init("blesensd", true);
 	bd_self = getpid();
-	for (int i = 0; i < MAX_CLIENTS; i++)
-		D.clients[i].fd = -1;
 	if (pipe2(g_sigpipe, O_CLOEXEC | O_NONBLOCK) < 0)
 		return 1;
 	memset(&sa, 0, sizeof(sa));
@@ -284,25 +241,19 @@ int main(int argc, char **argv)
 	sa.sa_flags = SA_NOCLDSTOP | SA_RESTART;
 	sigaction(SIGCHLD, &sa, NULL);
 	signal(SIGPIPE, SIG_IGN);
-	lfd = sock_listen(D.sock_path);
-	if (lfd < 0) {
-		bd_notef("listen %s: %s; exiting in 5 s", D.sock_path, strerror(-lfd));
+	rc = bd_server_start(D.sock_path);
+	if (rc < 0) {
+		chef_log("listen %s: %s; exiting in 5 s", D.sock_path, strerror(-rc));
 		sleep(5);
 		return 1;
 	}
 	bd_load_start();
 	bd_bus_open();
-	bd_notef("ready on %s (wheel %d mm)", D.sock_path, D.wheel_mm);
+	chef_log("ready on %s (wheel %d mm)", D.sock_path, D.wheel_mm);
 	while (!g_stop)
-		loop_round(lfd);
-	bd_notef("exiting");
-	close(lfd);
-	unlink(D.sock_path);
-	for (int i = 0; i < MAX_CLIENTS; i++)
-		if (D.clients[i].fd >= 0) {
-			close(D.clients[i].fd);
-			D.clients[i].fd = -1;
-		}
+		loop_round();
+	chef_log("exiting");
+	bd_server_fini();
 	/* the last save, bounded; then nothing of ours outlives us */
 	{
 		int64_t until = bd_now_ms() + EXIT_SAVE_MS;
@@ -310,10 +261,10 @@ int main(int argc, char **argv)
 		while ((D.save.pgid > 0 || D.save_pending) && bd_now_ms() < until) {
 			if (D.save.pgid <= 0)
 				bd_save_start();
-			loop_round(-1);
+			loop_round();
 		}
 		if (D.save.pgid > 0 || D.save_pending)
-			bd_notef("exiting with the sensor save unfinished");
+			chef_log("exiting with the sensor save unfinished");
 		bd_child_kill(&D.save);
 		bd_child_kill(&D.load);
 	}

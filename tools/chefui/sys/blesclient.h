@@ -5,8 +5,10 @@
  * pairing in progress, kept from a `watch` connection on
  * /run/blesensd.sock (a ../common/lineclient, reconnected with backoff 1 s
  * doubling to 8 s, back to 1 s on `ok watch`). blesensd's lines are read
- * with the shared JSON reader. "hold on" and "scan on" are sent while
- * wanted, after `ok watch`, again after a reconnect; closing the
+ * with the shared JSON reader; a hello with a proto other than
+ * BLESC_PROTO is logged once and the client carries on (the compatibility
+ * rule of docs/features/local-sockets.md). "hold on" and "scan on" are
+ * sent while wanted, after `ok watch`, again after a reconnect; closing the
  * connection ends both on blesensd's side, so a crash of the caller
  * cannot leave the radio scanning or reconnecting for it. Driven by the
  * caller's loop and monotonic clock (ms): chefui's sys/blesens.c through
@@ -22,6 +24,7 @@
 #include "common/lineclient.h"
 
 #define BLESC_SOCK "/run/blesensd.sock"
+#define BLESC_PROTO 1	/* the protocol this client speaks */
 
 #define BLE_SENSORS_MAX 8
 #define BLE_FOUND_MAX 16
@@ -106,6 +109,7 @@ struct blesclient_config {
 	const char *path;	/* NULL: BLESC_SOCK */
 	void (*changed)(struct blesclient *bc, void *ctx);	/* the view changed */
 	void *ctx;
+	void (*log)(const char *fmt, ...) __attribute__((format(printf, 1, 2)));	/* NULL: none */
 };
 
 /* Private to blesclient.c except the fields marked "read". */
@@ -116,6 +120,7 @@ struct blesclient {
 	bool watching;		/* `ok watch` on this connection */
 	bool want_hold, want_scan;	/* what the caller wants */
 	bool sent_hold, sent_scan;	/* what this connection asked for */
+	bool proto_warned;	/* a hello with another proto was logged */
 };
 
 void blesclient_init(struct blesclient *bc, const struct blesclient_config *cfg);

@@ -3,6 +3,7 @@
 divided by 10) against tests/fake_bluez.py on a private dbus-daemon and a
 stub chef-state, driven through its socket like the settings app and the
 CLI. Skipped without dbus-daemon or python3 dbus + gi."""
+import fcntl
 import json
 import os
 import queue
@@ -13,6 +14,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import termios
 import threading
 import time
 import unittest
@@ -997,6 +999,150 @@ class BlesensdTest(unittest.TestCase):
         c.wait(is_("forgotten", addr=HR))
         self.assertEqual(self.stop(), 0)
         self.assertEqual(self.records(), "")
+
+    # ------------------------------------------------------------ the socket protocol
+
+    def raw(self):
+        """A connection read by hand: its hello already consumed."""
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.connect(self.sock)
+        s.settimeout(5)
+        f = s.makefile("rb")
+        self.assertEqual(json.loads(f.readline()), {"type": "hello", "daemon": "blesensd", "proto": 1})
+        self.raws.append((s, f))
+        return s, f
+
+    def test_hello_and_request_errors(self):
+        self.raws = []
+        try:
+            c = self.start()
+            self.assertEqual(c.lines.items[0], {"type": "hello", "daemon": "blesensd", "proto": 1})
+            s, f = self.raw()
+
+            def ask(line):
+                s.sendall(line if isinstance(line, bytes) else (line + "\n").encode())
+                return json.loads(f.readline())
+
+            def err(cmd, reason):
+                return {"type": "error", "cmd": cmd, "reason": reason}
+
+            self.assertEqual(ask("frob x"), err("frob", "unknown command"))
+            # the word echoed: its first 32 bytes, escaped, bytes from 0x7f up '?'
+            word = 'a"' + "b" * 40
+            self.assertEqual(ask(word), err(word[:32], "unknown command"))
+            self.assertEqual(ask(b"\xc3\xa9t\\x\n"), err("??t\\x", "unknown command"))
+            for line, cmd in [("status foo", "status"), ("list x", "list"), ("watch x", "watch"),
+                              ("scan", "scan"), ("scan maybe", "scan"), ("scan on extra", "scan"),
+                              ("hold", "hold"), ("hold on off", "hold"), ("pair", "pair"),
+                              ("pair nonsense", "pair"), ("pair aa:bb:cc:00:00:01", "pair"),
+                              ("cancel", "cancel"), ("forget %s %s" % (HR, HR), "forget"),
+                              (" ".join(["status"] + ["x"] * 9), "status")]:
+                self.assertEqual(ask(line), err(cmd, "bad arguments"), line)
+            self.assertEqual(self.cmd("dump")["discovering"], 0)	# no scan from "scan on extra"
+            # a blank line is ignored, one CR stripped
+            self.assertEqual(ask(b"  \n\nstatus\r\n")["type"], "status")
+            # 255 bytes before the newline fit, 256 do not; the next line is read
+            self.assertEqual(ask("status" + " " * 249)["type"], "status")
+            self.assertEqual(ask("x" * 256), {"type": "error", "reason": "line too long"})
+            self.assertEqual(ask("cancel " + HR), err("cancel", "not pairing"))
+        finally:
+            for s, f in self.raws:
+                f.close()
+                s.close()
+
+    def test_too_many_clients(self):
+        self.raws = []
+        try:
+            self.start()
+            time.sleep(0.2)	# the status clients of start() are gone
+            for _ in range(15):
+                self.raw()
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.connect(self.sock)
+            s.settimeout(5)
+            data = b""
+            while True:
+                b = s.recv(4096)
+                if not b:
+                    break
+                data += b
+            s.close()
+            self.assertEqual(data, b'{"type":"error","reason":"too many clients"}\n')
+            self.assertIn("client limit (16) reached, refusing", self.log())
+            # a slot that frees up is served again
+            s, f = self.raws.pop()
+            f.close()
+            s.close()
+            for _ in range(50):
+                try:
+                    self.raw()
+                    break
+                except (AssertionError, ValueError, OSError):
+                    time.sleep(0.02)
+            else:
+                self.fail("no slot after a client went")
+        finally:
+            for s, f in self.raws:
+                f.close()
+                s.close()
+
+    def test_slow_watcher_dropped_only_on_overflow(self):
+        self.cmd("dev %s HR hr" % HR)
+        self.cmd("adv %s -60" % HR)
+        c = self.start()
+        slow = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        slow.connect(self.sock)
+        slow.sendall(b"watch\nhold on\nscan on\n")	# and never read until dropped
+        c.wait(is_("found", addr=HR))
+        self.eventually(lambda: self.status()["held"], what="the slow watcher holds")
+
+        def queued():
+            return int.from_bytes(fcntl.ioctl(slow.fileno(), termios.FIONREAD, b"\0\0\0\0"), "little")
+
+        sent = []	# the RSSI of every flood line, in order
+
+        def flood(n):
+            mark = c.lines.mark()
+            for _ in range(n):
+                rssi = -61 - len(sent) % 30
+                sent.append(rssi)
+                self.fake.stdin.write(("adv %s %d\n" % (HR, rssi)).encode())
+            self.fake.stdin.flush()
+            self.eventually(lambda: sum(1 for m in c.lines.since(mark) if m.get("type") == "found") >= n,
+                            timeout=10, what="the reader saw the flood")
+            self.fl.skip()
+            c.lines.skip()
+
+        line_len = len('{"type":"found","addr":"%s","kinds":"hr","name":"HR","rssi":-61}\n' % HR)
+        # until the kernel buffer is full: from there on the daemon queues
+        stalled = None
+        for _ in range(100):
+            before = queued()
+            flood(25)
+            if queued() == before:
+                stalled = len(sent) - 25	# already full before this batch
+                break
+        self.assertIsNotNone(stalled, "the kernel buffer never filled")
+        self.assertNotIn("client output full", self.log())
+        # the queue takes about 16384 bytes more before the client is dropped
+        while "client output full" not in self.log():
+            flood(10)
+            self.assertLess((len(sent) - stalled) * line_len, 16384 + 40 * line_len, "never dropped")
+        self.assertGreater((len(sent) - stalled) * line_len, 16384 - 40 * line_len)
+        # its hold and scan went with it; it got the flood in order, without a
+        # gap, up to what the kernel held (its queue went with the drop)
+        self.eventually(lambda: not self.status()["held"], what="hold released")
+        self.eventually(lambda: self.cmd("dump")["discovering"] == 0, what="scan released")
+        got = []
+        slow.settimeout(5)
+        with slow.makefile("rb") as f:
+            for raw in f:
+                got.append(json.loads(raw))
+        slow.close()
+        self.assertEqual(got[0], {"type": "hello", "daemon": "blesensd", "proto": 1})
+        rssi = [m["rssi"] for m in got if m.get("type") == "found" and m["rssi"] <= -61]
+        self.assertGreaterEqual(len(rssi), stalled - 25)
+        self.assertEqual(rssi, sent[:len(rssi)])
 
     def test_cli_fragmented_json_lines(self):
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

@@ -341,8 +341,19 @@ static void on_line(struct lineclient *lc, char *text, size_t len, int64_t now)
 	const char *type, *cmd;
 
 	(void)len;
-	if (line_parse(&l, text) && (type = jstr(&l, "type")) && (cmd = jstr(&l, "cmd")) &&
-	    !strcmp(type, "ok") && !strcmp(cmd, "watch")) {
+	type = line_parse(&l, text) ? jstr(&l, "type") : NULL;
+	if (type && !strcmp(type, "hello")) {
+		long proto = -1;
+
+		if ((!json_get_long(&l.o, "proto", &proto) || proto != BLESC_PROTO) && !bc->proto_warned) {
+			bc->proto_warned = true;
+			if (bc->cfg.log)
+				bc->cfg.log("blesensd: unknown protocol in %s (this client speaks proto %d); carrying on",
+					    text, BLESC_PROTO);
+		}
+		return;
+	}
+	if (type && !strcmp(type, "ok") && (cmd = jstr(&l, "cmd")) && !strcmp(cmd, "watch")) {
 		bc->watching = true;
 		lineclient_healthy(lc);
 		wants_sync(bc, now);

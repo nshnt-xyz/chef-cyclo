@@ -62,7 +62,7 @@ static int callv(const struct pend *tmpl, const char *path, const char *iface, c
 	if (!D.bus)
 		return -ENOTCONN;
 	if (!(p = pend_new(tmpl->kind))) {
-		bd_notef("too many calls in flight: %s not sent", member);
+		chef_log("too many calls in flight: %s not sent", member);
 		return -EBUSY;
 	}
 	p->sid = tmpl->sid;
@@ -134,7 +134,7 @@ static struct dev *dev_get(const char *path)
 			free_d = &D.devs[i];
 	if (!free_d) {
 		if (!D.devs_full_logged)
-			bd_notef("more than %d Bluetooth devices: the rest are ignored", MAX_DEVS);
+			chef_log("more than %d Bluetooth devices: the rest are ignored", MAX_DEVS);
 		D.devs_full_logged = true;
 		return NULL;
 	}
@@ -394,7 +394,7 @@ static void devices_changed(void)
 			bd_sensor_conn_reset(s);
 		if (s->link_up != (d && d->connected && D.powered)) {
 			s->link_up = !s->link_up;
-			bd_notef("%s %s", s->addr, s->link_up ? "connected" : "disconnected");
+			chef_log("%s %s", s->addr, s->link_up ? "connected" : "disconnected");
 			if (!s->link_up && D.powered && !s->forgetting)
 				bd_retry_window();	/* it may be back in a moment */
 		}
@@ -432,7 +432,7 @@ static int props_signal(sd_bus_message *m, void *u, sd_bus_error *e)
 		return 0;
 	read_invalidated(m, iface, d);
 	if (was_powered != D.powered) {
-		bd_notef("adapter %s", D.powered ? "on" : "off");
+		chef_log("adapter %s", D.powered ? "on" : "off");
 		if (D.powered)
 			bd_retry_window();
 		if (!D.powered) {
@@ -546,7 +546,7 @@ static int agent_call(sd_bus_message *m, void *u, sd_bus_error *e)
 
 		ok = (D.pr.step != PS_IDLE && !strcmp(dev, D.pr.path)) || (s && !s->forgetting);
 	}
-	bd_notef("agent %s for %s: %s", member, dev, ok ? "accepted" : "rejected");
+	chef_log("agent %s for %s: %s", member, dev, ok ? "accepted" : "rejected");
 	if (!ok)
 		return sd_bus_error_set(e, BLUEZ ".Error.Rejected", "not a sensor being paired");
 	return sd_bus_reply_method_return(m, NULL);
@@ -608,7 +608,7 @@ static void agent_reply(sd_bus_message *m)
 		vlog("agent registered");
 		bd_pair_check();
 	} else {
-		bd_notef("RegisterAgent: %s; retrying", bd_err_name(m));
+		chef_log("RegisterAgent: %s; retrying", bd_err_name(m));
 		D.agent_retry_ms = bd_now_ms() + RETRY_MS;
 	}
 }
@@ -654,7 +654,7 @@ static void objects_reply(sd_bus_message *m)
 			return;
 	}
 	D.bluez = true;
-	bd_notef("bluetoothd: adapter %s, %s", D.adapter[0] ? D.adapter : "none", D.powered ? "on" : "off");
+	chef_log("bluetoothd: adapter %s, %s", D.adapter[0] ? D.adapter : "none", D.powered ? "on" : "off");
 	bd_retry_window();		/* also this daemon's start */
 	bd_agent_register(bd_now_ms());
 	devices_changed();
@@ -705,10 +705,10 @@ static int owner_signal(sd_bus_message *m, void *u, sd_bus_error *e)
 		return 0;
 	bluez_reset();
 	if (nw && *nw) {
-		bd_notef("bluetoothd (re)started");
+		chef_log("bluetoothd (re)started");
 		bluez_refresh();
 	} else {
-		bd_notef("bluetoothd gone");
+		chef_log("bluetoothd gone");
 	}
 	bd_adapter_event();
 	for (int i = 0; i < MAX_SENSORS; i++)
@@ -737,7 +737,7 @@ static int on_reply(sd_bus_message *m, void *u, sd_bus_error *e)
 			D.agent_retry_ms = 0;
 			bd_agent_register(bd_now_ms());
 		} else {
-			bd_notef("pairing agent release: %s; retrying", bd_err_name(m));
+			chef_log("pairing agent release: %s; retrying", bd_err_name(m));
 			D.agent_retry_ms = bd_now_ms() + RETRY_MS;
 		}
 		break;
@@ -792,7 +792,7 @@ void bd_bus_open(void)
 	for (unsigned i = 0; i < 4; i++) {
 		r = sd_bus_add_match(D.bus, &D.slots[D.n_slots], rules[i], cbs[i], NULL);
 		if (r < 0) {
-			bd_notef("AddMatch: %s", strerror(-r));
+			chef_log("AddMatch: %s", strerror(-r));
 			bd_bus_lost("refused a match");
 			return;
 		}
@@ -800,14 +800,14 @@ void bd_bus_open(void)
 	}
 	r = sd_bus_add_object_vtable(D.bus, &D.agent_slot, AGENT_PATH, BLUEZ ".Agent1", agent_vtable, NULL);
 	if (r < 0)
-		bd_notef("agent object: %s", strerror(-r));
+		chef_log("agent object: %s", strerror(-r));
 	D.bus_backoff_ms = 1000 / bd_scale;
 	bluez_refresh();
 }
 
 void bd_bus_lost(const char *why)
 {
-	bd_notef("system bus %s: retrying", why);
+	chef_log("system bus %s: retrying", why);
 	bluez_reset();
 	for (int i = 0; i < D.n_slots; i++)
 		sd_bus_slot_unref(D.slots[i]);

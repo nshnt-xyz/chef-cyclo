@@ -244,7 +244,7 @@ void bd_sensor_reply(const struct pend *p, sd_bus_message *m)
 		if (!sd_bus_message_is_method_error(m, NULL) || bd_err_is(m, BLUEZ ".Error.InProgress")) {
 			s->notify[p->k] = NS_OURS;
 		} else {
-			bd_notef("%s: %s notifications refused: %s", s->addr, bs_kind_name(p->k), bd_err_name(m));
+			chef_log("%s: %s notifications refused: %s", s->addr, bs_kind_name(p->k), bd_err_name(m));
 			s->notify[p->k] = NS_NONE;	/* tried again on the next tick */
 		}
 	} else if (p->kind == PK_BATTERY_NOTIFY) {
@@ -268,7 +268,7 @@ static bool scan_wanted(void)
 	if (!D.bluez || !D.powered || !D.adapter[0])
 		return false;
 	for (int i = 0; i < MAX_CLIENTS; i++)
-		if (D.clients[i].fd >= 0 && D.clients[i].scan)
+		if (D.clients[i].lc && D.clients[i].scan)
 			return true;
 	return false;
 }
@@ -313,7 +313,7 @@ void bd_scan_reply(const struct pend *p, sd_bus_message *m)
 	if (p->kind == PK_FILTER) {
 		t = bd_plain(PK_SCAN);
 		if (err) {
-			bd_notef("discovery filter: %s", bd_err_name(m));
+			chef_log("discovery filter: %s", bd_err_name(m));
 			D.scan_retry_ms = bd_now_ms() + RETRY_MS;
 		} else if (bd_call(&t, D.adapter, ADAPTER_IF, "StartDiscovery", 0, NULL) == 0) {
 			D.scan_inflight = true;
@@ -322,17 +322,17 @@ void bd_scan_reply(const struct pend *p, sd_bus_message *m)
 	}
 	if (p->kind == PK_SCAN) {
 		if (err) {
-			bd_notef("discovery: %s", bd_err_name(m));
+			chef_log("discovery: %s", bd_err_name(m));
 			D.scan_retry_ms = bd_now_ms() + RETRY_MS;
 		} else {
 			D.scan_on = true;
-			bd_notef("scanning for sensors");
+			chef_log("scanning for sensors");
 		}
 	} else {
 		if (err)
 			vlog("StopDiscovery: %s", bd_err_name(m));
 		D.scan_on = false;	/* an error means it is not ours to stop any more */
-		bd_notef("scan stopped");
+		chef_log("scan stopped");
 	}
 	for (int i = 0; i < MAX_DEVS; i++)
 		if (D.devs[i].used)

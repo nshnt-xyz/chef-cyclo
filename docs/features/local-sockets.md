@@ -9,7 +9,7 @@ Our daemons serve contracts that have no standard Linux equivalent (gesture clai
 | `/run/buttond.sock` | [buttond](buttons-and-power-off.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
 | `/run/gps-manager.sock` | [gps-manager](gps.md#socket-contract) | yes, proto 1 (since 2026-10-18) |
 | `/run/sensord.sock` | [sensord](sensors.md#socket-contract) | yes, proto 2 (since 2026-10-19) |
-| `/run/blesensd.sock` | [blesensd](bluetooth.md#ble-sensors) | not yet (step 4; already sends the `type` envelope, no hello) |
+| `/run/blesensd.sock` | [blesensd](bluetooth.md#socket-contract) | yes, proto 1 (since 2026-10-20) |
 
 ## Requests
 

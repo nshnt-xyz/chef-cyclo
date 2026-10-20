@@ -170,13 +170,95 @@ blesensd cancel AA:BB:CC:DD:EE:FF
 blesensd forget AA:BB:CC:DD:EE:FF     # waits for confirmed removal
 ```
 
-The socket takes one command per line: `status`, `list`, `watch`,
-`scan on|off`, `hold on|off`, `pair ADDR`, `cancel ADDR`, `forget ADDR`.
-Every output line is a JSON object (protocol in `tools/blesensd/server.c`).
-`ok` acknowledges acceptance; `pair` reports steps/outcomes and `forgotten`
-confirms removal. `sensor` carries identity, kinds, state, battery and RSSI;
-`value` carries HR bpm, power W/cadence rpm or CSC speed km/h/cadence rpm,
-with null for missing values. Scan and hold belong to each client connection.
+### Socket contract
+
+`/run/blesensd.sock` speaks the shared [local socket protocol](local-sockets.md):
+requests are words on one line, every line from the daemon is a JSON object
+with a `type`. This is proto 1 (2026-10-20; before it the lines had the
+`type` envelope but no hello, and every refusal was `unknown request`). The
+code is `tools/blesensd/server.c`. `ADDR` is `AA:BB:CC:DD:EE:FF`, upper-case
+hex.
+
+| Request | Reply |
+|---|---|
+| (connect) | `{"type":"hello","daemon":"blesensd","proto":1}` |
+| `status` | `{"type":"status","bluez":true,"adapter":true,"powered":true,"scanning":false,"loaded":true,"sensors":1,"connected":1,"pairing":false,"agent":true,"wheel_mm":2105,"held":true,"reconnecting":true}` |
+| `list` | a `sensor` line per saved sensor, then `{"type":"ok","cmd":"list"}` |
+| `watch` | `{"type":"ok","cmd":"watch"}`, then a snapshot (the `adapter` line, every `sensor` with its fresh `value` lines, every `found` device, the running `pair` step), then every event below |
+| `scan on`, `scan off` | `{"type":"ok","cmd":"scan"}`: LE discovery for the sensor services runs while any connection has `scan on` |
+| `hold on`, `hold off` | `{"type":"ok","cmd":"hold"}`: saved sensors are reconnected while any connection has `hold on` |
+| `pair ADDR` | `{"type":"ok","cmd":"pair"}` before the first `pair` event, or an error with the refusal |
+| `cancel ADDR` | `{"type":"ok","cmd":"cancel"}`; the pairing then fails with `cancelled` |
+| `forget ADDR` | `{"type":"ok","cmd":"forget"}` once accepted; `forgotten` follows once BlueZ confirmed the removal and both saves are done |
+
+`status`: `bluez` whether bluetoothd answered, `adapter` and `powered` the
+adapter, `scanning` our discovery session, `loaded` whether the records were
+read, `sensors` and `connected` the saved sensors (not being forgotten) and
+the connected ones, `pairing` a pairing in progress, `agent` our agent
+registered, `wheel_mm` the `-w` circumference, `held` whether a connection
+holds, `reconnecting` whether reconnection runs (a hold or the window).
+
+Events, to watchers only (and in the `watch` snapshot):
+
+```json
+{"type":"adapter","present":true,"powered":true,"scanning":false}
+{"type":"sensor","addr":"AA:BB:CC:DD:EE:FF","kinds":"hr,power","name":"CHEF HR","state":"connected","battery":80,"rssi":-58,"rssi_live":false,"paired":"2026-10-13"}
+{"type":"value","addr":"AA:BB:CC:DD:EE:FF","kind":"hr","value":142}
+{"type":"value","addr":"AA:BB:CC:DD:EE:FF","kind":"power","value":245,"cadence":88}
+{"type":"value","addr":"AA:BB:CC:DD:EE:FF","kind":"csc","speed":25.3,"cadence":90}
+{"type":"found","addr":"AA:BB:CC:DD:EE:FF","kinds":"hr","name":"CHEF HR","rssi":-60}
+{"type":"lost","addr":"AA:BB:CC:DD:EE:FF"}
+{"type":"pair","addr":"AA:BB:CC:DD:EE:FF","state":"connecting","reason":""}
+{"type":"forgotten","addr":"AA:BB:CC:DD:EE:FF"}
+```
+
+`sensor` goes out when anything in it changes: `state` is `off` (Bluetooth
+off), `waiting`, `connecting`, `connected` or `forgetting`; `battery`
+(percent) and `rssi` (the last advertisement, live only while scanning)
+are `null` when unknown; `paired` is the date or `""` (paired while the
+clock was unset). `value` carries HR bpm, power W with cadence rpm, or CSC
+speed km/h with cadence rpm; a member is `null` when there is no value
+(five seconds without a measurement, an absent optional field, no link).
+`found` offers a device with sensor services seen in our scan that is not
+saved, again when its RSSI or name changes; `lost` takes it back. `pair`
+steps through `connecting`, `resolving`, `bonding` (only when needed),
+`saving`, then `done` or `failed` with a `reason` (`cancelled`,
+`timed out`, `trust`, a BlueZ error name, ...).
+
+Errors:
+
+| Cause | Line |
+|---|---|
+| `pair` refused | `{"type":"error","cmd":"pair","reason":"<why>"}`: `loading` (records not read yet), `bluetooth off`, `busy` (another pairing runs), `already paired`, `not a sensor in range`, `too many sensors` (eight saved) |
+| `cancel` of no running pairing of `ADDR` | `{"type":"error","cmd":"cancel","reason":"not pairing"}` |
+| `forget` before the records are read, or of no saved sensor | `{"type":"error","cmd":"forget","reason":"loading"}` / `"not paired"` |
+| a missing, extra or invalid argument (`scan` without `on`/`off`, a bad `ADDR`, `status foo`) | `{"type":"error","cmd":"scan","reason":"bad arguments"}` (for every request) |
+| unknown command | `{"type":"error","cmd":"<as sent>","reason":"unknown command"}` |
+| line over 255 bytes | `{"type":"error","reason":"line too long"}`; the rest of the line is discarded |
+| 17th connection | `{"type":"error","reason":"too many clients"}`, then closed |
+
+A word sent back (`<as sent>`) is its first 32 bytes, JSON-escaped. Empty
+lines are ignored; a CR before the newline is stripped.
+
+Connections and limits: `scan`, `hold` and `watch` live on the connection
+and go when it closes, whatever the reason, so a client that dies cannot
+leave the radio scanning or reconnecting for it. The socket is mode 0600
+(root's). Up to 16 connections. Each has a 16384-byte output queue and
+every line is must-deliver (a lost `null` value or `sensor` state would
+leave a client showing a stale one): a client that stops reading until a
+line no longer fits is dropped like one that closed, its scan and hold
+with it. Clients ignore unknown `type`s and members; a new member or type
+keeps proto 1, a change that breaks a client bumps it (the
+[compatibility rules](local-sockets.md#replies-and-events-the-envelope)).
+
+The command-line client (the commands above the table) never prints the
+hello and prints every other line raw. `status` ends at the `status` line,
+`list` and `cancel` at their `ok`, `pair` at the pairing's `done` or
+`failed`, `forget` at `forgotten` (both send `watch` first: the outcome is
+an event); `watch` and `scan` (which sends `watch` and `scan on`) run until
+the daemon goes or ^C. Exit 0 at the end, 1 on an error line for the
+request, a failed pairing, no connection or the daemon closing first; 64
+on a usage error.
 
 Records use `chef-state blesens-load` and `blesens-save` under
 `/data/v1/blesens/sensors` (directory 0700, file 0600, sealed version
@@ -219,8 +301,9 @@ bonds. Stop the emulator by its recorded PID, not a broad process pattern.
 
 Host tests use a fake bluetoothd on a private D-Bus, never the system bus:
 notification ownership, async identity, all-kind resets, confirmed Forget,
-scoped agent, fresh watches, framing, bounded reconnect and storage child
-lifecycle. Live evidence and provenance are recorded in the
+scoped agent, fresh watches, framing, the socket contract (hello, errors,
+limits, a slow watcher dropped only on overflow), bounded reconnect and
+storage child lifecycle. Live evidence and provenance are recorded in the
 [M3 log](../../logs/system-ui-slice2-2026-10-11.txt).
 Real sensor validation, wheel circumference UI, classic PC re-pair and
 USB-out idle-current measurements remain next steps.

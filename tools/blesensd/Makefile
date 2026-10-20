@@ -26,8 +26,13 @@ SDBUS_LIBS ?= $(shell pkg-config --libs libsystemd 2>/dev/null)
 BASU ?= $(REPO_ROOT)/toolchain/basu
 H := build/host
 D := build/device
-SRC := state.c server.c bus.c link.c pair.c records.c main.c cli.c blesens.c
-HDRS := blesensd.h blesens.h
+# The socket, its JSON lines and the log come from ../common/, compiled
+# in from source.
+SHARED := ../common/chef_log.c ../common/linesrv.c ../common/json.c
+SHARED_H := ../common/chef_log.h ../common/linesrv.h ../common/json.h
+SRC := state.c server.c bus.c link.c pair.c records.c main.c cli.c blesens.c $(SHARED)
+HDRS := blesensd.h blesens.h $(SHARED_H)
+INC := -I..
 
 .PHONY: all test clean device install-device check-basu
 
@@ -37,14 +42,14 @@ include ../device.mk
 
 $(H)/blesensd: $(SRC) $(HDRS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $(SRC) $(LDFLAGS) $(SDBUS_LIBS) -lm
+	$(CC) $(CFLAGS) $(INC) -o $@ $(SRC) $(LDFLAGS) $(SDBUS_LIBS) -lm
 
 check-basu:
 	@test -f $(BASU)/lib/libbasu.a || { echo "basu not found at $(BASU): run scripts/setup-toolchain.sh" >&2; exit 1; }
 
 $(D)/blesensd: $(SRC) $(HDRS)
 	@mkdir -p $(@D)
-	$(DEVICE_CC) $(DEVICE_CFLAGS) -DCHEF_BASU -I$(BASU)/include -o $@ \
+	$(DEVICE_CC) $(DEVICE_CFLAGS) -DCHEF_BASU $(INC) -I$(BASU)/include -o $@ \
 		$(SRC) $(BASU)/lib/libbasu.a -lm
 
 device: check-device-cc check-basu $(D)/blesensd

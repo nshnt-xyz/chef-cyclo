@@ -2,9 +2,13 @@
  * blesensd's clients and requests, and the event lines it sends them.
  * The daemon as a whole is described in main.c.
  *
- * Line protocol on /run/blesensd.sock (one request per line; every line
- * from the daemon is one JSON object):
+ * Socket protocol on /run/blesensd.sock: the shared local socket protocol
+ * (docs/features/local-sockets.md, tools/common/linesrv.c), proto 1,
+ * written down in docs/features/bluetooth.md ("Socket contract"). One
+ * request per line, plain words; every line from the daemon is one JSON
+ * object with a "type" member:
  *
+ *   (connect)         {"type":"hello","daemon":"blesensd","proto":1}
  *   status            {"type":"status","bluez":true,"adapter":true,"powered":true,...}
  *   list              {"type":"sensor",...} per sensor, then {"type":"ok","cmd":"list"}
  *   watch             {"type":"ok","cmd":"watch"}, the adapter, every sensor, its
@@ -35,57 +39,133 @@
  *            saving|done|failed","reason":".."}
  *           {"type":"forgotten","addr":".."}
  *   replies {"type":"ok","cmd":"..."} or {"type":"error","cmd":"...","reason":"..."}
+ *   errors  "unknown command" (cmd: the word as sent, its first 32 bytes,
+ *           escaped), "bad arguments" (a missing, extra or invalid one),
+ *           the refusals of pair, cancel and forget; the library's
+ *           "line too long" and "too many clients" carry no cmd
+ *
+ * Limits: 16 clients, request lines of 255 bytes before the newline, a
+ * 16384-byte output queue per client. Every line must be delivered (a lost
+ * null value or sensor state would leave a client showing a stale one): a
+ * client whose queue overflows is not reading and is dropped, its scan and
+ * hold with it.
  */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <unistd.h>
+#include <sys/stat.h>
 
 #include "blesensd.h"
+#include "common/json.h"
 
 /* ------------------------------------------------------------ clients */
 
-
-
-static void client_drop(struct client *c)
+static struct client *client_of(struct linesrv_client *lc)
 {
+	return &D.clients[linesrv_slot(lc)];
+}
+
+static void on_connect(struct linesrv *srv, struct linesrv_client *lc)
+{
+	struct client *c = client_of(lc);
+
+	(void)srv;
+	memset(c, 0, sizeof(*c));
+	c->lc = lc;
+	linesrv_sendf(lc, "{\"type\":\"hello\",\"daemon\":\"blesensd\",\"proto\":%d}\n", PROTO_VERSION);
+}
+
+/* Exactly once per connection, whatever ended it: its scan and hold go.
+ * Inside a broadcast they are synced once the loop is over, so no watcher
+ * gets a newer line ahead of the one being sent; at exit not at all. */
+static void on_close(struct linesrv *srv, struct linesrv_client *lc)
+{
+	struct client *c = client_of(lc);
 	bool scanned = c->scan, holding = c->hold;
 
-	if (c->fd >= 0)
-		close(c->fd);
-	c->fd = -1;
-	c->watch = c->scan = c->hold = false;
-	c->len = 0;
+	(void)srv;
+	memset(c, 0, sizeof(*c));
+	if (D.closing)
+		return;
+	if (D.broadcasting) {
+		D.sync_scan |= scanned;
+		D.sync_links |= holding;
+		return;
+	}
 	if (scanned)
 		bd_scan_sync();
 	if (holding)
 		bd_links_sync();
 }
 
-static void client_send(struct client *c, const char *line)
+static void on_line(struct linesrv *srv, struct linesrv_client *lc, int argc, char **argv);
+
+/* Listen on PATH, owner only. 0 or -errno. */
+int bd_server_start(const char *path)
 {
-	size_t len = strlen(line), off = 0;
+	struct linesrv_config cfg = {
+		.max_clients = MAX_CLIENTS,
+		.line_max = LINE_MAX_IN,
+		.outq_size = OUTQ_MAX,
+		.on_connect = on_connect,
+		.on_line = on_line,
+		.on_close = on_close,
+	};
+	int rc;
 
-	while (c->fd >= 0 && off < len) {
-		ssize_t n = send(c->fd, line + off, len - off, MSG_NOSIGNAL | MSG_DONTWAIT);
-
-		if (n < 0 && errno == EINTR)
-			continue;
-		if (n < 0) {
-			client_drop(c);	/* a client that does not read is dropped */
-			return;
-		}
-		off += (size_t)n;
+	D.srv = linesrv_new(&cfg);
+	if (!D.srv)
+		return -ENOMEM;
+	rc = linesrv_listen(D.srv, path);
+	if (!rc && chmod(path, 0600) < 0)
+		rc = -errno;
+	if (rc) {
+		bd_server_fini();
+		return rc;
 	}
+	return 0;
 }
 
+/* Every client closed (nothing synced), the listener closed and its path
+ * unlinked. */
+void bd_server_fini(void)
+{
+	if (!D.srv)
+		return;
+	D.closing = true;
+	linesrv_close_all(D.srv);
+	D.srv = NULL;
+	D.closing = false;
+}
+
+static int client_send(struct linesrv_client *lc, const char *line)
+{
+	return linesrv_send(lc, line, strlen(line));
+}
+
+/* LINE to every watcher. One that cannot take it is dropped; the scan and
+ * hold it changes are synced after the loop. */
 void bd_broadcast(const char *line)
 {
+	size_t len = strlen(line);
+
+	if (!D.srv)
+		return;	/* exiting: nobody is listening any more */
+	D.broadcasting++;
 	for (int i = 0; i < MAX_CLIENTS; i++)
-		if (D.clients[i].fd >= 0 && D.clients[i].watch)
-			client_send(&D.clients[i], line);
+		if (D.clients[i].lc && D.clients[i].watch)
+			linesrv_send(D.clients[i].lc, line, len);
+	if (--D.broadcasting)
+		return;
+	if (D.sync_scan) {
+		D.sync_scan = false;
+		bd_scan_sync();
+	}
+	if (D.sync_links) {
+		D.sync_links = false;
+		bd_links_sync();
+	}
 }
 
 static void adapter_line(char *b, size_t n)
@@ -112,7 +192,7 @@ static void sensor_line(const struct sensor *s, char *b, size_t n)
 	char name[160], kinds[32], bat[16], rssi[16];
 	int battery = bd_sensor_battery(s);
 
-	bd_json_str(name, sizeof(name), s->name);
+	json_escape(name, sizeof(name), s->name);
 	bd_kinds_str(s->kinds, kinds, sizeof(kinds));
 	if (battery >= 0)
 		snprintf(bat, sizeof(bat), "%d", battery);
@@ -143,7 +223,7 @@ static void found_line(const struct dev *d, char *b, size_t n)
 {
 	char name[160], kinds[32], rssi[16];
 
-	bd_json_str(name, sizeof(name), d->name);
+	json_escape(name, sizeof(name), d->name);
 	bd_kinds_str(d->kinds, kinds, sizeof(kinds));
 	if (d->has_rssi)
 		snprintf(rssi, sizeof(rssi), "%d", d->rssi);
@@ -225,7 +305,7 @@ void bd_pair_event(const char *state, const char *reason)
 {
 	char b[OUT_MAX], r[100];
 
-	bd_json_str(r, sizeof(r), reason ? reason : "");
+	json_escape(r, sizeof(r), reason ? reason : "");
 	snprintf(b, sizeof(b), "{\"type\":\"pair\",\"addr\":\"%s\",\"state\":\"%s\",\"reason\":\"%s\"}\n",
 		 D.pr.addr, state, r);
 	bd_broadcast(b);
@@ -234,32 +314,53 @@ void bd_pair_event(const char *state, const char *reason)
 
 /* ------------------------------------------------------------ requests */
 
-static void reply_ok(struct client *c, const char *cmd)
+static void reply_ok(struct linesrv_client *lc, const char *cmd)
 {
-	char b[80];
-
-	snprintf(b, sizeof(b), "{\"type\":\"ok\",\"cmd\":\"%s\"}\n", cmd);
-	client_send(c, b);
+	linesrv_sendf(lc, "{\"type\":\"ok\",\"cmd\":\"%s\"}\n", cmd);
 }
 
-static void reply_err(struct client *c, const char *cmd, const char *reason)
+static void reply_err(struct linesrv_client *lc, const char *cmd, const char *reason)
 {
-	char b[200], cm[40], r[100];
+	char r[100];
 
-	bd_json_str(cm, sizeof(cm), cmd);
-	bd_json_str(r, sizeof(r), reason);
-	snprintf(b, sizeof(b), "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"%s\"}\n", cm, r);
-	client_send(c, b);
+	json_escape(r, sizeof(r), reason);
+	linesrv_sendf(lc, "{\"type\":\"error\",\"cmd\":\"%s\",\"reason\":\"%s\"}\n", cmd, r);
 }
 
-static void handle_line(struct client *c, char *line)
+static bool on_off(const char *arg)
 {
-	char *save = NULL, *cmd = strtok_r(line, " \t\r", &save), *arg = strtok_r(NULL, " \t\r", &save);
+	return !strcmp(arg, "on") || !strcmp(arg, "off");
+}
+
+/* A reply that drops the client clears its slot (on_close): a send to a
+ * dropped client does nothing, and nothing is written to the slot after a
+ * reply unless c->lc says the client is still there. */
+static void on_line(struct linesrv *srv, struct linesrv_client *lc, int argc, char **argv)
+{
+	struct client *c = client_of(lc);
+	const char *cmd = argv[0], *arg = argc > 1 ? argv[1] : NULL;
 	char b[OUT_MAX];
 	const char *err;
+	bool args_ok;
 
-	if (!cmd)
+	(void)srv;
+	if (!strcmp(cmd, "status") || !strcmp(cmd, "list") || !strcmp(cmd, "watch")) {
+		args_ok = argc == 1;
+	} else if (!strcmp(cmd, "scan") || !strcmp(cmd, "hold")) {
+		args_ok = argc == 2 && on_off(arg);
+	} else if (!strcmp(cmd, "pair") || !strcmp(cmd, "cancel") || !strcmp(cmd, "forget")) {
+		args_ok = argc == 2 && bd_addr_ok(arg);
+	} else {
+		char esc[ECHO_MAX * 6 + 1];
+
+		json_escape_n(esc, sizeof(esc), cmd, ECHO_MAX);
+		reply_err(lc, esc, "unknown command");
 		return;
+	}
+	if (!args_ok) {
+		reply_err(lc, cmd, "bad arguments");
+		return;
+	}
 	if (!strcmp(cmd, "status")) {
 		int n = 0, conn = 0;
 
@@ -275,113 +376,78 @@ static void handle_line(struct client *c, char *line)
 			 D.scan_on ? "true" : "false", D.loaded ? "true" : "false", n, conn,
 			 D.pr.step != PS_IDLE ? "true" : "false", D.agent_registered ? "true" : "false", D.wheel_mm,
 			 bd_held() ? "true" : "false", bd_links_wanted() ? "true" : "false");
-		client_send(c, b);
+		client_send(lc, b);
 	} else if (!strcmp(cmd, "list") || !strcmp(cmd, "watch")) {
 		bool watch = cmd[0] == 'w';
 
 		if (watch) {
-			reply_ok(c, cmd);
+			reply_ok(lc, cmd);
 			adapter_line(b, sizeof(b));
-			client_send(c, b);
+			client_send(lc, b);
 		}
-		for (int i = 0; i < MAX_SENSORS && c->fd >= 0; i++) {
+		for (int i = 0; i < MAX_SENSORS && c->lc; i++) {
 			struct sensor *s = &D.sensors[i];
 
 			if (!s->used)
 				continue;
 			sensor_line(s, b, sizeof(b));
-			client_send(c, b);
-			for (int k = 0; watch && k < BS_KINDS && c->fd >= 0; k++)
+			client_send(lc, b);
+			for (int k = 0; watch && k < BS_KINDS && c->lc; k++)
 				if ((s->kinds & (1u << k)) && value_fresh(s, k)) {
 					value_line(s, k, b, sizeof(b));
-					client_send(c, b);
+					client_send(lc, b);
 				}
 		}
-		for (int i = 0; watch && i < MAX_DEVS && c->fd >= 0; i++)
+		for (int i = 0; watch && i < MAX_DEVS && c->lc; i++)
 			if (D.devs[i].used && D.devs[i].found_sent) {
 				found_line(&D.devs[i], b, sizeof(b));
-				client_send(c, b);
+				client_send(lc, b);
 			}
-		if (watch && c->fd >= 0 && D.pr.step != PS_IDLE) {
+		if (watch && c->lc && D.pr.step != PS_IDLE) {
 			static const char *const names[] = { "", "connecting", "resolving", "resolving",
 							     "bonding", "saving" };
 			char r[1] = "";
 
 			snprintf(b, sizeof(b), "{\"type\":\"pair\",\"addr\":\"%s\",\"state\":\"%s\",\"reason\":\"%s\"}\n",
 				 D.pr.addr, names[D.pr.step], r);
-			client_send(c, b);
+			client_send(lc, b);
 		}
-		if (c->fd >= 0 && !watch)
-			reply_ok(c, cmd);
-		if (c->fd >= 0 && watch)
+		if (c->lc && !watch)
+			reply_ok(lc, cmd);
+		if (c->lc && watch)
 			c->watch = true;
-	} else if (!strcmp(cmd, "scan") && arg && (!strcmp(arg, "on") || !strcmp(arg, "off"))) {
+	} else if (!strcmp(cmd, "scan")) {
 		c->scan = !strcmp(arg, "on");
-		reply_ok(c, "scan");
+		reply_ok(lc, "scan");
 		bd_scan_sync();
-	} else if (!strcmp(cmd, "hold") && arg && (!strcmp(arg, "on") || !strcmp(arg, "off"))) {
+	} else if (!strcmp(cmd, "hold")) {
 		c->hold = !strcmp(arg, "on");
-		reply_ok(c, "hold");
+		reply_ok(lc, "hold");
 		bd_links_sync();
-	} else if (!strcmp(cmd, "pair") && bd_addr_ok(arg)) {
+	} else if (!strcmp(cmd, "pair")) {
 		/* the reply before the first event, so a client can tell */
 		err = bd_pair_refusal(arg);
 		if (err) {
-			reply_err(c, "pair", err);
+			reply_err(lc, "pair", err);
 		} else {
-			reply_ok(c, "pair");
+			reply_ok(lc, "pair");
 			bd_pair_start(arg);
 		}
-	} else if (!strcmp(cmd, "cancel") && bd_addr_ok(arg)) {
+	} else if (!strcmp(cmd, "cancel")) {
 		if (D.pr.step != PS_IDLE && !strcmp(D.pr.addr, arg)) {
-			reply_ok(c, "cancel");
+			reply_ok(lc, "cancel");
 			bd_pair_fail("cancelled");
 		} else {
-			reply_err(c, "cancel", "not pairing");
-		}
-	} else if (!strcmp(cmd, "forget") && bd_addr_ok(arg)) {
-		if (!D.loaded) {
-			reply_err(c, "forget", "loading");
-		} else if (!bd_sensor_by_addr(arg)) {
-			reply_err(c, "forget", "not paired");
-		} else {
-			reply_ok(c, "forget");
-			bd_forget(arg);
+			reply_err(lc, "cancel", "not pairing");
 		}
 	} else {
-		reply_err(c, cmd, "unknown request");
-	}
-}
-
-void bd_client_input(struct client *c)
-{
-	ssize_t n = recv(c->fd, c->in + c->len, sizeof(c->in) - 1 - c->len, MSG_DONTWAIT);
-	char *nl;
-
-	if (n == 0 || (n < 0 && errno != EAGAIN && errno != EINTR)) {
-		client_drop(c);
-		return;
-	}
-	if (n < 0)
-		return;
-	c->len += (size_t)n;
-	c->in[c->len] = 0;
-	while (c->fd >= 0 && (nl = memchr(c->in, '\n', c->len))) {
-		size_t used = (size_t)(nl - c->in) + 1;
-
-		*nl = 0;
-		if (c->discarding)
-			c->discarding = false;
-		else
-			handle_line(c, c->in);
-		if (c->fd < 0)
-			return;
-		memmove(c->in, c->in + used, c->len - used);
-		c->len -= used;
-		c->in[c->len] = 0;
-	}
-	if (c->len == sizeof(c->in) - 1) {
-		c->len = 0;	/* an overlong line: dropped up to its newline */
-		c->discarding = true;
+		if (!D.loaded) {
+			reply_err(lc, "forget", "loading");
+		} else if (!bd_sensor_by_addr(arg)) {
+			reply_err(lc, "forget", "not paired");
+		} else {
+			reply_ok(lc, "forget");
+			bd_forget(arg);
+		}
 	}
 }

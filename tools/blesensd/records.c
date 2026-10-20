@@ -97,7 +97,7 @@ void bd_save_start(void)
 	D.save_pending = false;
 	len = records_text(text, sizeof(text));
 	if (pipe2(p, O_CLOEXEC) < 0) {
-		bd_notef("pipe: %s; sensors not saved", strerror(errno));
+		chef_log("pipe: %s; sensors not saved", strerror(errno));
 		D.save_pending = true;
 		D.save_retry_ms = bd_now_ms() + RETRY_MS;
 		return;
@@ -106,7 +106,7 @@ void bd_save_start(void)
 	close(p[0]);
 	if (pid < 0) {
 		close(p[1]);
-		bd_notef("cannot run %s blesens-save: %s; sensors not saved", D.state_cmd, strerror(-pid));
+		chef_log("cannot run %s blesens-save: %s; sensors not saved", D.state_cmd, strerror(-pid));
 		D.save_pending = true;
 		D.save_retry_ms = bd_now_ms() + RETRY_MS;
 		return;
@@ -114,7 +114,7 @@ void bd_save_start(void)
 	/* at most 2 KiB into an empty pipe: never blocks */
 	D.save_write_ok = write(p[1], text, len) == (ssize_t)len;
 	if (!D.save_write_ok)
-		bd_notef("blesens-save: short write");
+		chef_log("blesens-save: short write");
 	close(p[1]);
 	D.save_revision = D.record_revision;
 	D.save = (struct child){ .pid = pid, .pgid = pid, .until = bd_now_ms() + CHILD_SAVE_MS };
@@ -155,7 +155,7 @@ static void load_parse(void)
 		bd_sensor_init(s, addr, bd_kinds_parse(kinds), strcmp(date, "-") ? date : "", name[0] ? name : addr);
 		s->forgetting = !strcmp(flag, "forget");
 	}
-	bd_notef("%d sensor%s", n, n == 1 ? "" : "s");
+	chef_log("%d sensor%s", n, n == 1 ? "" : "s");
 }
 
 static void load_finish(bool timed_out)
@@ -167,7 +167,7 @@ static void load_finish(bool timed_out)
 	bd_child_kill(&D.load);
 	D.load = (struct child){ 0 };
 	if (timed_out)
-		bd_notef("%s blesens-load gave no answer: no sensors this time", D.state_cmd);
+		chef_log("%s blesens-load gave no answer: no sensors this time", D.state_cmd);
 	else
 		load_parse();
 	D.loaded = true;
@@ -189,7 +189,7 @@ void bd_load_start(void)
 	close(p[1]);
 	if (pid < 0) {
 		close(p[0]);
-		bd_notef("cannot run %s blesens-load: %s", D.state_cmd, strerror(-pid));
+		chef_log("cannot run %s blesens-load: %s", D.state_cmd, strerror(-pid));
 		load_finish(true);
 		return;
 	}
@@ -224,7 +224,7 @@ void bd_reap(void)
 
 		if (pid == D.save.pid) {
 			if (rc)
-				bd_notef("%s blesens-save exited %d: sensors may not be saved", D.state_cmd, rc);
+				chef_log("%s blesens-save exited %d: sensors may not be saved", D.state_cmd, rc);
 			save_finished(rc == 0);
 		} else if (pid == D.load.pid) {
 			D.load.pid = 0;
@@ -252,7 +252,7 @@ void bd_children_tick(int64_t now)
 	if (D.load.pgid > 0 && now >= D.load.until)
 		load_finish(true);	/* kills the group */
 	if (D.save.pgid > 0 && now >= D.save.until) {
-		bd_notef("%s blesens-save still running after %d s: killed", D.state_cmd, CHILD_SAVE_MS / 1000);
+		chef_log("%s blesens-save still running after %d s: killed", D.state_cmd, CHILD_SAVE_MS / 1000);
 		bd_child_kill(&D.save);	/* the leader's exit (reaped next) finishes it */
 		D.save.until = INT64_MAX;
 	}

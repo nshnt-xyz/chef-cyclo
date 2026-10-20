@@ -30,7 +30,7 @@ static void changed(struct blesclient *bc, void *ctx)
 
 int sys_ble_start(const char *sock)
 {
-	struct blesclient_config cfg = { .path = sock, .changed = changed };
+	struct blesclient_config cfg = { .path = sock, .changed = changed, .log = chefui_log };
 	int64_t now = lcwatch_now();
 
 	if (B.running) {

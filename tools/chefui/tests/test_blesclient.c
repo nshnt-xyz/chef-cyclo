@@ -4,12 +4,14 @@
  * on a real AF_UNIX socket: wants sent only after `ok watch` and again
  * after a reconnect, the reconnect deadlines, the view from blesensd's
  * lines, pair/cancel/forget requests, the view emptied when blesensd goes
- * (a running pairing failed). Built without LVGL's include path
- * (Makefile: test-blesclient). ble_apply_line's own rules are in test-sys.
+ * (a running pairing failed), a hello with another proto logged once.
+ * Built without LVGL's include path (Makefile: test-blesclient).
+ * ble_apply_line's own rules are in test-sys.
  */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <poll.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +25,18 @@
 #define BA "AA:BB:CC:DD:EE:01"
 
 static int g_changed;
+static int g_logged;
+static char g_log[512];
+
+static void on_log(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(g_log, sizeof(g_log), fmt, ap);
+	va_end(ap);
+	g_logged++;
+}
 
 static void on_changed(struct blesclient *bc, void *ctx)
 {
@@ -85,7 +99,7 @@ int main(void)
 {
 	char dir[] = "/tmp/blesclient-test.XXXXXX", sock[256], buf[512];
 	struct blesclient bc;
-	struct blesclient_config cfg = { .changed = on_changed };
+	struct blesclient_config cfg = { .changed = on_changed, .log = on_log };
 	struct ble_found f = { .addr = BA, .name = "Combo", .kinds = 7 };
 	int lfd, c;
 	int64_t t = 5000;
@@ -116,6 +130,7 @@ int main(void)
 	pump(&bc, t);
 	heard(c, buf, sizeof(buf));
 	CHECK(strcmp(buf, "hold on\nscan on\n") == 0 && bc.view.known && g_changed > 0);
+	CHECK(g_logged == 0);	/* the proto it knows */
 	say(c, "{\"type\":\"adapter\",\"present\":true,\"powered\":true,\"scanning\":true}\n"
 	       "{\"type\":\"sensor\",\"addr\":\"" BA "\",\"kinds\":\"hr\",\"name\":\"Combo\",\"state\":\"connected\"}\n"
 	       "{\"type\":\"value\",\"addr\":\"" BA "\",\"kind\":\"hr\",\"value\":141}\n");
@@ -145,10 +160,15 @@ int main(void)
 	lineclient_tick(&bc.lc, t);
 	pump(&bc, t);
 	c = accept_one(lfd);
-	say(c, "{\"type\":\"ok\",\"cmd\":\"watch\"}\n");
+	/* a hello with another proto: logged once, the client carries on */
+	say(c, "{\"type\":\"hello\",\"daemon\":\"blesensd\",\"proto\":2}\n{\"type\":\"ok\",\"cmd\":\"watch\"}\n");
 	pump(&bc, t);
 	heard(c, buf, sizeof(buf));
 	CHECK(strcmp(buf, "watch\nhold on\nscan on\n") == 0);	/* the wants again */
+	CHECK(g_logged == 1 && strstr(g_log, "\"proto\":2") && strstr(g_log, "speaks proto 1"));
+	say(c, "{\"type\":\"hello\",\"daemon\":\"blesensd\",\"proto\":2}\n");
+	pump(&bc, t);
+	CHECK(g_logged == 1 && bc.watching);
 	blesclient_want(&bc, false, true, t);	/* scan implies hold */
 	heard(c, buf, sizeof(buf));
 	CHECK(strcmp(buf, "hold off\nscan off\n") == 0);

@@ -1,17 +1,14 @@
 /*
- * blesensd's state D, the helpers (clock, log, addresses, kinds, names)
+ * blesensd's state D, the helpers (clock, addresses, kinds, names)
  * and the lookups every part shares. See main.c for the daemon as a
  * whole.
  */
 #define _GNU_SOURCE
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "blesensd.h"
 
@@ -31,25 +28,6 @@ int64_t bd_now_ms(void)
 	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
-void bd_notef(const char *fmt, ...)
-{
-	char buf[300];
-	va_list ap;
-	int fd;
-
-	va_start(ap, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	fprintf(stderr, "blesensd: %s\n", buf);
-	fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC | O_NONBLOCK);
-	if (fd >= 0) {
-		dprintf(fd, "blesensd: %s\n", buf);
-		close(fd);
-	}
-}
-
-
-
 /* "AA:BB:CC:DD:EE:FF" (upper case hex) */
 bool bd_addr_ok(const char *a)
 {
@@ -59,26 +37,6 @@ bool bd_addr_ok(const char *a)
 		if (i % 3 == 2 ? a[i] != ':' : !isxdigit((unsigned char)a[i]) || islower((unsigned char)a[i]))
 			return false;
 	return true;
-}
-
-/* JSON string body: quotes, backslashes and controls escaped. */
-void bd_json_str(char *out, size_t n, const char *s)
-{
-	size_t o = 0;
-
-	for (; s && *s && o + 7 < n; s++) {
-		unsigned char c = (unsigned char)*s;
-
-		if (c == '"' || c == '\\') {
-			out[o++] = '\\';
-			out[o++] = (char)c;
-		} else if (c < 0x20 || c == 0x7f) {
-			o += (size_t)snprintf(out + o, n - o, "\\u%04x", c);
-		} else {
-			out[o++] = (char)c;
-		}
-	}
-	out[o] = 0;
 }
 
 void bd_kinds_str(unsigned kinds, char *out, size_t n)
@@ -211,7 +169,7 @@ bool bd_sensor_connected(const struct sensor *s)
 bool bd_held(void)
 {
 	for (int i = 0; i < MAX_CLIENTS; i++)
-		if (D.clients[i].fd >= 0 && D.clients[i].hold)
+		if (D.clients[i].lc && D.clients[i].hold)
 			return true;
 	return false;
 }

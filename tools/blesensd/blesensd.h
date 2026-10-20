@@ -19,6 +19,8 @@
 #endif
 
 #include "blesens.h"
+#include "common/chef_log.h"
+#include "common/linesrv.h"
 
 #define SOCK_PATH "/run/blesensd.sock"
 #define BLUEZ "org.bluez"
@@ -30,12 +32,15 @@
 #define PROPS "org.freedesktop.DBus.Properties"
 #define OBJMGR "org.freedesktop.DBus.ObjectManager"
 
+#define PROTO_VERSION 1	/* the socket protocol (server.c) */
 #define MAX_CLIENTS 16
 #define MAX_SENSORS 8
 #define MAX_DEVS 128
 #define MAX_CHRS 128
 #define MAX_PENDS 64
-#define LINE_MAX_IN 256
+#define LINE_MAX_IN 256		/* a request line, its newline included */
+#define OUTQ_MAX 16384		/* per-client output queue */
+#define ECHO_MAX 32		/* an unknown command is echoed this far */
 #define OUT_MAX 512
 
 /* timers in ms, divided by bd_scale (10 under -T) */
@@ -51,7 +56,7 @@
 #define RETRY_MS (5000 / bd_scale)
 #define BUS_BACKOFF_MAX_MS (10000 / bd_scale)
 
-#define vlog(...) do { if (bd_verbose) bd_notef(__VA_ARGS__); } while (0)
+#define vlog(...) do { if (bd_verbose) chef_log(__VA_ARGS__); } while (0)
 
 struct dev {
 	bool used;
@@ -107,12 +112,10 @@ struct sensor {
 
 enum pair_step { PS_IDLE, PS_CONNECT, PS_RESOLVE, PS_NOTIFY, PS_BOND, PS_TRUST };
 
+/* A connection's own state, in the slot linesrv gives it. */
 struct client {
-	int fd;
+	struct linesrv_client *lc;	/* NULL: the slot is free */
 	bool watch, scan, hold;
-	char in[LINE_MAX_IN];
-	size_t len;
-	bool discarding;
 };
 
 /* What an asynchronous call was for, and for whom. */
@@ -160,7 +163,11 @@ struct bd_state {
 	struct chr chrs[MAX_CHRS];
 	struct sensor sensors[MAX_SENSORS];
 	uint32_t next_sid;
+	struct linesrv *srv;	/* NULL before the start and once closed */
 	struct client clients[MAX_CLIENTS];
+	bool closing;		/* exiting: a connection that goes syncs nothing */
+	int broadcasting;	/* inside bd_broadcast's loop */
+	bool sync_scan, sync_links;	/* a watcher went inside it: sync after it */
 	int64_t retry_until;	/* reconnect without a hold until then */
 	bool held;		/* a client holds (as last seen) */
 	struct pend pends[MAX_PENDS];
@@ -195,9 +202,7 @@ extern int bd_scale;
 extern int bd_retry_s;
 extern pid_t bd_self;
 int64_t bd_now_ms(void);
-void bd_notef(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 bool bd_addr_ok(const char *a);
-void bd_json_str(char *out, size_t n, const char *s);
 void bd_kinds_str(unsigned kinds, char *out, size_t n);
 unsigned bd_kinds_parse(const char *s);
 void bd_name_clean(char *out, size_t n, const char *s);
@@ -216,13 +221,14 @@ bool bd_links_wanted(void);
 const char *bd_sensor_state(const struct sensor *s);
 
 /* server.c */
+int bd_server_start(const char *path);
+void bd_server_fini(void);
 void bd_broadcast(const char *line);
 void bd_adapter_event(void);
 void bd_sensor_event(struct sensor *s, bool force);
 void bd_found_update(struct dev *d, bool changed);
 void bd_value_event(struct sensor *s, int k);
 void bd_pair_event(const char *state, const char *reason);
-void bd_client_input(struct client *c);
 
 /* bus.c */
 void bd_pend_cancel(bool all, uint32_t sid, uint32_t pair, bool forget);

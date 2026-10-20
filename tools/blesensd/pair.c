@@ -57,7 +57,7 @@ static void pair_done(void)
 	pair_agent_release();
 	bd_retry_window();
 	bd_pair_event("done", "");
-	bd_notef("paired %s", s->addr);
+	chef_log("paired %s", s->addr);
 	bd_save_records();
 	bd_found_update(d, false);
 	bd_sensor_event(s, true);
@@ -72,7 +72,7 @@ void bd_pair_fail(const char *reason)
 
 	if (step == PS_IDLE)
 		return;
-	bd_notef("pairing %s failed: %s", D.pr.addr, reason);
+	chef_log("pairing %s failed: %s", D.pr.addr, reason);
 	bd_pend_cancel(false, 0, D.pr.id, false);
 	D.pr.step = PS_IDLE;
 	pair_agent_release();
@@ -304,7 +304,7 @@ void bd_pair_start(const char *addr)
 	D.pr.kinds = d->kinds;
 	D.pr.deadline = bd_now_ms() + PAIR_TIMEOUT_MS;
 	D.pr.step = PS_CONNECT;
-	bd_notef("pairing %s", addr);
+	chef_log("pairing %s", addr);
 	bd_pair_event("connecting", "");
 	pair_agent_request();
 }
@@ -328,7 +328,7 @@ static void forget_durable(struct sensor *s)
 	snprintf(addr, sizeof(addr), "%s", s->addr);
 	bd_pend_cancel(false, s->sid, 0, true);
 	memset(s, 0, sizeof(*s));
-	bd_notef("forgot %s", addr);
+	chef_log("forgot %s", addr);
 	snprintf(b, sizeof(b), "{\"type\":\"forgotten\",\"addr\":\"%s\"}\n", addr);
 	bd_broadcast(b);
 	/* back to an ordinary found device if it is still advertising */
@@ -373,7 +373,7 @@ void bd_forget_reply(const struct pend *p, sd_bus_message *m)
 	    bd_err_is(m, "org.freedesktop.DBus.Error.UnknownObject")) {
 		forget_finish(s);
 	} else {
-		bd_notef("%s: removal failed (%s), retrying", s->addr, bd_err_name(m));
+		chef_log("%s: removal failed (%s), retrying", s->addr, bd_err_name(m));
 		s->forget_next_ms = bd_now_ms() + RETRY_MS;
 	}
 }
@@ -387,7 +387,7 @@ void bd_forget(const char *addr)
 	bd_sensor_conn_reset(s);
 	s->forgetting = true;
 	s->forget_next_ms = 0;
-	bd_notef("forgetting %s", addr);
+	chef_log("forgetting %s", addr);
 	bd_save_records();		/* save the flag before removing from BlueZ */
 	s->forget_revision = D.record_revision;
 	bd_sensor_event(s, false);
