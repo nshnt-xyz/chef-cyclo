@@ -66,7 +66,7 @@
  *                all) a long buzz ("release to power off"); the release
  *                then does sync() and runs `poweroff`, i.e. busybox init's
  *                orderly shutdown (::shutdown entries, SIGTERM to every
- *                process -- gps-up's cleanup included -- then RB_POWER_OFF).
+ *                process -- modem-up's cleanup included -- then RB_POWER_OFF).
  *                Releasing before the long buzz cancels; a second press
  *                in between cancels too. -p 0 disables this default.
  *   everything else is only logged for now (power menu = UI work).

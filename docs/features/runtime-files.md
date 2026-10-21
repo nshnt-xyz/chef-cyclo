@@ -8,7 +8,7 @@ Everything our own programs keep in RAM at run time lives under `/run/chef/`: so
 
 `/init` mounts the `/run` tmpfs and immediately creates `/run/chef`, `/run/chef/log` and `/run/chef/lock` with `mkdir -p -m 0755`: owned by root and not group or world writable, since root-only files sit below them (the [SSH](ssh.md) host key in `/run/chef/ssh`, the BLE sensor socket). Everything below them is created by its owner as needed, with the mode in the table. Files a program writes atomically get a temp name beside the file they replace (`state/time.tmp`, `power/.state.tmp`) and are renamed over it; a lock with no owning directory goes to `lock/`.
 
-C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen files, `power`, `sensors/sns.reg`, `gps-manager`, `lock/gps-up.lock`, `log/abslot.log`, `state/time`, the settings store's base), so a client and its daemon cannot disagree. Shell scripts spell the paths out. Programs that take a run base directory default to `/run/chef` and build their paths from it: `chef-state` (`CHEF_STATE_RUN`), `chef-storage` (`CHEF_STORAGE_RUN`), `chef-reboot` (`CHEF_REBOOT_RUN`), `speaker-test-tone` (`RUN_DIR`), the settings store (`--run` of `chef-settings`, the same base for its `chef-settings` directory). Every override keeps working, and the host tests use them.
+C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen files, `power`, `sensors/sns.reg`, `gps-manager`, `lock/modem-up.lock`, `log/abslot.log`, `state/time`, the settings store's base), so a client and its daemon cannot disagree. Shell scripts spell the paths out. Programs that take a run base directory default to `/run/chef` and build their paths from it: `chef-state` (`CHEF_STATE_RUN`), `chef-storage` (`CHEF_STORAGE_RUN`), `chef-reboot` (`CHEF_REBOOT_RUN`), `speaker-test-tone` (`RUN_DIR`), the settings store (`--run` of `chef-settings`, the same base for its `chef-settings` directory). Every override keeps working, and the host tests use them.
 
 ## Layout
 
@@ -18,7 +18,7 @@ C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen f
 | `gps-manager.sock` | `gps-manager` | 0660 | [GPS leases](gps.md#socket-contract) |
 | `sensord.sock` | `sensord` | 0755 (umask) | [sensors](sensors.md#socket-contract) |
 | `blesensd.sock` | `blesensd` | 0600 | [BLE sensors](bluetooth.md#socket-contract) |
-| `qmux_socket` | `qmuxd-lite` (started by `gps-up`) | 0600 | the QMUX bridge for `qmicli -d`; libqmi recognises it by the name `qmux_socket` in the path |
+| `qmux_socket` | `qmuxd-lite` (started by `modem-up`) | 0600 | the QMUX bridge for `qmicli -d`; libqmi recognises it by the name `qmux_socket` in the path |
 | `fb0.lock` | the first screen client (`chef-settings`, `fbtouch`, a hand-run `fblog`) | 0600 | the [screen lock](display-and-touch.md#framebuffer-and-touch-contract): `LOCK_EX` before fb0 is opened |
 | `fb0.lit` | chefui applications | 0644 | the panel is lit; a start that finds it power-cycles the panel once ([UI platform](ui-platform.md)) |
 | `screen-off` | chefui applications, `buttond`'s default `power.short`, a shell | 0644 | the screen is deliberately off ([display and touch](display-and-touch.md#the-screen-off-flag)) |
@@ -29,13 +29,13 @@ C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen f
 | `bt-powered` | `bt-up` | 0644 | the Bluetooth controller was attached this boot |
 | `wlan-prepare/` | `wifi-prepare` | 0755 | one WLAN preparation attempt per boot (`mkdir` as the test) |
 | `usb-interface`, `udhcpd.conf` | `/init` (`usr/lib/chef/usb-gadget.sh`) | 0644 | the USB network interface name, and `/etc/udhcpd.conf` with it filled in for `udhcpd` |
-| `log/gps-up.log` | `inittab` (redirect) | 0644 | `gps-up` |
+| `log/modem-up.log` | `inittab` (redirect) | 0644 | `modem-up` |
 | `log/sensors-up.log` (`.1`) | `inittab` (redirect, rotated over 256 KiB) | 0644 | `sensors-up` |
 | `log/abslot.log` | `abslot` | 0644 | A/B slot marking |
 | `log/audio-up.log` | by hand ([audio](audio.md)) | 0644 | `audio-up` run by hand |
 | `log/chef-reboot.log` | `chef-reboot` | 0644 | the reboot helper's failures |
 | `log/storage.log`, `log/storage-watchdog.log` | `chef-storage` | 0644 | `/data` checks and mounts, the shutdown watchdog |
-| `lock/gps-up.lock/` (with `ready`) | `gps-up` | 0700 | modem ownership: a directory while `gps-up` owns the modem, `ready` once its stack is up; read by `gps-manager`, `wifi-prepare` and `usr/lib/chef/modem-owner.sh` |
+| `lock/modem-up.lock/` (with `ready`) | `modem-up` | 0700 | modem ownership: a directory while `modem-up` owns the modem, `ready` once its stack is up; read by `gps-manager`, `wifi-prepare` and `usr/lib/chef/modem-owner.sh`. `modem-up` was called `gps-up` until 2026-10-21, and so were this lock and `log/modem-up.log` (older logs say `gps-up.lock`, `gps-up.log`) |
 | `lock/audio-up.lock/` | `audio-up` | 0755 | one `audio-up` at a time (`sensors-up` waits on it) |
 | `lock/sensors-up.lock` | `sensors-up` | 0644 | `flock`: one `sensors-up` |
 | `lock/storage.lock` | `chef-storage` | 0644 | `flock`: one storage operation |

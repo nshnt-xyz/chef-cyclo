@@ -170,15 +170,15 @@ static void download(const char *directory,uint32_t board,int chef_cap) {
     fclose(f);
 }
 int main(int argc,char **argv) {
-    if(argc!=2) die("usage: wlan-fw BDF-directory (gps-up must already be running)");
-    fd=qrtr_open(0); if(fd<0) die("AF_MSM_IPC unavailable; start gps-up first");
+    if(argc!=2) die("usage: wlan-fw BDF-directory (modem-up must already be running)");
+    fd=qrtr_open(0); if(fd<0) die("AF_MSM_IPC unavailable; start modem-up first");
     struct msm_ipc_server_info peers[16];
     int count=msmipc_lookup(fd,SERVICE,0,peers,16),found=0;
     for(int i=0;i<count;i++) if(peers[i].instance==1) {
         if(found++) die("ambiguous WLFW service");
         node=peers[i].node_id; port=peers[i].port_id;
     }
-    if(!found) die("WLFW v1/instance0 unavailable; start gps-up and wait for wlan_pd UP");
+    if(!found) die("WLFW v1/instance0 unavailable; start modem-up and wait for wlan_pd UP");
     uint8_t b[8192],one=1; size_t n=0;
     add(b,&n,0x10,&one,1); add(b,&n,0x13,&one,1);
     /* Stock userspace DMON identity; never impersonate kernel KNEL. */

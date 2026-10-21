@@ -18,7 +18,7 @@ cleanup. See the [filtered baseline evidence](../../logs/wifi-standard-nm-live-2
 
 Boot coldplugs eudev network metadata, restores the standard D-Bus activation
 helper to root:messagebus mode4750 before starting the bus, reserves NM ownership,
-and starts one resident `gps-up` with init's `once` action. `wifi-nm` waits for its validated
+and starts one resident `modem-up` with init's `once` action. `wifi-nm` waits for its validated
 PID/start-time, readiness marker and QMUX socket before one firmware/module
 preparation attempt. NM is supervised independently; it never restarts the
 modem after failure. `wifi-nm` starts NM with `--state-file`, which is
@@ -26,7 +26,7 @@ modem after failure. `wifi-nm` starts NM with `--state-file`, which is
 the tmpfs `/var/lib/NetworkManager/NetworkManager.state`). NM keeps `WirelessEnabled`
 (the Wi-Fi switch), `NetworkingEnabled` and `WWANEnabled` there, so all three persist
 across reboots; with no file yet NM starts enabled. The modem stays resident even when Wi-Fi is idle; power consumption remains to be measured.
-`/run/chef/log/gps-up.log` ([runtime files](runtime-files.md)) holds shared support logs. Do not start another gps-up.
+`/run/chef/log/modem-up.log` ([runtime files](runtime-files.md)) holds shared support logs. Do not start another modem-up.
 
 Only wlan0 and Bluetooth devices (NM type `bt`, for PAN) are managed. USB,
 loopback and WWAN devices are explicitly unmanaged; USB's existing udhcpd is a server for the attached host. Before WLAN

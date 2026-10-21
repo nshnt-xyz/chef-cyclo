@@ -125,7 +125,7 @@ ln -s /run/NetworkManager/resolv.conf "$ROOT/etc/resolv.conf"
 # dispatcher refuses group/other-writable scripts, so a umask-002 checkout
 # silently disabled the overlap guard and chrony refresh: strip those bits.
 (cd rootfs-overlay && find . -mindepth 1 ! -type l -print0) | (cd "$ROOT" && xargs -0 chmod go-w)
-chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/gps-up "$ROOT"/usr/bin/chef-storage \
+chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/modem-up "$ROOT"/usr/bin/chef-storage \
     "$ROOT"/usr/bin/chef-state "$ROOT"/usr/bin/chef-reboot "$ROOT"/usr/bin/chef-sshd \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \

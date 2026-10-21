@@ -7,7 +7,7 @@
 # rootfs-overlay/usr/bin/speaker-test-tone), the Wi-Fi helpers wlan-fw and
 # wifi-psk, the A/B slot marker abslot, rtc-edge, the freestanding
 # Bluetooth helper btprobe, and their host tests. `make test` also runs the
-# host tests of the scripts under rootfs-overlay/ (gps-up's selection
+# host tests of the scripts under rootfs-overlay/ (modem-up's selection
 # logic, audio-up, chef-state, chef-reboot, SSH, storage, stage 1). The
 # modem services in tools/rmtfs/, tools/servreg-locator/, tools/tftp/, the
 # sensors daemon tools/sensord/, the button daemon tools/buttond/ and the
@@ -91,7 +91,7 @@ $(H)/tests/test-msmipc: tests/test_msmipc.c $(H)/msmipc.o
 # btprobe's freestanding build): msmipc.c/irsc.c/qmuxd-lite.c/qmux.c and
 # the vendored qrtr/ are the protocol transport (see docs/features/gps.md
 # for the interface); rmtfs, servreg-locator and tftp-server are built by
-# their own Makefiles. gps-up is in every image, so all five helpers are
+# their own Makefiles. modem-up is in every image, so all five helpers are
 # mandatory: no bootable GPS script without its RMTFS, IRSC,
 # SERVREG-LOCATOR, TFTP-SERVER and QMUX counterparts. msmipc.h pulls in the
 # vendor kernel's <linux/msm_ipc.h>, which device.mk copies into
@@ -128,7 +128,7 @@ $(H)/tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h evdev.h common/c
 # On the phone: holds /dev/fb0 open, draws a test pattern through mmap +
 # FBIOPAN_DISPLAY, drives lcd-backlight and decodes the NT36xxx evdev
 # stream. Manual opt-in from the shell, not in inittab (same policy as
-# gps-up).
+# modem-up).
 $(D)/fbtouch: fbtouch.c fbdev.h evdev.h common/chef_paths.h
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ fbtouch.c
@@ -335,12 +335,12 @@ test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge test-displa
 	python3 tests/test_stage1.py
 	python3 tests/test_ssh.py
 
-# gps-up (rootfs-overlay/) selection-logic regression; not a build product of
+# modem-up (rootfs-overlay/) selection-logic regression; not a build product of
 # this directory, but this is the natural place to run it alongside the
-# rest of the GPS test suite. See tests/test_gps-up.sh.
+# rest of the GPS test suite. See tests/test_modem-up.sh.
 test-shell: $(H)/powerd
 	sh tests/test_powerd.sh
-	sh tests/test_gps-up.sh
+	sh tests/test_modem-up.sh
 	sh tests/test_audio-up.sh
 	sh tests/test_speaker-test-tone.sh
 

@@ -29,7 +29,7 @@ $(H)/rmtfs: $(SRCS) $(SHARED) $(HDRS) $(H)/include/linux/msm_ipc.h
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I$(H)/include -I. -I../qrtr -I.. -o $@ $(SRCS) $(SHARED) -lpthread
 
-# The phone binary: RAM-shadow writes only (gps-up runs it with -r), see
+# The phone binary: RAM-shadow writes only (modem-up runs it with -r), see
 # docs/features/gps.md.
 $(D)/rmtfs: $(SRCS) $(SHARED) $(HDRS) $(D)/include/linux/msm_ipc.h
 	@mkdir -p $(@D)

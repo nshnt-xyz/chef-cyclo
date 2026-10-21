@@ -38,8 +38,8 @@
 /* chef-state's boot clock provenance */
 #define CHEF_STATE_TIME		"/run/chef/state/time"
 
-/* gps-up's modem ownership lock (a directory, with "ready" in it) */
-#define CHEF_GPS_UP_LOCK	"/run/chef/lock/gps-up.lock"
+/* modem-up's modem ownership lock (a directory, with "ready" in it) */
+#define CHEF_MODEM_UP_LOCK	"/run/chef/lock/modem-up.lock"
 #define CHEF_ABSLOT_LOG		"/run/chef/log/abslot.log"
 
 #endif /* CHEF_PATHS_H */

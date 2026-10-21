@@ -847,7 +847,7 @@ static void on_sigterm(int sig)
  * qrtr_publish(fd, 4096, 1, 0) call agrees. Round 1 review F1: this file
  * previously called qrtr_publish(ctrl, 0x1000, 1, 1), which actually
  * registers wire field 0x101 and would never match the modem's lookup for
- * field 1 (gps-up's wait_for_server only checks the service column, so it
+ * field 1 (modem-up's wait_for_server only checks the service column, so it
  * would not have caught this). "Instance 1" in REPORT.md 8.1 refers to
  * the raw wire field value, not this function's `instance` parameter. */
 #define TFTP_QMI_SERVICE	0x1000

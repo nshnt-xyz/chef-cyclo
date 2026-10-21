@@ -93,7 +93,7 @@ static int main_ram_shadow_test(void)
 
 /*
  * Regression for the active-slot fsg fix: this device has no unsuffixed fsg
- * partition, only fsg_a/fsg_b, so gps-up passes rmtfs -S "$SLOT" and never
+ * partition, only fsg_a/fsg_b, so modem-up passes rmtfs -S "$SLOT" and never
  * creates an unsuffixed "fsg" by-partlabel link itself. storage_open()'s
  * unsuffixed-then-suffixed fallback is the only thing standing in for that
  * link; this test proves it lands on exactly the one slot it was given and
@@ -126,12 +126,12 @@ static void test_fsg_slot_suffix_only(void)
 	write_all(file, slot_b_data, sizeof(slot_b_data));
 	assert(close(file) == 0);
 
-	/* use_partitions=true, storage_root=root: mirrors gps-up handing rmtfs
+	/* use_partitions=true, storage_root=root: mirrors modem-up handing rmtfs
 	 * a by-partlabel-style directory via -P, with our temp dir standing in
 	 * for /dev/disk/by-partlabel. */
 	assert(storage_init(root, true, true) == 0);
 
-	/* An unsuffixed request (as if gps-up wrongly created an unsuffixed
+	/* An unsuffixed request (as if modem-up wrongly created an unsuffixed
 	 * "fsg" alias, or rmtfs were run without -S) must fail: there is
 	 * genuinely no unsuffixed fsg on this device. */
 	assert(storage_open(0x1, "/boot/modem_fsg", "") == NULL);

@@ -183,7 +183,7 @@ void gm_server_set_enabled(struct gm_server *s, bool on, bool persist);
 
 struct gm_paths {
 	const char *proc;	/* "/proc" */
-	const char *owner_lock;	/* "/run/chef/lock/gps-up.lock" */
+	const char *owner_lock;	/* "/run/chef/lock/modem-up.lock" */
 	const char *qmux_sock;	/* "/run/chef/qmux_socket" */
 };
 

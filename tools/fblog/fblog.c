@@ -5,8 +5,8 @@
  * shows what is running and what it printed, without a serial console and
  * without touch: this process never opens an input device, accepts no
  * input, and nothing it draws is interactive. Everything the image already
- * logs to the kernel ring shows up: /init ("cyclo-init:"), bt-up, gps-up
- * ("gps-up:"), fbtouch ("fbtouch:") and any probe that does
+ * logs to the kernel ring shows up: /init ("cyclo-init:"), bt-up, modem-up
+ * ("modem-up:"), fbtouch ("fbtouch:") and any probe that does
  * `echo "text" > /dev/kmsg` (or `some-cmd 2>&1 | tee /dev/kmsg`).
  *
  * Not started by the image since 2026-10-17 (the system UI owns the panel

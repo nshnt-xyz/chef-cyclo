@@ -62,7 +62,7 @@ class LogSh(unittest.TestCase):
         return proc
 
     def test_no_syslogd_writes_kmsg(self):
-        self.assertEqual(self.run_sh('chef_log gps-up "modem ready" now'), ("gps-up: modem ready now\n", ""))
+        self.assertEqual(self.run_sh('chef_log modem-up "modem ready" now'), ("modem-up: modem ready now\n", ""))
 
     def test_live_syslogd_uses_logger(self):
         self.pidfile.write_text(f"{self.start('syslogd').pid}\n")

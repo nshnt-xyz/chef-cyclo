@@ -13,12 +13,12 @@
 # lifetime (PIL re-reads it on any subsystem-restart recovery). See
 # docs/features/audio.md.
 #
-# gps-up (rootfs-overlay/usr/bin/gps-up) mounts the same /firmware and may run a
-# servreg-locator of its own; whichever of audio-up/gps-up runs second must
+# modem-up (rootfs-overlay/usr/bin/modem-up) mounts the same /firmware and may run a
+# servreg-locator of its own; whichever of audio-up/modem-up runs second must
 # not shadow-mount over or start a redundant locator for the first -- see the
-# "audio-up also needs" comments in gps-up for its half of this symmetry.
+# "audio-up also needs" comments in modem-up for its half of this symmetry.
 #
-# Manual opt-in only (not in inittab), same policy as gps-up: run by hand
+# Manual opt-in only (not in inittab), same policy as modem-up: run by hand
 # from the telnet shell with `audio-up &`, or as `audio-up` (it exits once
 # the ADSP is up if it started nothing that needs supervising).
 set -u
@@ -31,7 +31,7 @@ ADSP_BOOT_ATTEMPTED=0
 # Overridable so this selection/wait logic can be exercised against a fake
 # sysfs/procfs tree in tools/tests/test_audio-up.sh; unset in production, so
 # these default to the real device paths. SYSFS_BLOCK/CMDLINE/FW_PATH_NODE
-# mirror gps-up's own (same meaning); the rest are specific to this script.
+# mirror modem-up's own (same meaning); the rest are specific to this script.
 SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
 CMDLINE=${CMDLINE:-/proc/cmdline}
 FW_PATH_NODE=${FW_PATH_NODE:-/sys/module/firmware_class/parameters/path}
@@ -40,8 +40,8 @@ BOOT_ADSP_NODE=${BOOT_ADSP_NODE:-/sys/kernel/boot_adsp/boot}
 SUBSYS_DIR=${SUBSYS_DIR:-/sys/bus/msm_subsys/devices}
 DUMP_SERVERS=${DUMP_SERVERS:-/sys/kernel/debug/msm_ipc_router/dump_servers}
 
-# part() and active_slot() are copied from gps-up rather than sourced at
-# runtime (gps-up is opt-in and may not be running, and sourcing another
+# part() and active_slot() are copied from modem-up rather than sourced at
+# runtime (modem-up is opt-in and may not be running, and sourcing another
 # script's live process state here would be fragile); keep both copies in
 # sync by hand if the selection rules ever change.
 part() {
@@ -61,15 +61,15 @@ active_slot() {
 }
 
 set_firmware_path() {
-	# printf, not echo -- see gps-up's set_firmware_path comment for why a
+	# printf, not echo -- see modem-up's set_firmware_path comment for why a
 	# trailing newline breaks every direct-load firmware lookup. Same node,
-	# same value; whichever of audio-up/gps-up sets it first is fine, since
+	# same value; whichever of audio-up/modem-up sets it first is fine, since
 	# both write the identical byte string.
 	printf '%s' /firmware/image > "$FW_PATH_NODE"
 }
 
 server_present() {
-	# Same dump_servers column format as gps-up's own server_present (this
+	# Same dump_servers column format as modem-up's own server_present (this
 	# 4.4 tree prints the service as 0x000000NN, not the 0xNN shorthand).
 	grep -Eq "^0x0*$1[[:space:]]*[|]" "$DUMP_SERVERS" 2>/dev/null
 }
@@ -121,7 +121,7 @@ card_ready() {
 }
 
 wait_for_card() {
-	# $1: retry limit (0.5s per attempt, like gps-up's wait_for_server).
+	# $1: retry limit (0.5s per attempt, like modem-up's wait_for_server).
 	limit=$1
 	i=0
 	while ! card_ready; do
@@ -169,7 +169,7 @@ elapsed_s() {
 }
 
 child_running() {
-	# See gps-up's child_running comment: a zombie is a failed daemon for
+	# See modem-up's child_running comment: a zombie is a failed daemon for
 	# our purposes, so check /proc state rather than trust kill -0 alone.
 	[ -r "/proc/$1/stat" ] || return 1
 	awk '{ exit ($3 == "Z") }' "/proc/$1/stat"
@@ -202,7 +202,7 @@ cleanup() {
 	# kernel is up, including long after this process has exited (the normal
 	# case: it exits 0 right after the card comes up). Reboot is the only way
 	# to power the ADSP down. Only unmount if this script's own mount (never
-	# gps-up's -- FIRMWARE_MOUNTED is only ever set to 1 by this script's own
+	# modem-up's -- FIRMWARE_MOUNTED is only ever set to 1 by this script's own
 	# mount above) never got as far as boot_adsp, so a failed attempt doesn't
 	# leave a stale mount behind for no reason and a retry starts clean.
 	[ "$FIRMWARE_MOUNTED" -eq 1 ] && [ "$ADSP_BOOT_ATTEMPTED" -eq 0 ] && umount /firmware 2>/dev/null
@@ -235,12 +235,12 @@ if [ -z "$MODEM_PART" ]; then
 	exit 1
 fi
 
-# gps-up may already have this mounted (and vice versa -- see gps-up's own
+# modem-up may already have this mounted (and vice versa -- see modem-up's own
 # "audio-up also needs /firmware" comment); the ADSP only reads its firmware
 # once, at boot_adsp time below, so either script getting there first is
 # fine. Never unmount someone else's mount, and never shadow-mount over it.
 if mountpoint -q /firmware 2>/dev/null; then
-	log "/firmware already mounted (by gps-up or a previous run); reusing it, will not unmount on exit"
+	log "/firmware already mounted (by modem-up or a previous run); reusing it, will not unmount on exit"
 else
 	mount -o ro "/dev/$MODEM_PART" /firmware || { log "failed to mount $MODEM_LABEL read-only"; exit 1; }
 	FIRMWARE_MOUNTED=1
@@ -264,7 +264,7 @@ fi
 # lookup. adsp-loader itself does not need this (it sets the APR state
 # directly), but stock always has a locator up by boot_adsp time, so match
 # that rather than leave the workqueue stuck. Skip starting our own if
-# gps-up (or a previous audio-up) already has one up -- see gps-up's
+# modem-up (or a previous audio-up) already has one up -- see modem-up's
 # matching comment for its half of this symmetry.
 if server_present 40; then
 	log "servreg-locator already served (0x40), not starting one"
@@ -279,7 +279,7 @@ else
 fi
 
 # The default restart_level is "system", which panics the whole kernel on a
-# subsystem crash -- same reasoning as gps-up's modem restart_level=related.
+# subsystem crash -- same reasoning as modem-up's modem restart_level=related.
 ADSP_SUBSYS=$(find_subsys adsp) || { log "adsp subsystem was not found"; exit 1; }
 [ -w "$ADSP_SUBSYS/restart_level" ] || { log "adsp restart_level is unavailable"; exit 1; }
 echo related > "$ADSP_SUBSYS/restart_level" || { log "failed to set adsp restart_level=related"; exit 1; }

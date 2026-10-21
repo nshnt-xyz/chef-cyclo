@@ -10,7 +10,7 @@ The clean standard-NetworkManager baseline verifies one shared resident modem ow
 
 ## Components and lifecycle
 
-`rootfs-overlay/usr/bin/gps-up` starts the modem dependencies, exposes `/run/chef/qmux_socket` ([runtime files](runtime-files.md)), and owns cleanup. Its helpers are:
+`rootfs-overlay/usr/bin/modem-up` starts the modem dependencies, exposes `/run/chef/qmux_socket` ([runtime files](runtime-files.md)), and owns cleanup. It does no GPS work itself: GNSS is `gps-manager` (below), and Wi-Fi rides on the same modem. It was called `gps-up` until 2026-10-21 (its lock `/run/chef/lock/gps-up.lock`, its log `/run/chef/log/gps-up.log` and its syslog tag `gps-up`), and older logs and the history docs keep that name. Its helpers are:
 
 - `tools/msmipc.{c,h}`, `tools/qrtr/`: AF_MSM_IPC adaptation and QMI support.
 - `tools/irsc.c`: opens the IPC-router security gate before clients send.
@@ -21,11 +21,11 @@ The clean standard-NetworkManager baseline verifies one shared resident modem ow
 - `tools/nmea-broker.c`: follower stdout to checksum-verified NMEA UDP datagrams for gpsd.
 - `tools/gps-manager/` (`main.c`, with the state machine in `core.c`, the lease server in `server.c`, the owner check and state file in `owner.c` and the command-line client in `cli.c`): leases on `/run/chef/gps-manager.sock` run the LOC session, gpsd and the follower/broker pipeline on demand ([below](#use-gnss-gps-manager)).
 
-The modem needs both service-registry and TFTP/RFS support to survive startup. `gps-up` does not automatically restart a crashed modem. Do not run competing owners or reopen the modem repeatedly after failure; retain evidence and reboot.
+The modem needs both service-registry and TFTP/RFS support to survive startup. `modem-up` does not automatically restart a crashed modem. Do not run competing owners or reopen the modem repeatedly after failure; retain evidence and reboot.
 
 ## Use GNSS: gps-manager
 
-`gps-manager` (`tools/gps-manager/`, inittab `::respawn:`) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `gps-up` and never changes the modem's operating mode. Idle, it only listens on `/run/chef/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
+`gps-manager` (`tools/gps-manager/`, inittab `::respawn:`) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `modem-up` and never changes the modem's operating mode. Idle, it only listens on `/run/chef/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
 
 ```sh
 gps-manager hold map          # lease, then print the watch lines until killed (kinds: map, ride)
@@ -95,7 +95,7 @@ The command-line client never prints the hello. `status`, `retry`, `enable` and 
 
 ## Start and inspect manually
 
-For debugging only, with the manager `OFF` (no leases). Use a fresh baseline boot and the phone's telnet shell. New builds already start gps-up once. If readiness does not appear, inspect `/run/chef/log/gps-up.log` rather than launching another copy. Proceed only once the service-version query succeeds. Substitute the allocated CID below; it is not guaranteed to be 1.
+For debugging only, with the manager `OFF` (no leases). Use a fresh baseline boot and the phone's telnet shell. New builds already start modem-up once. If readiness does not appear, inspect `/run/chef/log/modem-up.log` rather than launching another copy. Proceed only once the service-version query succeeds. Substitute the allocated CID below; it is not guaranteed to be 1.
 
 ```sh
 . /usr/lib/chef/modem-owner.sh
@@ -121,7 +121,7 @@ While the follower runs, send no other request on its CID (for example `--loc-ge
 
 ## Stop cleanly
 
-Interrupt the running `qmicli --loc-follow-nmea` process and let the broker drain/exit. Using the same allocated CID, send `--loc-stop` with `--loc-session-id=1` and `--client-no-release-cid`; then release that CID with `--loc-noop` without `--client-no-release-cid`. Stop gpsd and your follower/broker. Leave the shared gps-up owner running for Wi-Fi and other clients; do not signal or reap it. It performs support/modem cleanup at orderly system shutdown.
+Interrupt the running `qmicli --loc-follow-nmea` process and let the broker drain/exit. Using the same allocated CID, send `--loc-stop` with `--loc-session-id=1` and `--client-no-release-cid`; then release that CID with `--loc-noop` without `--client-no-release-cid`. Stop gpsd and your follower/broker. Leave the shared modem-up owner running for Wi-Fi and other clients; do not signal or reap it. It performs support/modem cleanup at orderly system shutdown.
 
 ## Cellular RF
 
@@ -177,15 +177,15 @@ The broker's own fallback still exists for images without chrony: without `-n` i
 
 - **QMI is over `AF_MSM_IPC`, not QRTR**, on this 4.4 tree (`net/qrtr` doesn't exist; `net/ipc_router` does) — libqmi/ModemManager's QRTR/rpmsg path doesn't apply. `tools/msmipc.c` adapts the upstream `libqrtr` API onto `AF_MSM_IPC` so `tools/rmtfs/` and libqmi-side code don't need QRTR-specific ports.
 
-- **A client `sendto()` on the modem's IPC-router socket blocks 30s** until a root process has run the IRSC ioctl once per boot and closed that socket (`tools/irsc.c` / `msmipc_irsc()`); `gps-up` runs it before starting `rmtfs`.
+- **A client `sendto()` on the modem's IPC-router socket blocks 30s** until a root process has run the IRSC ioctl once per boot and closed that socket (`tools/irsc.c` / `msmipc_irsc()`); `modem-up` runs it before starting `rmtfs`.
 
 - **`AF_MSM_IPC` signals flow-control (RESUME_TX) as a 0-byte `recvfrom()`**, not a decodable packet — don't treat it as EOF or feed it to a QMI decoder.
 
-- **`rmtfs -r` (RAM-shadow writes) is non-negotiable** until EFS writes are explicitly reviewed and approved: `gps-up` never mounts a partition read-write or writes `modemst1/2`/`fsc`/the active slot's `fsg_a`/`fsg_b` directly.
+- **`rmtfs -r` (RAM-shadow writes) is non-negotiable** until EFS writes are explicitly reviewed and approved: `modem-up` never mounts a partition read-write or writes `modemst1/2`/`fsc`/the active slot's `fsg_a`/`fsg_b` directly.
 
-- **`fsg` is genuinely per-slot on this device — `fsg_a`/`fsg_b` only, no unsuffixed `fsg`** (confirmed against the live partition table; `modemst1`/`modemst2`/`fsc` *are* unsuffixed). An earlier version of `gps-up` assumed all of EFS was unsuffixed and deliberately never passed `rmtfs -S`; that assumption was wrong for `fsg` and would have made `rmtfs` unable to open it at all. `gps-up` now validates the active slot's `fsg_$SLOT` (exact partition, exact 10485760-byte size, from `androidboot.slot_suffix`) before exposing it, passes `rmtfs -P -r -S "$SLOT" -v`, and never inspects, links, sizes, or opens the other slot's `fsg`.
+- **`fsg` is genuinely per-slot on this device: `fsg_a`/`fsg_b` only, no unsuffixed `fsg`** (confirmed against the live partition table; `modemst1`/`modemst2`/`fsc` *are* unsuffixed). An earlier version of `modem-up` assumed all of EFS was unsuffixed and deliberately never passed `rmtfs -S`; that assumption was wrong for `fsg` and would have made `rmtfs` unable to open it at all. `modem-up` now validates the active slot's `fsg_$SLOT` (exact partition, exact 10485760-byte size, from `androidboot.slot_suffix`) before exposing it, passes `rmtfs -P -r -S "$SLOT" -v`, and never inspects, links, sizes, or opens the other slot's `fsg`.
 
-- **The modem's `msadp` debug-policy firmware file never exists**, and with `FW_LOADER_USER_HELPER_FALLBACK=y` every modem boot would otherwise stall 60s waiting for it — `gps-up` sets `/sys/class/firmware/timeout` to `1` before opening `/dev/subsys_modem` so this doesn't require a kernel config change.
+- **The modem's `msadp` debug-policy firmware file never exists**, and with `FW_LOADER_USER_HELPER_FALLBACK=y` every modem boot would otherwise stall 60s waiting for it; `modem-up` sets `/sys/class/firmware/timeout` to `1` before opening `/dev/subsys_modem` so this doesn't require a kernel config change.
 
 Write modem sysfs control values without a trailing newline where required: the earlier newline bug prevented PIL startup. `AF_MSM_IPC` RMTFS requests carry sector offsets; preserve the corrected offset handling. QMUX CTL response flags differ from service flags; the old one-byte flag error made `qmicli` time out even though the modem was healthy. Detailed failures and fixes remain in the [build log](../build-log.md).
 

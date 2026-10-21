@@ -19,7 +19,7 @@
 # obexd (bluez-obexd, D-Bus activated) and PipeWire run by hand, without
 # dbus-run-session. Volatile.
 ::respawn:/bin/sh -c 'mkdir -p /run/user/0 && chmod 700 /run/user/0 || exit 1; export HOME=/root XDG_RUNTIME_DIR=/run/user/0; exec /usr/bin/dbus-daemon --session --nofork --nopidfile --address=unix:path=/run/user/0/bus'
-::once:/bin/sh -c 'exec /usr/bin/gps-up > /run/chef/log/gps-up.log 2>&1'
+::once:/bin/sh -c 'exec /usr/bin/modem-up > /run/chef/log/modem-up.log 2>&1'
 ::respawn:/usr/bin/wifi-nm
 # SSH on port 22 of every interface (USB, Wi-Fi, PAN), key login only:
 # dropbear under chef-sshd, authorized keys baked into the image, host key on
@@ -28,7 +28,7 @@
 ::respawn:/usr/bin/chef-sshd
 # GNSS on demand: idle until a client leases it on /run/chef/gps-manager.sock
 # (`gps-manager hold map`), then runs the LOC session, gpsd and the NMEA
-# pipeline on top of the gps-up modem; never starts or stops gps-up.
+# pipeline on top of the modem modem-up keeps up; never starts or stops it.
 ::respawn:/usr/bin/gps-manager
 # Client-only NTP, no network command/server listener, logging to syslog
 # (-n; -d would log to the console). The drift file is in

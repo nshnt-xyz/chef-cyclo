@@ -1214,7 +1214,7 @@ static void test_record_and_proc(void)
 	snprintf(buf, sizeof(buf), "%s/proc/812", dir);
 	mkdir(buf, 0700);
 	snprintf(buf, sizeof(buf), "%s/proc/812/stat", dir);
-	write_file(buf, "812 (gps-up) S 1 812 812 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 1234 1 1\n");
+	write_file(buf, "812 (modem-up) S 1 812 812 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 1234 1 1\n");
 	snprintf(buf, sizeof(buf), "%s/lock/owner", dir);
 	write_file(buf, "812 1234\n");
 	CHECK(!gm_owner_check(&paths, &o));	/* no ready marker */
@@ -1228,7 +1228,7 @@ static void test_record_and_proc(void)
 	CHECK(bind(fd, (struct sockaddr *)&sa, sizeof(sa)) == 0);
 	CHECK(gm_owner_check(&paths, &o) && o.pid == 812 && o.start == 1234);
 	snprintf(buf, sizeof(buf), "%s/lock/owner", dir);
-	write_file(buf, "812 1235\n");	/* a different gps-up with the same pid */
+	write_file(buf, "812 1235\n");	/* a different modem-up with the same pid */
 	CHECK(!gm_owner_check(&paths, &o));
 	write_file(buf, "1 1234\n");
 	CHECK(!gm_owner_check(&paths, &o));

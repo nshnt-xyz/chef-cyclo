@@ -87,7 +87,7 @@ REG_COPY="$RUN_DIR/sns.reg"
 REG_BOOT="$RUN_DIR/sns.reg.boot_id"	# the boot the copy was made in
 REG_PRISTINE="$RUN_DIR/sns.reg.persist"	# the copy as read from persist
 
-# part() is audio-up's (itself copied from gps-up); keep in sync by hand.
+# part() is audio-up's (itself copied from modem-up); keep in sync by hand.
 part() {
 	for u in "$SYSFS_BLOCK"/*/uevent; do
 		grep -q "^PARTNAME=$1\$" "$u" 2>/dev/null && { basename "$(dirname "$u")"; return; }
@@ -95,7 +95,7 @@ part() {
 }
 
 server_present() {
-	# Same dump_servers column format as audio-up/gps-up (0x%08x, lower
+	# Same dump_servers column format as audio-up/modem-up (0x%08x, lower
 	# case, so "10f" matches 0x0000010f).
 	grep -Eq "^0x0*$1[[:space:]]*[|]" "$DUMP_SERVERS" 2>/dev/null
 }

@@ -11,7 +11,7 @@ if [ ! -d "/sys/class/net/$IFACE" ]; then
     # One initialization attempt per boot. Failure remains diagnosable and
     # cannot trigger repeated board downloads when NM is respawned.
     mkdir /run/chef/wlan-prepare || { echo 'WLAN preparation already attempted this boot' >&2; exit 1; }
-    [ -S /run/chef/qmux_socket ] || { echo 'start gps-up first; Wi-Fi currently requires its resident modem/support stack' >&2; exit 1; }
+    [ -S /run/chef/qmux_socket ] || { echo 'start modem-up first; Wi-Fi currently requires its resident modem/support stack' >&2; exit 1; }
     # Motorola's matching driver consumes the two device-specific bootarg MACs.
     # Require valid unicast addresses; never print or generate a shared fallback.
     awk '

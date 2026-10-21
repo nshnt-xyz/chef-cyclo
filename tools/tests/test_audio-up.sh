@@ -1,6 +1,6 @@
 #!/bin/sh
 # Host regression test for rootfs-overlay/usr/bin/audio-up's selection/wait
-# logic: part(), active_slot(), set_firmware_path() (copied from gps-up, same
+# logic: part(), active_slot(), set_firmware_path() (copied from modem-up, same
 # behavior), server_present()/wait_for_server() (the 0x40 symmetry check),
 # find_subsys(), boot_adsp(), card_ready()/wait_for_card(), pcm_mm1_device().
 #
@@ -50,7 +50,7 @@ mk_part() {
 	printf 'PARTNAME=%s\n' "$2" > "$d/uevent"
 }
 
-# --- fixture: same slot-cmdline shape as test_gps-up.sh ---
+# --- fixture: same slot-cmdline shape as test_modem-up.sh ---
 export SYSFS_BLOCK="$TMPROOT/sysfs-good"
 export CMDLINE="$TMPROOT/cmdline-a"
 mk_part mmcblk0p6 modem_a
@@ -60,13 +60,13 @@ printf 'console=ttyMSM0 androidboot.slot_suffix=_b rootwait ro\n' > "$TMPROOT/cm
 
 AUDIO_UP_SELFTEST=1 . "./$AUDIO_UP"
 
-# --- active_slot() / part(): copied from gps-up, same behavior ---
+# --- active_slot() / part(): copied from modem-up, same behavior ---
 eq "active_slot _a" a "$(CMDLINE=$TMPROOT/cmdline-a active_slot)"
 eq "active_slot _b" b "$(CMDLINE=$TMPROOT/cmdline-b active_slot)"
 eq "part modem_a" mmcblk0p6 "$(part modem_a)"
 eq "part modem_b" mmcblk0p7 "$(part modem_b)"
 
-# --- set_firmware_path(): identical contract to gps-up's (printf, no
+# --- set_firmware_path(): identical contract to modem-up's (printf, no
 # trailing newline -- see that test's comment for why). ---
 FW_PATH_NODE="$TMPROOT/fw-class-path"
 : > "$FW_PATH_NODE"

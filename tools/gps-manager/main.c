@@ -1,7 +1,7 @@
 /*
  * gps-manager - demand-driven GNSS for chef-cyclo.
  *
- * gps-up (inittab ::once:) is the boot-resident shared modem owner for GPS
+ * modem-up (inittab ::once:) is the boot-resident shared modem owner for GPS
  * and Wi-Fi; this daemon never starts, signals, reaps or restarts it and
  * never changes the modem's operating mode. What it owns is everything
  * GNSS-specific on top of that modem: one QMI LOC client id (CID) with LOC
@@ -32,7 +32,7 @@
  *   1. wait for the modem owner, polled every 2 s (the C form of
  *      modem-owner.sh's modem_owner_pid: ready marker, QMUX socket, owner
  *      pid + start time, not a zombie): STARTING for up to 240 s, then
- *      FAILED "no modem owner" until it appears. gps-up runs once, so a
+ *      FAILED "no modem owner" until it appears. modem-up runs once, so a
  *      missing owner normally lasts until reboot; no qmicli runs meanwhile.
  *   2. qmicli --loc-noop --client-no-release-cid   (CID; proves the bridge)
  *   3. qmicli --client-cid=N --client-no-release-cid
@@ -798,7 +798,7 @@ int main(int argc, char **argv)
 	memset(sh, 0, sizeof(*sh));
 	sh->dir = CHEF_GPS_MANAGER_DIR;
 	sh->paths.proc = "/proc";
-	sh->paths.owner_lock = CHEF_GPS_UP_LOCK;
+	sh->paths.owner_lock = CHEF_MODEM_UP_LOCK;
 	sh->paths.qmux_sock = CHEF_QMUX_SOCK;
 	sh->state_cmd = "chef-state";
 	while ((opt = getopt(argc, argv, "S:d:q:o:b:s:g:v")) != -1) {

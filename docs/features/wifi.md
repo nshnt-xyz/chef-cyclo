@@ -13,11 +13,11 @@ The older manual workflow below is historical and refused in NM builds.
 Manual WPA2/DHCP/Internet/DNS, reconnect, BT coexistence and cleanup were
 verified on the baseline image (and the since-dropped ride image) on 2026-10-02.
 
-Start `gps-up` first and keep it running: Wi-Fi currently depends on its
+Start `modem-up` first and keep it running: Wi-Fi currently depends on its
 modem, IRSC and support services. `wifi-up` uses `wlan-fw` to initialize board
 data over AF_MSM_IPC, then loads the matching source-built WLAN module. It
 requires the per-device bootloader Wi-Fi MACs and refuses a shared fallback.
-It never starts or stops gps-up itself. Start a WPA2 personal session in a
+It never starts or stops modem-up itself. Start a WPA2 personal session in a
 USB shell. The command owns the session and stays in the foreground. Pass the
 passphrase on stdin, never as a command-line argument or in shell history:
 

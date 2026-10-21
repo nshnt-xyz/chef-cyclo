@@ -4,7 +4,7 @@
  * Allowlist (REPORT.md 8.1 point 3), exact and closed:
  *   /readonly/firmware/image/<file>
  *   /readonly/vendor/firmware/image/<file>   -- both map to the one real,
- *       already-read-only-mounted /firmware/image directory (gps-up mounts
+ *       already-read-only-mounted /firmware/image directory (modem-up mounts
  *       the active modem_$SLOT partition there); RRQ (O_RDONLY) only,
  *       <file> must be a single flat component (no '/' at all -- Round 1
  *       review F8) naming a regular file (fstat()-checked, same review).

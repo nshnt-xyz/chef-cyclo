@@ -1,18 +1,18 @@
 #!/bin/sh
-# Host regression test for rootfs-overlay/usr/bin/gps-up's active-slot EFS
+# Host regression test for rootfs-overlay/usr/bin/modem-up's active-slot EFS
 # selection logic: part(), part_size_bytes(), active_slot(), resolve_fsg().
 #
-# gps-up sources these against real /sys/block/mmcblk0 and /proc/cmdline;
+# modem-up sources these against real /sys/block/mmcblk0 and /proc/cmdline;
 # SYSFS_BLOCK/CMDLINE let this test point it at a throwaway fake tree
 # instead, so the exact-slot / exact-size / no-cross-slot-fallback rules can
-# be exercised without a device. GPS_UP_SELFTEST=1 makes gps-up return after
+# be exercised without a device. MODEM_UP_SELFTEST=1 makes modem-up return after
 # defining its functions instead of running the modem bring-up.
 set -eu
 cd "$(dirname "$0")/../.."
-GPS_UP=rootfs-overlay/usr/bin/gps-up
-[ -r "$GPS_UP" ] || { echo "cannot find $GPS_UP" >&2; exit 1; }
+MODEM_UP=rootfs-overlay/usr/bin/modem-up
+[ -r "$MODEM_UP" ] || { echo "cannot find $MODEM_UP" >&2; exit 1; }
 
-TMPROOT=$(mktemp -d /tmp/gps-up-test.XXXXXX)
+TMPROOT=$(mktemp -d /tmp/modem-up-test.XXXXXX)
 # the overlay's log helper, never the host's syslog (no syslogd pid file,
 # no logger)
 export CHEF_LOG_SOCKET="$TMPROOT/no-syslog"
@@ -62,7 +62,7 @@ printf 'console=ttyMSM0 androidboot.slot_suffix=_a rootwait ro\n' > "$CMDLINE"
 printf 'console=ttyMSM0 androidboot.slot_suffix=_b rootwait ro\n' > "$TMPROOT/cmdline-b"
 printf 'console=ttyMSM0 rootwait ro\n' > "$TMPROOT/cmdline-none"
 
-GPS_UP_SELFTEST=1 . "./$GPS_UP"
+MODEM_UP_SELFTEST=1 . "./$MODEM_UP"
 
 # --- active_slot() ---
 eq "active_slot _a" a "$(CMDLINE=$TMPROOT/cmdline-a active_slot)"
@@ -131,7 +131,7 @@ eq "set_firmware_path writes exactly /firmware/image, byte for byte (no trailing
 
 # --- server_present(): DUMP_SERVERS override added so audio-up's symmetric
 # "who already serves 0x40" check (rootfs-overlay/usr/bin/audio-up) can be
-# exercised the same way on both sides without a device; gps-up itself uses
+# exercised the same way on both sides without a device; modem-up itself uses
 # the real path by default (unchanged behavior). ---
 DUMP_SERVERS="$TMPROOT/dump_servers-present"
 printf '0x00000040 |0x00000000|... \n' > "$DUMP_SERVERS"

@@ -1,15 +1,16 @@
 #!/bin/sh
-# Bring up the modem for QMI-LOC GPS: mount its firmware read-only, start the
-# RMTFS EFS server in RAM-shadow mode (never touches the real EFS partitions)
-# and the servreg-locator server (answers the modem's boot-time
-# service-registry lookup -- without it the modem's own "dog" startup-grace
-# timer ERR_FATALs it after ~40s), open /dev/subsys_modem to trigger PIL,
-# then start the QMUX bridge once the LOC service is visible on the IPC
-# router.
+# Bring up the modem that GPS (QMI-LOC, gps-manager) and Wi-Fi ride on, and
+# keep it up for the whole boot (called gps-up until 2026-10-21): mount its
+# firmware read-only, start the RMTFS EFS server in RAM-shadow mode (never
+# touches the real EFS partitions) and the servreg-locator server (answers
+# the modem's boot-time service-registry lookup -- without it the modem's
+# own "dog" startup-grace timer ERR_FATALs it after ~40s), open
+# /dev/subsys_modem to trigger PIL, then start the QMUX bridge once the LOC
+# service is visible on the IPC router.
 #
 # EFS partition naming on this device is mixed, confirmed against the live
 # partition table (not assumed): modemst1/modemst2/fsc are unsuffixed; fsg is
-# genuinely per-slot (fsg_a/fsg_b only, no unsuffixed fsg). gps-up exposes
+# genuinely per-slot (fsg_a/fsg_b only, no unsuffixed fsg). modem-up exposes
 # only the unsuffixed modemst1/modemst2/fsc links itself and never creates an
 # unsuffixed "fsg" alias; it validates the *active* slot's fsg_$SLOT (exact
 # partition, exact 10485760-byte size) and hands that slot to `rmtfs -S`,
@@ -21,7 +22,7 @@
 # Owner PID/starttime and readiness are published in the private lock directory.
 set -u
 
-LOCK=/run/chef/lock/gps-up.lock
+LOCK=/run/chef/lock/modem-up.lock
 RMTFS_PID=
 SERVREG_PID=
 TFTP_PID=
@@ -33,8 +34,8 @@ MODEM_FD_OPEN=0
 # the live partition table for both fsg_a and fsg_b.
 FSG_SIZE_EXPECT=10485760
 
-# Overridable so gps-up's selection logic can be exercised against a fake
-# sysfs/cmdline tree in tools/tests/test_gps-up.sh; unset in production, so
+# Overridable so modem-up's selection logic can be exercised against a fake
+# sysfs/cmdline tree in tools/tests/test_modem-up.sh; unset in production, so
 # these default to the real device paths.
 SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
 CMDLINE=${CMDLINE:-/proc/cmdline}
@@ -96,7 +97,7 @@ server_present() {
 	# 0x000000NN, rather than the shorthand 0xNN used in some newer trees.
 	# DUMP_SERVERS is overridable (see SYSFS_BLOCK above) so audio-up's
 	# "who already serves 0x40" symmetry check below can be exercised
-	# against a fake tree in tools/tests/test_gps-up.sh.
+	# against a fake tree in tools/tests/test_modem-up.sh.
 	grep -Eq "^0x0*$1[[:space:]]*[|]" "$DUMP_SERVERS" 2>/dev/null
 }
 
@@ -147,8 +148,8 @@ active_slot() {
 # stdout for the log file inittab or the caller keeps
 . "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
 log() {
-	chef_log gps-up "$*"
-	echo "gps-up: $*"
+	chef_log modem-up "$*"
+	echo "modem-up: $*"
 }
 
 cleanup() {
@@ -170,10 +171,10 @@ cleanup() {
 	exit "$status"
 }
 
-# Let tools/tests/test_gps-up.sh source this file for its functions (part,
+# Let tools/tests/test_modem-up.sh source this file for its functions (part,
 # part_size_bytes, active_slot, resolve_fsg) without running the modem
 # bring-up below.
-[ "${GPS_UP_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
+[ "${MODEM_UP_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
 
 if ! mkdir "$LOCK" 2>/dev/null; then
 	log "already running (or stale $LOCK remains); refusing a second modem lifetime"

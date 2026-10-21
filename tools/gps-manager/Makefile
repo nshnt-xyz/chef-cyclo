@@ -1,8 +1,8 @@
 # gps-manager: the GNSS demand manager (main.c's header,
 # docs/features/gps.md). Leases on /run/chef/gps-manager.sock drive the LOC
 # CID/session, gpsd and the follower | nmea-broker pipeline on top of
-# gps-up's shared modem, and stop them after the last release. Never
-# touches gps-up. Started from inittab (respawn). Plain libc. Sources:
+# modem-up's shared modem, and stop them after the last release. Never
+# touches modem-up. Started from inittab (respawn). Plain libc. Sources:
 # core.c (state machine), server.c (lease server), owner.c (owner check,
 # state file), main.c (process shell), cli.c (command-line client), with
 # the internal header gps-manager.h; the socket, its JSON lines and the

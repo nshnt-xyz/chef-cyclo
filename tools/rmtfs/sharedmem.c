@@ -126,7 +126,7 @@ static int rmtfs_mem_open_uio(struct rmtfs_mem *rmem, int client_id)
 	int fd;
 
 	/*
-	 * gps-up symlinks the uio device whose /sys/class/uio/uioN/name is
+	 * modem-up symlinks the uio device whose /sys/class/uio/uioN/name is
 	 * "rmtfs" (msm_sharedmem, sdm660.dtsi qcom,sharedmem-uio client-id 1)
 	 * to this fixed name so we don't have to scan /sys/class/uio here.
 	 */

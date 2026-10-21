@@ -1,6 +1,6 @@
 /*
  * gps-manager's checks on other processes and its own record: the modem
- * owner (gps-up's lock directory, the QMUX socket, the owner's /proc start
+ * owner (modem-up's lock directory, the QMUX socket, the owner's /proc start
  * time), /proc/PID/stat start times, and DIR/state, the record a respawned
  * instance uses to stop the children and release the CID of the one that
  * died. See main.c's header.

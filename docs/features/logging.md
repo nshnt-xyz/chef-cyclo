@@ -14,7 +14,7 @@ syslogd stamps every line with its own clock, in local time (IST) to the second.
 
 ```text
 Oct 20 23:41:02 chef-cyclo daemon.info buttond[612]: ready: /run/chef/buttond.sock, long 1500 ms
-Oct 20 23:41:05 chef-cyclo daemon.info gps-up: modem ready
+Oct 20 23:41:05 chef-cyclo daemon.info modem-up: modem ready
 ```
 
 The host name is `chef-cyclo`: `/init` sets it from `/etc/hostname` (`hostname -F`; a failure is one kmsg line and the boot goes on), and syslogd reads it once at start. Before 2026-10-21 nothing applied the file and every line said `(none)`. Nothing else of ours reads it (the About page and `fblog` read only the kernel release); the login shell's prompt (`\h` in `/etc/profile`) shows it. BlueZ's name is fixed by `Name = chef-cyclo` in `etc/bluetooth/main.conf`. NetworkManager (`hostname-mode=none`) never sets it, and its DHCP client already sent `chef-cyclo` before: with no hostnamed, NetworkManager 1.52 reads the "static hostname" from `/etc/hostname` itself and, with `ipv4.dhcp-send-hostname` at its default (yes) and no `ipv4.dhcp-hostname`, sends that (option 12). Both are per-connection settings, with defaults settable in a `[connection]` section of `etc/NetworkManager/conf.d/90-chef.conf`; the image sets neither, so this did not change.
@@ -52,7 +52,7 @@ busybox's ring writer takes its semaphore without `SEM_UNDO`, so a `kill -9` tha
 | `telnetd -F` | its rare errors to the console; nothing in the ring |
 | `gpsd`, the qmicli follower, `nmea-broker` | their output files in `/run/chef/gps-manager/`, as before |
 | `fbtouch`, `fblog` | `/dev/kmsg` on purpose: their markers line up with the kernel's display lines |
-| `gps-up`, `sensors-up`, `audio-up`, `bt-up`, `chef-sshd` (and dropbear's lines, tag `dropbear[PID]`, at most 20 per 60 s), `chef-state` and `chef-storage` while the system runs, the NetworkManager dispatcher (`chef-wifi-ip`), inittab's BNEP guard (`bnep-guard`) | the ring, through the log helper `usr/lib/chef/log.sh` (below); the `*-up` scripts also to stdout (their `/run/chef/log/` files) |
+| `modem-up`, `sensors-up`, `audio-up`, `bt-up`, `chef-sshd` (and dropbear's lines, tag `dropbear[PID]`, at most 20 per 60 s), `chef-state` and `chef-storage` while the system runs, the NetworkManager dispatcher (`chef-wifi-ip`), inittab's BNEP guard (`bnep-guard`) | the ring, through the log helper `usr/lib/chef/log.sh` (below); the `*-up` scripts also to stdout (their `/run/chef/log/` files) |
 | `sensors-compass-run`, `sensors-magcal-run` (tags `compass`, `magcal`) | the ring through the helper; the lines the person follows (instructions, countdown, steps, results, DONE) also straight to kmsg, where `fblog` shows them on the panel. Their evidence directories hold `syslog.txt` (`logread`) beside `dmesg.txt` |
 | `/init` (`cyclo-init`), stage 1 (`cyclo-stage1`), `chef-state boot` and `chef-storage boot` | kmsg: they run before syslogd starts (the helper finds no syslogd and falls back on its own) |
 | `chef-state shutdown`, `chef-storage shutdown`, `chef-reboot`, and everything they run (`powerd flush`) | kmsg: they set `CHEF_LOG_KMSG_ONLY=1`, because a hang or panic on the way down is what pstore keeps, and only kmsg lines reach it. Daemons TERMed meanwhile (powerd, chronyd, sensors-up) still log to the ring, which is up until init's final kill, and the shutdown save after `chef-state shutdown` keeps their lines |

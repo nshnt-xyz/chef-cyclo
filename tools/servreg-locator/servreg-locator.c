@@ -15,16 +15,16 @@
  * GET_DOMAIN_LIST), best-effort-acks the crash-report message (PFR) the
  * firmware strings show it capable of sending, and NACKs anything else with
  * QMI_ERR_NOT_SUPPORTED instead of leaving a caller to time out -- see
- * servreg_loc.h and jsn.h for the wire/file format details and gps-up for
+ * servreg_loc.h and jsn.h for the wire/file format details and modem-up for
  * how this fits into modem bring-up (started after rmtfs, before
- * /dev/subsys_modem is opened; gps-up fails closed if this doesn't publish
+ * /dev/subsys_modem is opened; modem-up fails closed if this doesn't publish
  * 0x40 in time).
  *
  * This locator alone fixes the +40.02s ERR_FATAL (the Hexagon dog timer
  * above), but the 2026-09-17 stock-read probe found it is not sufficient by
  * itself to get the modem past its RFS boot writes -- see tools/tftp/
  * (service 0x1000, stock `tftp_server`/upstream `tqftpserv`), started
- * alongside this daemon in gps-up. Deliberately NOT provided here: dynamic
+ * alongside this daemon in modem-up. Deliberately NOT provided here: dynamic
  * REGISTER_SERVICE_LIST handling (nothing on this device is known to send
  * it to us; stock's own pd-mapper logs it as "Unsupported request" too).
  *

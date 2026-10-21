@@ -7,7 +7,7 @@
  * /readwrite comes from scripts/mkinitramfs.sh, which extracts it from the
  * persist partition image at *build* time with a read-only ext4 reader
  * (debugfs) and ships it as plain files under /usr/share/rfs/msm/mpss in
- * the initramfs -- see ramfs_seed_dir() below and gps-up's -s flag.
+ * the initramfs -- see ramfs_seed_dir() below and modem-up's -s flag.
  *
  * Growable-buffer design lifted directly from tools/rmtfs/storage.c's
  * storage_pread()/storage_pwrite() (STORAGE_MAX_SIZE, realloc-on-grow,
