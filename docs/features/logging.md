@@ -4,6 +4,8 @@
 
 Since standard interfaces step 6 (2026-10-20) the image runs busybox `syslogd`, and our daemons and scripts log to it instead of `/dev/kmsg`. The kernel's own lines stay where they were, in `dmesg`, and so does everything that runs before syslogd or on the way down.
 
+Live-verified on RAM images on 2026-10-21 ([log](../../logs/syslog-2026-10-20.txt)): the ring after boot, the fallback during a `kill -9` of syslogd, the save at a power-off and at `chef-reboot bootloader`. Ring use measured then: about 2.4 KB an hour idle, about 12 KB for a Wi-Fi connect plus a GPS lease with a fix.
+
 ## The daemon
 
 The first `::respawn:` line of `inittab` is `syslogd -n -t -C1024`: it binds `/dev/log` and keeps every message in a 1 MiB shared-memory ring (`CONFIG_SYSVIPC`, the same kernel option chrony's SHM refclock needs). Nothing goes to disk, nothing to the network, and there is no `klogd`: the vendor kernel's noise would evict our lines from the ring, and the kernel lines already have their own buffer, tools and pstore. Its pid file is busybox's default `/run/syslogd.pid`, written with `-n` too and removed when it exits on TERM or INT (not after a KILL).

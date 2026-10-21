@@ -1,0 +1,91 @@
+syslog (standard interfaces step 6), 2026-10-20 to 2026-10-21
+=============================================================
+
+Plan: docs/archive/syslog-handoff.md (step 6: the syslog item of section 5
+of docs/next-steps/standard-interfaces.md).
+Pair: syslog_impl and syslog_review (Claude Opus 5.5, the step 5 panes
+cleared), coordinator syslog_coord.
+Evidence: ~/chef-cyclo-evidence/syslog-20261020/ (review/ diffs and notes,
+c1..c7 live transcripts, ring-*.out and busy-*.out measurements, build
+logs).
+
+Commits on main (each approved by syslog_review and checked against the
+reviewed snapshot; the coordinator re-hashed each commit's diff):
+  3a595ca  M1 busybox syslogd -n -C1024 (1 MiB RAM ring, logread) as the
+           first respawn line, no klogd; chef_log sends <30>TAG[PID]: MSG
+           to /dev/log (CHEF_LOG_SOCKET) with MSG_DONTWAIT, reconnects
+           once, else writes kmsg; powerd, abslot and chefui on chef_log;
+           chronyd -n, udhcpd -S, NM [logging] backend=syslog,
+           wpa_supplicant -u -s; /init sets net.unix.max_dgram_qlen 512;
+           /run/syslogd.pid allowed; docs/features/logging.md
+           (snapshot f4e7cfe9)
+  ea8bef1  M2 usr/lib/chef/log.sh (logger when syslogd's pid file names a
+           live syslogd, else kmsg; CHEF_LOG_KMSG_ONLY), every script on
+           it; kmsg stays for /init, stage 1, the shutdown paths and
+           chef-reboot; sensor tools' cues on both, logread in their
+           evidence; tags bt-up, chef-wifi-ip, bnep-guard; guides say
+           logread (snapshot b1b1ddb7)
+  6903738  M3 chef-state log-save: the ring to /data/v1/log/syslog-<seq>
+           (0700/0600, newest 8, 8 MiB) from the ::shutdown lines and
+           chef-reboot, not ::restart (snapshot cc63b3c5)
+  b31d547  M4 from the live check: syslogd -t (musl's syslog(3) stamps
+           in UTC; now every line carries syslogd's local time, IST) and
+           /init hostname -F /etc/hostname (snapshot 15995a41)
+
+Host-test incident: on 2026-10-21 16:52 to 16:54 IST syslog_impl ran the
+compass and magcal shell tests outside make; their fake sensord had no
+CHEF_LOG_SOCKET and 641 sensord lines reached the build host's journal.
+Fixed in M2 (every test sets its own overrides); syslog_review's direct
+runs with every override unset left the journal clean. The host journal
+was not edited.
+
+RAM image 1 (coordinator, SKIP_KERNEL=1 scripts/mkinstall.sh at 6903738,
+kernel #23 Image.gz-dtb 3a907d00...)
+  out/boot-ram-ef52201f.img
+  sha256 ef52201f15e21f9d6fdd825b78fdd1da4c232bdca9f16f4e29eb4c5b73ffc410
+
+Live check 1 (coordinator, 2026-10-21 about 17:44 to 17:57 IST)
+  phone-boot.sh from the installed pair (77dd0a57 + f5338097).
+  syslogd -n -C1024 pid 914, /run/syslogd.pid, /dev/log srw-rw-rw-,
+    1 MiB shm segment; max_dgram_qlen 512; udhcpd -f -S, chronyd -n.
+  logread 1 min after boot: 128 lines, 16 KB, 21 tags: NetworkManager
+    34, sensord 23, init 14, chef-settings 7, sensors-up 6, bluetoothd 5,
+    blesensd 5, audio-up 5, gps-up 4, udhcpd 3, gps-manager 3, buttond 3,
+    bt-up 3, abslot 3, powerd 2, dbus-daemon 2, chronyd 2, syslogd,
+    dropbear, chef-state, chef-sshd.
+  dmesg after "cyclo-init: exec init": none of our tags; before it /init,
+    chef-storage and chef-state boot lines as designed.
+  kill -9 of syslogd: the helper's gap line went to dmesg
+    ("livecheck: gap line while syslogd is dead"); init respawned
+    syslogd at once (pid 2435); logger (rc 0) and the helper both reached
+    the new, empty ring; no wedge.
+  FOUND: lines from musl syslog(3) clients (logger, NM, chronyd) carried
+    UTC ("12:16:10"), syslogd's own and chef_log's IST ("17:46:09");
+    host name "(none)". -> M4.
+  Ring growth: idle (Wi-Fi off) 202 bytes in 5 min, about 2.4 KB/h;
+    Wi-Fi on and connect plus a GPS map lease (fix at 130 s indoors)
+    about 12 KB in 3.5 min (NetworkManager 54 lines, wpa_supplicant 13,
+    gps-manager 9, dbus 6). Wi-Fi switched back off. syslogd CPU 0
+    ticks after 11 min. The 1 MiB ring holds many hours of riding; no
+    formal A/B idle-current run (nothing to measure).
+
+RAM image 2 (coordinator, same command at b31d547)
+  out/boot-ram-b387396a.img
+  sha256 b387396a2ee2faf6a8c7b6c7b01e04bdb18e1b72ddac08e985556acb72716787
+
+Live check 2 (coordinator, 2026-10-21 about 17:57 to 18:53 IST, user
+present for the power-off)
+  phone-boot.sh from RAM image 1 went through its chef-reboot bootloader,
+    which saved /data/v1/log/syslog-194 (133 lines, 16104 bytes, 0600 in
+    a 0700 directory), ending with the stopped daemons' exit lines
+    (powerd, chronyd, sensord).
+  hostname chef-cyclo; syslogd -n -t -C1024; every ring line in IST
+    including chronyd and NetworkManager ("Oct 21 17:58:05 chef-cyclo
+    daemon.info chronyd[930]: ...").
+  User power-off (Power held 3.9 s, released) at 18:51:24, Power on:
+    charger-mode PON (USB attached), installed image, boots.log seq 196
+    bootreason charger. /data/v1/log/syslog-195: 156 lines, 19219 bytes,
+    with the 17:59:11 marker line, ending with buttond's power-off
+    sequence ("power off: released after 3873 ms, shutting down now"),
+    init starting chef-state shutdown, powerd/chronyd/sensord exiting and
+    init starting "chef-state log-save".
