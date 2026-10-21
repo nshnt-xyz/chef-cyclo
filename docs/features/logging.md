@@ -17,7 +17,7 @@ Oct 20 23:41:05 <hostname> daemon.info gps-up: modem ready
 
 C daemons carry their pid; shell scripts, through busybox `logger`, do not (it has no option for it), except `dropbear[PID]`, whose pid `chef-sshd` puts in the tag.
 
-A restarted syslogd starts with an empty ring (it zeroes the segment), so lines from before a respawn are gone.
+A restarted syslogd starts with an empty ring (it zeroes the segment), so lines from before a respawn are gone, from `logread` and from the shutdown save below.
 
 `/init` raises the socket queue (`/proc/sys/net/unix/max_dgram_qlen`) from the kernel default of 10 datagrams to 512, as systemd does at boot, so the burst of every daemon starting at once does not fill it. A failed write is one kmsg line and the boot goes on.
 
@@ -31,6 +31,7 @@ busybox's ring writer takes its semaphore without `SEM_UNDO`, so a `kill -9` tha
 | Follow new lines | `logread -f` |
 | One program | `logread \| grep buttond` (the tag is the program's name, but for the few below) |
 | The kernel, early boot, fallback lines | `dmesg` |
+| An earlier boot | `/data/v1/log/syslog-<seq>` (below) |
 
 ## Where each program's lines go
 
@@ -50,7 +51,7 @@ busybox's ring writer takes its semaphore without `SEM_UNDO`, so a `kill -9` tha
 | `gps-up`, `sensors-up`, `audio-up`, `bt-up`, `chef-sshd` (and dropbear's lines, tag `dropbear[PID]`, at most 20 per 60 s), `chef-state` and `chef-storage` while the system runs, the NetworkManager dispatcher (`chef-wifi-ip`), inittab's BNEP guard (`bnep-guard`) | the ring, through the log helper `usr/lib/chef/log.sh` (below); the `*-up` scripts also to stdout (their `/run/chef/log/` files) |
 | `sensors-compass-run`, `sensors-magcal-run` (tags `compass`, `magcal`) | the ring through the helper; the lines the person follows (instructions, countdown, steps, results, DONE) also straight to kmsg, where `fblog` shows them on the panel. Their evidence directories hold `syslog.txt` (`logread`) beside `dmesg.txt` |
 | `/init` (`cyclo-init`), stage 1 (`cyclo-stage1`), `chef-state boot` and `chef-storage boot` | kmsg: they run before syslogd starts (the helper finds no syslogd and falls back on its own) |
-| `chef-state shutdown`, `chef-storage shutdown`, `chef-reboot`, and everything they run (`powerd flush`) | kmsg: they set `CHEF_LOG_KMSG_ONLY=1`, because a hang or panic on the way down is what pstore keeps, and only kmsg lines reach it. Daemons TERMed meanwhile (powerd, chronyd, sensors-up) still log to the ring, which is up until init's final kill |
+| `chef-state shutdown`, `chef-storage shutdown`, `chef-reboot`, and everything they run (`powerd flush`) | kmsg: they set `CHEF_LOG_KMSG_ONLY=1`, because a hang or panic on the way down is what pstore keeps, and only kmsg lines reach it. Daemons TERMed meanwhile (powerd, chronyd, sensors-up) still log to the ring, which is up until init's final kill, and the shutdown save after `chef-state shutdown` keeps their lines |
 | the kernel | `dmesg`, and pstore after a panic |
 
 Shell scripts also keep their own files under `/run/chef/log/` ([runtime files](runtime-files.md)): those hold command output, not only log lines.
@@ -64,6 +65,14 @@ Tags renamed on 2026-10-20, to map old `dmesg` greps:
 | `cyclo: BNEP ingress guard failed ...` | `bnep-guard: BNEP ingress guard failed ...` |
 | `chefui[chef-settings]:` | `chef-settings` |
 | `chefui[demo]:`, `chefui[demo-peer]:` | `chefui-demo` |
+
+## The shutdown save
+
+The ring is RAM. Once per orderly shutdown (a power-off from `buttond` or `powerd`, `reboot`, `poweroff`, the return to fastboot through `chef-reboot`), `chef-state log-save` copies it with `logread` to `/data/v1/log/syslog-<seq>`, where `<seq>` is this boot's number in `/data/v1/crash/boots.log` (`syslog-noseq-<boot_id>` when boots.log has no line for this boot): a temp file, fsynced, renamed, the directory fsynced, as `chef-state`'s other saves. The directory is 0700 and the files 0600 (Wi-Fi names and Bluetooth addresses are in there). The newest 8 are kept, and older ones are removed while the directory holds more than 8 MiB. Nothing is written while the system runs.
+
+It runs as its own `::shutdown` line (`timeout -k 1 3`) after `chef-state shutdown`, so the ring already holds the lines of that stop, and before `chef-storage shutdown` takes `/data` away; busybox init signals every process, syslogd included, only after its `::shutdown` lines. A `::restart` runs those same lines first, so it is not listed there again. `chef-reboot` runs it as a bounded step (5 s) between its `chef-state shutdown` and `chef-storage shutdown`. Its own lines go to kmsg (`CHEF_LOG_KMSG_ONLY=1`); without an owned `/data` or a running syslogd it skips with one kmsg line. A hardware reset, power loss or panic saves nothing: after a panic, pstore's copy of the kernel log is in `/data/v1/crash`.
+
+To read the previous boot's lines: `tail -n 2 /data/v1/crash/boots.log` names this boot's and the previous boot's numbers, then `cat /data/v1/log/syslog-<previous seq>`. A ring that wrapped holds only the newest 1 MiB of that boot.
 
 ## The fallback
 

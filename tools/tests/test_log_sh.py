@@ -75,6 +75,12 @@ class LogSh(unittest.TestCase):
         self.assertEqual(self.run_sh("chef_log chef-state running", CHEF_LOG_KMSG_ONLY="0")[1],
                          "-t|chef-state|-p|daemon.info|--|running|\n")
 
+    def test_syslogd_up_ignores_kmsg_only(self):
+        self.run_sh('chef_log_syslogd_up && echo up >> "$CALLS" || echo down >> "$CALLS"', CHEF_LOG_KMSG_ONLY="1")
+        self.pidfile.write_text(f"{self.start('syslogd').pid}\n")
+        self.run_sh('chef_log_syslogd_up && echo up >> "$CALLS" || echo down >> "$CALLS"', CHEF_LOG_KMSG_ONLY="1")
+        self.assertEqual(self.calls.read_text(), "down\nup\n")
+
     def test_failing_logger_falls_back(self):
         self.pidfile.write_text(f"{self.start('syslogd').pid}\n")
         kmsg, calls = self.run_sh("chef_log bt-up attached", LOGGER_RC="1")

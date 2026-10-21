@@ -5,6 +5,8 @@
 #   chef_log TAG MESSAGE...
 #   chef_log_syslog TAG MESSAGE...   syslogd only: returns 1, writing
 #                                    nothing, while it is not up
+#   chef_log_syslogd_up              0 while syslogd runs (whatever
+#                                    CHEF_LOG_KMSG_ONLY says)
 #
 # While syslogd is up: `logger -t TAG -p daemon.info -- MESSAGE`, into its
 # RAM ring (logread). Otherwise "TAG: MESSAGE" to kmsg: before init starts
@@ -20,7 +22,6 @@
 # CHEF_LOG_LOGGER replaces logger (tests). Never fails.
 
 chef_log_syslogd_up() {
-	[ "${CHEF_LOG_KMSG_ONLY:-}" != 1 ] || return 1
 	read -r chef_log_pid 2>/dev/null < "${CHEF_LOG_SYSLOGD_PID:-/run/syslogd.pid}" || return 1
 	case $chef_log_pid in ''|*[!0-9]*) return 1 ;; esac
 	read -r chef_log_comm 2>/dev/null < "/proc/$chef_log_pid/comm" || return 1
@@ -30,7 +31,7 @@ chef_log_syslogd_up() {
 chef_log_syslog() {
 	chef_log_tag=$1
 	shift
-	chef_log_syslogd_up && "${CHEF_LOG_LOGGER:-logger}" -t "$chef_log_tag" -p daemon.info -- "$*" 2>/dev/null
+	[ "${CHEF_LOG_KMSG_ONLY:-}" != 1 ] && chef_log_syslogd_up && "${CHEF_LOG_LOGGER:-logger}" -t "$chef_log_tag" -p daemon.info -- "$*" 2>/dev/null
 }
 
 chef_log() {

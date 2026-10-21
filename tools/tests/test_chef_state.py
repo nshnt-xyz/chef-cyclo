@@ -66,6 +66,7 @@ rtc-edge)
     set) exit "${EDGE_SET_RC:-0}";;
     floor) exit "${EDGE_FLOOR_RC:-0}";;
     esac;;
+logread) [ -z "${LOGREAD_FAIL:-}" ] || exit 1; cat "$LOGREAD_OUT";;
 pidof) case "$1" in
     chronyd) echo "${CHRONYD_PID:-}";;
     powerd) echo "${POWERD_PID:-}";;
@@ -128,7 +129,7 @@ class ChefState(unittest.TestCase):
         stub.write_text(STUB)
         stub.chmod(0o755)
         names = ["mountpoint", "mount", "umount", "chronyc", "rtc-edge", "pidof", "timeout", "dd", "flock",
-                 "sync"]
+                 "sync", "logread"]
         for n in names:
             (p / "bin" / n).symlink_to(stub)
         (p / "bin/powerd").write_text(f'#!/bin/sh\necho "powerd $*" >> "$TRACE"\n'
@@ -151,6 +152,7 @@ class ChefState(unittest.TestCase):
                     "CHEF_LIB_DIR": str(ROOT / "rootfs-overlay/usr/lib/chef"),
                     "CHEF_LOG_SYSLOGD_PID": str(p / "syslogd.pid"), "CHEF_LOG_LOGGER": str(p / "bin/logger"),
                     "LOGGER_OUT": str(p / "logger.out"), "CHEF_LOG_SOCKET": str(p / "no-syslog"),
+                    "LOGREAD_OUT": str(p / "ring"),
                     "CHEF_STATE_BOOT_ID": str(p / "boot_id"), "CHEF_STATE_RTC": str(p / "rtc"),
                     "CHEF_STATE_PSTORE": str(p / "pstore"), "CHEF_STATE_SENSORS_RUN": str(p / "sensors"),
                     "CHEF_STATE_MAP": str(p / "map"), "CHEF_STATE_PROC": str(p / "proc"),
@@ -1170,11 +1172,15 @@ class ChefState(unittest.TestCase):
         inittab = (ROOT / "rootfs-overlay/etc/inittab").read_text().splitlines()
         shutdown = [l for l in inittab if l.startswith("::shutdown:")]
         self.assertEqual(shutdown[0], "::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown")
-        self.assertEqual(shutdown[1], "::shutdown:/usr/bin/chef-storage shutdown")
+        # the ring's save between them, while syslogd and /data are both up
+        self.assertEqual(shutdown[1], "::shutdown:/usr/bin/timeout -k 1 3 /usr/bin/chef-state log-save")
+        self.assertEqual(shutdown[2], "::shutdown:/usr/bin/chef-storage shutdown")
         restart = [l for l in inittab if l.startswith("::restart:")]
         self.assertEqual(len(restart), 1)
         r = restart[0]
         self.assertLess(r.index("/usr/bin/chef-state shutdown"), r.index("/usr/bin/chef-storage shutdown"))
+        # not in ::restart: init has run the ::shutdown lines and killed syslogd by then
+        self.assertNotIn("log-save", r)
         # buttond and powerd go down through init (::shutdown), as `reboot`
         # and `poweroff` from a shell do
         for src in ("tools/buttond/buttond.c", "tools/powerd.c"):
@@ -1279,10 +1285,9 @@ class ChefState(unittest.TestCase):
         self.assertEqual(r.returncode, 0)
         self.assertEqual(chronyd.wait(timeout=5), -15)
 
-    def test_log_lines_follow_syslogd(self):
-        # running modes log through the helper to syslogd (logger), boot and
-        # shutdown to kmsg: boot runs before syslogd, shutdown forces it
-        fake = self.p / "syslogd"  # comm comes from the script's file name
+    def start_syslogd(self):
+        """A live process whose comm is syslogd (a script so named) in the pid file."""
+        fake = self.p / "syslogd"
         fake.write_text("#!/bin/sh\nwhile :; do sleep 1; done\n")
         fake.chmod(0o755)
         proc = subprocess.Popen([str(fake)])
@@ -1291,6 +1296,11 @@ class ChefState(unittest.TestCase):
         time.sleep(0.05)
         self.assertIsNone(proc.poll())
         (self.p / "syslogd.pid").write_text(f"{proc.pid}\n")
+
+    def test_log_lines_follow_syslogd(self):
+        # running modes log through the helper to syslogd (logger), boot and
+        # shutdown to kmsg: boot runs before syslogd, shutdown forces it
+        self.start_syslogd()
         out = self.p / "logger.out"
         self.assertEqual(self.call("mag-restore").returncode, 1)
         self.assertIn("logger -t chef-state -p daemon.info -- usage: chef-state mag-restore FILE",
@@ -1305,6 +1315,98 @@ class ChefState(unittest.TestCase):
         self.call("boot")
         self.assertIn("chef-state: ", self.kmsg)
         self.assertEqual(out.read_text(), "")
+
+    # ------------------------------------------------------------ syslog save
+
+    def write_boots(self, *lines, name="boots.log"):
+        c = self.data / "v1/crash"
+        c.mkdir(parents=True, exist_ok=True)
+        (c / name).write_text("".join(f"seq={n} boot_id={b} bootreason=reboot since_epoch=1 wall=na pstore=0\n"
+                                      for n, b in lines))
+
+    def test_log_save(self):
+        self.start_syslogd()
+        ring = "Oct 20 23:41:02 h daemon.info buttond[612]: ready\n" * 3
+        (self.p / "ring").write_text(ring)
+        self.write_boots((4, "11111111-2222-3333-4444-555555555555"), (5, BOOT_ID))
+        r = self.call("log-save")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        d = self.data / "v1/log"
+        f = d / "syslog-5"
+        self.assertEqual(f.read_text(), ring)
+        self.assertEqual((d.stat().st_mode & 0o777, f.stat().st_mode & 0o777), (0o700, 0o600))
+        self.assertEqual(sorted(x.name for x in d.iterdir()), ["syslog-5"])  # no temp left
+        self.assertIn(f"chef-state: log: saved the syslog ring to {f} ({len(ring)} bytes)", self.kmsg)
+        self.assertFalse((self.p / "logger.out").exists())  # its own lines: kmsg only
+        self.assertRegex(self.trace, rf"sync {d}/\.syslog\.tmp\.[0-9]+\n")  # before its rename
+        self.assertIn(f"sync {d}\n", self.trace)
+        self.assertIn(f"sync {d.parent}", self.trace)
+        # saved again (a second shutdown path): replaced
+        (self.p / "ring").write_text("later\n")
+        self.call("log-save")
+        self.assertEqual(f.read_text(), "later\n")
+        # this boot's line only in the rotated boots.log.1
+        self.write_boots((7, BOOT_ID), name="boots.log.1")
+        self.write_boots((8, "11111111-2222-3333-4444-555555555555"))
+        self.call("log-save")
+        self.assertTrue((d / "syslog-7").exists())
+        # no line for this boot: noseq
+        self.write_boots((9, "11111111-2222-3333-4444-555555555555"))
+        (self.data / "v1/crash/boots.log.1").unlink()
+        self.call("log-save")
+        self.assertTrue((d / f"syslog-noseq-{BOOT_ID}").exists())
+
+    def test_log_save_under_kmsg_only(self):
+        # chef-reboot exports CHEF_LOG_KMSG_ONLY=1: syslogd still counts as up
+        self.start_syslogd()
+        (self.p / "ring").write_text("x\n")
+        self.write_boots((3, BOOT_ID))
+        self.call("log-save", CHEF_LOG_KMSG_ONLY="1")
+        self.assertEqual((self.data / "v1/log/syslog-3").read_text(), "x\n")
+
+    def test_log_save_skips(self):
+        (self.p / "ring").write_text("x\n")
+        self.write_boots((3, BOOT_ID))
+        r = self.call("log-save")  # no syslogd
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(self.kmsg, "chef-state: log: syslogd is not running; syslog ring not saved\n")
+        self.start_syslogd()
+        for env in self.ram_only_cases():
+            r = self.call("log-save", **env)
+            self.assertEqual(r.returncode, 0)
+            self.assertEqual(self.kmsg, "chef-state: log: /data is not ours; syslog ring not saved\n")
+        self.assertFalse((self.data / "v1/log").exists())
+        # logread fails: one line, no file, no temp
+        (self.data / "chef-layout").write_text("chef-cyclo-data-v1\n")
+        r = self.call("log-save", LOGREAD_FAIL="1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("log: saving the syslog ring to", self.kmsg)
+        self.assertEqual(list((self.data / "v1/log").iterdir()), [])
+
+    def test_log_save_prunes(self):
+        self.start_syslogd()
+        d = self.data / "v1/log"
+        d.mkdir(parents=True)
+        for n in range(1, 10):
+            (d / f"syslog-{n}").write_text("old\n")
+        (d / "syslog-noseq-x").write_text("older\n")
+        (d / "other").write_text("not ours\n")
+        (self.p / "ring").write_text("new\n")
+        self.write_boots((12, BOOT_ID))
+        self.call("log-save")
+        # the noseq one first, then by number: the newest 8 with this one
+        self.assertEqual(sorted(x.name for x in d.iterdir()),
+                         sorted(["other"] + [f"syslog-{n}" for n in (12, 9, 8, 7, 6, 5, 4, 3)]))
+        self.assertIn("log: removed old syslog-noseq-x", self.kmsg)
+        self.assertIn("log: removed old syslog-2", self.kmsg)
+        # over 8 MiB: the oldest go even below 8 files
+        for n in (3, 4, 5, 6, 7):
+            (d / f"syslog-{n}").unlink()
+        for n in (8, 9):
+            (d / f"syslog-{n}").write_bytes(b"x" * (3 << 20))
+        (self.p / "ring").write_bytes(b"y" * (3 << 20))
+        self.call("log-save")
+        self.assertEqual(sorted(x.name for x in d.iterdir()), ["other", "syslog-12", "syslog-9"])
 
     def test_usage(self):
         self.assertEqual(self.call("nope").returncode, 1)

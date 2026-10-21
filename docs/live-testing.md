@@ -28,8 +28,9 @@ retries once. If that fails too, move the cable to another USB port.
 To return to fastboot by hand from one of our images, run `chef-reboot
 bootloader` (in a telnet session or detached with `setsid`) rather than a bare
 `btprobe restart bootloader`: it pauses init, runs `chef-state shutdown` (RTC
-offset, chronyd's drift file, pending power log rows) and `chef-storage
-shutdown` (`/data` read-only and detached), syncs and then calls `btprobe
+offset, chronyd's drift file, pending power log rows), `chef-state log-save`
+(the syslog ring onto `/data/v1/log`) and `chef-storage shutdown` (`/data`
+read-only and detached), syncs and then calls `btprobe
 restart bootloader`. A failing or hanging step is logged to kmsg and
 `/run/chef/log/chef-reboot.log` and the reboot still happens; if btprobe itself returns,
 init is resumed. Images built before the helper (2026-10-10) lack it;

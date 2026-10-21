@@ -8,11 +8,13 @@
 #      so chronyd, powerd and the timekeeper stay stopped once 2 stops them
 #   2. chef-state shutdown, bounded as in inittab (timeout -k 1 5): last RTC
 #      offset save, chronyd's drift write, powerd's pending power log rows
-#   3. chef-storage shutdown (plain, never --pause-init: its exit trap would
-#      resume init before 4): /data read-only and detached
-#   4. sync, then btprobe restart bootloader
+#   3. chef-state log-save, bounded as in inittab (timeout -k 1 3): the
+#      syslogd ring onto /data/v1/log
+#   4. chef-storage shutdown (plain, never --pause-init: its exit trap would
+#      resume init before 5): /data read-only and detached
+#   5. sync, then btprobe restart bootloader
 #
-# A failure or hang in 2, 3 or the sync is logged (stderr,
+# A failure or hang in 2, 3, 4 or the sync is logged (stderr,
 # $RUN/log/chef-reboot.log, kmsg) and the helper goes on to the bootloader:
 # the recovery path depends on reaching it. Each step runs in the background
 # and is abandoned after its bound, so a step stuck in D state (which no
@@ -34,9 +36,10 @@ RUN=${CHEF_REBOOT_RUN:-/run/chef}
 KMSG=${CHEF_REBOOT_KMSG:-/dev/kmsg}
 LOG=$RUN/log/chef-reboot.log
 STATE_SECS=8		# chef-state under timeout -k 1 5, plus margin
+LOGSAVE_SECS=5		# chef-state log-save under timeout -k 1 3, plus margin
 STORAGE_SECS=100	# chef-storage shutdown's own bounds add up to about 85 s
 SYNC_SECS=20
-WATCHDOG_SECS=150	# above 1 + 8 + 100 + 20 + 2 s (a host test checks)
+WATCHDOG_SECS=150	# above 1 + 8 + 5 + 100 + 20 + 2 s (a host test checks)
 
 # kmsg only, here (a direct write: the recovery path does not depend on
 # the log helper) and in every child: a hang on the way to the bootloader
@@ -103,6 +106,10 @@ if command -v chef-state >/dev/null 2>&1; then
 	rc=$?
 	if [ "$rc" = 0 ]; then log "chef-state shutdown done"
 	else log "chef-state shutdown failed (exit $rc); offset, drift or power rows may be lost"; fi
+	bounded "$LOGSAVE_SECS" "chef-state log-save" timeout -k 1 3 chef-state log-save
+	rc=$?
+	if [ "$rc" = 0 ]; then log "chef-state log-save done"
+	else log "chef-state log-save failed (exit $rc); this boot's syslog lines are not on /data"; fi
 fi
 if command -v chef-storage >/dev/null 2>&1; then
 	bounded "$STORAGE_SECS" "chef-storage shutdown" chef-storage shutdown

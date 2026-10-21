@@ -27,6 +27,9 @@
 #                            power log rows on exit; rows a stopped powerd
 #                            left are flushed here) and sensors-up, last
 #                            bias save
+#   chef-state log-save      inittab after shutdown, and chef-reboot: this
+#                            boot's syslogd ring (logread) into
+#                            /data/v1/log/syslog-<seq>, the newest 8 kept
 #
 # Nothing is read from or written to /data unless `ours` holds (mounted
 # /data with the chef-layout marker); otherwise every consumer runs from
@@ -54,6 +57,7 @@ PROC=${CHEF_STATE_PROC:-/proc}
 MARKER=chef-cyclo-data-v1
 TIME_FILE=$DATA/v1/time/rtc-offset
 CRASH=$DATA/v1/crash
+LOGDIR=$DATA/v1/log
 MAG_FILE=$DATA/v1/sensors/mag-group-2980
 GPS_FILE=$DATA/v1/gps/enabled
 GPS_RUN_FILE=$ST/gps-enabled	# when /data is not ours (lost at reboot)
@@ -70,6 +74,8 @@ POWER_LOG_MAX=4194304		# powerd -L in inittab (a host test checks they agree)
 CRASH_KEEP=32
 CRASH_MAX_KB=16384
 BOOTS_MAX=262144
+LOG_KEEP=8
+LOG_MAX_KB=8192
 
 # Lines go to syslog through the shared helper, or to $KMSG: `boot` runs
 # from /init before syslogd exists, and `shutdown` forces kmsg (below).
@@ -673,6 +679,56 @@ blesens_save() {
 	locked blesens blesens_save_locked "$recs"
 }
 
+# ---------------------------------------------------------------- syslog
+
+# This boot's sequence number: the boots.log(.1) line with this boot's id.
+this_seq() {
+	b=$(boot_id)
+	[ "$b" != unknown ] || return 0
+	cat "$CRASH/boots.log.1" "$CRASH/boots.log" 2>/dev/null | tr '\000' '#' |
+		grep -E "$BOOT_LINE" | grep -F " boot_id=$b " | sed 's/^seq=\([0-9]*\) .*/\1/' | tail -n 1
+}
+
+# Oldest first: syslog-noseq-* by age (boots.log lost this boot's line,
+# rare), then syslog-<seq> by number. Never $1, the file just written.
+log_prune() {
+	keep=${1##*/}
+	files=$( (cd "$LOGDIR" && ls -1tr) 2>/dev/null | grep -E '^syslog-noseq-' | grep -vxF "$keep"
+		(cd "$LOGDIR" && ls -1) 2>/dev/null | sed -n 's/^syslog-\([1-9][0-9]\{0,8\}\)$/\1/p' | sort -n |
+			sed 's/^/syslog-/' | grep -vxF "$keep")
+	n=$(( $(printf '%s\n' "$files" | grep -c .) + 1 ))
+	for f in $files; do
+		kb=$(du -sk "$LOGDIR" 2>/dev/null | cut -f1)
+		[ "$n" -gt "$LOG_KEEP" ] || [ "${kb:-0}" -gt "$LOG_MAX_KB" ] || break
+		rm -f "${LOGDIR:?}/$f" && n=$((n - 1)) && log "log: removed old $f"
+	done
+	sync "$LOGDIR"
+}
+
+log_save_locked() {
+	rm -f "$LOGDIR"/.syslog.tmp.*
+	mkdir -p "$LOGDIR" && chmod 700 "$LOGDIR" || { log "log: cannot create $LOGDIR"; return 1; }
+	sync "${LOGDIR%/*}" || { log "log: cannot sync ${LOGDIR%/*}"; return 1; }
+	seq=$(this_seq)
+	f=$LOGDIR/syslog-${seq:-noseq-$(boot_id)}
+	tmp=$LOGDIR/.syslog.tmp.$$
+	if ! (umask 077 && logread > "$tmp") || ! sync "$tmp" || ! mv -f "$tmp" "$f" || ! sync "$LOGDIR"; then
+		rm -f "$tmp"
+		log "log: saving the syslog ring to $f failed"
+		return 1
+	fi
+	log "log: saved the syslog ring to $f ($(wc -c < "$f") bytes)"
+	log_prune "$f"
+}
+
+# Called with syslogd's state from before CHEF_LOG_KMSG_ONLY was set.
+log_save() {
+	cd / || return 1
+	ours || { log "log: /data is not ours; syslog ring not saved"; return 0; }
+	[ "$1" = up ] || { log "log: syslogd is not running; syslog ring not saved"; return 0; }
+	locked log log_save_locked
+}
+
 # ---------------------------------------------------------------- shutdown
 
 # Snapshot a PID's state and start time. Strip through the last closing
@@ -842,5 +898,12 @@ blesens-save) cd / && blesens_save;;
 # kmsg only, for this and every child (powerd flush): a hang on the way
 # down is what pstore keeps, and only kmsg lines reach it.
 shutdown) export CHEF_LOG_KMSG_ONLY=1; do_shutdown; exit 0;;
-*) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|gps-load|gps-save 0|1|blesens-load|blesens-save|shutdown}"; exit 1;;
+# the same for the ring's save at the very end; its lines would land in the
+# ring it is saving, after the copy
+log-save)
+	up=down
+	! chef_log_syslogd_up || up=up
+	export CHEF_LOG_KMSG_ONLY=1
+	log_save "$up";;
+*) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|gps-load|gps-save 0|1|blesens-load|blesens-save|shutdown|log-save}"; exit 1;;
 esac

@@ -42,7 +42,7 @@ else
     exit 1
 fi
 
-# 180 s: chef-reboot's bounded steps can take up to 131 s before it reboots.
+# 180 s: chef-reboot's bounded steps can take up to 136 s before it reboots.
 wait_fastboot() {
     i=0
     until in_fastboot; do

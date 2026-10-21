@@ -36,6 +36,7 @@ echo "$name $*" >> "$TRACE"
 hang() { echo $$ >> "$TRACE.pids"; exec /bin/sleep 30 </dev/null >/dev/null 2>&1; }
 case "$name" in
 chef-state) echo "chef-state env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> "$TRACE"
+	[ "$1" != log-save ] || STATE=${LOGSAVE:-ok}
 	[ "${STATE:-ok}" != hang ] || hang; [ "${STATE:-ok}" = ok ] || exit 1;;
 chef-storage) echo "chef-storage env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> "$TRACE"
 	[ "${STORAGE:-ok}" != hang ] || hang; [ "${STORAGE:-ok}" = ok ] || exit 1;;
@@ -98,6 +99,7 @@ class ChefReboot(unittest.TestCase):
         text = SCRIPT.read_text()
         # Short step bounds; the production values are checked separately.
         text = text.replace("\nSTATE_SECS=8\t", "\nSTATE_SECS=1\t", 1)
+        text = text.replace("\nLOGSAVE_SECS=5\t", "\nLOGSAVE_SECS=1\t", 1)
         text = text.replace("\nSTORAGE_SECS=100\t", "\nSTORAGE_SECS=1\t", 1)
         text = text.replace("\nSYNC_SECS=20\n", "\nSYNC_SECS=1\n", 1)
         self.script = p / "chef-reboot"
@@ -165,6 +167,7 @@ class ChefReboot(unittest.TestCase):
         self.index(t, "setsid sh -c sleep 150; kill -CONT 1")
         order = [self.index(t, s) for s in ["kill -TSTP 1",
                                             "timeout -k 1 5 chef-state shutdown", "chef-state shutdown",
+                                            "timeout -k 1 3 chef-state log-save", "chef-state log-save",
                                             "chef-storage shutdown", "sync", "sleep 2", "btprobe restart bootloader"]]
         self.assertEqual(order, sorted(order), t)
         self.assertIn("chef-storage shutdown", t)
@@ -173,17 +176,20 @@ class ChefReboot(unittest.TestCase):
         # every step's own lines stay on kmsg too
         self.assertIn("chef-state env CHEF_LOG_KMSG_ONLY=1", t)
         self.assertIn("chef-storage env CHEF_LOG_KMSG_ONLY=1", t)
-        for line in ["init paused", "chef-state shutdown done", "chef-storage shutdown done", "btprobe restart bootloader"]:
+        for line in ["init paused", "chef-state shutdown done", "chef-state log-save done", "chef-storage shutdown done",
+                     "btprobe restart bootloader"]:
             self.assertIn(line, self.log())
             self.assertIn(line, (self.p / "kmsg").read_text())
 
     def test_bootloader_reached_when_a_step_fails_or_hangs(self):
         cases = [({"STATE": "fail"}, "chef-state shutdown failed (exit 1)"),
                  ({"STATE": "hang"}, "chef-state shutdown still running after 1 s"),
+                 ({"LOGSAVE": "fail"}, "chef-state log-save failed (exit 1); this boot's syslog lines are not on /data"),
+                 ({"LOGSAVE": "hang"}, "chef-state log-save still running after 1 s"),
                  ({"STORAGE": "fail"}, "chef-storage shutdown failed (exit 1); /data may still be writable"),
                  ({"STORAGE": "hang"}, "chef-storage shutdown still running after 1 s"),
                  ({"SYNC": "hang"}, "sync still running after 1 s"),
-                 ({"STATE": "hang", "STORAGE": "hang", "SYNC": "hang"}, "sync did not finish")]
+                 ({"STATE": "hang", "LOGSAVE": "hang", "STORAGE": "hang", "SYNC": "hang"}, "sync did not finish")]
         for env, message in cases:
             with self.subTest(env=env):
                 start = time.monotonic()
@@ -299,13 +305,17 @@ class ChefReboot(unittest.TestCase):
     def test_watchdog_budget(self):
         text = SCRIPT.read_text()
         v = {k: int(re.search(rf"\n{k}=(\d+)\b", text).group(1))
-             for k in ["STATE_SECS", "STORAGE_SECS", "SYNC_SECS", "WATCHDOG_SECS"]}
+             for k in ["STATE_SECS", "LOGSAVE_SECS", "STORAGE_SECS", "SYNC_SECS", "WATCHDOG_SECS"]}
         # sleep 1 after the pause, the step bounds, sleep 2 before btprobe
-        self.assertGreater(v["WATCHDOG_SECS"], 1 + v["STATE_SECS"] + v["STORAGE_SECS"] + v["SYNC_SECS"] + 2 + 10)
+        self.assertGreater(v["WATCHDOG_SECS"],
+                           1 + v["STATE_SECS"] + v["LOGSAVE_SECS"] + v["STORAGE_SECS"] + v["SYNC_SECS"] + 2 + 10)
         self.assertGreaterEqual(v["STATE_SECS"], 5 + 1 + 1)  # timeout -k 1 5
+        self.assertGreaterEqual(v["LOGSAVE_SECS"], 3 + 1 + 1)  # timeout -k 1 3
         self.assertIn("timeout -k 1 5 chef-state shutdown", text)
+        self.assertIn("timeout -k 1 3 chef-state log-save", text)
         inittab = (ROOT / "rootfs-overlay/etc/inittab").read_text()
         self.assertIn("::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown", inittab)
+        self.assertIn("::shutdown:/usr/bin/timeout -k 1 3 /usr/bin/chef-state log-save", inittab)
 
     def test_callers(self):
         boot = (ROOT / "scripts/phone-boot.sh").read_text()
@@ -315,7 +325,8 @@ class ChefReboot(unittest.TestCase):
         # phone-boot.sh waits for fastboot longer than the helper's bounded chain
         wait = int(re.search(r"\[ \$i -le (\d+) \] \|\| \{ echo \"no fastboot device", boot).group(1))
         text = SCRIPT.read_text()
-        chain = 1 + sum(int(re.search(rf"\n{k}=(\d+)\b", text).group(1)) for k in ["STATE_SECS", "STORAGE_SECS", "SYNC_SECS"]) + 2
+        chain = 1 + sum(int(re.search(rf"\n{k}=(\d+)\b", text).group(1))
+                        for k in ["STATE_SECS", "LOGSAVE_SECS", "STORAGE_SECS", "SYNC_SECS"]) + 2
         self.assertGreater(wait, chain + 30)
         self.assertIn('"$ROOT"/usr/bin/chef-reboot', (ROOT / "scripts/mkinitramfs.sh").read_text())
         self.assertTrue(os.access(SCRIPT, os.X_OK))

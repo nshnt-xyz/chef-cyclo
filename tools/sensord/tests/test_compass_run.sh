@@ -23,10 +23,12 @@ RUN=../../rootfs-overlay/usr/bin/sensors-compass-run
 FAILS=0
 SPID=
 FPID=
+LPID=
 
 cleanup() {
 	[ -n "$SPID" ] && kill "$SPID" 2>/dev/null
 	[ -n "$FPID" ] && kill "$FPID" 2>/dev/null
+	[ -n "$LPID" ] && kill "$LPID" 2>/dev/null
 	wait 2>/dev/null
 	rm -rf "$T"
 }
@@ -213,6 +215,7 @@ LPID=$!
 echo "$LPID" >"$T/syslogd-cal.pid"
 run_script cal || fail "cal run exit $?"
 kill "$LPID"
+LPID=
 K=$T/kmsg-cal
 L=$T/logger-cal
 [ "$(grep -c "^compass: ---- STEP 1/11: " "$K")" = 1 ] || fail "cal: STEP 1 not once in kmsg"
