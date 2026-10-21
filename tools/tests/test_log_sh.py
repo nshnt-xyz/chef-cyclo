@@ -6,7 +6,8 @@ names a live process called syslogd (a shell script named syslogd stands
 in); with no pid file, a stale or foreign pid, garbage, CHEF_LOG_KMSG_ONLY=1
 or a failing logger the line is "TAG: MESSAGE" in the kmsg file. logger is
 always a stub that records its arguments, so nothing reaches the host's
-syslog. Never fails, under set -eu too.
+syslog. Never fails, under set -eu too. Also the logging wiring: the
+syslogd inittab line and /init setting the host name it stamps.
 """
 import os
 from pathlib import Path
@@ -124,6 +125,24 @@ class LogSh(unittest.TestCase):
                            capture_output=True, text=True, timeout=10)
         self.assertEqual(r.returncode, 0)
         self.assertFalse(self.calls.exists())
+
+
+class Wiring(unittest.TestCase):
+    def test_syslogd_line(self):
+        # first respawn line; -t: every ring time is syslogd's local time,
+        # never the UTC stamp musl's syslog(3) puts in its messages
+        lines = (ROOT / "rootfs-overlay/etc/inittab").read_text().splitlines()
+        respawn = [l for l in lines if l.startswith("::respawn:")]
+        self.assertEqual(respawn[0], "::respawn:/sbin/syslogd -n -t -C1024")
+
+    def test_init_sets_the_hostname(self):
+        # syslogd reads it once at start: set before init runs anything
+        init = (ROOT / "rootfs-overlay/init").read_text()
+        line = 'hostname -F /etc/hostname || log "hostname not set from /etc/hostname"'
+        self.assertEqual(init.count(line), 1)
+        self.assertLess(init.index("log()"), init.index(line))
+        self.assertLess(init.index(line), init.index("exec /sbin/init"))
+        self.assertEqual((ROOT / "rootfs-overlay/etc/hostname").read_text(), "chef-cyclo\n")
 
 
 @unittest.skipUnless(shutil.which("busybox"), "needs busybox")

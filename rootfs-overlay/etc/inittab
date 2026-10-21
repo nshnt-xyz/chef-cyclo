@@ -1,9 +1,12 @@
 # busybox init. /init has already done the mounts and USB gadget setup.
 # System log first: busybox syslogd on /dev/log with a 1 MiB RAM ring
 # (shared memory; `logread`, `logread -f`), nothing on disk, no klogd (the
-# kernel's lines stay in dmesg). Our programs fall back to /dev/kmsg while
-# it is not up. See docs/features/logging.md.
-::respawn:/sbin/syslogd -n -C1024
+# kernel's lines stay in dmesg). -t drops the senders' own timestamps: musl's
+# syslog(3) (logger, NetworkManager, ...) stamps UTC, so without it the ring
+# would mix UTC and syslogd's local time; with it every line has syslogd's
+# local time (IST). Our programs fall back to /dev/kmsg while it is not up.
+# See docs/features/logging.md.
+::respawn:/sbin/syslogd -n -t -C1024
 # The shell gets root's home and session bus (below) the way a desktop login would.
 ::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'
 ::respawn:/usr/sbin/udhcpd -f -S /run/chef/udhcpd.conf

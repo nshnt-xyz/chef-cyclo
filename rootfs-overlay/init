@@ -32,6 +32,9 @@ mount -t tmpfs    tmpfs    /run
 # below them.
 mkdir -p -m 0755 /run/chef /run/chef/log /run/chef/lock
 mount -t configfs configfs /sys/kernel/config
+# The host name every syslog line carries (syslogd reads it once at start)
+# and the shell prompt shows; nothing else applies /etc/hostname.
+hostname -F /etc/hostname || log "hostname not set from /etc/hostname"
 
 # Volatile /var: a tmpfs seeded with the image's /var (NetworkManager, dbus,
 # chrony, bluetooth, log, cache), so services keep writing there as they did

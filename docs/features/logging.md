@@ -6,14 +6,16 @@ Since standard interfaces step 6 (2026-10-20) the image runs busybox `syslogd`, 
 
 ## The daemon
 
-The first `::respawn:` line of `inittab` is `syslogd -n -C1024`: it binds `/dev/log` and keeps every message in a 1 MiB shared-memory ring (`CONFIG_SYSVIPC`, the same kernel option chrony's SHM refclock needs). Nothing goes to disk, nothing to the network, and there is no `klogd`: the vendor kernel's noise would evict our lines from the ring, and the kernel lines already have their own buffer, tools and pstore. Its pid file is busybox's default `/run/syslogd.pid`, written with `-n` too and removed when it exits on TERM or INT (not after a KILL).
+The first `::respawn:` line of `inittab` is `syslogd -n -t -C1024`: it binds `/dev/log` and keeps every message in a 1 MiB shared-memory ring (`CONFIG_SYSVIPC`, the same kernel option chrony's SHM refclock needs). Nothing goes to disk, nothing to the network, and there is no `klogd`: the vendor kernel's noise would evict our lines from the ring, and the kernel lines already have their own buffer, tools and pstore. Its pid file is busybox's default `/run/syslogd.pid`, written with `-n` too and removed when it exits on TERM or INT (not after a KILL).
 
-syslogd stamps each line with its own clock, in local time (IST) to the second, unless the sender put a timestamp in the message (busybox `logger` and the C library's `syslog(3)` do, in the same local time). Our C daemons send none. Lines in the ring read
+syslogd stamps every line with its own clock, in local time (IST) to the second. Our C daemons send no timestamp; musl's `syslog(3)` (busybox `logger`, so our scripts, and NetworkManager, BlueZ, chrony and the rest) sends one in UTC (`gmtime_r`), and `-t` makes syslogd drop it, so the ring never mixes zones (seen live 2026-10-21 before `-t`: a 12:16 UTC `logger` line beside a 17:46 IST one). Lines in the ring read
 
 ```text
-Oct 20 23:41:02 <hostname> daemon.info buttond[612]: ready: /run/chef/buttond.sock, long 1500 ms
-Oct 20 23:41:05 <hostname> daemon.info gps-up: modem ready
+Oct 20 23:41:02 chef-cyclo daemon.info buttond[612]: ready: /run/chef/buttond.sock, long 1500 ms
+Oct 20 23:41:05 chef-cyclo daemon.info gps-up: modem ready
 ```
+
+The host name is `chef-cyclo`: `/init` sets it from `/etc/hostname` (`hostname -F`; a failure is one kmsg line and the boot goes on), and syslogd reads it once at start. Before 2026-10-21 nothing applied the file and every line said `(none)`. Nothing else of ours reads it (the About page and `fblog` read only the kernel release); the login shell's prompt (`\h` in `/etc/profile`) shows it. BlueZ's name is fixed by `Name = chef-cyclo` in `etc/bluetooth/main.conf`. NetworkManager (`hostname-mode=none`) never sets it, and its DHCP client already sent `chef-cyclo` before: with no hostnamed, NetworkManager 1.52 reads the "static hostname" from `/etc/hostname` itself and, with `ipv4.dhcp-send-hostname` at its default (yes) and no `ipv4.dhcp-hostname`, sends that (option 12). Both are per-connection settings, with defaults settable in a `[connection]` section of `etc/NetworkManager/conf.d/90-chef.conf`; the image sets neither, so this did not change.
 
 C daemons carry their pid; shell scripts, through busybox `logger`, do not (it has no option for it), except `dropbear[PID]`, whose pid `chef-sshd` puts in the tag.
 
