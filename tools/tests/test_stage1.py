@@ -317,8 +317,8 @@ class Stage2(unittest.TestCase):
         self.assertIn('if [ -r /usr/lib/chef/usb-gadget.sh ] && . /usr/lib/chef/usb-gadget.sh; then', init)
         self.assertLess(init.index('mount --move /run/.var /var'), init.index('dbus-uuidgen --ensure'))
         self.assertIn('mount -t tmpfs -o mode=700 tmpfs /root', init)
-        inittab = (ROOT / 'rootfs-overlay/etc/inittab').read_text()
-        self.assertIn('udhcpd -f -S /run/chef/udhcpd.conf', inittab)
+        udhcpd = (ROOT / 'rootfs-overlay/etc/conf.d/udhcpd').read_text()
+        self.assertIn('UDHCPD_OPTS="-f -S /run/chef/udhcpd.conf"', udhcpd)
         # The helper writes to $USB_GADGET_RUN: /run/chef here, /run in stage 1.
         self.assertLess(init.index('USB_GADGET_RUN=/run/chef'), init.index('. /usr/lib/chef/usb-gadget.sh'))
         gadget = (ROOT / 'rootfs-overlay/usr/lib/chef/usb-gadget.sh').read_text()

@@ -7,7 +7,8 @@
 #   chef-state ours          exit 0 if /data is our mounted layout (silent)
 #   chef-state boot          /init: restore the clock, save pstore records,
 #                            append the boot history
-#   chef-state timekeeper    inittab: save the RTC offset while chrony is
+#   chef-state timekeeper    the chef-timekeeper service: save the RTC
+#                            offset while chrony is
 #                            synchronised (60 s until the first save of the
 #                            boot, then every 15 min; rewrites are skipped
 #                            unless the offset moved or 6 h passed)
@@ -25,8 +26,8 @@
 #                            offset save, stop chronyd (it writes its drift
 #                            file on exit), powerd (it flushes its pending
 #                            power log rows on exit; rows a stopped powerd
-#                            left are flushed here) and sensors-up, last
-#                            bias save
+#                            left are flushed here), sensors-up and the
+#                            timekeeper through OpenRC, last bias save
 #   chef-state log-save      inittab after shutdown, and chef-reboot: this
 #                            boot's syslogd ring (logread) into
 #                            /data/v1/log/syslog-<seq>, the newest 8 kept
@@ -70,7 +71,7 @@ MAG_BIAS_MAX=131072		# 2 G
 WALL_MIN=1767225600		# 2026-01-01T00:00:00Z
 WALL_MAX=4102444800		# 2100-01-01T00:00:00Z
 SPAN_MAX=157680000		# 5 years of RTC seconds between save and restore
-POWER_LOG_MAX=4194304		# powerd -L in inittab (a host test checks they agree)
+POWER_LOG_MAX=4194304		# powerd -L in init.d/powerd (a host test checks they agree)
 CRASH_KEEP=32
 CRASH_MAX_KB=16384
 BOOTS_MAX=262144
@@ -302,7 +303,6 @@ time_restore() {
 
 timekeeper() {
 	cd / || exit 1
-	echo $$ > "$ST/timekeeper.pid"
 	said=
 	while :; do
 		if ! ours; then
@@ -752,24 +752,13 @@ pid_tokens() {
 	done
 }
 
-# The timekeeper's process group: its PID when it leads its own group (busybox
-# init setsid()s every child), else the PID and its descendants by parent PID.
-keeper_targets() {
-	pgrp=$(awk -v pid="$1" '$1 == pid && $0 ~ /^[0-9]+ \(.*\) / {
-		sub(/^.*\) /, ""); if ($3 ~ /^[0-9]+$/) print $3 }' "$PROC/$1/stat" 2>/dev/null)
-	if [ "$pgrp" = "$1" ]; then
-		echo "-$1"
-		return
-	fi
-	echo "$1"
-	for f in "$PROC"/[0-9]*/stat; do cat "$f" 2>/dev/null; echo; done | awk -v root="$1" '
-		$0 ~ /^[0-9]+ \(.*\) / { pid = $1; sub(/^.*\) /, ""); parent[pid] = $2 }
-		END {
-			q[n = 1] = root
-			for (i = 1; i <= n; i++)
-				for (c in parent)
-					if (parent[c] == q[i]) { q[++n] = c; print c }
-		}'
+# rc_stop SERVICE...: stop each service through OpenRC, all at once in the
+# background; never waits. A supervised daemon that anyone but its
+# supervisor signals is respawned at once, so they are never signalled here.
+rc_stop() {
+	for svc in "$@"; do
+		rc-service -q "$svc" stop </dev/null >/dev/null 2>&1 &
+	done
 }
 
 # Wait (0.1 s steps, at most $1 tenths) for original processes to exit.
@@ -832,15 +821,6 @@ do_shutdown() {
 	cd / || return 1
 	ours || return 0
 	read -r t0 _ < "$PROC/uptime"
-	keeper=$(cat "$ST/timekeeper.pid" 2>/dev/null)
-	case "$keeper" in ''|*[!0-9]*) keeper=;; esac
-	[ -z "$keeper" ] || tr '\000' ' ' 2>/dev/null < "$PROC/$keeper/cmdline" | grep -q 'chef-state timekeeper' || keeper=
-	# The whole timekeeper: its locked save runs in a subshell with chronyc
-	# and rtc-edge children, which a TERM to the shell alone leaves running.
-	# A save killed before its rename leaves only a temp file, which the
-	# next save removes. Negative PIDs after a positive one (BusyBox ash
-	# kill rejects --).
-	[ -z "$keeper" ] || keeper=$(keeper_targets "$keeper")
 	sensors=$(pidof sensors-up 2>/dev/null)
 	# shellcheck disable=SC2086
 	sensor_tokens=$(pid_tokens $sensors)
@@ -849,20 +829,21 @@ do_shutdown() {
 	power_tokens=$(pid_tokens $power)
 	# Powerd is not needed by time_save. Its in-flight sysfs read/reset can
 	# finish while chronyc/RTC sampling runs, rather than serially after it.
-	# shellcheck disable=SC2086
-	[ -z "$keeper$sensors$power" ] || kill -TERM $sensors $power $keeper 2>/dev/null
+	# The timekeeper's stop also ends a save of its own in flight (its
+	# service TERMs the whole process group); a save killed before its
+	# rename leaves only a temp file, which the next save removes.
+	rc_stop sensors-up powerd chef-timekeeper
 	# Never queue behind a save in flight (about 1 s at most), and keep the
 	# save itself short: chronyc 1 s, one RTC edge (at most 1.1 s) 1.5 s.
 	LOCK_TRIES=10 CHRONYC_SECS=1 EDGE_SECS=1.5 time_save; time_rc=$?
 	chrony=$(pidof chronyd 2>/dev/null)
 	# shellcheck disable=SC2086
 	stop_tokens="$sensor_tokens $power_tokens $(pid_tokens $chrony)"
-	# shellcheck disable=SC2086
-	[ -z "$chrony" ] || kill -TERM $chrony 2>/dev/null
+	rc_stop chronyd
 	read -r stop_now _ < "$PROC/uptime"
 	# Share a normal 1.8 s stop deadline with the time-save work; leave
 	# about 0.2 s for the final small bias snapshot/sync in the usual case.
-	# At least 0.3 s even when a slow time save used the budget up, so
+	# At least 0.3 s even when a slow time save used up the budget, so
 	# chronyd can write its drift file (the 5 s hook bound has room).
 	# The outer hook timeout still bounds failed/blocking I/O separately.
 	stop_wait=$(awk -v a="$t0" -v b="$stop_now" 'BEGIN { n=int((1.8-(b-a))*10); if(n<3)n=3; if(n>18)n=18; print n }')

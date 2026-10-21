@@ -1,0 +1,35 @@
+#!/sbin/openrc-run
+# modem-up: boots the modem and keeps its support daemons up for the whole
+# boot (docs/features/gps.md); GPS and Wi-Fi ride on it. Started once and
+# never respawned: one modem lifetime per boot, as a modem restart within
+# a boot was never tested. Backgrounded by start-stop-daemon, so its start
+# returns at once (consumers wait for the modem themselves) and rc-status
+# shows it crashed if it dies.
+
+description="Modem and its support daemons, one lifetime per boot"
+command=/usr/bin/modem-up
+command_background=true
+pidfile=/run/chef/modem-up.pid
+output_log=/run/chef/log/modem-up.log
+error_log=/run/chef/log/modem-up.log
+# Its TERM cleanup stops the support daemons, closes the modem and unmounts
+# /firmware: give it 10 s before the KILL.
+retry="TERM/10/KILL/2"
+
+# Early, right after the UI: the modem takes about 6 s to come up, and Wi-Fi
+# and GPS wait for it.
+depend() {
+	use logger
+	after chef-settings
+	before dbus udhcpd chronyd bt-up
+}
+
+# Only `openrc shutdown` stops it (RC_RUNLEVEL=shutdown), with /data still
+# mounted; rc-service modem-up stop|restart refuses.
+stop() {
+	if [ "$RC_RUNLEVEL" != shutdown ]; then
+		eerror "modem-up stops only at shutdown: a modem restart within a boot was never tested, and Wi-Fi rides on it"
+		return 1
+	fi
+	default_stop
+}

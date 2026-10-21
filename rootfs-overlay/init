@@ -55,6 +55,11 @@ fi
 
 mkdir -p /run/dbus /var/lib/dbus
 dbus-uuidgen --ensure 2>/dev/null
+# chronyd (-u chrony) needs its socket and drift directories its own;
+# chef-storage boot binds /data/v1/chrony (made the same way) over the
+# second when /data is ours.
+mkdir -p /run/chrony /var/lib/chrony && chown chrony:chrony /run/chrony /var/lib/chrony &&
+    chmod 700 /run/chrony /var/lib/chrony || log "chrony directories not set up; chronyd may not start"
 
 # apk --usermode/no-scripts omit the privileged activation helper metadata.
 # Only the system-bus account may execute this root helper. system_a has it
@@ -114,8 +119,8 @@ fi
 # No manual supplicant/DHCP may run in this standard-NM image, even on failure.
 touch /run/chef/wifi-nm-mode
 
-# Hand over to busybox init: /etc/inittab keeps telnetd, udhcpd, dbus,
-# bluetoothd and the Bluetooth attach (bt-up) running.
+# Hand over to busybox init: /etc/inittab keeps telnetd running and starts
+# OpenRC, which starts the services (docs/features/services.md).
 /usr/bin/chef-storage boot || log "storage boot failed; continuing RAM-only"
 # Clock from the saved RTC offset, the previous boot's pstore records and a
 # boot history line, on /data (chef-state; RAM-only: /run/chef/state/time only).

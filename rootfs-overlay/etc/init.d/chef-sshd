@@ -1,0 +1,26 @@
+#!/sbin/openrc-run
+# SSH on port 22 of every interface (USB, Wi-Fi, PAN), key login only:
+# dropbear under chef-sshd, authorized keys baked into the image, host key on
+# /data/v1/ssh (ephemeral in /run/chef/ssh when /data is not ours). The
+# telnetd in inittab stays as it is: the passwordless USB-only recovery
+# shell (docs/features/ssh.md).
+
+description="SSH server (dropbear), key login only"
+supervisor=supervise-daemon
+command=/usr/bin/chef-sshd
+
+depend() {
+	use logger
+}
+
+# dropbear and its log loop are chef-sshd's children in its process group
+# (supervise-daemon setsid()s chef-sshd): a stop takes them down too, or
+# the next start would find port 22 taken.
+stop_pre() {
+	pgroup=$(service_get_value child_pid)
+}
+stop_post() {
+	case "$pgroup" in ''|*[!0-9]*) return 0;; esac
+	kill -TERM "-$pgroup" 2>/dev/null
+	return 0
+}

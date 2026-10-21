@@ -42,12 +42,13 @@
 # audio-up is reused unchanged for the ADSP boot (either order works: it
 # is skipped when the ADSP is already ONLINE or audio-up is running).
 #
-# Started at boot by inittab (respawn, through a wrapper that waits 10 s
-# after any exit so a failing start cannot spin) and resident to supervise
-# sensord; it exits when sensord does, and init starts it again. TERM stops
-# sensord only (the ADSP stays up, as with audio-up, and an audio-up this
-# script started keeps running). It can still be started by hand
-# (`setsid sensors-up &`) when init's copy is not running.
+# Started at boot as the OpenRC service sensors-up (etc/init.d/sensors-up,
+# supervised, started again 10 s after any exit so a failing start cannot
+# spin) and resident to supervise sensord; it exits when sensord does, and
+# its supervisor starts it again. TERM stops sensord only (the ADSP stays
+# up, as with audio-up, and an audio-up this script started keeps running).
+# It can still be started by hand (`setsid sensors-up &`) when the
+# service is stopped (`rc-service sensors-up stop`).
 #
 # One instance only: an flock on /run/chef/lock/sensors-up.lock (fd 9, never
 # passed to children), which the kernel drops with the process, so a kill -9
@@ -77,8 +78,8 @@ REG_MAP=${REG_MAP:-/usr/share/sensord/sns_reg.map}
 AUDIO_UP=${AUDIO_UP:-audio-up}
 AUDIO_LOCK=${AUDIO_LOCK:-/run/chef/lock/audio-up.lock}
 SENSORD=${SENSORD:-sensord}
-SENSORD_ARGS=${SENSORD_ARGS--v}	# unset: -v (manual runs); set but empty: no flags (inittab)
-SENSORD_STDERR=${SENSORD_STDERR:-}	# set: sensord's stderr goes there (inittab: /dev/null)
+SENSORD_ARGS=${SENSORD_ARGS--v}	# unset: -v (manual runs); set but empty: no flags (the service)
+SENSORD_STDERR=${SENSORD_STDERR:-}	# set: sensord's stderr goes there (the service: /dev/null)
 SMGR_WAIT=${SMGR_WAIT:-120}	# 0.5 s steps: 60 s
 BOOT_ID_FILE=${BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}
 SENSORS_FRESH=${SENSORS_FRESH:-0}
@@ -268,7 +269,7 @@ child_running() {
 }
 
 # syslog through the shared helper (kmsg while syslogd is not up), and
-# stdout for the log file inittab or the caller keeps
+# stdout for the log file the service or the caller keeps
 . "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
 log() {
 	chef_log sensors-up "$*"

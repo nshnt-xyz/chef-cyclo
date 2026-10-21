@@ -5,20 +5,33 @@
 # skips init's ::shutdown lines). In order:
 #
 #   1. pause init (SIGTSTP; busybox init then reaps but respawns nothing)
-#      so chronyd, powerd and the timekeeper stay stopped once 2 stops them
+#      so its inittab lines (telnetd) stay as they are while the rest stops
 #   2. chef-state shutdown, bounded as in inittab (timeout -k 1 5): last RTC
 #      offset save, chronyd's drift write, powerd's pending power log rows
+#      (it stops chronyd, powerd, sensors-up and the timekeeper through
+#      OpenRC)
 #   3. chef-state log-save, bounded as in inittab (timeout -k 1 3): the
 #      syslogd ring onto /data/v1/log
-#   4. chef-storage shutdown (plain, never --pause-init: its exit trap would
-#      resume init before 5): /data read-only and detached
-#   5. sync, then btprobe restart bootloader
+#   4. openrc shutdown (timeout -k 1 25): every other service stopped in
+#      reverse dependency order, modem-up's clean modem stop included.
+#      Slower here than in inittab: a stopped supervisor is an orphan of
+#      init, `supervise-daemon --stop` waits until init reaps it, and a
+#      paused busybox init reaps only once a second (inittab's ::shutdown
+#      lines reap at once). The stops run one after another, so about
+#      13 services cost up to about 13 s more than a power-off does.
+#   5. chef-stop-supervisors (timeout -k 1 10): any supervisor openrc
+#      shutdown left is stopped, so nothing respawns what 6 stops
+#   6. chef-storage shutdown (plain, never --pause-init: its exit trap would
+#      resume init before 7): /data read-only and detached
+#   7. sync, then btprobe restart bootloader
 #
-# A failure or hang in 2, 3, 4 or the sync is logged (stderr,
+# A failure or hang in 2 to 6 or the sync is logged (stderr,
 # $RUN/log/chef-reboot.log, kmsg) and the helper goes on to the bootloader:
 # the recovery path depends on reaching it. Each step runs in the background
 # and is abandoned after its bound, so a step stuck in D state (which no
-# timeout can kill) does not block the reboot. Residual: btprobe itself
+# timeout can kill) does not block the reboot. That is also why it does not
+# go down through init's ::shutdown lines: init waits for each of those for
+# as long as it takes. Residual: btprobe itself
 # calls sync(2) before reboot(2), so a wedged eMMC can still hold it; then
 # only the PMIC reset (Power about 8.7 s) helps. If btprobe returns, init is
 # resumed and the exit status is 1.
@@ -31,15 +44,18 @@
 # works). SIGHUP is ignored, so a closing telnet session does not stop it
 # halfway. One run at a time (a lock in /run/chef/lock), so a second run cannot
 # resume init under the first. Without chef-state and chef-storage (stage
-# 1) init is not paused and only btprobe runs. Busybox applets only.
+# 1) init is not paused and only btprobe runs; without openrc (stage 1, or
+# an image built before it) steps 4 and 5 are skipped. Busybox applets only.
 RUN=${CHEF_REBOOT_RUN:-/run/chef}
 KMSG=${CHEF_REBOOT_KMSG:-/dev/kmsg}
 LOG=$RUN/log/chef-reboot.log
 STATE_SECS=8		# chef-state under timeout -k 1 5, plus margin
 LOGSAVE_SECS=5		# chef-state log-save under timeout -k 1 3, plus margin
+OPENRC_SECS=30		# openrc shutdown under timeout -k 1 25, plus margin
+SUPERVISORS_SECS=12	# chef-stop-supervisors under timeout -k 1 10, plus margin
 STORAGE_SECS=100	# chef-storage shutdown's own bounds add up to about 85 s
 SYNC_SECS=20
-WATCHDOG_SECS=150	# above 1 + 8 + 5 + 100 + 20 + 2 s (a host test checks)
+WATCHDOG_SECS=190	# above 1 + 8 + 5 + 30 + 12 + 100 + 20 + 2 s (a host test checks)
 
 # kmsg only, here (a direct write: the recovery path does not depend on
 # the log helper) and in every child: a hang on the way to the bootloader
@@ -81,6 +97,9 @@ resume() {
 
 [ "$#" = 1 ] && [ "$1" = bootloader ] || { log "usage: chef-reboot bootloader"; exit 2; }
 cd / || exit 1
+# openrc and rc-service (chef-state's) are in /sbin, which an SSH
+# session's PATH may lack.
+export PATH="$PATH:/sbin:/usr/sbin"
 mkdir -p "$RUN/log" "$RUN/lock"
 command -v btprobe >/dev/null 2>&1 || { log "no btprobe; nothing done"; exit 1; }
 exec 9>"$RUN/lock/chef-reboot.lock"
@@ -110,6 +129,18 @@ if command -v chef-state >/dev/null 2>&1; then
 	rc=$?
 	if [ "$rc" = 0 ]; then log "chef-state log-save done"
 	else log "chef-state log-save failed (exit $rc); this boot's syslog lines are not on /data"; fi
+fi
+if command -v openrc >/dev/null 2>&1; then
+	bounded "$OPENRC_SECS" "openrc shutdown" timeout -k 1 25 openrc shutdown
+	rc=$?
+	if [ "$rc" = 0 ]; then log "openrc shutdown done"
+	else log "openrc shutdown failed (exit $rc); some services may still run"; fi
+	if command -v chef-stop-supervisors >/dev/null 2>&1; then
+		bounded "$SUPERVISORS_SECS" "chef-stop-supervisors" timeout -k 1 10 chef-stop-supervisors
+		rc=$?
+		if [ "$rc" = 0 ]; then log "chef-stop-supervisors done"
+		else log "chef-stop-supervisors failed (exit $rc); a supervisor may still respawn its daemon"; fi
+	fi
 fi
 if command -v chef-storage >/dev/null 2>&1; then
 	bounded "$STORAGE_SECS" "chef-storage shutdown" chef-storage shutdown

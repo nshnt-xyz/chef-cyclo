@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Host ownership and actual dispatcher regressions without network privileges."""
-import os, pathlib, socket, subprocess, tempfile
+import os, pathlib, socket, subprocess, tempfile, time
 R = pathlib.Path(__file__).resolve().parents[2]
 lib = R / 'rootfs-overlay/usr/lib/chef/modem-owner.sh'
 dispatch = R / 'rootfs-overlay/etc/NetworkManager/dispatcher.d/10-chef-usb-overlap'
@@ -42,31 +42,55 @@ assert init.index('touch /run/chef/wifi-nm-mode') < init.index('exec /sbin/init'
 manual=(R/'rootfs-overlay/usr/bin/wifi-up').read_text()
 assert 'if [ -e /etc/NetworkManager/conf.d/90-chef.conf ] || [ -e /run/chef/wifi-nm-mode ] || pidof NetworkManager' in manual
 nm=(R/'rootfs-overlay/usr/bin/wifi-nm').read_text()
-assert nm.index('wifi-usb-guard ||') < nm.index('wifi-prepare ||') < nm.index('exec /usr/sbin/NetworkManager')
+assert nm.index('wifi-usb-guard >&2 ||') < nm.index('wifi-prepare >&2 ||') < nm.index('echo "--state-file=$state"')
+# NetworkManager's start_pre (etc/conf.d/networkmanager) takes wifi-nm's
+# output as its arguments; nothing but that line may reach stdout.
+assert 'command_args=$(/usr/bin/wifi-nm) || return 1' in (R/'rootfs-overlay/etc/conf.d/networkmanager').read_text()
+assert 'sleep 10' not in nm and 'exec ' not in nm
 print('test_wifi_nm: owner identity, dispatcher overlap/error, boot ownership PASS')
 
-# Run the real state-file tail of wifi-nm with chef-state and NetworkManager stubbed.
+# The real modem wait gives up within about a second once `openrc shutdown`
+# has set the runlevel: its start holds NetworkManager's lock, which the stop
+# of dbus would wait 60 s for.
+wait_loop = 'n=0\nuntil' + nm.split('\nn=0\nuntil', 1)[1].split('\ndone\n', 1)[0] + '\ndone\n'
+assert '/run/openrc/softlevel' in wait_loop
+with tempfile.TemporaryDirectory() as t:
+    p = pathlib.Path(t)
+    code = ('fail() { echo "wifi-nm: $*" >&2; exit 1; }\nmodem_owner_pid() { return 1; }\n' +
+            wait_loop.replace('/run/openrc/softlevel', str(p/'softlevel')).replace('/run/dbus/system_bus_socket', str(p/'bus')))
+    (p/'softlevel').write_text('default\n')
+    try:
+        subprocess.run(['sh', '-c', code], capture_output=True, timeout=1.5)
+        raise AssertionError('the modem wait ended without a modem or a shutdown')
+    except subprocess.TimeoutExpired:
+        pass
+    (p/'softlevel').write_text('shutdown\n')
+    r = subprocess.run(['sh', '-c', code], capture_output=True, text=True, timeout=5)
+    assert r.returncode == 1 and r.stderr == 'wifi-nm: shutdown in progress; not starting\n', r
+    # a shutdown that begins during the wait ends it within a second
+    (p/'softlevel').write_text('default\n')
+    proc = subprocess.Popen(['sh', '-c', code], stderr=subprocess.PIPE, text=True)
+    time.sleep(1.2)
+    (p/'softlevel').write_text('shutdown\n')
+    assert proc.wait(timeout=2.5) == 1
+print('test_wifi_nm: modem wait ends at shutdown PASS')
+
+# Run the real state-file tail of wifi-nm with chef-state stubbed: what it prints.
 def state_file_argv(tail, ours):
     with tempfile.TemporaryDirectory() as t:
         p = pathlib.Path(t)
         (p/'chef-state').write_text('#!/bin/sh\n[ "$1" = ours ] && exit %d\nexit 2\n' % (0 if ours else 1))
-        (p/'nm').write_text('#!/bin/sh\nprintf "%s\\n" "$*" > "$ARGV"\n')
-        for f in ('chef-state', 'nm'): (p/f).chmod(0o755)
-        code = tail.replace('/usr/bin/chef-state', str(p/'chef-state')).replace('/usr/sbin/NetworkManager', str(p/'nm'))
-        subprocess.run(['sh', '-c', code], env=dict(os.environ, ARGV=str(p/'argv')), check=True)
-        return (p/'argv').read_text().strip()
+        (p/'chef-state').chmod(0o755)
+        code = tail.replace('/usr/bin/chef-state', str(p/'chef-state'))
+        return subprocess.run(['sh', '-c', code], check=True, capture_output=True, text=True).stdout.strip()
 nm_text = (R/'rootfs-overlay/usr/bin/wifi-nm').read_text()
 tail = '# The Wi-Fi switch' + nm_text.split('# The Wi-Fi switch', 1)[1]
-assert state_file_argv(tail, True) == '--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state'
-assert state_file_argv(tail, False) == '--no-daemon --state-file=/var/lib/NetworkManager/NetworkManager.state'
-assert '--state-file="$state"' in tail.splitlines()[-1] and tail.splitlines()[-1].startswith('exec /usr/sbin/NetworkManager ')
+assert state_file_argv(tail, True) == '--state-file=/data/v1/networkmanager/NetworkManager.state'
+assert state_file_argv(tail, False) == '--state-file=/var/lib/NetworkManager/NetworkManager.state'
+assert tail.splitlines()[-1] == 'echo "--state-file=$state"'
 # Mutation: dropping the if must fail the "ours" assertion.
 mutant = tail.replace('if /usr/bin/chef-state ours; then', 'if false; then')
-assert mutant != tail and state_file_argv(mutant, True) != '--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state'
-# Mutation: dropping --state-file from the exec line must fail the exec-line assertion.
-mutant = tail.replace(' --state-file="$state"', '')
-assert state_file_argv(mutant, True) != '--no-daemon --state-file=/data/v1/networkmanager/NetworkManager.state'
-assert '--state-file' not in state_file_argv(mutant, True)
+assert mutant != tail and state_file_argv(mutant, True) != '--state-file=/data/v1/networkmanager/NetworkManager.state'
 print('test_wifi_nm: Wi-Fi switch state file selection and mutations PASS')
 # Exercise production account collision gates before privilege-dropping daemon setup.
 source=(R/'scripts/mkinitramfs.sh').read_text()

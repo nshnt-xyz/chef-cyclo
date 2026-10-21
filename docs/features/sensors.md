@@ -27,7 +27,7 @@ The registry is served from a **RAM copy** of persist's `/sensors/sns.reg` (2742
 
 ## Run
 
-`sensors-up` runs from inittab (stop it with `kill $(pidof sensors-up)`; init starts it again 10 s after it exits, so a plain `kill` is a restart; to keep it down for a test also stop the wrapper). In the phone shell:
+`sensors-up` runs as the OpenRC service `sensors-up` ([services](services.md)): `rc-service sensors-up stop` keeps it down for a test, `rc-service sensors-up start` brings it back. A plain `kill $(pidof sensors-up)` is a restart: its supervisor starts it again 10 s after it exits. In the phone shell:
 
 ```sh
 setsid sensors-up > /run/chef/log/sensors-up.log 2>&1 &     # by hand, when init's copy is not running; SENSORD_ARGS=-v for per-request REG2 logging

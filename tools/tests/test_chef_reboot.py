@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Host tests for rootfs-overlay/usr/bin/chef-reboot (bash and busybox ash).
 
-chef-state, chef-storage and btprobe are stubs on PATH; a successful btprobe
+chef-state, chef-storage, openrc, chef-stop-supervisors and btprobe are
+stubs on PATH; a successful btprobe
 SIGKILLs the helper, as reboot(2) would (no exit trap runs). Signals to PID 1
 never leave the fixture: `kill SIG 1` is a shell function that only records
 it. setsid (the CONT watchdog) only records, sleep 0.1 is shortened and
@@ -9,10 +10,13 @@ other sleeps only record, timeout behaves like BusyBox's (it execs the
 command), and flock is the host's with BusyBox's options. Host BusyBox ash
 may prefer its own applets over PATH, so those stubs are also bound as shell
 functions, as in test_storage.py. Covered: the order (pause, chef-state
-under timeout -k 1 5, plain chef-storage shutdown, sync, btprobe), one pause,
-the bootloader reached when chef-state, chef-storage or sync fail or hang,
+under timeout -k 1 5, log-save, openrc shutdown under timeout -k 1 25,
+chef-stop-supervisors under timeout -k 1 10, plain chef-storage shutdown,
+sync, btprobe), one pause, the bootloader reached when chef-state, openrc,
+chef-stop-supervisors, chef-storage or sync fail or hang,
 init resumed when btprobe returns, on TERM/INT and on a refused pause,
-SIGHUP ignored, the lock, stage 1 (no chef-state or chef-storage), usage,
+SIGHUP ignored, the lock, stage 1 (no chef-state, chef-storage or openrc),
+no openrc (an image before it), usage,
 a missing kmsg, the watchdog budget, and the callers (phone-boot.sh,
 mkinitramfs.sh).
 """
@@ -40,6 +44,9 @@ chef-state) echo "chef-state env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> 
 	[ "${STATE:-ok}" != hang ] || hang; [ "${STATE:-ok}" = ok ] || exit 1;;
 chef-storage) echo "chef-storage env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> "$TRACE"
 	[ "${STORAGE:-ok}" != hang ] || hang; [ "${STORAGE:-ok}" = ok ] || exit 1;;
+openrc) echo "openrc env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> "$TRACE"
+	[ "${OPENRC:-ok}" != hang ] || hang; [ "${OPENRC:-ok}" = ok ] || exit 1;;
+chef-stop-supervisors) [ "${SUPERVISORS:-ok}" != hang ] || hang; [ "${SUPERVISORS:-ok}" = ok ] || exit 1;;
 sync) [ "${SYNC:-ok}" != hang ] || hang;;
 btprobe) [ "${BTPROBE:-ok}" = ok ] || exit 1; kill -KILL "$PPID";;
 flock)
@@ -56,7 +63,7 @@ exit 0
 # Busybox applets the helper uses, bound as functions; the chef tools and
 # btprobe stay PATH lookups so `command -v` sees whether they exist.
 APPLETS = ["sleep", "sync", "setsid", "timeout", "flock"]
-CHEF = ["chef-state", "chef-storage"]
+CHEF = ["chef-state", "chef-storage", "openrc", "chef-stop-supervisors"]
 
 
 def default_int_quit():
@@ -100,6 +107,8 @@ class ChefReboot(unittest.TestCase):
         # Short step bounds; the production values are checked separately.
         text = text.replace("\nSTATE_SECS=8\t", "\nSTATE_SECS=1\t", 1)
         text = text.replace("\nLOGSAVE_SECS=5\t", "\nLOGSAVE_SECS=1\t", 1)
+        text = text.replace("\nOPENRC_SECS=30\t", "\nOPENRC_SECS=1\t", 1)
+        text = text.replace("\nSUPERVISORS_SECS=12\t", "\nSUPERVISORS_SECS=1\t", 1)
         text = text.replace("\nSTORAGE_SECS=100\t", "\nSTORAGE_SECS=1\t", 1)
         text = text.replace("\nSYNC_SECS=20\n", "\nSYNC_SECS=1\n", 1)
         self.script = p / "chef-reboot"
@@ -120,19 +129,22 @@ class ChefReboot(unittest.TestCase):
                     pass
             pids.unlink()
 
-    def path(self, chef=True, probe=True):
+    def path(self, chef=True, probe=True, openrc=True):
+        if not openrc:
+            (self.p / "chef/openrc").unlink()
+            (self.p / "chef/chef-stop-supervisors").unlink()
         dirs = [str(self.p / "chef")] if chef else []
         dirs += [str(self.p / "probe")] if probe else []
         return ":".join(dirs + [os.environ["PATH"]])
 
-    def popen(self, *args, chef=True, probe=True, **env):
+    def popen(self, *args, chef=True, probe=True, openrc=True, **env):
         # Files, not pipes: a step abandoned after its bound or an abort may
         # keep the helper's stdio open after it exited.
         self.trace.write_text("")
         with open(self.p / "err", "w") as err:
             return subprocess.Popen([*self.shell, str(self.script), *args], text=True,
                                     stdout=subprocess.DEVNULL, stderr=err,
-                                    env={**self.env, "PATH": self.path(chef, probe), **env},
+                                    env={**self.env, "PATH": self.path(chef, probe, openrc), **env},
                                     preexec_fn=default_int_quit)
 
     def finish(self, proc):
@@ -164,10 +176,12 @@ class ChefReboot(unittest.TestCase):
         rc, err, t = self.call("bootloader")
         self.assert_rebooted(rc, t)
         # the watchdog is forked before the pause (its exec may land after it)
-        self.index(t, "setsid sh -c sleep 150; kill -CONT 1")
+        self.index(t, "setsid sh -c sleep 190; kill -CONT 1")
         order = [self.index(t, s) for s in ["kill -TSTP 1",
                                             "timeout -k 1 5 chef-state shutdown", "chef-state shutdown",
                                             "timeout -k 1 3 chef-state log-save", "chef-state log-save",
+                                            "timeout -k 1 25 openrc shutdown", "openrc shutdown",
+                                            "timeout -k 1 10 chef-stop-supervisors", "chef-stop-supervisors",
                                             "chef-storage shutdown", "sync", "sleep 2", "btprobe restart bootloader"]]
         self.assertEqual(order, sorted(order), t)
         self.assertIn("chef-storage shutdown", t)
@@ -176,7 +190,9 @@ class ChefReboot(unittest.TestCase):
         # every step's own lines stay on kmsg too
         self.assertIn("chef-state env CHEF_LOG_KMSG_ONLY=1", t)
         self.assertIn("chef-storage env CHEF_LOG_KMSG_ONLY=1", t)
-        for line in ["init paused", "chef-state shutdown done", "chef-state log-save done", "chef-storage shutdown done",
+        self.assertIn("openrc env CHEF_LOG_KMSG_ONLY=1", t)
+        for line in ["init paused", "chef-state shutdown done", "chef-state log-save done", "openrc shutdown done",
+                     "chef-stop-supervisors done", "chef-storage shutdown done",
                      "btprobe restart bootloader"]:
             self.assertIn(line, self.log())
             self.assertIn(line, (self.p / "kmsg").read_text())
@@ -186,10 +202,16 @@ class ChefReboot(unittest.TestCase):
                  ({"STATE": "hang"}, "chef-state shutdown still running after 1 s"),
                  ({"LOGSAVE": "fail"}, "chef-state log-save failed (exit 1); this boot's syslog lines are not on /data"),
                  ({"LOGSAVE": "hang"}, "chef-state log-save still running after 1 s"),
+                 ({"OPENRC": "fail"}, "openrc shutdown failed (exit 1); some services may still run"),
+                 ({"OPENRC": "hang"}, "openrc shutdown still running after 1 s"),
+                 ({"SUPERVISORS": "fail"}, "chef-stop-supervisors failed (exit 1); a supervisor may still respawn its daemon"),
+                 ({"SUPERVISORS": "hang"}, "chef-stop-supervisors still running after 1 s"),
                  ({"STORAGE": "fail"}, "chef-storage shutdown failed (exit 1); /data may still be writable"),
                  ({"STORAGE": "hang"}, "chef-storage shutdown still running after 1 s"),
                  ({"SYNC": "hang"}, "sync still running after 1 s"),
-                 ({"STATE": "hang", "LOGSAVE": "hang", "STORAGE": "hang", "SYNC": "hang"}, "sync did not finish")]
+                 ({"STATE": "hang", "LOGSAVE": "hang", "OPENRC": "hang", "SUPERVISORS": "hang", "STORAGE": "hang",
+                   "SYNC": "hang"},
+                  "sync did not finish")]
         for env, message in cases:
             with self.subTest(env=env):
                 start = time.monotonic()
@@ -200,6 +222,8 @@ class ChefReboot(unittest.TestCase):
                 self.assertIn(message, (self.p / "kmsg").read_text())
                 self.assertIn(message, err)
                 self.assertLess(self.index(t, "chef-state shutdown"), self.index(t, "chef-storage shutdown"))
+                self.assertLess(self.index(t, "openrc shutdown"), self.index(t, "chef-stop-supervisors"))
+                self.assertLess(self.index(t, "chef-stop-supervisors"), self.index(t, "chef-storage shutdown"))
                 self.assertEqual(t.count("kill -TSTP 1"), 1)
 
     def test_btprobe_returning_resumes_init(self):
@@ -274,8 +298,15 @@ class ChefReboot(unittest.TestCase):
     def test_stage1_without_chef_tools(self):
         rc, err, t = self.call("bootloader", chef=False)
         self.assert_rebooted(rc, t)
-        self.assertFalse(any(l.startswith(("kill", "setsid", "chef-", "timeout")) for l in t), t)
+        self.assertFalse(any(l.startswith(("kill", "setsid", "chef-", "timeout", "openrc")) for l in t), t)
         self.assertIn("sync ", t)
+
+    def test_without_openrc(self):
+        # an image built before OpenRC: the rest as before
+        rc, err, t = self.call("bootloader", openrc=False)
+        self.assert_rebooted(rc, t)
+        self.assertFalse(any("openrc" in l or "supervisors" in l for l in t), t)
+        self.assertLess(self.index(t, "chef-state log-save"), self.index(t, "chef-storage shutdown"))
 
     def test_no_btprobe_does_nothing(self):
         rc, err, t = self.call("bootloader", probe=False)
@@ -305,14 +336,20 @@ class ChefReboot(unittest.TestCase):
     def test_watchdog_budget(self):
         text = SCRIPT.read_text()
         v = {k: int(re.search(rf"\n{k}=(\d+)\b", text).group(1))
-             for k in ["STATE_SECS", "LOGSAVE_SECS", "STORAGE_SECS", "SYNC_SECS", "WATCHDOG_SECS"]}
+             for k in ["STATE_SECS", "LOGSAVE_SECS", "OPENRC_SECS", "SUPERVISORS_SECS", "STORAGE_SECS", "SYNC_SECS",
+                       "WATCHDOG_SECS"]}
         # sleep 1 after the pause, the step bounds, sleep 2 before btprobe
         self.assertGreater(v["WATCHDOG_SECS"],
-                           1 + v["STATE_SECS"] + v["LOGSAVE_SECS"] + v["STORAGE_SECS"] + v["SYNC_SECS"] + 2 + 10)
+                           1 + v["STATE_SECS"] + v["LOGSAVE_SECS"] + v["OPENRC_SECS"] + v["SUPERVISORS_SECS"]
+                           + v["STORAGE_SECS"] + v["SYNC_SECS"] + 2 + 10)
         self.assertGreaterEqual(v["STATE_SECS"], 5 + 1 + 1)  # timeout -k 1 5
         self.assertGreaterEqual(v["LOGSAVE_SECS"], 3 + 1 + 1)  # timeout -k 1 3
+        self.assertGreaterEqual(v["OPENRC_SECS"], 25 + 1 + 1)  # timeout -k 1 25
+        self.assertGreaterEqual(v["SUPERVISORS_SECS"], 10 + 1 + 1)  # timeout -k 1 10
         self.assertIn("timeout -k 1 5 chef-state shutdown", text)
         self.assertIn("timeout -k 1 3 chef-state log-save", text)
+        self.assertIn("timeout -k 1 25 openrc shutdown", text)
+        self.assertIn("timeout -k 1 10 chef-stop-supervisors", text)
         inittab = (ROOT / "rootfs-overlay/etc/inittab").read_text()
         self.assertIn("::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown", inittab)
         self.assertIn("::shutdown:/usr/bin/timeout -k 1 3 /usr/bin/chef-state log-save", inittab)
@@ -326,7 +363,8 @@ class ChefReboot(unittest.TestCase):
         wait = int(re.search(r"\[ \$i -le (\d+) \] \|\| \{ echo \"no fastboot device", boot).group(1))
         text = SCRIPT.read_text()
         chain = 1 + sum(int(re.search(rf"\n{k}=(\d+)\b", text).group(1))
-                        for k in ["STATE_SECS", "LOGSAVE_SECS", "STORAGE_SECS", "SYNC_SECS"]) + 2
+                        for k in ["STATE_SECS", "LOGSAVE_SECS", "OPENRC_SECS", "SUPERVISORS_SECS", "STORAGE_SECS",
+                                  "SYNC_SECS"]) + 2
         self.assertGreater(wait, chain + 30)
         self.assertIn('"$ROOT"/usr/bin/chef-reboot', (ROOT / "scripts/mkinitramfs.sh").read_text())
         self.assertTrue(os.access(SCRIPT, os.X_OK))

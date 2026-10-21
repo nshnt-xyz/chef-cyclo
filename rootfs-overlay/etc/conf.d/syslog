@@ -1,0 +1,24 @@
+# busybox syslogd (the package's init.d/syslog, see docs/features/logging.md):
+# a 1 MiB shared-memory ring (-C1024, logread), nothing on disk, no klogd.
+# -t drops the senders' own timestamps: musl's syslog(3) stamps UTC, so
+# without it the ring would mix UTC and syslogd's local time (IST).
+SYSLOGD_OPTS="-t -C1024"
+supervisor=supervise-daemon
+# The package's start_stop_daemon_args (-g wheel -k 027) would reach
+# supervise-daemon too; syslogd runs as root:root with the default umask,
+# as before.
+supervise_daemon_args=""
+# /init sets the clock and the host name and mounts everything first.
+rc_need="!clock !hostname !localmount"
+
+# The package's pidfile, /run/syslogd.pid, is syslogd's own (written with
+# -n too), which the log helper (usr/lib/chef/log.sh) reads to know syslogd
+# is up. supervise-daemon writes its own pid to $pidfile and stops through
+# it, so it gets the name it uses for every other service
+# (supervise-<service>.pid in /run).
+start_pre() {
+	pidfile=/run/supervise-syslog.pid
+}
+stop_pre() {
+	pidfile=/run/supervise-syslog.pid
+}

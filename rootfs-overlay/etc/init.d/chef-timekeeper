@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+# Wall clock against the RTC on /data (chef-state timekeeper): saved while
+# chrony is synchronised, restored by /init on the next boot
+# (docs/features/storage.md).
+
+description="RTC offset saves while chrony is synchronised"
+supervisor=supervise-daemon
+command=/usr/bin/chef-state
+command_args=timekeeper
+
+depend() {
+	use logger
+	after chronyd
+}
+
+# The supervisor TERMs the shell only; a save in flight runs in a subshell
+# with chronyc and rtc-edge children, and they would keep its lock. The
+# shell leads its own process group (supervise-daemon setsid()s it): TERM
+# what is left of the group once the shell is gone.
+stop_pre() {
+	pgroup=$(service_get_value child_pid)
+}
+stop_post() {
+	case "$pgroup" in ''|*[!0-9]*) return 0;; esac
+	kill -TERM "-$pgroup" 2>/dev/null
+	return 0
+}

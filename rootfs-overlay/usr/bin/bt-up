@@ -5,8 +5,8 @@
 # to 3.2 Mbaud, crbtfw/crnv download from /lib/firmware/qca, HCI reset, IBS
 # sleep) happens in the kernel when BlueZ powers the adapter on.
 #
-# Run from inittab as a respawn entry: if btattach exits the controller is
-# power-cycled and re-attached.
+# Run as the supervised OpenRC service bt-up: if btattach exits, this exits,
+# and the next start power-cycles and re-attaches the controller.
 set -u
 
 UART=/dev/ttyHS0

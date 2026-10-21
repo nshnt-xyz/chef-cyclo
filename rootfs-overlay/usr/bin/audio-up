@@ -176,7 +176,7 @@ child_running() {
 }
 
 # syslog through the shared helper (kmsg while syslogd is not up), and
-# stdout for the log file inittab or the caller keeps
+# stdout for the log file the caller keeps
 . "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
 log() {
 	chef_log audio-up "$*"

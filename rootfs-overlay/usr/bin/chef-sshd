@@ -1,6 +1,6 @@
 #!/bin/sh
-# chef-sshd: dropbear SSH server, key login only, started from inittab
-# (respawn). See docs/features/ssh.md.
+# chef-sshd: dropbear SSH server, key login only, the supervised OpenRC
+# service chef-sshd. See docs/features/ssh.md.
 #
 #   1. The authorized keys come from the image (/etc/chef/ssh/authorized_keys,
 #      baked in by scripts/mkinitramfs.sh from the gitignored
@@ -32,7 +32,7 @@
 #      shows a leaked key in use.
 #      Idle, dropbear blocks in select() with no timeout.
 #
-# A failure sleeps before exiting, so init's respawn cannot spin.
+# A failure sleeps before exiting, so the supervisor's respawn cannot spin.
 KEYS=${CHEF_SSHD_KEYS:-/etc/chef/ssh}
 DATA=${CHEF_SSHD_DATA:-/data}
 RUN=${CHEF_SSHD_RUN:-/run/chef/ssh}

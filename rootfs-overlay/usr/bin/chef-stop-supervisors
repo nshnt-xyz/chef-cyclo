@@ -1,0 +1,52 @@
+#!/bin/sh
+# chef-stop-supervisors: the last step of OpenRC's stop on the way down, run
+# right after `openrc shutdown` by inittab's ::shutdown lines and by
+# chef-reboot (docs/features/services.md). Normally it finds nothing. When
+# openrc shutdown did not finish (its bound expired, or a stop failed), the
+# supervise-daemon processes it left would respawn whatever chef-storage
+# shutdown's fuser sweep TERMs next; so each one still alive gets a TERM (a
+# supervisor stops its daemon then, TERM 5 s and KILL 2 s, and never
+# respawns), the step waits up to 8 s for them to go, and KILLs any that
+# is left. Logs what it had to stop. kmsg only, like the rest of the way
+# down (pstore keeps kmsg). Busybox applets only; exit 1 when it had to
+# KILL.
+PROC=${CHEF_STOP_PROC:-/proc}
+KMSG=${CHEF_STOP_KMSG:-/dev/kmsg}
+WAIT=${CHEF_STOP_WAIT:-80}	# tenths of a second: above a stop's 5 + 2 s
+
+export CHEF_LOG_KMSG_ONLY=1
+CHEF_LOG_KMSG=$KMSG
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
+log() { chef_log chef-stop-supervisors "$*"; }
+
+# "PID SERVICE" for every live supervise-daemon (zombies have stopped). Its
+# comm is cut to 15 characters, supervise-daemo; the service is the
+# argument after supervise-daemon itself in its command line.
+supervisors() {
+	for d in "$PROC"/[0-9]*; do
+		read -r comm 2>/dev/null < "$d/comm" || continue
+		[ "$comm" = supervise-daemo ] || continue
+		state=$(awk '{ sub(/^.*\) /, ""); print $1 }' "$d/stat" 2>/dev/null)
+		case "$state" in ''|Z|X|x) continue ;; esac
+		svc=$(tr '\000' '\n' 2>/dev/null < "$d/cmdline" | awk 'found { print; exit } { sub(/.*\//, "") } $0 == "supervise-daemon" { found = 1 }')
+		echo "${d##*/} ${svc:-?}"
+	done
+}
+
+cd / || exit 1
+left=$(supervisors)
+[ -n "$left" ] || exit 0
+log "openrc shutdown left $(echo "$left" | awk '{ printf "%s%s", s, $2; s = " " }') running; stopping their supervisors"
+# shellcheck disable=SC2046
+kill -TERM $(echo "$left" | awk '{ print $1 }') 2>/dev/null
+n=$WAIT
+while [ "$n" -gt 0 ]; do
+	left=$(supervisors)
+	[ -n "$left" ] || { log "every supervisor stopped"; exit 0; }
+	sleep 0.1
+	n=$((n - 1))
+done
+log "supervisors of $(echo "$left" | awk '{ printf "%s%s", s, $2; s = " " }') still running after $((WAIT / 10)) s; KILL"
+# shellcheck disable=SC2046
+kill -KILL $(echo "$left" | awk '{ print $1 }') 2>/dev/null
+exit 1

@@ -1,0 +1,18 @@
+#!/sbin/openrc-run
+# Root's session bus at the standard XDG path, for session services such as
+# obexd (bluez-obexd, D-Bus activated) and PipeWire run by hand, without
+# dbus-run-session. Volatile.
+
+description="Root's D-Bus session bus"
+supervisor=supervise-daemon
+command=/usr/bin/dbus-daemon
+command_args="--session --nofork --nopidfile --address=unix:path=/run/user/0/bus"
+
+depend() {
+	use logger
+}
+
+start_pre() {
+	mkdir -p /run/user/0 && chmod 700 /run/user/0 || return 1
+	export HOME=/root XDG_RUNTIME_DIR=/run/user/0
+}

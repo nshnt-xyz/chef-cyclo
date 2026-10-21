@@ -39,13 +39,28 @@ CACHE=$PWD/toolchain/apk/cache
 # The prebuilt CA bundle works with --no-scripts; no trust-store regeneration
 # is required. jq supports native ip/rfkill JSON workflows. tcpdump/iperf3
 # are manual diagnostics only; no capture, server or extra manager is started.
+# OpenRC (docs/features/services.md): openrc 0.63.2 (4.4 MB installed; it
+# pulls ifupdown-ng, bridge, openrc-user and libcap2, none of them run)
+# starts and supervises the services from inittab, as on Alpine. Of the
+# -openrc subpackages only those whose scripts we run: busybox-openrc
+# (syslog), busybox-extras-openrc (udhcpd), dbus-openrc, bluez-openrc
+# (bluetooth), chrony-openrc (chronyd), networkmanager-openrc; each is a few
+# KB of scripts and conf.d defaults. The `!` entries keep out the
+# subpackages apk would add on its own (install_if: a package's -openrc
+# once openrc is in, ifupdown-ng's executors): scripts we never run, and
+# each init.d script costs time in OpenRC's dependency scan.
 PKGS="alpine-baselayout musl busybox busybox-extras
       dbus bluez bluez-btmgmt bluez-btmon bluez-deprecated
       qmi-utils gpsd tinyalsa wpa_supplicant iw
       iproute2 util-linux-misc curl ca-certificates-bundle jq tcpdump iperf3
       networkmanager networkmanager-wifi networkmanager-cli networkmanager-tui
       eudev glib apk-tools iptables iptables-legacy chrony e2fsprogs e2fsprogs-extra
-      dropbear openssh-sftp-server tzdata"
+      dropbear openssh-sftp-server tzdata
+      openrc busybox-openrc busybox-extras-openrc dbus-openrc bluez-openrc
+      chrony-openrc networkmanager-openrc
+      !bluez-deprecated-openrc !dropbear-openrc !eudev-openrc !gpsd-openrc
+      !iperf3-openrc !iptables-openrc !udev-init-scripts-openrc
+      !wpa_supplicant-openrc !ifupdown-ng-iproute2 !ifupdown-ng-wifi"
 
 rm -rf "$ROOT"
 mkdir -p "$ROOT" "$CACHE"
@@ -67,4 +82,7 @@ ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/
    "$ROOT/bin/busybox" "$ROOT/bin/busybox-extras" \
    "$ROOT/usr/bin/tinymix" "$ROOT/usr/bin/tinyplay" \
    "$ROOT/usr/sbin/dropbear" "$ROOT/usr/bin/dropbearkey" "$ROOT/usr/lib/ssh/sftp-server" \
-   "$ROOT/usr/share/zoneinfo/Asia/Kolkata"
+   "$ROOT/usr/share/zoneinfo/Asia/Kolkata" \
+   "$ROOT/sbin/openrc" "$ROOT/sbin/supervise-daemon" "$ROOT/etc/init.d/syslog" \
+   "$ROOT/etc/init.d/udhcpd" "$ROOT/etc/init.d/dbus" "$ROOT/etc/init.d/bluetooth" \
+   "$ROOT/etc/init.d/chronyd" "$ROOT/etc/init.d/networkmanager"

@@ -2,7 +2,9 @@
 """Host tests for rootfs-overlay/usr/bin/chef-state (bash and busybox ash).
 
 Everything device-facing is a stub: mountpoint, mount, umount, chronyc,
-rtc-edge, pidof and a busybox-like timeout (its watchdog daemonizes with
+rtc-edge, pidof, rc-service (it TERMs the daemon a test names, as its
+supervisor would, and the timekeeper's whole process group, as its
+service's stop does) and a busybox-like timeout (its watchdog daemonizes with
 stdio on /dev/null and lingers about a second, recording its cwd so the
 tests can prove nothing runs under timeout from inside /data). /data, /run,
 the RTC's since_epoch, pstore, the sensors run directory and the registry
@@ -12,15 +14,16 @@ test_storage.py. Covered: the `ours` gate for every subcommand, every
 restore refusal of the RTC offset and the group 2980 file, the chronyc
 source rules, the save skip rule and lock, pstore collection with
 de-duplication and retention, boots.log rotation and torn lines, and the
-shutdown order, including a timekeeper blocked inside its locked save
-(stopped as a whole process group, or by parent PID when it does not lead
-one) and a bounded wait for the save lock under BusyBox flock semantics;
+shutdown order (every daemon stopped through OpenRC, never signalled by
+chef-state itself), including a timekeeper blocked inside its locked save
+and a bounded wait for the save lock under BusyBox flock semantics;
 the power log on shutdown: the real host powerd's fsynced exit flush on
 TERM, and the fallback that flushes rows a stopped powerd left (never while
 one may be alive), plus a static check that every orderly shutdown path
-runs chef-state shutdown and that it and inittab agree on powerd's -L.
+runs chef-state shutdown and that it and init.d/powerd agree on powerd's -L.
 """
 import hashlib
+import re
 import fcntl
 import signal
 import os
@@ -67,6 +70,15 @@ rtc-edge)
     floor) exit "${EDGE_FLOOR_RC:-0}";;
     esac;;
 logread) [ -z "${LOGREAD_FAIL:-}" ] || exit 1; cat "$LOGREAD_OUT";;
+rc-service)
+    # rc-service -q SERVICE stop: what its supervisor (and, for the
+    # timekeeper, its service's stop_post) would do
+    case "$2" in
+    chronyd) pid=${CHRONYD_PID:-};; powerd) pid=${POWERD_PID:-};; sensors-up) pid=${SENSORS_PID:-};;
+    chef-timekeeper) pid=${KEEPER_PID:+-$KEEPER_PID};; *) pid=;;
+    esac
+    [ -z "$pid" ] || [ -n "${RC_SERVICE_DOWN:-}" ] || kill -TERM "$pid" 2>/dev/null
+    exit 0;;
 pidof) case "$1" in
     chronyd) echo "${CHRONYD_PID:-}";;
     powerd) echo "${POWERD_PID:-}";;
@@ -129,7 +141,7 @@ class ChefState(unittest.TestCase):
         stub.write_text(STUB)
         stub.chmod(0o755)
         names = ["mountpoint", "mount", "umount", "chronyc", "rtc-edge", "pidof", "timeout", "dd", "flock",
-                 "sync", "logread"]
+                 "sync", "logread", "rc-service"]
         for n in names:
             (p / "bin" / n).symlink_to(stub)
         (p / "bin/powerd").write_text(f'#!/bin/sh\necho "powerd $*" >> "$TRACE"\n'
@@ -863,23 +875,31 @@ class ChefState(unittest.TestCase):
         self.addCleanup(lambda: (p.kill(), p.wait()))
         return p
 
+    def spawn_group(self):
+        p = subprocess.Popen(["sleep", "30"], start_new_session=True)
+        self.addCleanup(lambda: (p.kill(), p.wait()))
+        return p
+
     def test_shutdown_order(self):
-        keeper, chronyd, sensors = self.spawn(), self.spawn(), self.spawn()
-        self.state("timekeeper.pid").write_text(f"{keeper.pid}\n")
-        (self.p / f"proc/{keeper.pid}").mkdir()
-        (self.p / f"proc/{keeper.pid}/cmdline").write_bytes(b"/bin/sh\0/usr/bin/chef-state\0timekeeper\0")
+        keeper, chronyd, sensors, power = self.spawn_group(), self.spawn(), self.spawn(), self.spawn()
         (self.p / "sensors/sns.reg").write_bytes(self.reg_with_bias(100, 0, 0))
         self.edge(1_700_000, 1_791_000_000 * NS)
         start = time.monotonic()
-        r = self.call("shutdown", CHRONYD_PID=str(chronyd.pid), SENSORS_PID=str(sensors.pid))
+        r = self.call("shutdown", CHRONYD_PID=str(chronyd.pid), SENSORS_PID=str(sensors.pid),
+                      POWERD_PID=str(power.pid), KEEPER_PID=str(keeper.pid))
         took = time.monotonic() - start
         self.assertEqual(r.returncode, 0, r.stderr)
-        for pr in (keeper, chronyd, sensors):
+        for pr in (keeper, chronyd, sensors, power):
             self.assertEqual(pr.wait(timeout=5), -15)
         t = self.trace
         self.assertIn("timeout -k 1 1 chronyc", t)
         self.assertIn("chronyd alive at chronyc", t)
         self.assertLess(t.index("chronyc"), t.index("pidof chronyd"))
+        # through OpenRC, all at once: the three at entry, chronyd after its query
+        for svc in ("sensors-up", "powerd", "chef-timekeeper"):
+            self.assertLess(t.index(f"rc-service -q {svc} stop"), t.index("chronyc"))
+        self.assertLess(t.index("chronyc"), t.index("rc-service -q chronyd stop"))
+        self.assertEqual(t.count("rc-service "), 4)
         self.assertTrue((self.data / "v1/time/rtc-offset").exists())
         self.assertTrue(self.mag_file().exists())
         self.assertLess(took, 3.5)
@@ -1009,15 +1029,17 @@ class ChefState(unittest.TestCase):
                 found.append(int(d.name))
         return found
 
-    def check_blocked_keeper_shutdown(self, own_group, **keeper_env):
-        keeper = self.blocked_keeper(own_group, **keeper_env)
+    def check_blocked_keeper_shutdown(self, **keeper_env):
+        # supervise-daemon setsid()s the timekeeper; its service's stop
+        # TERMs the whole group (init.d/chef-timekeeper, test_services.py)
+        keeper = self.blocked_keeper(True, **keeper_env)
         kids = self.descendants(keeper.pid)
         self.assertTrue(kids)  # the locked subshell and its chronyc/rtc-edge
         chronyd = self.spawn()
         (self.p / "sensors/sns.reg").write_bytes(self.reg_with_bias(100, 0, 0))
         self.edge(1_700_000, 1_791_000_000 * NS)
         start = time.monotonic()
-        r = self.call("shutdown", CHRONYD_PID=str(chronyd.pid), CHEF_STATE_PROC="/proc")
+        r = self.call("shutdown", CHRONYD_PID=str(chronyd.pid), KEEPER_PID=str(keeper.pid), CHEF_STATE_PROC="/proc")
         took = time.monotonic() - start
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertLess(took, 2.5)
@@ -1034,20 +1056,14 @@ class ChefState(unittest.TestCase):
         left = [k for k in kids if Path(f"/proc/{k}").exists() and
                 Path(f"/proc/{k}/stat").read_text().rsplit(")", 1)[1].split()[0] not in "ZX"]
         self.assertEqual(left, [])
-        if own_group:
-            self.assertEqual(self.group_members(keeper.pid), [])
+        self.assertEqual(self.group_members(keeper.pid), [])
         return took
 
     def test_shutdown_stops_keeper_group_blocked_in_chronyc(self):
-        self.check_blocked_keeper_shutdown(True, CHRONYC_SLEEP="3")
+        self.check_blocked_keeper_shutdown(CHRONYC_SLEEP="3")
 
     def test_shutdown_stops_keeper_group_blocked_in_rtc_edge(self):
-        self.check_blocked_keeper_shutdown(True, EDGE_SLEEP="3")
-
-    def test_shutdown_stops_keeper_children_without_own_group(self):
-        # Not a group leader (pgrp != PID): never signal the group, which
-        # here is the test runner's; find the children by parent PID.
-        self.check_blocked_keeper_shutdown(False, CHRONYC_SLEEP="3")
+        self.check_blocked_keeper_shutdown(EDGE_SLEEP="3")
 
     # ------------------------------------------------------------ power log
 
@@ -1174,7 +1190,11 @@ class ChefState(unittest.TestCase):
         self.assertEqual(shutdown[0], "::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown")
         # the ring's save between them, while syslogd and /data are both up
         self.assertEqual(shutdown[1], "::shutdown:/usr/bin/timeout -k 1 3 /usr/bin/chef-state log-save")
-        self.assertEqual(shutdown[2], "::shutdown:/usr/bin/chef-storage shutdown")
+        # then every other service, while /data is still there
+        self.assertEqual(shutdown[2], "::shutdown:/usr/bin/timeout -k 1 20 /sbin/openrc shutdown")
+        # any supervisor it left, so nothing respawns what chef-storage's sweep stops
+        self.assertEqual(shutdown[3], "::shutdown:/usr/bin/timeout -k 1 10 /usr/bin/chef-stop-supervisors")
+        self.assertEqual(shutdown[4], "::shutdown:/usr/bin/chef-storage shutdown")
         restart = [l for l in inittab if l.startswith("::restart:")]
         self.assertEqual(len(restart), 1)
         r = restart[0]
@@ -1185,11 +1205,10 @@ class ChefState(unittest.TestCase):
         # and `poweroff` from a shell do
         for src in ("tools/buttond/buttond.c", "tools/powerd.c"):
             self.assertIn('execlp("poweroff", "poweroff"', (ROOT / src).read_text(), src)
-        # chef-state's fallback flush uses inittab's powerd log dir and -L
-        powerd = [l for l in inittab if "/usr/bin/powerd -l" in l]
-        self.assertEqual(len(powerd), 1)
+        # chef-state's fallback flush uses init.d/powerd's log dir and -L
+        powerd = (ROOT / "rootfs-overlay/etc/init.d/powerd").read_text()
         script = SCRIPT.read_text()
-        self.assertIn("exec /usr/bin/powerd -l /data/v1/power -L 4194304;", powerd[0])
+        self.assertEqual(powerd.count('command_args="-l /data/v1/power -L 4194304"'), 1)
         self.assertIn("\nPOWER_LOG_MAX=4194304\t", script)
         self.assertIn('-l "$DATA/v1/power" -L "$POWER_LOG_MAX" flush', script)
 
@@ -1258,15 +1277,20 @@ class ChefState(unittest.TestCase):
         self.assertIn("final flush not confirmed", self.kmsg)
         self.assertIn("stop_rc=1", self.kmsg)
 
-    def test_shutdown_foreign_pidfile_not_killed(self):
-        other = self.spawn()
-        self.state("timekeeper.pid").write_text(f"{other.pid}\n")
-        (self.p / f"proc/{other.pid}").mkdir()
-        (self.p / f"proc/{other.pid}/cmdline").write_bytes(b"sleep\0" + b"30\0")
-        self.call("shutdown")
-        self.assertIsNone(other.poll())
-        self.state("timekeeper.pid").write_text("12x\n")
-        self.assertEqual(self.call("shutdown").returncode, 0)
+    def test_shutdown_never_signals_a_daemon_itself(self):
+        # A supervised daemon signalled by anyone but its supervisor is
+        # respawned: with OpenRC not stopping them, they stay up and the
+        # stop is reported unconfirmed.
+        chronyd, power, sensors, keeper = self.spawn(), self.spawn(), self.spawn(), self.spawn_group()
+        r = self.call("shutdown", CHRONYD_PID=str(chronyd.pid), POWERD_PID=str(power.pid),
+                      SENSORS_PID=str(sensors.pid), KEEPER_PID=str(keeper.pid), RC_SERVICE_DOWN="1")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for pr in (chronyd, power, sensors, keeper):
+            self.assertIsNone(pr.poll())
+        self.assertIn("stop_rc=1", self.kmsg)
+        # kill -0 (is it alive?) only
+        code = "\n".join(l for l in SCRIPT.read_text().splitlines() if not l.lstrip().startswith("#"))
+        self.assertEqual(re.findall(r"\bkill (?!-0 )", code), [])
 
     def test_shutdown_after_detach_is_quiet(self):
         # ::restart runs after the ::shutdown lines: /data is gone by then.

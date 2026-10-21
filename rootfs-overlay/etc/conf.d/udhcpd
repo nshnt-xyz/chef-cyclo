@@ -1,0 +1,22 @@
+# busybox udhcpd (the package's init.d/udhcpd): DHCP for the USB host on
+# the link /init set up (usr/lib/chef/usb-gadget.sh writes its config).
+# -S: log to syslog. -f (foreground) first: the package appends its own -f
+# after the config path. The config is written once at boot: without it
+# the start fails instead of retrying.
+UDHCPD_OPTS="-f -S /run/chef/udhcpd.conf"
+supervisor=supervise-daemon
+required_files="/run/chef/udhcpd.conf"
+# It serves the USB link, not a network NetworkManager brings up, and there
+# is no firewall service (the rules are set by our scripts).
+rc_need="!net"
+rc_after="!firewall"
+rc_use="logger"
+
+# The package's pidfile, /run/udhcpd.pid, is udhcpd's own; supervise-daemon
+# gets its usual one (see conf.d/syslog).
+start_pre() {
+	pidfile=/run/supervise-udhcpd.pid
+}
+stop_pre() {
+	pidfile=/run/supervise-udhcpd.pid
+}

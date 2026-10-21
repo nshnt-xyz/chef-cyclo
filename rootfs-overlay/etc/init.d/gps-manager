@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+# GNSS on demand: idle until a client leases it on /run/chef/gps-manager.sock
+# (`gps-manager hold map`), then runs the LOC session, gpsd and the NMEA
+# pipeline on top of modem-up's modem; never starts or stops modem-up
+# (docs/features/gps.md).
+
+description="GNSS leases"
+supervisor=supervise-daemon
+command=/usr/bin/gps-manager
+
+# After modem-up, so `openrc shutdown` stops it (and a lease's LOC session)
+# before the modem goes.
+depend() {
+	use logger
+	after modem-up
+}

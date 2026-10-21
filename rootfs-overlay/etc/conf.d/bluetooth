@@ -1,0 +1,18 @@
+# bluetoothd (the package's init.d/bluetooth), in the foreground.
+supervisor=supervise-daemon
+command_args="-n"
+rc_need="!localmount !hostname"
+rc_after="!coldplug !udev-postmount"
+rc_use="logger"
+
+# A PAN link (bnep*) must not reach the root telnet on the USB subnet (Linux
+# answers for 172.16.42.1 on any interface), the same rule wifi-usb-guard
+# sets for wlan0. Without it bluetoothd does not start (a bnep-guard log
+# line).
+start_pre() {
+	iptables-legacy -w 5 -C INPUT -i bnep+ -d 172.16.42.0/24 -j DROP 2>/dev/null ||
+		iptables-legacy -w 5 -I INPUT 1 -i bnep+ -d 172.16.42.0/24 -j DROP && return 0
+	. /usr/lib/chef/log.sh
+	chef_log bnep-guard "BNEP ingress guard failed, bluetoothd not started"
+	return 1
+}

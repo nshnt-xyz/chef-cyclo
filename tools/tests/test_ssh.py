@@ -480,8 +480,10 @@ class Wiring(unittest.TestCase):
         lines = (ROOT / "rootfs-overlay/etc/inittab").read_text().splitlines()
         self.assertEqual(lines.count("::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 "
                          "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'"), 1)
-        self.assertEqual(lines.count("::respawn:/usr/bin/chef-sshd"), 1)
-        self.assertFalse(any("dropbear" in l for l in lines if not l.startswith("#")))
+        self.assertFalse(any("dropbear" in l or "chef-sshd" in l for l in lines if not l.startswith("#")))
+        # chef-sshd is an OpenRC service (test_services.py)
+        self.assertIn("command=/usr/bin/chef-sshd", (ROOT / "rootfs-overlay/etc/init.d/chef-sshd").read_text())
+        self.assertTrue((ROOT / "rootfs-overlay/etc/runlevels/default/chef-sshd").is_symlink())
 
     def test_only_root_has_a_login_shell(self):
         # -D /etc/chef/ssh applies to every account: the baked keys must only

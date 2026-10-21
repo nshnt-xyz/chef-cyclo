@@ -1,0 +1,23 @@
+#!/sbin/openrc-run
+# Battery: low-battery warn (15 %) / critical (5 %) and a clean poweroff when
+# empty and unpowered or at 68 C, state in /run/chef/power (`powerd
+# status`), the power_supply log in /data/v1/power (4 MiB + one rotation)
+# when /data is ours, else in /run/chef/power (1 MiB), and the 44/42 C
+# charge throttle on system_temp_level (docs/features/battery-and-charging.md).
+
+description="Battery policy and power log"
+supervisor=supervise-daemon
+command=/usr/bin/powerd
+
+depend() {
+	use logger
+}
+
+# The log on /data only when it is ours; chef-state's fallback flush at
+# shutdown uses the same directory and size (a host test checks).
+start_pre() {
+	command_args=
+	if /usr/bin/chef-state ours; then
+		command_args="-l /data/v1/power -L 4194304"
+	fi
+}

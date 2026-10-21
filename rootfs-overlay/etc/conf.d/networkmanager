@@ -1,0 +1,13 @@
+# NetworkManager (the package's init.d/networkmanager, supervised, -n).
+# Wi-Fi rides on the modem modem-up keeps up. Started last (after every
+# other service), so the wait below holds nothing else back.
+rc_need="modem-up"
+rc_after="*"
+
+# wifi-nm does the checks and the waits (USB guard, udev coldplug, no manual
+# Wi-Fi session, the modem owner up to 600 s, the WLAN driver) and prints
+# the --state-file argument: on /data when it is ours. A failure fails the
+# start: none of them changes later in the boot.
+start_pre() {
+	command_args=$(/usr/bin/wifi-nm) || return 1
+}

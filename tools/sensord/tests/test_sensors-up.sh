@@ -348,30 +348,9 @@ runscript; grep -q "dump_servers is unavailable" "$T/rs.out" || bad "stale pid f
 grep -q '9>&- &' "$SCRIPT" || bad "sensord start does not close fd 9"
 [ "$(grep -c '9>&-' "$SCRIPT")" -ge 2 ] || bad "audio-up start does not close fd 9"
 
-# --- the inittab wrapper bounds the log (D10) ------------------------------
-# The real wrapper line from inittab runs with its paths swapped for $T and a fake sensors-up.
-wl=$(grep "^::respawn:/bin/sh -c '.*sensors-up" rootfs-overlay/etc/inittab)
-[ -n "$wl" ] || bad "no sensors-up respawn line in inittab"
-wcmd=${wl#::respawn:/bin/sh -c \'}
-wcmd=${wcmd%\'}
-wcmd=$(printf '%s' "$wcmd" | sed "s|/run/chef/log/sensors-up.log|$T/up.log|; s|/usr/bin/sensors-up|$T/fake-up|; s|sleep 10|sleep 0|")
-printf '#!/bin/sh\necho "start $$"\n' > "$T/fake-up"
-chmod +x "$T/fake-up"
-rm -f "$T/up.log" "$T/up.log.1"
-sh -c "$wcmd"
-eq "wrapper: first start logged" 1 "$(grep -c '^start' "$T/up.log")"
-[ -e "$T/up.log.1" ] && bad "small log rotated"
-sh -c "$wcmd"
-eq "wrapper: second start appended" 2 "$(grep -c '^start' "$T/up.log")"
-head -c 300000 /dev/zero | tr '\0' 'x' >> "$T/up.log"
-sh -c "$wcmd"
-[ -e "$T/up.log.1" ] || bad "log over 256 KiB not rotated"
-eq "wrapper: new log holds the new start only" 1 "$(grep -c . "$T/up.log")"
-[ "$(wc -c < "$T/up.log.1")" -gt 262144 ] || bad "rotated log lost its content"
-head -c 300000 /dev/zero | tr '\0' 'y' >> "$T/up.log"
-sh -c "$wcmd"
-eq "wrapper: still one generation" 1 "$(ls "$T"/up.log* | grep -c .log.1)"
-grep -q y "$T/up.log.1" && ! grep -q x "$T/up.log.1" || bad "the older generation was not replaced"
+# --- the log bound (D10) ------------------------------------------------------
+# The rotation over 256 KiB moved from the inittab wrapper into
+# init.d/sensors-up's start_pre: scripts/tests/test_services.py runs it.
 
 # --- sensord's flags and stderr (L1): the real script against a stub sensord ---
 H=$T/h

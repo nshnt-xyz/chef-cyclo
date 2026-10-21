@@ -29,8 +29,9 @@ C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen f
 | `bt-powered` | `bt-up` | 0644 | the Bluetooth controller was attached this boot |
 | `wlan-prepare/` | `wifi-prepare` | 0755 | one WLAN preparation attempt per boot (`mkdir` as the test) |
 | `usb-interface`, `udhcpd.conf` | `/init` (`usr/lib/chef/usb-gadget.sh`) | 0644 | the USB network interface name, and `/etc/udhcpd.conf` with it filled in for `udhcpd` |
-| `log/modem-up.log` | `inittab` (redirect) | 0644 | `modem-up` |
-| `log/sensors-up.log` (`.1`) | `inittab` (redirect, rotated over 256 KiB) | 0644 | `sensors-up` |
+| `modem-up.pid` | start-stop-daemon (the `modem-up` service) | 0644 | the pid of `modem-up` ([services](services.md)) |
+| `log/modem-up.log` | the `modem-up` service (start-stop-daemon) | 0644 | `modem-up` |
+| `log/sensors-up.log` (`.1`) | the `sensors-up` service (supervise-daemon; rotated over 256 KiB at each start of the service) | 0644 | `sensors-up` |
 | `log/abslot.log` | `abslot` | 0644 | A/B slot marking |
 | `log/audio-up.log` | by hand ([audio](audio.md)) | 0644 | `audio-up` run by hand |
 | `log/chef-reboot.log` | `chef-reboot` | 0644 | the reboot helper's failures |
@@ -50,11 +51,11 @@ C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen f
 | `ssh/` | `chef-sshd` | 0700 | the host key dropbear serves, `host-key-source` |
 | `ui/` | `chef-settings` | 0700 | `settings` while `/data` is not ours ([system UI](system-ui.md#settings)) |
 | `chef-settings/` | `chef-settings` | 0755 | `stop`, the one-shot `args`, `prompt` and `snapshot.ppm` |
-| `state/` | `chef-state` | 0755 | `time` (boot clock provenance, read by the Time and date page), `gps-enabled` and `blesens` (while `/data` is not ours), `mag-last`, `timekeeper.pid`, a `<kind>.lock` per saved kind and its transient `<kind>.err` ([persistent data](storage.md#persistent-state)) |
+| `state/` | `chef-state` | 0755 | `time` (boot clock provenance, read by the Time and date page), `gps-enabled` and `blesens` (while `/data` is not ours), `mag-last`, a `<kind>.lock` per saved kind and its transient `<kind>.err` ([persistent data](storage.md#persistent-state)) |
 
 ## What stays outside
 
-- **Other packages' standard names:** `/run/dbus`, `/run/udev`, `/run/NetworkManager`, `/run/wpa_supplicant`, `/run/chrony`, `/run/user` and `/run/lock`, plus the default files of busybox `udhcpd` (`/run/udhcpd.pid`) and `syslogd` (`/run/syslogd.pid`, [logging](logging.md)) and iptables (`/run/xtables.lock`). `/init`'s `/run/.var` exists only while it moves the volatile `/var` into place.
+- **Other packages' standard names:** `/run/dbus`, `/run/udev`, `/run/NetworkManager`, `/run/wpa_supplicant`, `/run/chrony`, `/run/user` and `/run/lock`, OpenRC's state in `/run/openrc` and its supervisors' pid files `/run/supervise-<service>.pid` ([services](services.md)), plus the default files of busybox `udhcpd` (`/run/udhcpd.pid`) and `syslogd` (`/run/syslogd.pid`, [logging](logging.md)) and iptables (`/run/xtables.lock`). `/init`'s `/run/.var` exists only while it moves the volatile `/var` into place.
 - **Stage 1.** The boot image's rescue world (`stage1/init`) keeps `/run`: `/run/rescue-reason`, `/run/usb-interface` and `/run/udhcpd.conf`. `usr/lib/chef/usb-gadget.sh` is shared with it, so it writes into `$USB_GADGET_RUN`, default `/run` for stage 1; the stage-2 `/init` sets `USB_GADGET_RUN=/run/chef` before sourcing it.
 - **Live-test scratch** that host tooling uses on any image, including the installed fallbacks: `/run/push` (`phone.py push`), `/run/x`, `/run/test`, `/run/evidence`, `/run/CMD.out` and `/run/bootloader-restart.log` (`phone-boot.sh`). Logs started by hand from a guide (`/run/gpsd.log`, `/run/compass.log` and the like) are scratch too.
 

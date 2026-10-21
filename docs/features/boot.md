@@ -2,7 +2,7 @@
 
 [Feature guides](README.md) · [Build and install](../building.md#installed-layout-phase-3) · [Persistent data](storage.md) · [Remaining work](../next-steps/storage-and-boot.md)
 
-The phone boots our read-only root on `system_a` through a stage-1 image in `boot_a`. Android was retired on 2026-10-04; all three install phases were accepted by 2026-10-06. The latest installed pair is recorded in the [build log](../build-log.md#2026-10-10-ssh-with-key-login). Measurements and restore images below retain their original dates; use the build log for current image hashes.
+The phone boots our read-only root on `system_a` through a stage-1 image in `boot_a`. Android was retired on 2026-10-04; all three install phases were accepted by 2026-10-06. The latest installed pair is recorded in the [build log](../build-log.md#2026-10-10-ssh-with-key-login). Measurements and restore images below retain their original dates; use the build log for current image hashes. What runs after the kernel hands over (`/init`, busybox init, OpenRC and the services) is in [services](services.md).
 
 ## Standalone boot
 

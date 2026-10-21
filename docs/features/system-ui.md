@@ -609,13 +609,18 @@ marker and power-cycles the panel once (about 0.5 s of black) so touch
 resumes. A boot, a start with the screen off and a clean restart need no
 cycle (`/run` is fresh at every boot).
 
-To keep the UI off the panel, for example to run another screen client:
+To keep the UI off the panel, for example to run another screen client,
+stop its service ([services](services.md)):
 
 ```sh
-mkdir -p /run/chef/chef-settings; touch /run/chef/chef-settings/stop
-kill $(pidof chef-settings)                                    # the panel goes dark and stays dark
-rm /run/chef/chef-settings/stop                                     # the UI comes back within 1 s
+rc-service chef-settings stop                                  # the panel goes dark and stays dark
+rc-service chef-settings start                                 # the UI comes back
 ```
+
+The older way still works: with `/run/chef/chef-settings/stop` present, a
+started chef-settings waits (polling once a second) without taking the
+panel, and removing the file lets it start. A plain `kill` is a restart:
+its supervisor starts it again after 1 s.
 
 ## State sources
 

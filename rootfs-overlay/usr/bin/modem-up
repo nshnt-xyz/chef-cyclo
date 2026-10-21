@@ -17,8 +17,10 @@
 # which is what makes rmtfs's own unsuffixed-then-suffixed lookup land on
 # fsg_$SLOT. The other slot's fsg is never read, sized, linked or retried.
 #
-# Shared boot-resident modem/support owner, started once by inittab. Never
-# respawn automatically: failure leaves GPS/WLAN unavailable until recovery.
+# Shared boot-resident modem/support owner, started once by OpenRC (the
+# modem-up service, etc/init.d/modem-up; it refuses a stop outside
+# shutdown). Never respawned: failure leaves GPS/WLAN unavailable until
+# recovery.
 # Owner PID/starttime and readiness are published in the private lock directory.
 set -u
 
@@ -145,7 +147,7 @@ active_slot() {
 }
 
 # syslog through the shared helper (kmsg while syslogd is not up), and
-# stdout for the log file inittab or the caller keeps
+# stdout for the log file the service or the caller keeps
 . "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
 log() {
 	chef_log modem-up "$*"

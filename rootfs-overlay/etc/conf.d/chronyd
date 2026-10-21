@@ -1,0 +1,14 @@
+# chronyd (the package's init.d/chronyd): client-only NTP, no network
+# command port or server listener (etc/chrony/chrony.conf), logging to
+# syslog. FAST_STARTUP: in the foreground (-n) under the supervisor; -u:
+# runs as `chrony`. /init makes /run/chrony and /var/lib/chrony
+# chrony:chrony 0700 (chef-storage binds /data/v1/chrony over the latter
+# when /data is ours) before anything starts.
+supervisor=supervise-daemon
+FAST_STARTUP=yes
+command_args="-u chrony"
+# Its GPS refclock needs no network: start early, not after one (and there
+# is no firewall service).
+rc_need="!net"
+rc_after="!firewall"
+rc_use="logger"

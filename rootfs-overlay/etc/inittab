@@ -1,84 +1,18 @@
-# busybox init. /init has already done the mounts and USB gadget setup.
-# System log first: busybox syslogd on /dev/log with a 1 MiB RAM ring
-# (shared memory; `logread`, `logread -f`), nothing on disk, no klogd (the
-# kernel's lines stay in dmesg). -t drops the senders' own timestamps: musl's
-# syslog(3) (logger, NetworkManager, ...) stamps UTC, so without it the ring
-# would mix UTC and syslogd's local time; with it every line has syslogd's
-# local time (IST). Our programs fall back to /dev/kmsg while it is not up.
-# See docs/features/logging.md.
-::respawn:/sbin/syslogd -n -t -C1024
-# The shell gets root's home and session bus (below) the way a desktop login would.
+# busybox init stays PID 1; /init has already done the mounts and USB gadget
+# setup. OpenRC starts and supervises every service (etc/init.d,
+# etc/runlevels/default; docs/features/services.md). This file keeps only
+# what must not depend on OpenRC, and runs it.
+#
+# The shell gets root's home and session bus (root-session-bus) the way a
+# desktop login would. The passwordless USB recovery shell: started by init
+# itself, whatever happens to OpenRC.
 ::respawn:/bin/sh -c 'export HOME=/root XDG_RUNTIME_DIR=/run/user/0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus; exec /usr/sbin/telnetd -F -b 172.16.42.1 -l /bin/sh'
-::respawn:/usr/sbin/udhcpd -f -S /run/chef/udhcpd.conf
-::respawn:/bin/sh -c 'if [ ! -e /run/chef/dbus-helper-ready ]; then sleep 10; exit 1; fi; exec /usr/bin/dbus-daemon --system --nofork --nopidfile'
-# A PAN link (bnep*) must not reach the root telnet on the USB subnet (Linux
-# answers for 172.16.42.1 on any interface), the same rule wifi-usb-guard sets
-# for wlan0. bluetoothd does not start without it (a bnep-guard log line).
-::respawn:/bin/sh -c 'while [ ! -S /run/dbus/system_bus_socket ]; do sleep 1; done; iptables-legacy -w 5 -C INPUT -i bnep+ -d 172.16.42.0/24 -j DROP 2>/dev/null || iptables-legacy -w 5 -I INPUT 1 -i bnep+ -d 172.16.42.0/24 -j DROP || { . /usr/lib/chef/log.sh; chef_log bnep-guard "BNEP ingress guard failed, bluetoothd not started"; sleep 10; exit 1; }; exec /usr/lib/bluetooth/bluetoothd -n'
-# Root's session bus at the standard XDG path, for session services such as
-# obexd (bluez-obexd, D-Bus activated) and PipeWire run by hand, without
-# dbus-run-session. Volatile.
-::respawn:/bin/sh -c 'mkdir -p /run/user/0 && chmod 700 /run/user/0 || exit 1; export HOME=/root XDG_RUNTIME_DIR=/run/user/0; exec /usr/bin/dbus-daemon --session --nofork --nopidfile --address=unix:path=/run/user/0/bus'
-::once:/bin/sh -c 'exec /usr/bin/modem-up > /run/chef/log/modem-up.log 2>&1'
-::respawn:/usr/bin/wifi-nm
-# SSH on port 22 of every interface (USB, Wi-Fi, PAN), key login only:
-# dropbear under chef-sshd, authorized keys baked into the image, host key on
-# /data/v1/ssh (ephemeral in /run/chef/ssh when /data is not ours). The telnetd
-# above stays as it is: the passwordless USB-only recovery shell.
-::respawn:/usr/bin/chef-sshd
-# GNSS on demand: idle until a client leases it on /run/chef/gps-manager.sock
-# (`gps-manager hold map`), then runs the LOC session, gpsd and the NMEA
-# pipeline on top of the modem modem-up keeps up; never starts or stops it.
-::respawn:/usr/bin/gps-manager
-# Client-only NTP, no network command/server listener, logging to syslog
-# (-n; -d would log to the console). The drift file is in
-# /var/lib/chrony: /data/v1/chrony bound there by chef-storage when /data is
-# ours, else the tmpfs directory (chronyd as `chrony` must own it either way).
-::respawn:/bin/sh -c 'mkdir -p /run/chrony /var/lib/chrony && chown chrony:chrony /run/chrony /var/lib/chrony && chmod 700 /run/chrony /var/lib/chrony && exec /usr/sbin/chronyd -n -u chrony -f /etc/chrony/chrony.conf'
-# Wall clock against the RTC on /data (chef-state): saved while chrony is
-# synchronised, restored by /init on the next boot.
-::respawn:/usr/bin/chef-state timekeeper
-::respawn:/usr/bin/bt-up
-# BLE sensors (heart rate, power, speed/cadence): pairs them, reconnects them
-# during a client hold or a bounded 300 s window; notifications stay on
-# /run/chef/blesensd.sock
-# (`blesensd status|list|watch`); records via chef-state on /data/v1/blesens.
-::respawn:/usr/bin/blesensd
-# Side buttons: grabs the power/volume evdev nodes and publishes gestures on
-# /run/chef/buttond.sock; with nothing claiming them a short power press
-# toggles the screen-off flag /run/chef/screen-off, and power held 3 s (buzz
-# at 1.5 s, long buzz at 3 s) then released runs `poweroff` -- the orderly
-# way down through this init (::shutdown, SIGTERM to all, RB_POWER_OFF).
-# The PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look.
-::respawn:/usr/bin/buttond
-# Battery: low-battery warn (15 %) / critical (5 %) and a clean poweroff when
-# empty and unpowered or at 68 C, state in /run/chef/power (`powerd
-# status`), the power_supply log in /data/v1/power (4 MiB + one rotation)
-# when /data is ours, else in /run/chef/power (1 MiB), and the 44/42 C
-# charge throttle on system_temp_level.
-::respawn:/bin/sh -c 'if /usr/bin/chef-state ours; then exec /usr/bin/powerd -l /data/v1/power -L 4194304; else exec /usr/bin/powerd; fi'
-# Sensors: sensors-up boots the ADSP through audio-up (no sensor needs the
-# panel or the speaker), copies the registry out of persist (read-only, see
-# docs/features/sensors.md) and supervises sensord, the SMGR client behind
-# /run/chef/sensord.sock (`sensord list|status`). The UI claims the ambient
-# light sensor only while the screen is on and Auto brightness or theme Auto
-# is set. It exits when sensord does; the 10 s wait keeps a failing start
-# from spinning. Log: /run/chef/log/sensors-up.log and syslog; before each
-# start the log is moved to /run/chef/log/sensors-up.log.1 when it is over
-# 256 KiB. sensord runs without -v and with its stderr on /dev/null (its
-# notes still reach syslog), so the log holds only sensors-up's own lines:
-# bounded by the rotation, about 512 KiB at most.
-::respawn:/bin/sh -c 'f=/run/chef/log/sensors-up.log; [ "$(stat -c %s $f 2>/dev/null || echo 0)" -gt 262144 ] && mv -f $f $f.1; SENSORD_ARGS= SENSORD_STDERR=/dev/null /usr/bin/sensors-up >> $f 2>&1; sleep 10'
-# The system UI (chef-settings: status bar, settings hub, Display page). It
-# takes the panel through /run/chef/fb0.lock, claims power.short from
-# buttond (Back on a page, screen off on the hub) and picks up
-# NetworkManager, BlueZ, gps-manager and /data whenever they appear. A boot
-# with /run/chef/screen-off present stays dark. If it dies with the panel
-# lit, the next start power-cycles the panel once so touch resumes
-# (/run/chef/fb0.lit, docs/features/ui-platform.md); a failed start waits
-# 5 s first. Settings: /data/v1/ui/settings (or /run/chef/ui when /data is
-# not ours). See docs/features/system-ui.md.
-::respawn:/usr/bin/chef-settings
+# OpenRC: its own sysinit step (it creates /run/openrc and /run/lock and
+# builds the dependency tree; the sysinit and boot runlevels are empty,
+# /init does that work), then the default runlevel, also if that step
+# failed. ::once, not ::wait: a service that hangs must not hold back the
+# telnetd line above.
+::once:/bin/sh -c '/sbin/openrc sysinit; exec /sbin/openrc default'
 # A/B slot: mark boot_a successful once this boot has lasted 30 s, as
 # Android's boot_control HAL did, so abl stops counting retries down (it
 # would mark the slot unbootable after 7 boots). A build that dies earlier
@@ -87,15 +21,26 @@
 ::once:/bin/sh -c 'sleep 30; exec /usr/bin/abslot mark-successful >/dev/null'
 ::ctrlaltdel:/sbin/reboot
 # chef-state first (last RTC offset, chronyd stopped so its drift file is
-# written, last magnetometer bias), bounded so it cannot hold up the rest;
+# written, last magnetometer bias; it stops chronyd, powerd, sensors-up and
+# the timekeeper through OpenRC), bounded so it cannot hold up the rest;
 # then the syslogd ring, with the lines of that stop, onto
 # /data/v1/log/syslog-<seq> (syslogd still runs: init signals every process
-# only after these lines; bounded too); then chef-storage makes /data
-# read-only and detaches it.
+# only after these lines; bounded too); then OpenRC stops every other
+# service in reverse dependency order, modem-up's clean modem stop included,
+# while /data is still mounted (bounded: one service stuck for its whole
+# TERM 5 s and KILL 2 s, or modem-up's 10 s and 2 s, plus the quick stops of
+# the rest; init reaps at once while it runs these lines, so a stop costs
+# only its own time); then any supervisor openrc shutdown left (it did not
+# finish) is stopped, so nothing respawns what chef-storage's sweep stops
+# next; then chef-storage makes /data read-only and detaches it.
 ::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown
 ::shutdown:/usr/bin/timeout -k 1 3 /usr/bin/chef-state log-save
+::shutdown:/usr/bin/timeout -k 1 20 /sbin/openrc shutdown
+::shutdown:/usr/bin/timeout -k 1 10 /usr/bin/chef-stop-supervisors
 ::shutdown:/usr/bin/chef-storage shutdown
 ::shutdown:/bin/umount -a -r
-# No log-save here: before it runs ::restart, init runs the ::shutdown lines
-# above (which save the ring) and kills every process, syslogd included.
+# Before it runs ::restart, init runs every ::shutdown line above (which
+# save the ring and stop every OpenRC service) and kills every process, so
+# there is no log-save or openrc shutdown here; the new init's ::once line
+# starts the services again.
 ::restart:/bin/sh -c '/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown; /usr/bin/chef-storage shutdown; exec /sbin/init'

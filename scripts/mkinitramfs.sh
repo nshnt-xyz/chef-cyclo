@@ -116,6 +116,26 @@ mkdir -p "$ROOT"/proc "$ROOT"/sys "$ROOT"/dev "$ROOT"/tmp "$ROOT"/run \
          "$ROOT"/root "$ROOT"/mnt "$ROOT"/var/lib/dbus "$ROOT"/var/lib/bluetooth
 install -d -m 755 "$ROOT"/data "$ROOT"/firmware "$ROOT"/factory
 cp -a rootfs-overlay/. "$ROOT"/
+# OpenRC (docs/features/services.md): only the init.d scripts the image runs,
+# the default runlevel's, and functions.sh (the compatibility shim scripts
+# may source). The packages' other scripts (hwclock, localmount, bootmisc,
+# killprocs, ...) go, so they cannot be started by hand and OpenRC's
+# dependency scan at each boot reads only these; so do the conf.d defaults
+# no remaining script reads. A host test (scripts/tests/test_services.py)
+# runs this block. --- OpenRC prune ---
+keep=" functions.sh $(ls rootfs-overlay/etc/runlevels/default | tr '\n' ' ') "
+for f in "$ROOT"/etc/init.d/*; do
+    case "$keep" in *" ${f##*/} "*) ;; *) rm -f "$f" ;; esac
+done
+for f in "$ROOT"/etc/conf.d/*; do
+    [ -e "$ROOT/etc/init.d/${f##*/}" ] || rm -f "$f"
+done
+# -L: functions.sh is an absolute link into the image, dangling on the host
+for n in $keep; do
+    [ -e "$ROOT/etc/init.d/$n" ] || [ -L "$ROOT/etc/init.d/$n" ] ||
+        { echo "no /etc/init.d/$n in the image" >&2; exit 1; }
+done
+# --- end OpenRC prune ---
 # Busybox applet links at build time (read-only root at runtime).
 scripts/link-applets.sh "$ROOT"
 # NetworkManager (rc-manager=unmanaged) keeps its resolver file in /run.
@@ -127,6 +147,7 @@ ln -s /run/NetworkManager/resolv.conf "$ROOT/etc/resolv.conf"
 (cd rootfs-overlay && find . -mindepth 1 ! -type l -print0) | (cd "$ROOT" && xargs -0 chmod go-w)
 chmod 755 "$ROOT"/init "$ROOT"/usr/bin/bt-up "$ROOT"/usr/bin/modem-up "$ROOT"/usr/bin/chef-storage \
     "$ROOT"/usr/bin/chef-state "$ROOT"/usr/bin/chef-reboot "$ROOT"/usr/bin/chef-sshd \
+    "$ROOT"/usr/bin/chef-stop-supervisors \
     "$ROOT"/usr/bin/audio-up "$ROOT"/usr/bin/speaker-test-tone \
     "$ROOT"/usr/bin/sensors-up "$ROOT"/usr/bin/sensors-magcal-run \
     "$ROOT"/usr/bin/sensors-compass-run "$ROOT"/usr/bin/display-touch-inventory

@@ -8,7 +8,7 @@ Live-verified on RAM images on 2026-10-21 ([log](../../logs/syslog-2026-10-20.tx
 
 ## The daemon
 
-The first `::respawn:` line of `inittab` is `syslogd -n -t -C1024`: it binds `/dev/log` and keeps every message in a 1 MiB shared-memory ring (`CONFIG_SYSVIPC`, the same kernel option chrony's SHM refclock needs). Nothing goes to disk, nothing to the network, and there is no `klogd`: the vendor kernel's noise would evict our lines from the ring, and the kernel lines already have their own buffer, tools and pstore. Its pid file is busybox's default `/run/syslogd.pid`, written with `-n` too and removed when it exits on TERM or INT (not after a KILL).
+The OpenRC service `syslog` (Alpine's script, `etc/conf.d/syslog`; [services](services.md)) runs `syslogd -t -C1024 -n` under supervise-daemon, first of all the services: it binds `/dev/log` and keeps every message in a 1 MiB shared-memory ring (`CONFIG_SYSVIPC`, the same kernel option chrony's SHM refclock needs). Nothing goes to disk, nothing to the network, and there is no `klogd`: the vendor kernel's noise would evict our lines from the ring, and the kernel lines already have their own buffer, tools and pstore. Its pid file is busybox's default `/run/syslogd.pid`, written with `-n` too and removed when it exits on TERM or INT (not after a KILL); its supervisor keeps its own, `/run/supervise-syslog.pid`, since the package's script would otherwise hand syslogd's file to the supervisor.
 
 syslogd stamps every line with its own clock, in local time (IST) to the second. Our C daemons send no timestamp; musl's `syslog(3)` (busybox `logger`, so our scripts, and NetworkManager, BlueZ, chrony and the rest) sends one in UTC (`gmtime_r`), and `-t` makes syslogd drop it, so the ring never mixes zones (seen live 2026-10-21 before `-t`: a 12:16 UTC `logger` line beside a 17:46 IST one). Lines in the ring read
 
@@ -52,10 +52,10 @@ busybox's ring writer takes its semaphore without `SEM_UNDO`, so a `kill -9` tha
 | `telnetd -F` | its rare errors to the console; nothing in the ring |
 | `gpsd`, the qmicli follower, `nmea-broker` | their output files in `/run/chef/gps-manager/`, as before |
 | `fbtouch`, `fblog` | `/dev/kmsg` on purpose: their markers line up with the kernel's display lines |
-| `modem-up`, `sensors-up`, `audio-up`, `bt-up`, `chef-sshd` (and dropbear's lines, tag `dropbear[PID]`, at most 20 per 60 s), `chef-state` and `chef-storage` while the system runs, the NetworkManager dispatcher (`chef-wifi-ip`), inittab's BNEP guard (`bnep-guard`) | the ring, through the log helper `usr/lib/chef/log.sh` (below); the `*-up` scripts also to stdout (their `/run/chef/log/` files) |
+| `modem-up`, `sensors-up`, `audio-up`, `bt-up`, `chef-sshd` (and dropbear's lines, tag `dropbear[PID]`, at most 20 per 60 s), `chef-state` and `chef-storage` while the system runs, the NetworkManager dispatcher (`chef-wifi-ip`), the `bluetooth` service's BNEP guard (`bnep-guard`) | the ring, through the log helper `usr/lib/chef/log.sh` (below); the `*-up` scripts also to stdout (their `/run/chef/log/` files) |
 | `sensors-compass-run`, `sensors-magcal-run` (tags `compass`, `magcal`) | the ring through the helper; the lines the person follows (instructions, countdown, steps, results, DONE) also straight to kmsg, where `fblog` shows them on the panel. Their evidence directories hold `syslog.txt` (`logread`) beside `dmesg.txt` |
 | `/init` (`cyclo-init`), stage 1 (`cyclo-stage1`), `chef-state boot` and `chef-storage boot` | kmsg: they run before syslogd starts (the helper finds no syslogd and falls back on its own) |
-| `chef-state shutdown`, `chef-storage shutdown`, `chef-reboot`, and everything they run (`powerd flush`) | kmsg: they set `CHEF_LOG_KMSG_ONLY=1`, because a hang or panic on the way down is what pstore keeps, and only kmsg lines reach it. Daemons TERMed meanwhile (powerd, chronyd, sensors-up) still log to the ring, which is up until init's final kill, and the shutdown save after `chef-state shutdown` keeps their lines |
+| `chef-state shutdown`, `chef-stop-supervisors`, `chef-storage shutdown`, `chef-reboot`, and everything they run (`powerd flush`) | kmsg: they set `CHEF_LOG_KMSG_ONLY=1`, because a hang or panic on the way down is what pstore keeps, and only kmsg lines reach it. Daemons stopped meanwhile (powerd, chronyd, sensors-up, through OpenRC) still log to the ring, which is up until init's final kill, and the shutdown save after `chef-state shutdown` keeps their lines |
 | the kernel | `dmesg`, and pstore after a panic |
 
 Shell scripts also keep their own files under `/run/chef/log/` ([runtime files](runtime-files.md)): those hold command output, not only log lines.
@@ -92,7 +92,7 @@ Scripts source `${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh` and call `chef_log TAG ME
 
 ### Blocking
 
-Only our `chef_log()` sender has that never-block guarantee. Third-party programs, busybox init and `logger` (so our scripts too) use the C library's `syslog(3)`, which blocks on a full queue and drops a line it cannot deliver. A crashed syslogd is respawned at once; a stopped (or wedged, above) one is not a case the image handles.
+Only our `chef_log()` sender has that never-block guarantee. Third-party programs, busybox init and `logger` (so our scripts too) use the C library's `syslog(3)`, which blocks on a full queue and drops a line it cannot deliver. A crashed syslogd is respawned by its supervisor after 1 s; a stopped (or wedged, above) one is not a case the image handles.
 
 ## Tests
 

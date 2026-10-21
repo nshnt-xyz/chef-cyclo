@@ -1,0 +1,33 @@
+#!/sbin/openrc-run
+# Sensors: sensors-up boots the ADSP through audio-up (no sensor needs the
+# panel or the speaker), copies the registry out of persist (read-only, see
+# docs/features/sensors.md) and supervises sensord, the SMGR client behind
+# /run/chef/sensord.sock (`sensord list|status`). The UI claims the ambient
+# light sensor only while the screen is on and Auto brightness or theme Auto
+# is set. sensors-up exits when sensord does, and the supervisor starts it
+# again after 10 s. sensord runs without -v and with its stderr on
+# /dev/null (its notes still reach syslog), so the log holds only
+# sensors-up's own lines; it is moved to sensors-up.log.1 when it is over
+# 256 KiB at each start of the service.
+
+description="Sensors (sensord and the ADSP boot)"
+supervisor=supervise-daemon
+command=/usr/bin/sensors-up
+output_log=/run/chef/log/sensors-up.log
+error_log=/run/chef/log/sensors-up.log
+# Keeps a failing start from spinning, as the inittab wrapper did.
+respawn_delay=10s
+
+depend() {
+	use logger
+	# The modem stack first, as before: it also brings up /firmware and
+	# the servreg-locator that audio-up then reuses.
+	after modem-up
+}
+
+start_pre() {
+	log=/run/chef/log/sensors-up.log
+	[ "$(stat -c %s $log 2>/dev/null || echo 0)" -gt 262144 ] && mv -f $log $log.1
+	export SENSORD_ARGS= SENSORD_STDERR=/dev/null
+	return 0
+}

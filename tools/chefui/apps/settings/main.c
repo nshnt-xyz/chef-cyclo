@@ -39,11 +39,12 @@
  * is read once at start and deleted, so the next respawn runs normally:
  * that is how a capture with --fake-state/--page/--theme runs under init.
  *
- * Holding the UI off the panel: `mkdir -p /run/chef/chef-settings;
- * touch /run/chef/chef-settings/stop; kill $(pidof chef-settings)` (the app
- * also creates the directory at start).
- * Started with that file present, the app waits (polling once a second)
- * without taking the panel; removing the file lets it start.
+ * Holding the UI off the panel: `rc-service chef-settings stop`, or
+ * `mkdir -p /run/chef/chef-settings; touch /run/chef/chef-settings/stop;
+ * kill $(pidof chef-settings)` (the app also creates the directory at
+ * start; its supervisor restarts it after 1 s). Started with that file
+ * present, the app waits (polling once a second) without taking the
+ * panel; removing the file lets it start.
  */
 #define _GNU_SOURCE
 #include <errno.h>

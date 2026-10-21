@@ -1,0 +1,21 @@
+# The system bus (the package's init.d/dbus): dbus-daemon --system --nofork.
+supervisor=supervise-daemon
+# /init sets up the launch helper and marks it; without the marker the bus
+# stays off for this boot (docs/features/runtime-files.md).
+required_files="/run/chef/dbus-helper-ready"
+# /init ran dbus-uuidgen --ensure (/var/lib/dbus/machine-id); the
+# package's default, /etc/machine-id, is on the read-only root.
+machine_id=/var/lib/dbus/machine-id
+rc_need="!localmount"
+rc_after="!bootmisc"
+rc_use="logger"
+
+# Bluetooth and NetworkManager need the bus: wait for its socket, at most
+# 10 s. A bus that never comes up fails the start (its supervisor is
+# stopped with it) instead of starting them into a missing bus.
+start_post() {
+	ewaitfile 10 /run/dbus/system_bus_socket && return 0
+	eerror "dbus: no /run/dbus/system_bus_socket after 10 s"
+	supervise_stop
+	return 1
+}

@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+# BLE sensors (heart rate, power, speed/cadence): pairs them, reconnects them
+# during a client hold or a bounded 300 s window; notifications stay on
+# /run/chef/blesensd.sock (`blesensd status|list|watch`); records via
+# chef-state on /data/v1/blesens (docs/features/bluetooth.md).
+
+description="BLE sensor daemon"
+supervisor=supervise-daemon
+command=/usr/bin/blesensd
+
+depend() {
+	use logger
+	after bluetooth
+}

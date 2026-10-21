@@ -1,0 +1,24 @@
+#!/sbin/openrc-run
+# Bluetooth controller attach (bt-up): powers the WCN3990 and keeps
+# btattach running; the kernel and bluetoothd take it from there
+# (docs/features/bluetooth.md). If btattach exits, bt-up exits and the
+# supervisor starts it again, which power-cycles and re-attaches the chip.
+
+description="WCN3990 Bluetooth attach"
+supervisor=supervise-daemon
+command=/usr/bin/bt-up
+
+depend() {
+	use logger
+}
+
+# btattach is bt-up's child in its process group (supervise-daemon
+# setsid()s bt-up): a stop takes it down too.
+stop_pre() {
+	pgroup=$(service_get_value child_pid)
+}
+stop_post() {
+	case "$pgroup" in ''|*[!0-9]*) return 0;; esac
+	kill -TERM "-$pgroup" 2>/dev/null
+	return 0
+}

@@ -22,6 +22,13 @@ ALLOWED = {
     "chrony": "chronyd's standard pid and command socket directory",
     "user": "the XDG runtime directory /run/user/0 (session bus, PipeWire)",
     "lock": "the standard lock directory",
+    "openrc": "OpenRC's state directory (RC_SVCDIR)",
+    "supervise-syslog.pid": "supervise-daemon's own pid file for syslog, at its default path: "
+                            "the package's /run/syslogd.pid is syslogd's (etc/conf.d/syslog)",
+    "udhcpd.pid": "busybox udhcpd's own default pid file (named in etc/conf.d/udhcpd, which keeps "
+                  "the supervisor off it)",
+    "supervise-udhcpd.pid": "supervise-daemon's own pid file for udhcpd, at its default path: "
+                            "the package's /run/udhcpd.pid is udhcpd's (etc/conf.d/udhcpd)",
     "syslogd.pid": "busybox syslogd's own default pid file (CONFIG_PID_FILE_PATH is /run); "
                    "the shell log helper checks it to know syslogd is up",
     ".var": "/init's transient mount point while it moves the volatile /var",
