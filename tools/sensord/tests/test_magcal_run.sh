@@ -11,6 +11,10 @@
 set -u
 
 T=$(mktemp -d /tmp/snsm.XXXXXX)
+# the overlay's log helper, never the host's syslog (runs override these)
+export CHEF_LOG_SOCKET="$T/no-syslog"
+export CHEF_LIB_DIR="$PWD/../../rootfs-overlay/usr/lib/chef" CHEF_LOG_SYSLOGD_PID="$T/no-syslogd.pid" \
+	CHEF_LOG_LOGGER="$T/no-logger" LOGREAD="$T/no-logread"
 export SENSORD_FAKE_IPC="$T/ipc"
 mkdir -p "$SENSORD_FAKE_IPC" "$T/out"
 SOCK="$T/sock"
@@ -46,7 +50,7 @@ script_env() {
 	n=$1
 	shift
 	echo SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/$n" \
-		KMSG="$T/kmsg-$n" VIB="$T/vib-$n" SENSORS_UP_LOG="$T/none" NOW_CMD="$T/now" \
+		KMSG="$T/kmsg-$n" VIB="$T/vib-$n" SENSORS_UP_LOG="$T/none" NOW_CMD="$T/now" LOGREAD="$T/logread" \
 		FACE_S=0.4 FIG8_S=1 QFIG8_S=2 TURN_S=1 GAP_S=0 COUNT_S=1 HELPER_WAIT=40 "$@"
 }
 
@@ -103,6 +107,8 @@ echo "$L" | grep -q "^29 steps, about 664 s" || fail "--list sequential total: $
 # step times on sensord's clock (CLOCK_MONOTONIC; the phone uses uptime)
 printf '#!/bin/sh\nexec python3 -c "import time; print(\\"%%.3f\\" %% time.monotonic())"\n' >"$T/now"
 chmod +x "$T/now"
+printf '#!/bin/sh\necho "fake logread"\n' >"$T/logread"
+chmod +x "$T/logread"
 
 # no sensord yet: refuses before doing anything
 if env SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/none" KMSG="$T/kmsg" \
@@ -121,6 +127,7 @@ wait_for "$T/main.log" "smgr ready" 80 || fail "main sensord never ready"
 run_script concurrent || fail "concurrent run exit $?: $(tail -n 5 "$T/run-concurrent.txt")"
 D=$(ls -d "$T"/out/concurrent/magcal-* 2>/dev/null | head -n 1)
 [ -n "$D" ] || fail "no output directory"
+grep -q "^fake logread$" "$D/syslog.txt" || fail "no syslog.txt from logread"
 S=$(tail -n 1 "$T/run-concurrent.txt")
 echo "$S" | grep -q "^magcal: done in [0-9]* s, $D; magn lines" || fail "summary: $S"
 for f in a-magn-full a-magn-factory a-magn-raw q-magn-full q-magn-qmag q-magn-factory q-magn-raw \

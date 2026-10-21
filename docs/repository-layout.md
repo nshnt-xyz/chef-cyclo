@@ -16,7 +16,7 @@ Paths below are relative to the repository root.
 | `rootfs-overlay/usr/bin/chef-sshd` | [SSH](features/ssh.md): dropbear, key login only. |
 | `rootfs-overlay/usr/bin/wifi-*` | [Wi-Fi](features/wifi.md) and its [NetworkManager mode](features/wifi-ui.md): device readiness (`wifi-prepare`), NetworkManager startup (`wifi-nm`), the USB-only address guard (`wifi-usb-guard`), the manual session `wifi-up`/`wifi-down`/`wifi-status` and its DHCP hook `wifi-dhcp`. |
 | `rootfs-overlay/usr/bin/display-touch-inventory` | Read-only display and touch metadata inventory. See [display and touch](features/display-and-touch.md). |
-| `rootfs-overlay/usr/lib/chef/` | Shell libraries: `usb-gadget.sh`, the USB NCM gadget shared with `stage1/init` ([USB networking](features/usb-networking.md)), and `modem-owner.sh`, which finds the resident `gps-up` modem owner ([GPS](features/gps.md)). |
+| `rootfs-overlay/usr/lib/chef/` | Shell libraries: `usb-gadget.sh`, the USB NCM gadget shared with `stage1/init` ([USB networking](features/usb-networking.md)), `modem-owner.sh`, which finds the resident `gps-up` modem owner ([GPS](features/gps.md)), and `log.sh`, the scripts' log helper (syslog, kmsg before syslogd and on the way down; [logging](features/logging.md)). |
 | `stage1/init` | Stage-1 `/init` of the installed boot image (`scripts/mkstage1.sh`): checks and mounts the read-only `system_a` root and switch_roots to it, or stays in a rescue shell on USB networking. See [build and boot](building.md). |
 | `tools/btprobe.c` | Freestanding power/UART/HCI helper for [Bluetooth](features/bluetooth.md). |
 | `tools/fbdev.h` | Shared framebuffer lifecycle, advisory screen-lock and screen-off flag contract. |

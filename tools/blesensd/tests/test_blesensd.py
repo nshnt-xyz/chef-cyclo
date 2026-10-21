@@ -22,6 +22,9 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 BIN = os.path.join(HERE, "..", "build", "host", "blesensd")
 FAKE = os.path.join(HERE, "fake_bluez.py")
+# Every blesensd here, daemon or client, logs to kmsg (which a non-root
+# test cannot write), never to the host's /dev/log.
+os.environ["CHEF_LOG_SOCKET"] = "/nonexistent/chef-log-socket"
 
 HR = "AA:BB:CC:00:00:01"
 HR2 = "AA:BB:CC:00:00:02"

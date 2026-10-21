@@ -8,6 +8,9 @@
 set -u
 
 T=$(mktemp -d /tmp/snsd.XXXXXX)	# short: AF_UNIX paths are <= 107 bytes
+# no syslog socket (never the host's /dev/log): log lines go to kmsg,
+# which a non-root test cannot write
+export CHEF_LOG_SOCKET="$T/no-syslog"
 export SENSORD_FAKE_IPC="$T/ipc"
 mkdir -p "$SENSORD_FAKE_IPC"
 SOCK="$T/sock"

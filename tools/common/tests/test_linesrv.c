@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "chef_log.h"
 #include "linesrv.h"
 
 static int g_failures;
@@ -721,6 +722,7 @@ static void test_eof_and_hup(void)
 
 int main(void)
 {
+	chef_log_set_socket("/nonexistent/chef-log-socket");	/* never the host's /dev/log */
 	test_listener();
 	test_framing();
 	test_overlong();

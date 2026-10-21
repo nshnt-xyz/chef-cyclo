@@ -13,7 +13,7 @@
 #      broken key is moved aside to .bad and a new one generated (temp
 #      name, sync, rename, sync). Otherwise (RAM-only boot, or the /data
 #      step failed) it is generated in /run/chef/ssh for this boot only, and a
-#      kmsg line says the host key is ephemeral. Private host keys are never
+#      log line says the host key is ephemeral. Private host keys are never
 #      in the image or the repository.
 #   3. dropbear gets a copy in /run/chef/ssh: it re-executes itself for every
 #      connection and reads the host key again each time, so it never opens
@@ -23,9 +23,10 @@
 #      port forwarding; local -L stays, so the host can reach loopback
 #      services such as gpsd on 2947), -T 3 auth tries, -K 30 keepalive
 #      (only while a session is open), port 22 on all interfaces. It
-#      logs to stderr (-E), and each line goes to kmsg (dmesg shows it),
-#      at most LOG_BURST lines per LOG_WINDOW s, with a count of the
-#      suppressed ones, so a Wi-Fi brute force cannot flood the panel.
+#      logs to stderr (-E), and each line goes to syslog with the tag
+#      dropbear[PID] (logread shows it; kmsg while syslogd is not up), at
+#      most LOG_BURST lines per LOG_WINDOW s, with a count of the
+#      suppressed ones, so a Wi-Fi brute force cannot flood syslogd's ring.
 #      Successful logins ("Pubkey auth succeeded") always pass, outside the
 #      budget: they need a key, and a flood must not hide the one line that
 #      shows a leaked key in use.
@@ -43,9 +44,9 @@ LOG_BURST=20
 LOG_WINDOW=60
 FAIL_SLEEP=10
 
-log() {
-	[ ! -c "$KMSG" ] && [ ! -f "$KMSG" ] || echo "chef-sshd: $*" 2>/dev/null >> "$KMSG" || true
-}
+CHEF_LOG_KMSG=$KMSG
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
+log() { chef_log chef-sshd "$*"; }
 
 fail() {
 	log "$*; retrying in $FAIL_SLEEP s"
@@ -97,8 +98,9 @@ persistent_key() {
 	new_key "$dir" || { rm -f "$dir/$KEY.tmp" "$dir/$KEY.tmp".*; log "host key generation in $dir failed"; return 1; }
 }
 
-# dropbear's -E lines become "dropbear[PID]: message" (the date is dropped:
-# kmsg has its own time); anything else becomes "dropbear: line".
+# dropbear's -E lines become "dropbear[PID]: message" (tag dropbear[PID];
+# the date is dropped: syslogd and kmsg stamp their own); anything else
+# becomes "dropbear: line".
 logloop() {
 	n=0 dropped=0 start=
 	while IFS= read -r line; do
@@ -134,8 +136,7 @@ logloop() {
 			fi
 			n=$((n + 1))
 		fi
-		if [ -n "$pid" ]; then line="dropbear[$pid]: $msg"; else line="dropbear: $msg"; fi
-		[ ! -c "$KMSG" ] && [ ! -f "$KMSG" ] || echo "$line" 2>/dev/null >> "$KMSG" || true
+		if [ -n "$pid" ]; then chef_log "dropbear[$pid]" "$msg"; else chef_log dropbear "$msg"; fi
 	done
 	[ "$dropped" = 0 ] || log "$dropped dropbear log lines suppressed"
 }

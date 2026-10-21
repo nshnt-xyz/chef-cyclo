@@ -995,6 +995,7 @@ static void test_buttond_fblog_flag_protocol(void)
 
 int main(void)
 {
+	chef_log_set_socket("/nonexistent/chef-log-socket");	/* never the host's /dev/log */
 	test_buttond_fblog_flag_protocol();
 	test_daemon_lit_flag_appears();
 	test_daemon_resume_without_flag();

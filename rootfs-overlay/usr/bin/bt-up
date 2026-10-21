@@ -10,7 +10,10 @@
 set -u
 
 UART=/dev/ttyHS0
-log() { echo "cyclo-bt: $*" | tee /dev/kmsg; }
+# syslog through the shared helper (kmsg while syslogd is not up), and
+# stdout
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
+log() { chef_log bt-up "$*"; echo "bt-up: $*"; }
 
 fail() { log "$*"; sleep 5; exit 1; }
 

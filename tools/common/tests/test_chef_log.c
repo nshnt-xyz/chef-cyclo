@@ -2,7 +2,8 @@
  * on a temp socket standing in for /dev/log; the "<tag>: <msg>\n" kmsg
  * fallback (a temp file standing in for /dev/kmsg) when there is no
  * socket, when its queue is full (without blocking) and when it went away;
- * reconnecting to a socket that came back; CHEF_LOG_SOCKET; the 320-byte
+ * reconnecting to a socket that came back; CHEF_LOG_SOCKET and
+ * CHEF_LOG_KMSG_ONLY; the 320-byte
  * message bound, the stderr echo and a missing kmsg that is not an error.
  * Nothing here reaches the host's /dev/log.
  * Build/run: see tools/common/Makefile ("make test").
@@ -184,6 +185,23 @@ int main(void)
 	snprintf(want, sizeof(want), "<30>buttond[%ld]: back", (long)getpid());
 	CHECK(recv_one(srv, buf, sizeof(buf)) && !strcmp(buf, want));
 	CHECK(slurp(kmsg, buf, sizeof(buf)) == 0);
+
+	/* CHEF_LOG_KMSG_ONLY=1, read by chef_log_init(): kmsg with the socket
+	 * there; any other value or none: the socket */
+	setenv("CHEF_LOG_KMSG_ONLY", "1", 1);
+	chef_log_init("chef-state", false);
+	truncate_file(kmsg);
+	chef_log("shutdown");
+	CHECK(slurp(kmsg, buf, sizeof(buf)) && !strcmp(buf, "chef-state: shutdown\n"));
+	CHECK(recv_one(srv, buf, sizeof(buf)) == 0);
+	setenv("CHEF_LOG_KMSG_ONLY", "yes", 1);
+	chef_log_init("chef-state", false);
+	truncate_file(kmsg);
+	chef_log("running");
+	snprintf(want, sizeof(want), "<30>chef-state[%ld]: running", (long)getpid());
+	CHECK(recv_one(srv, buf, sizeof(buf)) && !strcmp(buf, want));
+	CHECK(slurp(kmsg, buf, sizeof(buf)) == 0);
+	unsetenv("CHEF_LOG_KMSG_ONLY");
 
 	/* echo: "tag: msg" on stderr whichever way the line went */
 	fflush(stderr);

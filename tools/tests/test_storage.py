@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'rootfs-overlay/usr/bin/chef-storage'
@@ -72,7 +73,11 @@ esac
         wrapper += 'timeout() { /usr/bin/timeout "$@"; }\n'
         self.script=self.p/'storage';self.script.write_text(wrapper+SCRIPT.read_text())
         self.env={**os.environ,'PATH':str(self.bin)+':'+os.environ['PATH'],'TRACE':str(self.p/'trace'),'TEST_BIN':str(self.bin),
-            'CHEF_STORAGE_SYS':str(self.sys),'CHEF_STORAGE_DEV':str(self.dev), 'CHEF_STORAGE_CMDLINE':str(self.p/'cmdline'), 'CHEF_STORAGE_MOUNTS':str(self.p/'mounts'), 'CHEF_STORAGE_SWAPS':str(self.p/'swaps'),'CHEF_STORAGE_RUN':str(self.runpath),'CHEF_STORAGE_DATA':str(self.data)}
+            'CHEF_STORAGE_SYS':str(self.sys),'CHEF_STORAGE_DEV':str(self.dev), 'CHEF_STORAGE_CMDLINE':str(self.p/'cmdline'), 'CHEF_STORAGE_MOUNTS':str(self.p/'mounts'), 'CHEF_STORAGE_SWAPS':str(self.p/'swaps'),'CHEF_STORAGE_RUN':str(self.runpath),'CHEF_STORAGE_DATA':str(self.data),
+            # the log helper from the overlay, never the host's syslog
+            'CHEF_LIB_DIR':str(ROOT/'rootfs-overlay/usr/lib/chef'),'CHEF_LOG_SYSLOGD_PID':str(self.p/'syslogd.pid'),
+            'CHEF_LOG_LOGGER':str(self.p/'logger'),'LOGGER_OUT':str(self.p/'logger.out')}
+        (self.p/'logger').write_text('#!/bin/sh\necho "logger $*" >> "$LOGGER_OUT"\n');(self.p/'logger').chmod(0o755)
     def call(self, *args, **env):
         (self.p/'trace').write_text('')
         (self.p/'trace.bind').write_text('0')
@@ -169,6 +174,19 @@ esac
         self.assertNotIn('kill -TSTP 1',t);self.assertNotIn('kill -CONT 1',t)
         self.assertLess(t.index('kill -TERM 30001'),t.index('sync '))
         self.assertLess(t.index('sync '),t.index('umount '))
+    def test_log_lines_follow_syslogd(self):
+        # a live syslogd (a script named syslogd): format's refusal goes to
+        # logger, shutdown's lines stay on kmsg (never logger)
+        fake=self.p/'syslogd';fake.write_text('#!/bin/sh\nwhile :; do sleep 1; done\n');fake.chmod(0o755)
+        proc=subprocess.Popen([str(fake)]);self.addCleanup(proc.wait);self.addCleanup(proc.kill)
+        time.sleep(0.05);self.assertIsNone(proc.poll())
+        (self.p/'syslogd.pid').write_text(f'{proc.pid}\n')
+        out=self.p/'logger.out'
+        r,t=self.call('format');self.assertEqual(r.returncode,1)
+        self.assertIn('logger -t chef-storage -p daemon.info -- format requires --yes-erase-userdata',out.read_text())
+        out.write_text('')
+        r,t=self.call('shutdown',MOUNTPOINT_RC='0');self.assertEqual(r.returncode,0,r.stderr)
+        self.assertIn('data fully unmounted',r.stderr);self.assertEqual(out.read_text(),'')
     def test_shutdown_manual_resume(self):
         for env in [{},{'UMOUNT_RC':'1'},{'UMOUNT_RC':'1','RO_RC':'1'}]:
             r,t=self.call('shutdown','--pause-init',MOUNTPOINT_RC='0',**env)

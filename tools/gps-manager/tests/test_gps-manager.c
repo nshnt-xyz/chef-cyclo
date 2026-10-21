@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 
+#include "common/chef_log.h"
 #include "common/linesrv.h"
 #include "../gps-manager.h"
 
@@ -1242,6 +1243,7 @@ static void test_record_and_proc(void)
 
 int main(void)
 {
+	chef_log_set_socket("/nonexistent/chef-log-socket");	/* never the host's /dev/log */
 	test_bringup_teardown_order();
 	test_grace_cancel_and_second_lease();
 	test_release_mid_starting();

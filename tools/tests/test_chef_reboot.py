@@ -35,8 +35,10 @@ case "$name $1" in "sleep 0.1") exec /bin/sleep "${TICK:-0.01}";; esac
 echo "$name $*" >> "$TRACE"
 hang() { echo $$ >> "$TRACE.pids"; exec /bin/sleep 30 </dev/null >/dev/null 2>&1; }
 case "$name" in
-chef-state) [ "${STATE:-ok}" != hang ] || hang; [ "${STATE:-ok}" = ok ] || exit 1;;
-chef-storage) [ "${STORAGE:-ok}" != hang ] || hang; [ "${STORAGE:-ok}" = ok ] || exit 1;;
+chef-state) echo "chef-state env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> "$TRACE"
+	[ "${STATE:-ok}" != hang ] || hang; [ "${STATE:-ok}" = ok ] || exit 1;;
+chef-storage) echo "chef-storage env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> "$TRACE"
+	[ "${STORAGE:-ok}" != hang ] || hang; [ "${STORAGE:-ok}" = ok ] || exit 1;;
 sync) [ "${SYNC:-ok}" != hang ] || hang;;
 btprobe) [ "${BTPROBE:-ok}" = ok ] || exit 1; kill -KILL "$PPID";;
 flock)
@@ -168,6 +170,9 @@ class ChefReboot(unittest.TestCase):
         self.assertIn("chef-storage shutdown", t)
         self.assertFalse(any("--pause-init" in l for l in t), t)
         self.assertEqual(t.count("kill -TSTP 1"), 1)
+        # every step's own lines stay on kmsg too
+        self.assertIn("chef-state env CHEF_LOG_KMSG_ONLY=1", t)
+        self.assertIn("chef-storage env CHEF_LOG_KMSG_ONLY=1", t)
         for line in ["init paused", "chef-state shutdown done", "chef-storage shutdown done", "btprobe restart bootloader"]:
             self.assertIn(line, self.log())
             self.assertIn(line, (self.p / "kmsg").read_text())

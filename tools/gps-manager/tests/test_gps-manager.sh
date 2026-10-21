@@ -22,6 +22,9 @@ BROKER=$PWD/build/host/nmea-broker
 [ -x "$GM" ] && [ -x "$BROKER" ] || { echo "build gps-manager and nmea-broker first" >&2; exit 1; }
 
 T=$(mktemp -d /tmp/gps-manager-it.XXXXXX)
+# no syslog socket (never the host's /dev/log): log lines go to kmsg,
+# which a non-root test cannot write
+export CHEF_LOG_SOCKET="$T/no-syslog"
 PIDS=
 cleanup() {
 	for p in $PIDS; do kill -9 "$p" 2>/dev/null || true; done

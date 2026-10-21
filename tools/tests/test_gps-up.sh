@@ -13,6 +13,11 @@ GPS_UP=rootfs-overlay/usr/bin/gps-up
 [ -r "$GPS_UP" ] || { echo "cannot find $GPS_UP" >&2; exit 1; }
 
 TMPROOT=$(mktemp -d /tmp/gps-up-test.XXXXXX)
+# the overlay's log helper, never the host's syslog (no syslogd pid file,
+# no logger)
+export CHEF_LOG_SOCKET="$TMPROOT/no-syslog"
+export CHEF_LIB_DIR="$PWD/rootfs-overlay/usr/lib/chef" CHEF_LOG_SYSLOGD_PID="$TMPROOT/no-syslogd.pid" \
+	CHEF_LOG_LOGGER="$TMPROOT/no-logger"
 trap 'rm -rf "$TMPROOT"' EXIT
 
 pass=0

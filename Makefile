@@ -24,8 +24,12 @@ LOGS := build/test-logs
 # Nothing is written into the source tree, not even Python's bytecode cache.
 export PYTHONDONTWRITEBYTECODE := 1
 # Nor into the host's syslog: chef_log() (tools/common/) finds no socket
-# at this path. Each suite also sets it; this is the backstop.
+# at this path, and the scripts' log helper (rootfs-overlay/usr/lib/chef/
+# log.sh) no syslogd and no logger. The suites and tests also set them;
+# this is the backstop.
 export CHEF_LOG_SOCKET := /nonexistent/chef-log-socket
+export CHEF_LOG_SYSLOGD_PID := /nonexistent/syslogd.pid
+export CHEF_LOG_LOGGER := /nonexistent/logger
 
 .PHONY: all device install-device test clean \
 	$(COMPONENTS:%=%.device) $(COMPONENTS:%=%.install) $(COMPONENTS:%=%.clean) $(LIBS:%=%.clean) \

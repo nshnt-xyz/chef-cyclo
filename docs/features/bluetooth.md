@@ -62,7 +62,7 @@ pw-play --target bluez_output.AA_BB_CC_DD_EE_FF.1 file.wav
 
 Codecs follow the sink (aptX HD and SBC were verified); `wpctl set-profile <device> <a2dp-sink-sbc index>` forces SBC.
 
-`bluez-deprecated` (`hciconfig`, `hcitool`, `rfcomm`, `sdptool`, `hcidump`) stays installed for third-party scripts, but prefer `btmgmt`/`bluetoothctl`. Inspect `dmesg` for setup/restart and IBS state, and the UART's sysfs `power/runtime_status` for suspension.
+`bluez-deprecated` (`hciconfig`, `hcitool`, `rfcomm`, `sdptool`, `hcidump`) stays installed for third-party scripts, but prefer `btmgmt`/`bluetoothctl`. Inspect `dmesg` for setup/restart and IBS state (`logread | grep bt-up` for the attach helper's own lines), and the UART's sysfs `power/runtime_status` for suspension.
 
 ## Modify and verify
 

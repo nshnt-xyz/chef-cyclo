@@ -49,7 +49,7 @@ Host chef chef-usb
     StrictHostKeyChecking accept-new
     HostKeyAlias chef-cyclo
 Host chef
-    # the Wi-Fi address the panel shows ("chef Wi-Fi: ... ssh root@ADDR")
+    # the Wi-Fi address (Wi-Fi details page, or logread: "chef-wifi-ip: ... ssh root@ADDR")
     HostName 192.168.0.116
 Host chef-usb
     HostName 172.16.42.1

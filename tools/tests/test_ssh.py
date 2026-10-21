@@ -35,9 +35,33 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def log_env(p):
+    """The overlay's log helper, never the host's syslog: no syslogd pid
+    file, logger a recording stub (P/logger.out)."""
+    logger = p / "logger"
+    logger.write_text('#!/bin/sh\necho "logger $*" >> "$0.out"\n')
+    logger.chmod(0o755)
+    return {"CHEF_LIB_DIR": str(ROOT / "rootfs-overlay/usr/lib/chef"),
+            "CHEF_LOG_SYSLOGD_PID": str(p / "syslogd.pid"), "CHEF_LOG_LOGGER": str(logger)}
+
+
+def fake_syslogd(test, p):
+    """A live process whose comm is syslogd, named in P/syslogd.pid."""
+    fake = p / "syslogd"
+    fake.write_text("#!/bin/sh\nwhile :; do sleep 1; done\n")
+    fake.chmod(0o755)
+    proc = subprocess.Popen([str(fake)])
+    test.addCleanup(proc.wait)
+    test.addCleanup(proc.kill)
+    time.sleep(0.05)
+    test.assertIsNone(proc.poll())
+    (p / "syslogd.pid").write_text(f"{proc.pid}\n")
 KEYS = ROOT / "scripts/ssh-keys.py"
 SSHD = ROOT / "rootfs-overlay/usr/bin/chef-sshd"
 DISPATCH = ROOT / "rootfs-overlay/etc/NetworkManager/dispatcher.d/30-chef-wifi-ip"
@@ -233,7 +257,8 @@ class ChefSshd(unittest.TestCase):
                     "UPTIME_FILE": str(p / "uptime"),
                     "CHEF_SSHD_KEYS": str(p / "keys"), "CHEF_SSHD_DATA": str(p / "data"),
                     "CHEF_SSHD_RUN": str(self.run_dir), "CHEF_SSHD_KMSG": str(p / "kmsg"),
-                    "CHEF_SSHD_UPTIME": str(p / "uptime"), "CHEF_SSHD_DROPBEAR": str(p / "bin/dropbear")}
+                    "CHEF_SSHD_UPTIME": str(p / "uptime"), "CHEF_SSHD_DROPBEAR": str(p / "bin/dropbear"),
+                    **log_env(p)}
 
     def run_sshd(self, **env):
         r = subprocess.run([*self.shell, str(self.script)], env={**self.env, **env},
@@ -379,6 +404,14 @@ class ChefSshd(unittest.TestCase):
         i = kmsg.index("chef-sshd: 5 dropbear log lines suppressed")
         self.assertEqual(kmsg[i + 1:i + 4], ["dropbear[4242]: late 0", "dropbear[4242]: late 1", "dropbear: plain line"])
 
+    def test_dropbear_lines_to_syslog(self):
+        fake_syslogd(self, self.p)
+        rc, kmsg, trace = self.run_sshd(LINES1="2")
+        self.assertEqual([l for l in kmsg if "dropbear" in l], [])
+        out = (self.p / "logger.out").read_text().splitlines()
+        self.assertIn("logger -t dropbear[4242] -p daemon.info -- line 0", out)
+        self.assertIn("logger -t dropbear -p daemon.info -- plain line", out)
+
     def test_logins_bypass_the_budget(self):
         extra = self.p / "extra"
         extra.write_text("[4242] Oct 10 20:03:04 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:x from 1.2.3.4:5\n"
@@ -417,19 +450,29 @@ class Dispatcher(unittest.TestCase):
             kmsg.write_text("")
             r = subprocess.run(["sh", str(DISPATCH), iface, action],
                                env={**os.environ, "PATH": f"{p / 'bin'}:{os.environ['PATH']}", "ADDRS": addrs,
-                                    "CHEF_WIFI_IP_KMSG": str(kmsg), **env}, capture_output=True, text=True)
+                                    "CHEF_WIFI_IP_KMSG": str(kmsg), **log_env(p), **env},
+                               capture_output=True, text=True)
             self.assertEqual(r.returncode, 0)
             return kmsg.read_text()
 
     def test_lines(self):
         self.assertEqual(self.run_hook("wlan0", "up", "192.168.0.116/24", CONNECTION_ID="home"),
-                         "chef Wi-Fi: home IPv4 192.168.0.116, ssh root@192.168.0.116\n")
+                         "chef-wifi-ip: home IPv4 192.168.0.116, ssh root@192.168.0.116\n")
         self.assertEqual(self.run_hook("wlan0", "dhcp4-change", "10.0.0.5/8 10.0.0.6/8"),
-                         "chef Wi-Fi: wlan0 IPv4 10.0.0.5 10.0.0.6, ssh root@10.0.0.5\n")
+                         "chef-wifi-ip: wlan0 IPv4 10.0.0.5 10.0.0.6, ssh root@10.0.0.5\n")
         self.assertEqual(self.run_hook("wlan0", "down", "192.168.0.116/24"), "")
         self.assertEqual(self.run_hook("usb0", "up", "192.168.0.116/24"), "")
         self.assertEqual(self.run_hook("wlan0", "up", ""), "")
         self.assertTrue(os.access(DISPATCH, os.X_OK))
+
+    def test_syslog(self):
+        with tempfile.TemporaryDirectory() as t:
+            p = Path(t)
+            fake_syslogd(self, p)
+            out = self.run_hook("wlan0", "up", "192.168.0.116/24", CONNECTION_ID="home", **log_env(p))
+            self.assertEqual(out, "")
+            self.assertEqual((p / "logger.out").read_text(), "logger -t chef-wifi-ip -p daemon.info -- "
+                             "home IPv4 192.168.0.116, ssh root@192.168.0.116\n")
 
 
 class Wiring(unittest.TestCase):

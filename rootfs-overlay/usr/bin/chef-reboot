@@ -38,6 +38,10 @@ STORAGE_SECS=100	# chef-storage shutdown's own bounds add up to about 85 s
 SYNC_SECS=20
 WATCHDOG_SECS=150	# above 1 + 8 + 100 + 20 + 2 s (a host test checks)
 
+# kmsg only, here (a direct write: the recovery path does not depend on
+# the log helper) and in every child: a hang on the way to the bootloader
+# is what pstore keeps, and only kmsg lines reach it.
+export CHEF_LOG_KMSG_ONLY=1
 log() {
 	echo "chef-reboot: $*" >&2 || true
 	echo "chef-reboot: $*" 2>/dev/null >> "$LOG" || true

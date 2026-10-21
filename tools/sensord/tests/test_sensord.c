@@ -18,6 +18,7 @@
 #include <unistd.h>
 
 #include "../sensord.h"
+#include "common/chef_log.h"
 #include "common/linesrv.h"
 
 #include <math.h>
@@ -1189,6 +1190,7 @@ static void test_rotvec(void)
 
 int main(void)
 {
+	chef_log_set_socket("/nonexistent/chef-log-socket");	/* never the host's /dev/log */
 	signal(SIGPIPE, SIG_IGN);
 	test_convert();
 	test_ticks();

@@ -33,7 +33,7 @@
 # /run as before. Saved files are text with a trailing sha256 line, written
 # as a temp file in the same directory, fsynced, renamed, and the directory
 # fsynced, under a lock per kind in /run/chef/state. A torn or invalid file
-# is ignored with a kmsg line, never trusted, never fatal. boots.log is
+# is ignored with a log line, never trusted, never fatal. boots.log is
 # appended (one line per boot, fsynced) and its parser skips a torn line.
 # This script never changes directory into /data and never keeps a
 # descriptor there, so chef-storage shutdown's fuser never finds it. No
@@ -71,9 +71,13 @@ CRASH_KEEP=32
 CRASH_MAX_KB=16384
 BOOTS_MAX=262144
 
+# Lines go to syslog through the shared helper, or to $KMSG: `boot` runs
+# from /init before syslogd exists, and `shutdown` forces kmsg (below).
+CHEF_LOG_KMSG=$KMSG
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
 log() {
 	echo "chef-state: $*" >&2 || true
-	[ ! -c "$KMSG" ] && [ ! -f "$KMSG" ] || echo "chef-state: $*" 2>/dev/null >> "$KMSG" || true
+	chef_log chef-state "$*"
 }
 
 ours() {
@@ -835,6 +839,8 @@ gps-load) cd / && gps_load;;
 gps-save) cd / && gps_save "${2:-}";;
 blesens-load) cd / && blesens_load;;
 blesens-save) cd / && blesens_save;;
-shutdown) do_shutdown; exit 0;;
+# kmsg only, for this and every child (powerd flush): a hang on the way
+# down is what pstore keeps, and only kmsg lines reach it.
+shutdown) export CHEF_LOG_KMSG_ONLY=1; do_shutdown; exit 0;;
 *) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|gps-load|gps-save 0|1|blesens-load|blesens-save|shutdown}"; exit 1;;
 esac

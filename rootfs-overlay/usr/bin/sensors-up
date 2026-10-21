@@ -267,8 +267,11 @@ child_running() {
 	awk '{ exit ($3 == "Z") }' "/proc/$1/stat"
 }
 
+# syslog through the shared helper (kmsg while syslogd is not up), and
+# stdout for the log file inittab or the caller keeps
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
 log() {
-	[ -w /dev/kmsg ] && echo "sensors-up: $*" > /dev/kmsg 2>/dev/null
+	chef_log sensors-up "$*"
 	echo "sensors-up: $*"
 }
 

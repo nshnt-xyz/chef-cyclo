@@ -46,21 +46,23 @@
 #   <phase>-accel.jsonl, <phase>-anglvel.jsonl, <phase>-magn-<cal>.jsonl
 #   q-status.jsonl            qmag helper status every 5 s during phase q
 #   sensord-<helper>.log      each helper's stderr (every QMAG report)
-#   status-*.json, dmesg.txt, sensors-up.log
+#   status-*.json, dmesg.txt, syslog.txt (logread), sensors-up.log
 #
 # Aborting (TERM, INT, HUP) stops everything this started: captures and
 # the poller first, then the helpers by TERM (QMAG_CAL disabled, their
 # reports deleted); the main sensord keeps running with no claims left.
 #
 # Env overrides (the host test uses them): SENSORD, MAIN_SOCK, OUT_BASE,
-# KMSG, VIB, NOW_CMD, SENSORS_UP_LOG, MODE, FACE_S, FIG8_S, QFIG8_S,
-# TURN_S, GAP_S, COUNT_S, MAGN_HZ, IMU_HZ, HELPER_WAIT.
+# KMSG, LOGREAD, VIB, NOW_CMD, SENSORS_UP_LOG, MODE, FACE_S, FIG8_S, QFIG8_S,
+# TURN_S, GAP_S, COUNT_S, MAGN_HZ, IMU_HZ, HELPER_WAIT; CHEF_LIB_DIR and the
+# log helper's CHEF_LOG_* variables.
 set -u
 
 SENSORD=${SENSORD:-sensord}
 MAIN_SOCK=${MAIN_SOCK:-/run/chef/sensord.sock}
 OUT_BASE=${OUT_BASE:-/run/chef/sensortest}
 KMSG=${KMSG:-/dev/kmsg}
+LOGREAD=${LOGREAD:-logread}
 # timed_output, as init, buttond and powerd use it: each write is a
 # one-shot duration in ms, so there is no state to contend for.
 VIB=${VIB:-/sys/class/timed_output/vibrator/enable}
@@ -148,8 +150,20 @@ now_s() {
 	fi
 }
 
+# Log lines go to syslog through the shared helper (kmsg while syslogd is
+# not up) and stdout. The lines the person follows (instructions,
+# countdown, steps, DONE) are cues: also written straight to kmsg, where
+# fblog shows them on the panel, and to syslog only while it is up (no
+# second kmsg copy), so syslog.txt has them in order with sensord's lines.
+CHEF_LOG_KMSG=$KMSG
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
 say() {
+	chef_log magcal "$*"
+	echo "magcal: $*"
+}
+cue() {
 	echo "magcal: $*" >> "$KMSG" 2>/dev/null
+	chef_log_syslog magcal "$*" || true
 	echo "magcal: $*"
 }
 
@@ -257,12 +271,12 @@ step() {
 	case $PREV in *.down) gap=$((GAP_S + 3)) ;; esac
 	PREV=$1
 	STEPNO=$((STEPNO + 1))
-	say "---- STEP $STEPNO/$STEPS: $3"
-	say "     move the phone now ($gap s)"
+	cue "---- STEP $STEPNO/$STEPS: $3"
+	cue "     move the phone now ($gap s)"
 	nap "$gap"
 	echo "$(now_s) STEP $1: $3 ($2 s)" >> "$O/steps.txt"
 	buzz 400
-	say "     HOLD $2 s: $3"
+	cue "     HOLD $2 s: $3"
 	nap "$2"
 	buzz 120
 	nap 0.3
@@ -293,24 +307,24 @@ echo "# sensors-magcal-run $STAMP mode $MODE; step times: /proc/uptime" > "$O/st
 # next to uptime (BOOTTIME); they differ by the time spent suspended.
 t=$("$SENSORD" -S "$MAIN_SOCK" get accel 50 2>/dev/null | sed -n 's/.*"t":\([0-9]*\).*/\1/p')
 echo "# clock uptime $(now_s) sample_t ${t:-none}" >> "$O/steps.txt"
-say "magnetometer check, ~5 min, output $O"
-say "keep away from metal, magnets, laptops"
-say "1 long buzz: hold still. 2 short: move on"
+cue "magnetometer check, ~5 min, output $O"
+cue "keep away from metal, magnets, laptops"
+cue "1 long buzz: hold still. 2 short: move on"
 start_helper factory -i 10 -c magn=factory
 start_helper raw -i 20 -c magn=raw
 
 n=$COUNT_S
-while [ "$n" -gt 0 ]; do say "starting in $n"; nap 1; n=$((n - 1)); done
+while [ "$n" -gt 0 ]; do cue "starting in $n"; nap 1; n=$((n - 1)); done
 
 PLAN=$(plan)
 while IFS='|' read -r kind a b c; do
 	case $kind in
 	P)
-		say "part $a (magn: $b)"
+		cue "part $a (magn: $b)"
 		phase_caps "$a" "$b"
 		;;
 	Q)
-		say "part q: dynamic calibration (QMAG_CAL)"
+		cue "part q: dynamic calibration (QMAG_CAL)"
 		start_helper qmag -i 30 -Q -v && start_poller
 		;;
 	S)
@@ -328,10 +342,11 @@ $PLAN
 EOF
 cleanup
 buzz 120; nap 0.3; buzz 120; nap 0.3; buzz 120
-say "DONE, thank you"
+cue "DONE, thank you"
 
 "$SENSORD" -S "$MAIN_SOCK" status > "$O/status-main-end.json" 2>&1
 dmesg > "$O/dmesg.txt" 2>/dev/null
+"$LOGREAD" > "$O/syslog.txt" 2>/dev/null	# sensord's lines are in syslog, not dmesg
 [ -f "$SENSORS_UP_LOG" ] && cp "$SENSORS_UP_LOG" "$O/sensors-up.log"
 
 # one-line summary

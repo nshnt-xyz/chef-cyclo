@@ -779,6 +779,7 @@ static void test_server_poweroff(void)
 
 int main(void)
 {
+	chef_log_set_socket("/nonexistent/chef-log-socket");	/* never the host's /dev/log */
 	test_recog_short_unarmed();
 	test_recog_long();
 	test_recog_double_armed();

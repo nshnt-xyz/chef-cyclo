@@ -12,12 +12,15 @@ LABEL=chefdata
 MARKER='chef-cyclo-data-v1'
 BYTES=55289298432
 mkdir -p "$RUN/log" "$RUN/lock"
+# Lines go to syslog through the shared helper, or to kmsg: `boot` runs
+# from /init before syslogd exists, and `shutdown` forces kmsg (below).
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
 log() {
     # Early /init may inherit unusable console fds (console=null). Logging
     # must not make a successful mount fail or prevent RAM-only boot.
     echo "chef-storage: $*" >&2 || true
     echo "chef-storage: $*" >> "$RUN/log/storage.log" || true
-    [ ! -c /dev/kmsg ] || echo "chef-storage: $*" 2>/dev/null > /dev/kmsg || true
+    chef_log chef-storage "$*"
 }
 fail() { log "$*"; return 1; }
 resolve() {
@@ -216,7 +219,9 @@ shutdown() {
 }
 case "${1:-status}" in
 status) cat "$RUN/log/storage.log" 2>/dev/null || true; mountpoint "$DATA" || true;;
-shutdown) shutdown "${2:-}";;
+# kmsg only, for this and every child: a hang on the way down is what
+# pstore keeps, and only kmsg lines reach it.
+shutdown) export CHEF_LOG_KMSG_ONLY=1; shutdown "${2:-}";;
 boot)
     exec 9>"$RUN/lock/storage.lock"; flock -n 9 || exit 0
     if resolve && ours && check && mount_data; then

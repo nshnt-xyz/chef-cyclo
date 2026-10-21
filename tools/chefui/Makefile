@@ -91,8 +91,12 @@ endif
 
 B := build
 # No test reaches the host's syslog: chef_log() (../common/) finds no
-# socket at this path and writes the kmsg path each test sets instead.
+# socket at this path, and the scripts' log helper
+# (rootfs-overlay/usr/lib/chef/log.sh) no syslogd and no logger; the lines
+# go to the kmsg path each test sets.
 export CHEF_LOG_SOCKET := /nonexistent/chef-log-socket
+export CHEF_LOG_SYSLOGD_PID := /nonexistent/syslogd.pid
+export CHEF_LOG_LOGGER := /nonexistent/logger
 
 .PHONY: all device install-device host test clean check-lvgl
 

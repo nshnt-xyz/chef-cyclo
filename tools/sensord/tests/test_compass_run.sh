@@ -12,6 +12,10 @@
 set -u
 
 T=$(mktemp -d /tmp/snsr.XXXXXX)
+# the overlay's log helper, never the host's syslog (runs override these)
+export CHEF_LOG_SOCKET="$T/no-syslog"
+export CHEF_LIB_DIR="$PWD/../../rootfs-overlay/usr/lib/chef" CHEF_LOG_SYSLOGD_PID="$T/no-syslogd.pid" \
+	CHEF_LOG_LOGGER="$T/no-logger" LOGREAD="$T/no-logread"
 export SENSORD_FAKE_IPC="$T/ipc"
 mkdir -p "$SENSORD_FAKE_IPC" "$T/out"
 SOCK="$T/sock"
@@ -48,6 +52,8 @@ script_env() {
 	shift
 	echo SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/$n" \
 		KMSG="$T/kmsg-$n" VIB="$T/vib-$n" SENSORS_UP_LOG="$T/none" NOW_CMD="$T/now" \
+		CHEF_LIB_DIR="$PWD/../../rootfs-overlay/usr/lib/chef" CHEF_LOG_SYSLOGD_PID="$T/syslogd-$n.pid" \
+		CHEF_LOG_LOGGER="$T/logger" LOGGER_OUT="$T/logger-$n" LOGREAD="$T/logread" \
 		CAL_S=0.3 CAL_ROUNDS=2 TURN_S=0.6 TILT_S=0.5 BAR_S=0.3 ROLL_S=0.3 SHAKE_S=0.3 \
 		QUICK_S=0.6 GAP_S=0 COUNT_S=1 POLL_S=1 HELPER_WAIT=40 "$@"
 }
@@ -87,6 +93,12 @@ echo "$L" | grep -q "^ *14\. tilt.bar  *8 s  same way: HANDLEBAR" || fail "--lis
 echo "$L" | grep -q "one long buzz = the step starts: hold still (HOLD), or start the movement (DO);" || fail "--list legend"
 printf '#!/bin/sh\nexec python3 -c "import time; print(\\"%%.3f\\" %% time.monotonic())"\n' >"$T/now"
 chmod +x "$T/now"
+# the log helper never reaches the host's syslog: logger and logread are
+# stubs, and only the "cal" run has a live "syslogd" (a script so named)
+printf '#!/bin/sh\necho "$*" >> "$LOGGER_OUT"\n' >"$T/logger"
+printf '#!/bin/sh\necho "fake logread"\n' >"$T/logread"
+printf '#!/bin/sh\nwhile :; do sleep 1; done\n' >"$T/syslogd"
+chmod +x "$T/logger" "$T/logread" "$T/syslogd"
 
 if env SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="$T/out/none" KMSG="$T/kmsg" \
 	sh "$RUN" >"$T/norun.txt" 2>&1; then
@@ -195,13 +207,24 @@ tail -n 1 "$T/run-mid.txt" | grep -q "calibration yes after [3-6] holds; accel" 
 no_claims mid
 
 # ------------------------------------------------ already calibrated
+# syslogd up: the cues go to kmsg (the panel) and syslog, once each
+"$T/syslogd" &
+LPID=$!
+echo "$LPID" >"$T/syslogd-cal.pid"
 run_script cal || fail "cal run exit $?"
+kill "$LPID"
 K=$T/kmsg-cal
+L=$T/logger-cal
+[ "$(grep -c "^compass: ---- STEP 1/11: " "$K")" = 1 ] || fail "cal: STEP 1 not once in kmsg"
+[ "$(grep -c "^-t compass -p daemon.info -- ---- STEP 1/11: FLAT, top edge at your REFERENCE mark, still$" "$L")" = 1 ] \
+	|| fail "cal: STEP 1 not once in syslog: $(head -n 3 "$L")"
+grep -q -- "-- DONE, thank you$" "$L" || fail "cal: DONE not in syslog"
 grep -q "^compass: magnetometer already calibrated: no calibration holds$" "$K" || fail "already calibrated message"
 grep -q "^compass: ---- STEP 1/11: FLAT, top edge at your REFERENCE mark, still$" "$K" || fail "cal: first step"
 D=$(ls -d "$T"/out/cal/compass-* | head -n 1)
 grep -q "^# cal already calibrated at " "$D/steps.txt" || fail "cal: cal line"
 grep -q "STEP cal1" "$D/steps.txt" && fail "cal: calibration holds run anyway"
+grep -q "^fake logread$" "$D/syslog.txt" || fail "cal: no syslog.txt from logread"
 [ -e "$D/rotvec.jsonl" ] && fail "cal: rotvec captured without ROTVEC=1"
 no_claims cal
 

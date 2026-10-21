@@ -26,8 +26,11 @@
 
 #include <stdbool.h>
 
-/* TAG is kept by pointer. CHEF_LOG_SOCKET in the environment, read here,
- * replaces /dev/log (unless chef_log_set_socket() chose a path). */
+/* TAG is kept by pointer. Read here from the environment:
+ * CHEF_LOG_SOCKET replaces /dev/log (unless chef_log_set_socket() chose a
+ * path); CHEF_LOG_KMSG_ONLY=1 sends every line to kmsg, as the shell
+ * helper rootfs-overlay/usr/lib/chef/log.sh does: the shutdown work sets
+ * it so its lines (and its children's) reach pstore. */
 void chef_log_init(const char *tag, bool echo_stderr);
 void chef_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 

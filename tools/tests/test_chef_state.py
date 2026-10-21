@@ -131,7 +131,14 @@ class ChefState(unittest.TestCase):
                  "sync"]
         for n in names:
             (p / "bin" / n).symlink_to(stub)
-        (p / "bin/powerd").write_text(f'#!/bin/sh\necho "powerd $*" >> "$TRACE"\nexec {POWERD} "$@"\n')
+        (p / "bin/powerd").write_text(f'#!/bin/sh\necho "powerd $*" >> "$TRACE"\n'
+                                      f'echo "powerd CHEF_LOG_KMSG_ONLY=${{CHEF_LOG_KMSG_ONLY:-}}" >> "$TRACE"\n'
+                                      f'exec {POWERD} "$@"\n')
+        # The log helper from the overlay, never the host's syslog: no
+        # syslogd pid file, logger a recording stub (LOGGER_OUT), the
+        # C library's socket missing.
+        (p / "bin/logger").write_text('#!/bin/sh\necho "logger $*" >> "$LOGGER_OUT"\n')
+        (p / "bin/logger").chmod(0o755)
         (p / "bin/powerd").chmod(0o755)
         wrapper = "".join(f'{n}() {{ "$TEST_BIN/{n}" "$@"; }}\n' for n in names)
         self.script = p / "chef-state"
@@ -141,6 +148,9 @@ class ChefState(unittest.TestCase):
                     "TRACE": str(p / "trace"),
                     "CHEF_STATE_DATA": str(self.data), "CHEF_STATE_RUN": str(p / "run"),
                     "CHEF_STATE_KMSG": str(p / "kmsg"), "CHEF_STATE_CMDLINE": str(p / "cmdline"),
+                    "CHEF_LIB_DIR": str(ROOT / "rootfs-overlay/usr/lib/chef"),
+                    "CHEF_LOG_SYSLOGD_PID": str(p / "syslogd.pid"), "CHEF_LOG_LOGGER": str(p / "bin/logger"),
+                    "LOGGER_OUT": str(p / "logger.out"), "CHEF_LOG_SOCKET": str(p / "no-syslog"),
                     "CHEF_STATE_BOOT_ID": str(p / "boot_id"), "CHEF_STATE_RTC": str(p / "rtc"),
                     "CHEF_STATE_PSTORE": str(p / "pstore"), "CHEF_STATE_SENSORS_RUN": str(p / "sensors"),
                     "CHEF_STATE_MAP": str(p / "map"), "CHEF_STATE_PROC": str(p / "proc"),
@@ -1099,6 +1109,7 @@ class ChefState(unittest.TestCase):
         r = self.call("shutdown", CHEF_STATE_PROC="/proc")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(f"powerd -d {self.p}/run/power -l {logdir} -L 4194304 flush", self.trace)
+        self.assertIn("powerd CHEF_LOG_KMSG_ONLY=1", self.trace)  # its lines stay on kmsg too
         self.assertIn("power: appended 2 pending rows a stopped powerd left", self.kmsg)
         self.assertIn("power_flush_rc=0", self.kmsg)
         self.assertEqual((logdir / "log.csv.1").read_text(), "uptime,utc,reason\n1.0,x,start\n")
@@ -1267,6 +1278,33 @@ class ChefState(unittest.TestCase):
         r = self.call("shutdown", CHRONYD_PID=str(chronyd.pid))
         self.assertEqual(r.returncode, 0)
         self.assertEqual(chronyd.wait(timeout=5), -15)
+
+    def test_log_lines_follow_syslogd(self):
+        # running modes log through the helper to syslogd (logger), boot and
+        # shutdown to kmsg: boot runs before syslogd, shutdown forces it
+        fake = self.p / "syslogd"  # comm comes from the script's file name
+        fake.write_text("#!/bin/sh\nwhile :; do sleep 1; done\n")
+        fake.chmod(0o755)
+        proc = subprocess.Popen([str(fake)])
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        time.sleep(0.05)
+        self.assertIsNone(proc.poll())
+        (self.p / "syslogd.pid").write_text(f"{proc.pid}\n")
+        out = self.p / "logger.out"
+        self.assertEqual(self.call("mag-restore").returncode, 1)
+        self.assertIn("logger -t chef-state -p daemon.info -- usage: chef-state mag-restore FILE",
+                      out.read_text())
+        self.assertEqual(self.kmsg, "")
+        out.write_text("")
+        r = self.call("shutdown", CHEF_STATE_PROC="/proc")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("chef-state: shutdown: time_save_rc=", self.kmsg)
+        self.assertEqual(out.read_text(), "")
+        (self.p / "syslogd.pid").unlink()
+        self.call("boot")
+        self.assertIn("chef-state: ", self.kmsg)
+        self.assertEqual(out.read_text(), "")
 
     def test_usage(self):
         self.assertEqual(self.call("nope").returncode, 1)

@@ -11,6 +11,11 @@ SCRIPT=rootfs-overlay/usr/bin/sensors-up
 [ -r "$SCRIPT" ] || { echo "cannot find $SCRIPT" >&2; exit 1; }
 
 T=$(mktemp -d /tmp/sensors-up-test.XXXXXX)
+# the overlay's log helper, never the host's syslog (no syslogd pid file,
+# no logger)
+export CHEF_LOG_SOCKET="$T/no-syslog"
+export CHEF_LIB_DIR="$PWD/rootfs-overlay/usr/lib/chef" CHEF_LOG_SYSLOGD_PID="$T/no-syslogd.pid" \
+	CHEF_LOG_LOGGER="$T/no-logger"
 trap 'rm -rf "$T"' EXIT
 FAILS=0
 

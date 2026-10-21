@@ -26,6 +26,7 @@ static bool log_echo;
 static const char *log_kmsg = CHEF_LOG_KMSG;
 static const char *log_socket_set;	/* chef_log_set_socket() */
 static const char *log_socket_env;	/* CHEF_LOG_SOCKET */
+static bool log_kmsg_only;		/* CHEF_LOG_KMSG_ONLY=1 */
 static bool log_env_read;
 static int log_fd = -1;
 static pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -37,13 +38,21 @@ static void log_close(void)
 	log_fd = -1;
 }
 
+static void read_env(void)
+{
+	const char *only = getenv("CHEF_LOG_KMSG_ONLY");
+
+	log_socket_env = getenv("CHEF_LOG_SOCKET");
+	log_kmsg_only = only && !strcmp(only, "1");
+	log_env_read = true;
+}
+
 void chef_log_init(const char *tag, bool echo_stderr)
 {
 	pthread_mutex_lock(&log_lock);
 	log_tag = tag;
 	log_echo = echo_stderr;
-	log_socket_env = getenv("CHEF_LOG_SOCKET");
-	log_env_read = true;
+	read_env();
 	log_close();
 	pthread_mutex_unlock(&log_lock);
 }
@@ -67,10 +76,6 @@ static const char *socket_path(void)
 {
 	if (log_socket_set)
 		return log_socket_set;
-	if (!log_env_read) {	/* a caller that never ran chef_log_init() */
-		log_socket_env = getenv("CHEF_LOG_SOCKET");
-		log_env_read = true;
-	}
 	return log_socket_env && *log_socket_env ? log_socket_env : CHEF_LOG_SOCKET;
 }
 
@@ -102,6 +107,10 @@ static bool lost_connection(int e)
 /* 0 once syslogd has the datagram; -1 means "use kmsg". */
 static int log_send(const char *dgram, size_t len)
 {
+	if (!log_env_read)	/* a caller that never ran chef_log_init() */
+		read_env();
+	if (log_kmsg_only)
+		return -1;
 	if (log_fd < 0 && log_connect() < 0)
 		return -1;
 	if (send(log_fd, dgram, len, MSG_DONTWAIT | MSG_NOSIGNAL) >= 0)

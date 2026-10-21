@@ -48,21 +48,29 @@ takes one of its seven retries.
 
 ```sh
 scripts/phone.py run 'uname -a; cat /proc/uptime'   # exit status = remote status
-echo 'dmesg | tail' | scripts/phone.py run           # command on stdin
+echo 'logread | tail' | scripts/phone.py run         # command on stdin
 scripts/phone.py -t 300 run 'long-command'           # timeout in s (default 60)
 scripts/phone.py push build/tool -d /run/test        # verified by sha256
 scripts/phone.py pull /run/evidence -o ev.tgz        # byte-exact tar.gz
-scripts/phone.py stream 'cat /dev/kmsg' kmsg.txt     # until the phone goes away
+scripts/phone.py stream 'logread -f' syslog.txt     # until the phone goes away
+scripts/phone.py stream 'cat /dev/kmsg' kmsg.txt     # the kernel's side
 scripts/phone.py --log DIR run '...'                 # keep a session transcript
 ```
+
+Where the lines are ([logging](features/logging.md)): our daemons and
+scripts, NetworkManager, BlueZ, wpa_supplicant, D-Bus and chrony in
+syslogd's RAM ring (`logread`, `logread -f`, `logread | grep TAG`); the
+kernel, `/init`, stage 1, the boot-time `chef-state` and `chef-storage`
+lines, everything on the way down and lines from before syslogd started in
+`dmesg`. Save both as evidence (`logread > syslog.txt; dmesg > dmesg.txt`).
 
 `telnet 172.16.42.1` gives the same passwordless root shell interactively.
 
 Without the USB cable (for example during physical tests), images built since
 2026-10-10 take [SSH](features/ssh.md) logins with the dedicated key on every
 interface: `scripts/phone.py --ssh ADDR run|push|pull|stream ...` (or
-`PHONE_SSH=ADDR`) with the Wi-Fi address the panel shows (`chef Wi-Fi: ...
-ssh root@ADDR`). `scripts/phone-boot.sh` still needs USB (fastboot).
+`PHONE_SSH=ADDR`) with the Wi-Fi address from the Wi-Fi details page or
+`logread | grep chef-wifi-ip` (`chef-wifi-ip: ... ssh root@ADDR`). `scripts/phone-boot.sh` still needs USB (fastboot).
 Push a rebuilt static binary instead of rebooting when iterating on a tool;
 `/run` and `/tmp` are RAM.
 
