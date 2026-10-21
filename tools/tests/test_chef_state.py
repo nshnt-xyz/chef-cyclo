@@ -74,7 +74,7 @@ rc-service)
     # rc-service -q SERVICE stop: what its supervisor (and, for the
     # timekeeper, its service's stop_post) would do
     case "$2" in
-    chronyd) pid=${CHRONYD_PID:-};; powerd) pid=${POWERD_PID:-};; sensors-up) pid=${SENSORS_PID:-};;
+    chronyd) pid=${CHRONYD_PID:-};; powerd) pid=${POWERD_PID:-};; sensord) pid=${SENSORD_DAEMON:-${SENSORS_PID:-}};;
     chef-timekeeper) pid=${KEEPER_PID:+-$KEEPER_PID};; *) pid=;;
     esac
     [ -z "$pid" ] || [ -n "${RC_SERVICE_DOWN:-}" ] || kill -TERM "$pid" 2>/dev/null
@@ -82,7 +82,7 @@ rc-service)
 pidof) case "$1" in
     chronyd) echo "${CHRONYD_PID:-}";;
     powerd) echo "${POWERD_PID:-}";;
-    sensors-up) echo "${SENSORS_PID:-}";;
+    sensord) echo "${SENSORS_PID:-}";;
     esac
     exit 0;;
 sync)
@@ -168,6 +168,7 @@ class ChefState(unittest.TestCase):
                     "CHEF_STATE_BOOT_ID": str(p / "boot_id"), "CHEF_STATE_RTC": str(p / "rtc"),
                     "CHEF_STATE_PSTORE": str(p / "pstore"), "CHEF_STATE_SENSORS_RUN": str(p / "sensors"),
                     "CHEF_STATE_MAP": str(p / "map"), "CHEF_STATE_PROC": str(p / "proc"),
+                    "CHEF_STATE_RC_OPTIONS": str(p / "rc-options"),
                     "CHRONYC_OUT": str(p / "chronyc.out"), "EDGE_OUT": str(p / "edge.out"),
                     "REAL_DD": subprocess.run(["sh", "-c", "command -v dd"], capture_output=True, text=True).stdout.strip(),
                     "REAL_FLOCK": subprocess.run(["sh", "-c", "command -v flock"], capture_output=True, text=True).stdout.strip(),
@@ -896,7 +897,7 @@ class ChefState(unittest.TestCase):
         self.assertIn("chronyd alive at chronyc", t)
         self.assertLess(t.index("chronyc"), t.index("pidof chronyd"))
         # through OpenRC, all at once: the three at entry, chronyd after its query
-        for svc in ("sensors-up", "powerd", "chef-timekeeper"):
+        for svc in ("sensord", "powerd", "chef-timekeeper"):
             self.assertLess(t.index(f"rc-service -q {svc} stop"), t.index("chronyc"))
         self.assertLess(t.index("chronyc"), t.index("rc-service -q chronyd stop"))
         self.assertEqual(t.count("rc-service "), 4)
@@ -1275,6 +1276,31 @@ class ChefState(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIsNone(pr.poll())
         self.assertIn("final flush not confirmed", self.kmsg)
+        self.assertIn("stop_rc=1", self.kmsg)
+
+    def test_shutdown_waits_for_the_daemon_not_its_clients(self):
+        # `sensord watch` is the same binary: pidof finds it too, but only
+        # the daemon its supervisor recorded is waited for
+        daemon = self.spawn()
+        client = subprocess.Popen(["sh", "-c", "trap '' TERM; exec sleep 30"])
+        self.addCleanup(lambda: (client.kill(), client.wait()))
+        time.sleep(0.05)
+        opts = self.p / "rc-options/sensord"
+        opts.mkdir(parents=True)
+        (opts / "child_pid").write_text(f"{daemon.pid}\n")
+        env = dict(SENSORS_PID=f"{daemon.pid} {client.pid}", SENSORD_DAEMON=str(daemon.pid), CHEF_STATE_PROC="/proc")
+        start = time.monotonic()
+        r = self.call("shutdown", **env)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertLess(time.monotonic() - start, 1.5)
+        self.assertEqual(daemon.wait(timeout=5), -15)
+        self.assertIsNone(client.poll())
+        self.assertIn("stop_rc=0", self.kmsg)
+        self.assertNotIn("pidof sensord", self.trace)
+        # no record (OpenRC not running it): pidof, and the client holds it
+        (opts / "child_pid").unlink()
+        r = self.call("shutdown", SENSORS_PID=str(client.pid), CHEF_STATE_PROC="/proc")
+        self.assertIn("pidof sensord", self.trace)
         self.assertIn("stop_rc=1", self.kmsg)
 
     def test_shutdown_never_signals_a_daemon_itself(self):

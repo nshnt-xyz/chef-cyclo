@@ -14,6 +14,10 @@ export CHEF_LOG_SOCKET="$T/no-syslog"
 export SENSORD_FAKE_IPC="$T/ipc"
 mkdir -p "$SENSORD_FAKE_IPC"
 SOCK="$T/sock"
+# the bias save's chef-state: records its call (outside $T, whose files are checked)
+K=$(mktemp -d /tmp/snsk.XXXXXX)
+printf '#!/bin/sh\necho "$* run=$CHEF_STATE_SENSORS_RUN map=$CHEF_STATE_MAP" >> "%s/calls"\n' "$K" > "$K/state"
+chmod +x "$K/state"
 FAILS=0
 SPID=
 FPID=
@@ -22,7 +26,7 @@ cleanup() {
 	[ -n "$SPID" ] && kill "$SPID" 2>/dev/null
 	[ -n "$FPID" ] && kill "$FPID" 2>/dev/null
 	wait 2>/dev/null
-	rm -rf "$T"
+	rm -rf "$T" "$K"
 }
 trap cleanup EXIT
 
@@ -51,7 +55,7 @@ bg_cli() {
 }
 
 start_pair() {
-	./build/host/tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" -v $1 \
+	./build/host/tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -k "$K/state" -S "$SOCK" -v $1 \
 		2>>"$T/sensord.log" &
 	SPID=$!
 	./build/host/tests/fake_smgr serve $2 >>"$T/smgr.log" 2>&1 &
@@ -89,6 +93,9 @@ wait_for "$T/sensord.log" "registry written back to $T/reg (after DSP writes; 1 
 [ -e "$T/reg.tmp" ] && fail "write-back temp left"
 [ "$(ls -l "$T/reg" | cut -c1-10)" = "-r--------" ] || fail "write-back mode: $(ls -l "$T/reg")"
 [ "$(ls "$T" | tr '\n' ' ')" = "ipc reg sensord.log smgr.log sock " ] || fail "files besides the registry: $(ls "$T")"
+# then the bias save, once, with the registry's paths (chef-state mag-save)
+wait_for "$K/calls" "mag-save" 30 || fail "no mag-save after the write-back"
+[ "$(cat "$K/calls")" = "mag-save run=$T map=tests/fixtures/sns_reg.map" ] || fail "mag-save call: $(cat "$K/calls")"
 
 # a second daemon must not steal the socket or publish REG2 again
 if ./build/host/tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/second.log"; then

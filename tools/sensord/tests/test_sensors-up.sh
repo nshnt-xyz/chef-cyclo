@@ -4,7 +4,8 @@
 # its functions. mount/umount/cp are replaced by shell functions (they
 # take precedence over PATH here, on the host's sh), so the test sees
 # exactly what would be run against persist without mounting anything.
-# The live ADSP/sensord part is covered by the live run only.
+# The two verbs run for real against stubs: `registry` up to irsc, `adsp`
+# with a stub audio-up. The live ADSP part is covered by the live run only.
 set -u
 cd "$(dirname "$0")/../../.."
 SCRIPT=rootfs-overlay/usr/bin/sensors-up
@@ -206,7 +207,7 @@ PERSIST_MOUNTED=0
 
 # --- reuse of this boot's /run copy (sensord wrote the DSP's writes
 # back into it): no blockdev, no mount, nothing of persist touched --------
-grep -q 'NO_REG2=0; reuse_registry || copy_registry || exit 1' "$SCRIPT" || bad "reuse not tried before a fresh copy"
+grep -q '^	reuse_registry || copy_registry || exit 1$' "$SCRIPT" || bad "reuse not tried before a fresh copy"
 BOOT_ID_FILE="$T/boot_id"
 echo aaa > "$BOOT_ID_FILE"
 SENSORS_FRESH=0
@@ -277,120 +278,78 @@ adsp_online && bad "adsp_online with OFFLINE"
 echo ONLINE > "$SUBSYS_DIR/subsys1/state"
 adsp_online || bad "adsp_online with ONLINE"
 
-# A same-boot supervisor restart resets its local timer, but chef-state's
-# shared timer may defer the first write. Keep the final snapshot pending.
-chef_state() { echo "$*" >> "$STATE_CALLS"; return "$SAVE_RC"; }
-uptime_s() { echo "$FAKE_UPTIME"; }
-REG_SAVE_AT=0 REG_SAVE_PENDING=1 SAVE_RC=3 FAKE_UPTIME=31
-reg_save_pending
-eq "rate-skipped snapshot stays pending" 1 "$REG_SAVE_PENDING"
-SAVE_RC=0 FAKE_UPTIME=90
-reg_save_pending
-eq "pending waits for minute retry" 1 "$REG_SAVE_PENDING"
-FAKE_UPTIME=91
-reg_save_pending
-eq "final coalesced snapshot accepted at retry" 0 "$REG_SAVE_PENDING"
-REG_SAVE_PENDING=1 SAVE_RC=1 FAKE_UPTIME=151
-reg_save_pending
-eq "failed snapshot stays pending" 1 "$REG_SAVE_PENDING"
-SAVE_RC=0 FAKE_UPTIME=211
-reg_save_pending
-eq "failed snapshot retried without another DSP write" 0 "$REG_SAVE_PENDING"
-
-# --- the flock lock and the orphaned sensord (real script runs) -----------
-# The script is run for real with every path under $T; it stops at the missing
-# IPC-router dump_servers right after taking the lock and handling an orphan,
-# so nothing is mounted and persist is never looked at.
-RUNENV="LOCK=$T/up.lock SENSORD_PIDFILE=$T/up.pid DUMP_SERVERS=$T/no-such-dump RUN_DIR=$T/run2 SENSORD=$T/bin/sensord"
+# --- the lock (real script runs) -------------------------------------------
+# `registry` is run for real with every path under $T; it stops at the
+# missing IPC-router dump_servers right after taking the lock, so nothing
+# is mounted and persist is never looked at.
+RUNENV="LOCK=$T/up.lock DUMP_SERVERS=$T/no-such-dump RUN_DIR=$T/run2"
 mkdir -p "$T/bin"
-# two real binaries (a multi-call sleep cannot be copied under another name)
+# a real binary for the lock holder (a multi-call sleep cannot be copied under another name)
 printf '#include <unistd.h>\nint main(int c, char **v) { (void)c; (void)v; sleep(60); return 0; }\n' > "$T/nap.c"
-cc -o "$T/bin/sensord" "$T/nap.c" && cp "$T/bin/sensord" "$T/bin/othersleep" || { echo "no C compiler for the lock test" >&2; exit 1; }
-runscript() { env $RUNENV sh "$SCRIPT" > "$T/rs.out" 2>&1; }
+cc -o "$T/bin/othersleep" "$T/nap.c" || { echo "no C compiler for the lock test" >&2; exit 1; }
+runscript() { env $RUNENV sh "$SCRIPT" "$@" > "$T/rs.out" 2>&1; }
+runscript; eq "no verb: usage" 2 "$?"
+grep -q "usage: sensors-up registry|adsp" "$T/rs.out" || bad "usage: $(cat "$T/rs.out")"
 # a free lock: the instance gets past it (and stops at dump_servers, exit 1)
-runscript; eq "free lock: past the lock" 1 "$?"
+runscript registry; eq "free lock: past the lock" 1 "$?"
 grep -q "dump_servers is unavailable" "$T/rs.out" || bad "free lock run: $(cat "$T/rs.out")"
-# a held lock: refused with the old text, before anything else
+# a held lock: refused, before anything else
 sh -c 'exec 9>"'"$T"'/up.lock"; flock -n 9 || exit 3; exec "'"$T"'/bin/othersleep"' &
 HOLDER=$!
 sleep 0.3
-runscript; eq "held lock: refused" 1 "$?"
+runscript registry; eq "held lock: refused" 1 "$?"
 grep -q "already running" "$T/rs.out" || bad "held lock message: $(cat "$T/rs.out")"
 grep -q "dump_servers" "$T/rs.out" && bad "held lock: ran past the lock"
-kill "$HOLDER" 2>/dev/null; wait "$HOLDER" 2>/dev/null
 # kill -9 of the holder: the kernel drops the lock, a new instance starts
-sh -c 'exec 9>"'"$T"'/up.lock"; flock -n 9 || exit 3; exec "'"$T"'/bin/sensord" 30' &
-HOLDER=$!
-sleep 0.3
-runscript; grep -q "already running" "$T/rs.out" || bad "second instance not refused while the first runs"
 kill -9 "$HOLDER" 2>/dev/null; wait "$HOLDER" 2>/dev/null
-runscript; grep -q "dump_servers is unavailable" "$T/rs.out" || bad "no new start after kill -9 of the holder: $(cat "$T/rs.out")"
-# an orphaned sensord named by the pid file is stopped, a recycled pid is not
-"$T/bin/sensord" &
-ORPHAN=$!
-echo "$ORPHAN" > "$T/up.pid"
-runscript
-grep -q "stopping orphaned sensord pid $ORPHAN" "$T/rs.out" || bad "orphan not announced: $(cat "$T/rs.out")"
-sleep 0.2
-kill -0 "$ORPHAN" 2>/dev/null && [ "$(awk '{print $3}' "/proc/$ORPHAN/stat" 2>/dev/null)" != Z ] && bad "orphaned sensord still running"
-wait "$ORPHAN" 2>/dev/null
-[ -e "$T/up.pid" ] && bad "pid file left behind"
-"$T/bin/othersleep" &
-OTHER=$!
-echo "$OTHER" > "$T/up.pid"
-runscript
-grep -q "orphaned" "$T/rs.out" && bad "a pid that is not sensord was stopped"
-kill -0 "$OTHER" 2>/dev/null || bad "the other process was killed"
-kill "$OTHER" 2>/dev/null; wait "$OTHER" 2>/dev/null
-echo 99999999 > "$T/up.pid"
-runscript; grep -q "dump_servers is unavailable" "$T/rs.out" || bad "stale pid file blocked the start"
-# children never inherit the lock fd
-grep -q '9>&- &' "$SCRIPT" || bad "sensord start does not close fd 9"
-[ "$(grep -c '9>&-' "$SCRIPT")" -ge 2 ] || bad "audio-up start does not close fd 9"
+runscript registry; grep -q "dump_servers is unavailable" "$T/rs.out" || bad "no new start after kill -9 of the holder: $(cat "$T/rs.out")"
+# no sensord here any more: the sensord service supervises it
+grep -Eq '^[^#]*(sensord.pid|"\$SENSORD"|SMGR_WAIT)' "$SCRIPT" && bad "sensors-up still runs or waits for sensord"
 
-# --- the log bound (D10) ------------------------------------------------------
-# The rotation over 256 KiB moved from the inittab wrapper into
-# init.d/sensors-up's start_pre: scripts/tests/test_services.py runs it.
-
-# --- sensord's flags and stderr (L1): the real script against a stub sensord ---
+# --- registry: the whole verb on a reusable copy (irsc stubbed) ---------------
 H=$T/h
-mkdir -p "$H/run" "$H/bin" "$H/subsys/subsys0"
+mkdir -p "$H/run" "$H/bin"
 printf '0123456789abcdef' > "$H/run/sns.reg"
 echo hostboot > "$H/boot_id"
 cp "$H/boot_id" "$H/run/sns.reg.boot_id"
-printf '0x0000010f |0x00000002 |0x00000001 |0x0000003c |\n0x00000100 |0x00003201 |0x00000005 |0x00000059 |\n' > "$H/dump"
+printf '0x0000010f |0x00000002 |0x00000001 |0x0000003c |\n' > "$H/dump"
+printf '#!/bin/sh\necho irsc >> "%s/irsc.calls"\nexit "${IRSC_RC:-0}"\n' "$H" > "$H/bin/irsc"
+chmod +x "$H/bin/irsc"
+UPENV="PATH=$H/bin:$PATH LOCK=$H/up.lock RUN_DIR=$H/run REG_MAP=$T/sns_reg.map BOOT_ID_FILE=$H/boot_id DUMP_SERVERS=$H/dump"
+env $UPENV sh "$SCRIPT" registry > "$H/o1" 2>&1; eq "registry: exit" 0 "$?"
+grep -q "registry reused from this boot" "$H/o1" || bad "registry verb: $(cat "$H/o1")"
+eq "registry: irsc once" irsc "$(cat "$H/irsc.calls")"
+env $UPENV IRSC_RC=1 sh "$SCRIPT" registry > "$H/o2" 2>&1; eq "registry: irsc failure fails" 1 "$?"
+grep -q "irsc failed" "$H/o2" || bad "irsc failure message: $(cat "$H/o2")"
+
+# --- adsp: audio-up started detached unless the adsp is up or audio-up runs ---
+mkdir -p "$H/subsys/subsys0"
 echo adsp > "$H/subsys/subsys0/name"
-echo ONLINE > "$H/subsys/subsys0/state"
-printf '#!/bin/sh\nexit 0\n' > "$H/bin/irsc"
-printf '#!/bin/sh\nexit 0\n' > "$H/chef-state"
-cat > "$H/sensord" <<'STUB'
+cat > "$H/audio-up" <<'STUB'
 #!/bin/sh
-echo "$*" > "$H_ARGS"
-echo "stub-stderr-note" >&2
-exec sleep 30
+echo "audio-up sid=$(cut -d' ' -f6 /proc/$$/stat) parent=$PPID" >> "$H_AUDIO"
+exec sleep 2
 STUB
-chmod +x "$H/bin/irsc" "$H/chef-state" "$H/sensord"
-run_up() {	# run_up OUTFILE [ENV...]: start sensors-up on the stub, wait for the args file, stop it
-	out=$1; shift
-	rm -f "$H/args" "$H/up.lock" "$H/up.pid"
-	env "$@" H_ARGS="$H/args" PATH="$H/bin:$PATH" LOCK="$H/up.lock" SENSORD_PIDFILE="$H/up.pid" \
-		RUN_DIR="$H/run" REG_MAP="$T/sns_reg.map" BOOT_ID_FILE="$H/boot_id" DUMP_SERVERS="$H/dump" \
-		SUBSYS_DIR="$H/subsys" SENSORD="$H/sensord" CHEF_STATE="$H/chef-state" \
-		sh "$SCRIPT" > "$out" 2>&1 &
-	UP=$!
-	n=0; while [ ! -s "$H/args" ] && [ "$n" -lt 60 ]; do sleep 0.1; n=$((n + 1)); done
-	sleep 0.3
-	kill "$UP" 2>/dev/null; wait "$UP" 2>/dev/null
-}
-run_up "$H/o1"
-case "$(cat "$H/args")" in "-v -r "*) ;; *) bad "unset SENSORD_ARGS did not pass -v: $(cat "$H/args")";; esac
-grep -q stub-stderr-note "$H/o1" || bad "unset SENSORD_STDERR: sensord's stderr is not inherited"
-run_up "$H/o2" SENSORD_ARGS=
-case "$(cat "$H/args")" in "-r "*) ;; *) bad "empty SENSORD_ARGS did not mean no flags: $(cat "$H/args")";; esac
-run_up "$H/o3" SENSORD_ARGS= SENSORD_STDERR="$H/sensord.err"
-grep -q stub-stderr-note "$H/sensord.err" || bad "SENSORD_STDERR: stub's stderr not in $H/sensord.err"
-grep -q stub-stderr-note "$H/o3" && bad "SENSORD_STDERR set: sensord's stderr leaked into the sensors-up log"
-grep -q "supervising sensord" "$H/o3" || bad "sensors-up did not reach supervision: $(cat "$H/o3")"
+chmod +x "$H/audio-up"
+ADSPENV="$UPENV SUBSYS_DIR=$H/subsys AUDIO_UP=$H/audio-up AUDIO_LOCK=$H/audio.lock H_AUDIO=$H/audio.calls"
+echo ONLINE > "$H/subsys/subsys0/state"
+env $ADSPENV sh "$SCRIPT" adsp > "$H/a1" 2>&1; eq "adsp ONLINE: exit" 0 "$?"
+grep -q "adsp already ONLINE" "$H/a1" || bad "adsp ONLINE message: $(cat "$H/a1")"
+echo OFFLINE > "$H/subsys/subsys0/state"
+mkdir "$H/audio.lock"
+env $ADSPENV sh "$SCRIPT" adsp > "$H/a2" 2>&1; eq "audio-up running: exit" 0 "$?"
+grep -q "audio-up is running" "$H/a2" || bad "audio-up running message: $(cat "$H/a2")"
+rmdir "$H/audio.lock"
+[ -e "$H/audio.calls" ] && bad "audio-up started while the adsp was up or audio-up ran"
+start=$(date +%s)
+env $ADSPENV sh "$SCRIPT" adsp > "$H/a3" 2>&1; eq "adsp OFFLINE: exit" 0 "$?"
+[ $(($(date +%s) - start)) -le 1 ] || bad "adsp waited for audio-up"
+grep -q "started $H/audio-up (pid [0-9]*) to boot the adsp" "$H/a3" || bad "audio-up start message: $(cat "$H/a3")"
+n=0; while [ ! -s "$H/audio.calls" ] && [ "$n" -lt 30 ]; do sleep 0.1; n=$((n + 1)); done
+sid=$(sed -n 's/.*sid=\([0-9]*\).*/\1/p' "$H/audio.calls")
+[ -n "$sid" ] && [ "$sid" != "$(cut -d' ' -f6 /proc/$$/stat)" ] || bad "audio-up not in a session of its own: $(cat "$H/audio.calls")"
+# children never inherit the lock fd
+grep -q 'setsid "$AUDIO_UP" </dev/null 9>&- &' "$SCRIPT" || bad "audio-up start does not close fd 9"
 
 if [ "$FAILS" -ne 0 ]; then
 	echo "test_sensors-up.sh: $FAILS failure(s)"

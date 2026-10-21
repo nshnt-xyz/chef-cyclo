@@ -13,8 +13,9 @@
 #                            boot, then every 15 min; rewrites are skipped
 #                            unless the offset moved or 6 h passed)
 #   chef-state time-save     one RTC offset save (needs chrony synchronised)
-#   chef-state mag-save      sensors-up: group 2980 from the RAM registry copy
-#   chef-state mag-restore F sensors-up: overlay the saved group 2980 onto F,
+#   chef-state mag-save      sensord: group 2980 from the RAM registry copy
+#   chef-state mag-restore F sensors-up registry: overlay the saved group
+#                            2980 onto F,
 #                            a fresh registry copy from persist
 #   chef-state gps-load      gps-manager: print "enabled 0|1" (the GPS
 #                            switch; 1 when nothing valid is saved)
@@ -26,8 +27,9 @@
 #                            offset save, stop chronyd (it writes its drift
 #                            file on exit), powerd (it flushes its pending
 #                            power log rows on exit; rows a stopped powerd
-#                            left are flushed here), sensors-up and the
-#                            timekeeper through OpenRC, last bias save
+#                            left are flushed here), sensord (it writes the
+#                            registry copy back on exit) and the timekeeper
+#                            through OpenRC, last bias save
 #   chef-state log-save      inittab after shutdown, and chef-reboot: this
 #                            boot's syslogd ring (logread) into
 #                            /data/v1/log/syslog-<seq>, the newest 8 kept
@@ -55,6 +57,7 @@ CHRONY_SOCK=${CHEF_STATE_CHRONY_SOCK:-/run/chrony/chronyd.sock}
 SNS_RUN=${CHEF_STATE_SENSORS_RUN:-$RUN/sensors}
 MAP=${CHEF_STATE_MAP:-/usr/share/sensord/sns_reg.map}
 PROC=${CHEF_STATE_PROC:-/proc}
+RC_OPTIONS=${CHEF_STATE_RC_OPTIONS:-/run/openrc/options}	# supervise-daemon's child_pid per service
 MARKER=chef-cyclo-data-v1
 TIME_FILE=$DATA/v1/time/rtc-offset
 CRASH=$DATA/v1/crash
@@ -752,6 +755,19 @@ pid_tokens() {
 	done
 }
 
+# daemon_pids SERVICE PROGRAM: the pid of SERVICE's daemon as its supervisor
+# records it, else every PROGRAM (pidof). The supervisor's record keeps out
+# a client of the same binary (`sensord watch`, `powerd status`), which no
+# stop of the service ends.
+daemon_pids() {
+	dpid=
+	read -r dpid 2>/dev/null < "$RC_OPTIONS/$1/child_pid"
+	case "$dpid" in
+	''|*[!0-9]*) pidof "$2" 2>/dev/null ;;
+	*) echo "$dpid" ;;
+	esac
+}
+
 # rc_stop SERVICE...: stop each service through OpenRC, all at once in the
 # background; never waits. A supervised daemon that anyone but its
 # supervisor signals is respawned at once, so they are never signalled here.
@@ -821,10 +837,10 @@ do_shutdown() {
 	cd / || return 1
 	ours || return 0
 	read -r t0 _ < "$PROC/uptime"
-	sensors=$(pidof sensors-up 2>/dev/null)
+	sensors=$(daemon_pids sensord sensord)
 	# shellcheck disable=SC2086
 	sensor_tokens=$(pid_tokens $sensors)
-	power=$(pidof powerd 2>/dev/null)
+	power=$(daemon_pids powerd powerd)
 	# shellcheck disable=SC2086
 	power_tokens=$(pid_tokens $power)
 	# Powerd is not needed by time_save. Its in-flight sysfs read/reset can
@@ -832,7 +848,7 @@ do_shutdown() {
 	# The timekeeper's stop also ends a save of its own in flight (its
 	# service TERMs the whole process group); a save killed before its
 	# rename leaves only a temp file, which the next save removes.
-	rc_stop sensors-up powerd chef-timekeeper
+	rc_stop sensord powerd chef-timekeeper
 	# Never queue behind a save in flight (about 1 s at most), and keep the
 	# save itself short: chronyc 1 s, one RTC edge (at most 1.1 s) 1.5 s.
 	LOCK_TRIES=10 CHRONYC_SECS=1 EDGE_SECS=1.5 time_save; time_rc=$?
@@ -849,7 +865,7 @@ do_shutdown() {
 	stop_wait=$(awk -v a="$t0" -v b="$stop_now" 'BEGIN { n=int((1.8-(b-a))*10); if(n<3)n=3; if(n>18)n=18; print n }')
 	# shellcheck disable=SC2086
 	wait_gone "$stop_wait" $stop_tokens; stop_rc=$?
-	[ "$stop_rc" = 0 ] || log "shutdown: chronyd/sensors-up/powerd not confirmed stopped by 1.8 s deadline; final flush not confirmed"
+	[ "$stop_rc" = 0 ] || log "shutdown: chronyd/sensord/powerd not confirmed stopped by 1.8 s deadline; final flush not confirmed"
 	# shellcheck disable=SC2086
 	power_flush $power_tokens; power_rc=$?
 	CHEF_STATE_MAG_FINAL=1 mag_save; mag_rc=$?

@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "../sensord.h"
@@ -742,6 +743,118 @@ static void test_reg_debounce(void)
 	close(p);
 }
 
+/* The bias save after a write-back: `CMD mag-save` with the registry
+ * paths in its environment, in its own process group, at most once a
+ * minute, pending until it exits 0, killed when it hangs. CMD is a shell
+ * stub that records its call and exits with the code in a file. */
+static int reap_mag(struct server *s)
+{
+	int i;
+
+	for (i = 0; i < 500 && s->mag_pid > 0; i++) {
+		usleep(10000);
+		sn_mag_save_reap(s);
+	}
+	return s->mag_pid;
+}
+
+static void test_mag_save(void)
+{
+	static struct server s;
+	char dir[] = "/tmp/snmag.XXXXXX", cmd[64], calls[64], rcf[64], buf[512];
+	FILE *f;
+	int p, n;
+
+	CHECK(mkdtemp(dir) != NULL);
+	snprintf(cmd, sizeof(cmd), "%s/state", dir);
+	snprintf(calls, sizeof(calls), "%s/calls", dir);
+	snprintf(rcf, sizeof(rcf), "%s/rc", dir);
+	f = fopen(cmd, "w");
+	fprintf(f, "#!/bin/sh\necho \"$* $CHEF_STATE_SENSORS_RUN $CHEF_STATE_MAP $(cut -d' ' -f5 /proc/$$/stat) $$\" >> %s\n"
+		   "rc=$(cat %s)\n[ \"$rc\" != hang ] || exec sleep 30\nexit \"$rc\"\n", calls, rcf);
+	fclose(f);
+	chmod(cmd, 0755);
+
+	setup(&s, &p);
+	fake_now = 100000;
+	sn_mag_save_tick(&s);	/* nothing configured, nothing pending */
+	CHECK(s.mag_pid == 0 && sn_mag_save_due(&s, 5) == 5);
+	s.mag_cmd = cmd;
+	s.mag_env_run = "/run/x/sensors";
+	s.mag_env_map = "/usr/x.map";
+	sn_mag_save_tick(&s);
+	CHECK(s.mag_pid == 0);
+	/* the first: at once; chef-state's own limit (3) keeps it pending, quietly */
+	f = fopen(rcf, "w"); fputs("3\n", f); fclose(f);
+	s.mag_pending = true;
+	CHECK(sn_mag_save_due(&s, 99999) == 0);
+	all_logs[0] = '\0';
+	sn_mag_save_tick(&s);
+	CHECK(s.mag_pid > 0 && !s.mag_pending && s.mag_at == 100000);
+	CHECK(sn_mag_save_due(&s, INT64_MAX) == 100000 + SENSORD_MAG_SAVE_MAX_MS);
+	CHECK(reap_mag(&s) == 0);
+	CHECK(s.mag_pending && s.mag_saves == 0 && s.mag_save_fails == 0 && !all_logs[0]);
+	f = fopen(calls, "r");
+	CHECK(f && fgets(buf, sizeof(buf), f));
+	if (f)
+		fclose(f);
+	{
+		int pg = 0, pid = 0;
+
+		CHECK(sscanf(buf, "mag-save /run/x/sensors /usr/x.map %d %d", &pg, &pid) == 2 && pg == pid);
+	}
+	/* then once a minute */
+	CHECK(sn_mag_save_due(&s, INT64_MAX) == 100000 + SENSORD_MAG_SAVE_EVERY_MS);
+	fake_now = 100000 + SENSORD_MAG_SAVE_EVERY_MS - 1;
+	sn_mag_save_tick(&s);
+	CHECK(s.mag_pid == 0);
+	f = fopen(rcf, "w"); fputs("0\n", f); fclose(f);
+	fake_now += 1;
+	sn_mag_save_tick(&s);
+	CHECK(s.mag_pid > 0);
+	CHECK(reap_mag(&s) == 0);
+	CHECK(!s.mag_pending && s.mag_saves == 1 && sn_mag_save_due(&s, 7) == 7);
+	/* a failure: logged, pending again */
+	f = fopen(rcf, "w"); fputs("1\n", f); fclose(f);
+	s.mag_pending = true;
+	fake_now += SENSORD_MAG_SAVE_EVERY_MS;
+	sn_mag_save_tick(&s);
+	CHECK(reap_mag(&s) == 0);
+	CHECK(s.mag_pending && s.mag_save_fails == 1 && strstr(last_log, "mag-save exited 1: the bias is saved later"));
+	/* a hang: killed after its bound, then pending */
+	f = fopen(rcf, "w"); fputs("hang\n", f); fclose(f);
+	fake_now += SENSORD_MAG_SAVE_EVERY_MS;
+	sn_mag_save_tick(&s);
+	CHECK(s.mag_pid > 0);
+	usleep(100000);
+	fake_now += SENSORD_MAG_SAVE_MAX_MS - 1;
+	sn_mag_save_tick(&s);
+	sn_mag_save_reap(&s);
+	CHECK(s.mag_pid > 0);
+	fake_now += 1;
+	sn_mag_save_tick(&s);
+	CHECK(strstr(last_log, "mag-save still running after 10 s: killed"));
+	CHECK(reap_mag(&s) == 0);
+	CHECK(s.mag_pending && s.mag_save_fails == 2);
+	/* exiting: a save in flight is killed and reaped */
+	fake_now += SENSORD_MAG_SAVE_EVERY_MS;
+	sn_mag_save_tick(&s);
+	CHECK(s.mag_pid > 0);
+	n = s.mag_pid;
+	sn_mag_save_stop(&s);
+	CHECK(s.mag_pid == 0 && kill(n, 0) < 0);
+	/* a successful write-back makes one pending */
+	s.mag_pending = false;
+	s.reg_path = "/nonexistent/sns.reg";
+	s.reg_dirty = true;
+	sn_reg_writeback(&s, "test");
+	CHECK(!s.mag_pending);	/* failed: nothing new to save */
+	sn_server_fini(&s);
+	close(p);
+	snprintf(buf, sizeof(buf), "rm -rf %s", dir);
+	CHECK(system(buf) == 0);
+}
+
 /* The heading channel: internal claims (rate max with other clients),
  * the filter fed from published samples, decimated heading lines, a get,
  * declination, list/status fields. SMGR is down, so nothing is sent. */
@@ -1206,6 +1319,7 @@ int main(void)
 	test_reg2_bad_write();
 	test_qmag();
 	test_reg_debounce();
+	test_mag_save();
 	test_heading();
 	test_mag_cal();
 	test_rotvec();

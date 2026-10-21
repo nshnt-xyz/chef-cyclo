@@ -31,20 +31,20 @@ C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen f
 | `usb-interface`, `udhcpd.conf` | `/init` (`usr/lib/chef/usb-gadget.sh`) | 0644 | the USB network interface name, and `/etc/udhcpd.conf` with it filled in for `udhcpd` |
 | `modem-up.pid` | start-stop-daemon (the `modem-up` service) | 0644 | the pid of `modem-up` ([services](services.md)) |
 | `log/modem-up.log` | the `modem-up` service (start-stop-daemon) | 0644 | `modem-up` |
-| `log/sensors-up.log` (`.1`) | the `sensors-up` service (supervise-daemon; rotated over 256 KiB at each start of the service) | 0644 | `sensors-up` |
+| `log/sensors-up.log` (`.1` from images before 2026-10-21) | the `sensord` and `sensors-up` services (appended: a few lines per start) | 0644 | `sensors-up registry` and `sensors-up adsp`, and the `audio-up` it starts |
 | `log/abslot.log` | `abslot` | 0644 | A/B slot marking |
 | `log/audio-up.log` | by hand ([audio](audio.md)) | 0644 | `audio-up` run by hand |
 | `log/chef-reboot.log` | `chef-reboot` | 0644 | the reboot helper's failures |
 | `log/storage.log`, `log/storage-watchdog.log` | `chef-storage` | 0644 | `/data` checks and mounts, the shutdown watchdog |
 | `lock/modem-up.lock/` (with `ready`) | `modem-up` | 0700 | modem ownership: a directory while `modem-up` owns the modem, `ready` once its stack is up; read by `gps-manager`, `wifi-prepare` and `usr/lib/chef/modem-owner.sh`. `modem-up` was called `gps-up` until 2026-10-21, and so were this lock and `log/modem-up.log` (older logs say `gps-up.lock`, `gps-up.log`) |
-| `lock/audio-up.lock/` | `audio-up` | 0755 | one `audio-up` at a time (`sensors-up` waits on it) |
+| `lock/audio-up.lock/` | `audio-up` | 0755 | one `audio-up` at a time (`sensors-up adsp` starts none while it exists) |
 | `lock/sensors-up.lock` | `sensors-up` | 0644 | `flock`: one `sensors-up` |
 | `lock/storage.lock` | `chef-storage` | 0644 | `flock`: one storage operation |
 | `lock/chef-reboot.lock` | `chef-reboot` | 0644 | `flock`: one reboot at a time |
 | `lock/ui-settings.lock` | `chef-settings` | 0600 | `flock`: one settings writer |
 | `speaker-test-tone-<pid>.wav` | `speaker-test-tone` (`RUN_DIR`) | 0644 | its test tone while it plays, removed after |
 | `power/` | `powerd` | 0755 | [battery](battery-and-charging.md) state, `shutdown-pending`, the RAM power log and `log.pending` |
-| `sensors/` | `sensors-up` | 0755 | the registry copy `sns.reg` (with `.boot_id`, `.persist`), `persist-ro/` while persist is mounted, `sensord.pid` |
+| `sensors/` | `sensors-up registry` | 0755 | the registry copy `sns.reg` (with `.boot_id`, `.persist`; sensord writes the DSP's writes back to it), `persist-ro/` while persist is mounted |
 | `sensortest/` | `sensors-compass-run`, `sensors-magcal-run` | 0755 | [sensor](sensors.md) test evidence directories |
 | `gps-manager/` | `gps-manager` | 0700 | the output of its qmicli, broker and gpsd children |
 | `wifi/` | `wifi-up` | 0755 | a manual Wi-Fi session (never with NetworkManager) |

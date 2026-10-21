@@ -106,7 +106,7 @@ if env SENSORD="$PWD/build/host/tests/sensord-fake" MAIN_SOCK="$SOCK" OUT_BASE="
 	sh "$RUN" >"$T/norun.txt" 2>&1; then
 	fail "ran without a sensord"
 fi
-grep -q "run sensors-up first" "$T/norun.txt" || fail "no-sensord message: $(cat "$T/norun.txt")"
+grep -q "start the sensors first (rc-service sensors-up start)" "$T/norun.txt" || fail "no-sensord message: $(cat "$T/norun.txt")"
 
 ./build/host/tests/sensord-fake -r "$T/reg" -m tests/fixtures/sns_reg.map -S "$SOCK" 2>"$T/main.log" &
 SPID=$!

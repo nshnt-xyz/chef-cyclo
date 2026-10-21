@@ -6,9 +6,15 @@
  */
 #define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/prctl.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "sensord.h"
 
@@ -84,8 +90,123 @@ void sn_reg_writeback(struct server *s, const char *why)
 		return;
 	}
 	s->reg_saves++;
+	s->mag_pending = true;
 	s->log("registry written back to %s (%s; %lu DSP writes so far; persist untouched)",
 	       s->reg_path, why, s->reg.writes);
+}
+
+/* -------------------------------------------- the bias save (chef-state) */
+
+/* `mag_cmd mag-save` in its own process group, stdio on /dev/null, the
+ * registry paths in its environment; it gets TERM if sensord dies. */
+static pid_t mag_spawn(struct server *s)
+{
+	pid_t parent = getpid(), pid = fork();
+
+	if (pid < 0)
+		return -errno;
+	if (pid == 0) {
+		int nul = open("/dev/null", O_RDWR | O_CLOEXEC);
+		sigset_t none;
+
+		prctl(PR_SET_PDEATHSIG, SIGTERM);
+		if (getppid() != parent)
+			_exit(127);
+		setpgid(0, 0);
+		dup2(nul, 0);
+		dup2(nul, 1);
+		dup2(nul, 2);
+		signal(SIGPIPE, SIG_DFL);
+		signal(SIGTERM, SIG_DFL);
+		signal(SIGINT, SIG_DFL);
+		signal(SIGHUP, SIG_DFL);
+		signal(SIGCHLD, SIG_DFL);
+		sigemptyset(&none);
+		sigprocmask(SIG_SETMASK, &none, NULL);
+		if (s->mag_env_run)
+			setenv("CHEF_STATE_SENSORS_RUN", s->mag_env_run, 1);
+		if (s->mag_env_map)
+			setenv("CHEF_STATE_MAP", s->mag_env_map, 1);
+		execlp(s->mag_cmd, s->mag_cmd, "mag-save", (char *)NULL);
+		_exit(127);
+	}
+	setpgid(pid, pid);
+	return pid;
+}
+
+void sn_mag_save_tick(struct server *s)
+{
+	int64_t now = s->now_ms();
+	pid_t pid;
+
+	if (s->mag_pid > 0) {
+		if (now >= s->mag_until) {
+			s->log("%s mag-save still running after %d s: killed", s->mag_cmd,
+			       SENSORD_MAG_SAVE_MAX_MS / 1000);
+			kill(-s->mag_pid, SIGKILL);	/* its exit, reaped next, retries */
+			s->mag_until = INT64_MAX;
+		}
+		return;
+	}
+	if (!s->mag_cmd || !s->mag_pending || (s->mag_at && now < s->mag_at + SENSORD_MAG_SAVE_EVERY_MS))
+		return;
+	s->mag_pending = false;
+	s->mag_at = now;
+	pid = mag_spawn(s);
+	if (pid < 0) {
+		s->mag_save_fails++;
+		s->mag_pending = true;
+		s->log("cannot run %s mag-save: %s; the bias is saved later", s->mag_cmd, strerror((int)-pid));
+		return;
+	}
+	s->mag_pid = pid;
+	s->mag_until = now + SENSORD_MAG_SAVE_MAX_MS;
+}
+
+void sn_mag_save_reap(struct server *s)
+{
+	int status, rc;
+
+	if (s->mag_pid <= 0 || waitpid(s->mag_pid, &status, WNOHANG) != s->mag_pid)
+		return;
+	kill(-s->mag_pid, SIGKILL);	/* nothing of it outlives the leader */
+	s->mag_pid = 0;
+	rc = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + WTERMSIG(status);
+	if (rc == 0) {
+		s->mag_saves++;
+		return;
+	}
+	/* 3: chef-state's own once-a-minute limit; anything else failed */
+	s->mag_pending = true;
+	if (rc != 3) {
+		s->mag_save_fails++;
+		s->log("%s mag-save exited %d: the bias is saved later", s->mag_cmd, rc);
+	}
+}
+
+/* The earlier of NEXT and when the save needs the loop next. */
+int64_t sn_mag_save_due(const struct server *s, int64_t next)
+{
+	int64_t due;
+
+	if (s->mag_pid > 0)
+		due = s->mag_until;
+	else if (s->mag_cmd && s->mag_pending)
+		due = s->mag_at ? s->mag_at + SENSORD_MAG_SAVE_EVERY_MS : 0;
+	else
+		return next;
+	return due < next ? due : next;
+}
+
+/* Exiting: a save in flight is killed (chef-state shutdown makes the
+ * final one once sensord is gone), and reaped. */
+void sn_mag_save_stop(struct server *s)
+{
+	if (s->mag_pid <= 0)
+		return;
+	kill(-s->mag_pid, SIGKILL);
+	waitpid(s->mag_pid, NULL, 0);
+	s->mag_pid = 0;
 }
 
 /* When the pending write-back is due: 3 s after the last DSP write,

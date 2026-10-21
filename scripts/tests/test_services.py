@@ -31,7 +31,7 @@ CACHE = REPO / "toolchain/apk/cache"
 # The default runlevel: every service the image starts.
 DEFAULT = {"syslog", "udhcpd", "dbus", "bluetooth", "root-session-bus", "modem-up", "networkmanager",
            "chronyd", "chef-timekeeper", "bt-up", "blesensd", "buttond", "chef-sshd", "gps-manager",
-           "powerd", "sensors-up", "chef-settings"}
+           "powerd", "sensord", "sensors-up", "chef-settings"}
 # Alpine's scripts we run, adjusted by conf.d only, and the package each comes from.
 PACKAGED = {"syslog": "busybox-openrc", "udhcpd": "busybox-extras-openrc", "dbus": "dbus-openrc",
             "bluetooth": "bluez-openrc", "chronyd": "chrony-openrc", "networkmanager": "networkmanager-openrc"}
@@ -262,23 +262,31 @@ class Services(unittest.TestCase):
         self.assertEqual(self.depends("bluetooth").get("need"), {"dbus"})
         self.assertIn("bluetooth", self.depends("blesensd").get("after"))
         self.assertIn("modem-up", self.depends("sensors-up").get("after"))
+        self.assertEqual(self.depends("sensors-up").get("need"), {"sensord"})
+        self.assertIn("modem-up", self.depends("sensord").get("after"))
         self.assertIn("modem-up", self.depends("gps-manager").get("after"))
         # the screen first, then the modem, then the rest
         self.assertLessEqual({"dbus", "udhcpd", "modem-up", "chronyd", "bt-up"}, self.depends("chef-settings")["before"])
         self.assertLessEqual({"dbus", "udhcpd", "chronyd", "bt-up"}, self.depends("modem-up")["before"])
+        # the USB lease does not wait for the bus or the sensors' registry steps
+        self.assertLessEqual({"dbus", "sensord"}, self.depends("udhcpd")["before"])
 
     def test_supervision_settings_reach_every_daemon(self):
         h = Harness(self, self.shell)
-        for svc in sorted(DEFAULT - {"modem-up"}):
+        stub = h.tmp / "up-stub"
+        stub.write_text("#!/bin/sh\nexit 0\n")
+        stub.chmod(0o755)
+        for svc in sorted(DEFAULT - {"modem-up", "sensors-up"}):
             with self.subTest(svc=svc):
                 args, tool = h.start(svc, replace=[("/usr/bin/chef-state ours", "false"),
                                                    ("$(/usr/bin/wifi-nm)", "--state-file=/x"),
+                                                   ("/usr/bin/sensors-up", str(stub)),
                                                    ("/run/chef/log/sensors-up.log", str(h.tmp / "up.log")),
                                                    ("/run/user/0", str(h.tmp / "user0"))])
                 self.assertEqual(tool, "supervise-daemon")
                 self.assertEqual(args[:2], [svc, "--start"])
                 opt = dict(zip(args, args[1:]))
-                self.assertEqual(opt["--respawn-delay"], "10s" if svc == "sensors-up" else "1s")
+                self.assertEqual(opt["--respawn-delay"], "1s")
                 self.assertEqual(opt["--respawn-max"], "0")
                 self.assertEqual(opt["--retry"], "TERM/5/KILL/2")
                 # the package's -g wheel -k 027 never reaches it
@@ -375,23 +383,57 @@ class Services(unittest.TestCase):
         self.assertIn("\nPOWER_LOG_MAX=4194304\t", state)
         self.assertIn('-l "$DATA/v1/power" -L "$POWER_LOG_MAX" flush', state)
 
-    def test_sensors_up_log_rotation_and_environment(self):
+    def test_sensors(self):
         h = Harness(self, self.shell)
-        log = h.tmp / "up.log"
-        rep = [("/run/chef/log/sensors-up.log", str(log))]
-        body = 'start_pre; echo "args=[${SENSORD_ARGS-unset}] err=$SENSORD_STDERR" >> "$OUT"'
-        log.write_text("x" * 1000)
-        r, out = h.run("sensors-up", body, replace=rep)
-        self.assertEqual((r.returncode, out), (0, "args=[] err=/dev/null\n"))
-        self.assertFalse(Path(str(log) + ".1").exists())
-        log.write_text("y" * 300000)
-        r, out = h.run("sensors-up", body, replace=rep)
-        self.assertEqual(r.returncode, 0)
-        self.assertFalse(log.exists())
-        self.assertEqual(Path(str(log) + ".1").read_text(), "y" * 300000)
-        log.write_text("z")
-        self.assertEqual(h.run("sensors-up", body, replace=rep)[0].returncode, 0)
-        self.assertEqual(Path(str(log) + ".1").read_text(), "y" * 300000)
+        log, calls, dump = h.tmp / "up.log", h.tmp / "up.calls", h.tmp / "dump"
+        stub = h.tmp / "up-stub"
+        stub.write_text('#!/bin/sh\necho "sensors-up $*" >> "$CALLS"\necho "line $1"\n'
+                        '[ -z "${UP_HANG:-}" ] || exec sleep 30\nexit "${UP_RC:-0}"\n')
+        stub.chmod(0o755)
+        rep = [("/usr/bin/sensors-up", str(stub)), ("/run/chef/log/sensors-up.log", str(log)),
+               ("/sys/kernel/debug/msm_ipc_router/dump_servers", str(dump))]
+        env = {"CALLS": str(calls)}
+        # sensord: the registry step before it, its output appended to the log;
+        # a failed step fails the start
+        log.write_text("earlier\n")
+        r, out = h.run("sensord", "start_pre", replace=rep, env=env)
+        self.assertEqual(r.returncode, 0, out)
+        self.assertEqual((calls.read_text(), log.read_text()), ("sensors-up registry\n", "earlier\nline registry\n"))
+        r, out = h.run("sensord", "start_pre", replace=rep, env={**env, "UP_RC": "1"})
+        self.assertEqual(r.returncode, 1)
+        # bounded: it runs inside the serial boot (30 s, 1 s here)
+        self.assertIn("\ttimeout -k 2 30 /usr/bin/sensors-up registry >> /run/chef/log/sensors-up.log 2>&1\n",
+                      h.script("sensord"))
+        start = time.monotonic()
+        r, out = h.run("sensord", "start_pre", replace=rep + [("timeout -k 2 30", "timeout -k 1 1")],
+                       env={**env, "UP_HANG": "1"})
+        self.assertNotEqual(r.returncode, 0)
+        self.assertLess(time.monotonic() - start, 5)
+        # then REG2 (0x10f) on the IPC router within 10 s, else the start fails
+        dump.write_text("0x00000100 |0x00003201 |\n0x0000010f |0x00000002 |\n")
+        r, out = h.run("sensord", "start_post", replace=rep)
+        self.assertEqual((r.returncode, out), (0, ""))
+        dump.write_text("0x00000100 |0x00003201 |\n")
+        start = time.monotonic()
+        r, out = h.run("sensord", "start_post", replace=rep + [("sleep 0.2", "sleep 0.01")])
+        self.assertLess(time.monotonic() - start, 5)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("eerror sensord: REG2 (0x10f) not served after 10 s", out)
+        self.assertIn("supervise-daemon [sensord] [--stop]", out)
+        self.assertIn("-gt 50 ]", h.script("sensord"))
+        # sensors-up: one-shot, the adsp step, logged; nothing supervised
+        calls.unlink()
+        r, out = h.run("sensors-up", "start", replace=rep, env=env)
+        self.assertEqual(r.returncode, 0, out)
+        self.assertEqual(calls.read_text(), "sensors-up adsp\n")
+        self.assertTrue(log.read_text().endswith("line adsp\n"))
+        self.assertNotIn("supervise-daemon", out + "".join(l for l in h.script("sensors-up").splitlines()
+                                                           if not l.startswith("#")))
+        r, out = h.run("sensors-up", "start", replace=rep, env={**env, "UP_RC": "1"})
+        self.assertEqual(r.returncode, 1)
+        # its stop has nothing to stop
+        r, out = h.run("sensors-up", "stop", replace=rep)
+        self.assertEqual((r.returncode, out), (0, ""))
 
     def test_root_session_bus_environment(self):
         h = Harness(self, self.shell)

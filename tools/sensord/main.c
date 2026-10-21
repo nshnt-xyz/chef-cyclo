@@ -20,7 +20,9 @@
  *     rename, tmpfs/ramfs only), so the /run copy holds what the DSP
  *     wrote this boot (the ADSP keeps its own state across a sensord
  *     restart; the copy matters when the ADSP restarts or re-reads the
- *     registry). persist is never written.
+ *     registry). persist is never written. After each write-back,
+ *     `chef-state mag-save` saves the magnetometer bias (group 2980) to
+ *     /data, at most once a minute (-k, regserv.c).
  *  2. SMGR client, QMI service 0x100 on the ADSP (stock: libsensor1 +
  *     sensors.ssc.so). Enumerates the sensors (all-sensor-info,
  *     single-sensor-info), then adds a BUFFERING report (0x21, what the
@@ -89,11 +91,15 @@
  * (report added on the DSP) only while at least one connection claims
  * it; a claim lives on its connection.
  *
- * Usage: sensord [-r REG] [-m MAP] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ]
- *                [-s CH=ID:DT]... [-c CH=full|factory|raw]... [-i BASE]
- *                [-M MOUNT] [-D DEG] [-Q] [-V] [-P] [-t] [-R] [-F] [-v]
+ * Usage: sensord [-r REG] [-m MAP] [-k CMD] [-S SOCK] [-T dsps|cntvct|rx]
+ *                [-b HZ] [-s CH=ID:DT]... [-c CH=full|factory|raw]...
+ *                [-i BASE] [-M MOUNT] [-D DEG] [-Q] [-V] [-P] [-t] [-R]
+ *                [-F] [-v]
  *   -r  registry copy to serve (default /run/chef/sensors/sns.reg)
  *   -m  registry map (default /usr/share/sensord/sns_reg.map)
+ *   -k  run `CMD mag-save` after a registry write-back, with
+ *       CHEF_STATE_SENSORS_RUN (REG's directory) and CHEF_STATE_MAP (MAP)
+ *       in its environment (default chef-state; "" turns it off)
  *   -S  socket path (default /run/chef/sensord.sock)
  *   -T  timestamp source (default dsps, falls back to rx if /dev/sensors
  *       cannot be opened)
@@ -155,8 +161,20 @@
 
 static volatile sig_atomic_t g_stop;
 
-/* Self-pipe: the signal handler writes it so a TERM ends poll() at once. */
+/* Self-pipe: the signal handler writes it so a TERM ends poll() at once,
+ * and so does SIGCHLD (the bias save's child). */
 static int g_sigpipe[2] = { -1, -1 };
+
+static void on_child(int sig)
+{
+	int saved = errno;
+
+	(void)sig;
+	if (g_sigpipe[1] >= 0 && write(g_sigpipe[1], "", 1) < 0) {
+		/* full pipe: a wakeup is already pending */
+	}
+	errno = saved;
+}
 
 static void on_signal(int sig)
 {
@@ -173,9 +191,9 @@ static void on_signal(int sig)
 void sn_usage(void)
 {
 	fprintf(stderr,
-		"usage: sensord [-r REG] [-m MAP] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ] [-s CH=ID:DT]...\n"
-		"               [-c CH=full|factory|raw]... [-i BASE] [-M MOUNT] [-D DEG] [-Q] [-V] [-P]\n"
-		"               [-t] [-R] [-F] [-v]\n"
+		"usage: sensord [-r REG] [-m MAP] [-k CMD] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ]\n"
+		"               [-s CH=ID:DT]... [-c CH=full|factory|raw]... [-i BASE] [-M MOUNT] [-D DEG]\n"
+		"               [-Q] [-V] [-P] [-t] [-R] [-F] [-v]\n"
 		"       sensord [-S SOCK] [-n COUNT] list | status | get SENSOR [HZ] | watch SENSOR [HZ]\n"
 		"                                    | declination [DEG|off]\n");
 }
@@ -235,16 +253,17 @@ int main(int argc, char **argv)
 {
 	static struct server s;
 	const char *sock_path = CHEF_SENSORD_SOCK, *reg_path = CHEF_SENSORS_REG;
-	const char *map_path = SENSORD_MAP_PATH, *ts = "dsps";
+	const char *map_path = SENSORD_MAP_PATH, *ts = "dsps", *mag_cmd = "chef-state";
 	long count = 0;
 	int opt, i, line = 0, rc;
 	size_t got = 0;
 
 	sn_server_init(&s);
-	while ((opt = getopt(argc, argv, "r:m:S:T:b:s:c:i:M:D:QVn:PtRFv")) != -1) {
+	while ((opt = getopt(argc, argv, "r:m:k:S:T:b:s:c:i:M:D:QVn:PtRFv")) != -1) {
 		switch (opt) {
 		case 'r': reg_path = optarg; break;
 		case 'm': map_path = optarg; break;
+		case 'k': mag_cmd = optarg; break;
 		case 'S': sock_path = optarg; break;
 		case 'T': ts = optarg; break;
 		case 'b': s.report_cap = (unsigned)atoi(optarg); break;
@@ -329,6 +348,12 @@ int main(int argc, char **argv)
 	signal(SIGTERM, on_signal);
 	signal(SIGHUP, on_signal);	/* a closed telnet session: exit cleanly too */
 	signal(SIGPIPE, SIG_IGN);
+	{
+		struct sigaction sa = { .sa_handler = on_child, .sa_flags = SA_RESTART | SA_NOCLDSTOP };
+
+		sigemptyset(&sa.sa_mask);
+		sigaction(SIGCHLD, &sa, NULL);
+	}
 
 	if (strcmp(ts, "dsps") == 0) {
 		s.ts_mode = TS_DSPS;
@@ -368,6 +393,20 @@ int main(int argc, char **argv)
 		chef_log("registry %s loaded: %zu bytes, %zu groups, %zu items (RAM copy; DSP writes are written back to this file, never to persist)",
 			 reg_path, s.reg.size, s.reg.ngroups, s.reg.nitems);
 		s.reg_path = reg_path;
+		if (mag_cmd[0]) {
+			static char dir[512];
+			char *slash;
+
+			snprintf(dir, sizeof(dir), "%s", reg_path);
+			slash = strrchr(dir, '/');
+			if (slash)
+				*(slash == dir ? slash + 1 : slash) = '\0';
+			else
+				snprintf(dir, sizeof(dir), ".");
+			s.mag_cmd = mag_cmd;
+			s.mag_env_run = dir;
+			s.mag_env_map = map_path;
+		}
 		sn_mag_cal_check(&s, "registry loaded");
 		if (sn_publish(&s, &s.reg_sock, SNS_REG2_SVC, SNS_REG2_VERS, SNS_REG2_INST))
 			return 1;
@@ -433,6 +472,13 @@ int main(int argc, char **argv)
 			break;
 		if (g_stop)
 			break;
+		if (pfd[0].revents & POLLIN) {
+			char drain[64];
+
+			while (read(g_sigpipe[0], drain, sizeof(drain)) > 0)
+				;
+		}
+		sn_mag_save_reap(&s);
 
 		if (ireg >= 0 && (pfd[ireg].revents & (POLLIN | POLLERR))) {
 			static char buf[SENSORD_QMI_BUF];
@@ -490,6 +536,7 @@ int main(int argc, char **argv)
 		sn_sam_tick(&s, &s.qmag);
 		sn_sam_tick(&s, &s.rotvec);
 		sn_reg_tick(&s);
+		sn_mag_save_tick(&s);
 		sn_server_tick_clients(&s);
 	}
 
@@ -569,6 +616,7 @@ int main(int argc, char **argv)
 		qrtr_close(s.reg_sock);
 	if (s.time_sock >= 0)
 		qrtr_close(s.time_sock);
+	sn_mag_save_stop(&s);
 	sn_reg_writeback(&s, "on exit");
 	sns_reg_free(&s.reg);
 	return 0;

@@ -6,10 +6,11 @@
 # Analyse on the host with tools/compass-check.py (--ref DEG for the
 # absolute check).
 #
-#   sensors-compass-run            run it (sensors-up must be running)
+#   sensors-compass-run            run it (the sensors must be up)
 #   sensors-compass-run --list     print the step list and exit
 #
-# Needs sensors-up running (sensord on /run/chef/sensord.sock, SMGR ready).
+# Needs the sensors up (the sensord and sensors-up services: sensord on
+# /run/chef/sensord.sock, SMGR ready).
 # The main sensord is only a client's view: this claims heading (which
 # claims accel 50 Hz, anglvel 50 Hz and magn 20 Hz inside sensord) plus
 # raw captures of the same three, and releases everything at the end.
@@ -332,7 +333,7 @@ STAMP=$(date +%Y%m%dT%H%M%S)
 O="$OUT_BASE/compass-$STAMP"
 mkdir -p "$O" || exit 1
 if ! status_ok "$MAIN_SOCK"; then
-	echo "sensors-compass-run: no ready sensord on $MAIN_SOCK; run sensors-up first" >&2
+	echo "sensors-compass-run: no ready sensord on $MAIN_SOCK; start the sensors first (rc-service sensors-up start)" >&2
 	exit 1
 fi
 print_list

@@ -1,0 +1,41 @@
+#!/sbin/openrc-run
+# sensord: the SMGR client behind /run/chef/sensord.sock (`sensord
+# list|status`) and the REG2 server the ADSP reads its sensor registry
+# from (docs/features/sensors.md). start_pre makes or reuses this boot's
+# registry copy (persist read-only, `sensors-up registry`); its output
+# goes to /run/chef/log/sensors-up.log. sensord runs without -v and with
+# its stderr on /dev/null (its notes still reach syslog). After each
+# registry write-back it saves the magnetometer bias (`chef-state
+# mag-save`, at most once a minute). A restart reuses this boot's copy:
+# the ADSP keeps its own state across it.
+
+description="Sensors: SMGR client and REG2 server"
+supervisor=supervise-daemon
+command=/usr/bin/sensord
+
+depend() {
+	use logger
+	after modem-up
+}
+
+# Bounded: it runs inside the serial boot, and a hang must not hold back the
+# services after it (on TERM, sensors-up unmounts persist if it got that far).
+start_pre() {
+	timeout -k 2 30 /usr/bin/sensors-up registry >> /run/chef/log/sensors-up.log 2>&1
+}
+
+# The ADSP must find REG2 before it boots (the sensors-up service, which
+# boots it, needs this one): wait up to 10 s for 0x10f on the IPC router,
+# else the start fails and its supervisor goes.
+start_post() {
+	n=0
+	until grep -Eq '^0x0*10f[[:space:]]*[|]' /sys/kernel/debug/msm_ipc_router/dump_servers 2>/dev/null; do
+		n=$((n + 1))
+		if [ "$n" -gt 50 ]; then
+			eerror "sensord: REG2 (0x10f) not served after 10 s"
+			supervise_stop
+			return 1
+		fi
+		sleep 0.2
+	done
+}

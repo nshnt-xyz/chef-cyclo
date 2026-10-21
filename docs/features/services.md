@@ -47,6 +47,7 @@ All in the `default` runlevel (`rootfs-overlay/etc/runlevels/default/`). Third-p
 | `syslog` | packaged (`busybox-openrc`) | `syslogd -t -C1024 -n` ([logging](logging.md)) | provides `logger`; every other service uses it, so it starts first | |
 | `chef-settings` | own | the system UI ([system UI](system-ui.md)) | before `modem-up`, `dbus`, `udhcpd`, `chronyd`, `bt-up` | picks up everything else whenever it appears |
 | `modem-up` | own | the modem and its support daemons ([GPS](gps.md)) | after `chef-settings`, before the slower services | not supervised (below); its start returns at once, consumers wait for the modem themselves |
+| `udhcpd` | packaged (`busybox-extras-openrc`) | `udhcpd -f -S /run/chef/udhcpd.conf -f` (DHCP for the USB host) | before `dbus` and `sensord`, so the lease does not wait for them | needs `/run/chef/udhcpd.conf` (from `/init`) |
 | `dbus` | packaged | the system bus | | needs `/run/chef/dbus-helper-ready` (from `/init`); waits up to 10 s for `/run/dbus/system_bus_socket`, else the start fails |
 | `bluetooth` | packaged (`bluez-openrc`) | `bluetoothd -n` | needs `dbus` | the BNEP firewall rule in `start_pre`; without it the start fails (`bnep-guard` log line) |
 | `blesensd` | own | BLE sensors ([Bluetooth](bluetooth.md)) | after `bluetooth` | retries BlueZ on its own |
@@ -58,21 +59,21 @@ All in the `default` runlevel (`rootfs-overlay/etc/runlevels/default/`). Third-p
 | `gps-manager` | own | GNSS leases ([GPS](gps.md#use-gnss-gps-manager)) | after `modem-up` | waits for the modem owner on its own |
 | `powerd` | own | battery policy ([battery](battery-and-charging.md)) | | `-l /data/v1/power -L 4194304` when `/data` is ours (`start_pre`) |
 | `root-session-bus` | own | root's session bus at `/run/user/0/bus` | | |
-| `sensors-up` | own | `sensors-up` with sensord ([sensors](sensors.md)) | after `modem-up` | its log rotated in `start_pre` |
-| `udhcpd` | packaged (`busybox-extras-openrc`) | `udhcpd -S /run/chef/udhcpd.conf -f` | | needs `/run/chef/udhcpd.conf` (from `/init`) |
+| `sensord` | own | the SMGR client and REG2 server ([sensors](sensors.md)) | after `modem-up` | `sensors-up registry` in `start_pre` (this boot's registry copy, persist read-only; bounded at 30 s, since it runs inside the serial boot); waits up to 10 s for REG2 (`0x10f`) on the IPC router, else the start fails |
+| `sensors-up` | own, one-shot | `sensors-up adsp`: starts `audio-up` (detached) to boot the ADSP unless it is up | needs `sensord`, after `modem-up` | nothing stays running under it; sensord polls for the ADSP's sensor manager |
 | `networkmanager` | packaged | `NetworkManager --state-file=... -n` ([Wi-Fi](wifi.md)) | needs `dbus` and `modem-up`; after every other service | `wifi-nm` in `start_pre`: USB guard, udev coldplug, no manual Wi-Fi session, the modem owner (up to 600 s, or until a shutdown begins), the WLAN driver; any failure fails the start |
 
-That is the start order, as `rc-depend` computes it on the staged tree. `openrc shutdown` stops them in the reverse order of their dependencies: NetworkManager first, `gps-manager` and `sensors-up` before `modem-up`, `syslog` last.
+That is the start order, as `rc-depend` computes it on the staged tree. `openrc shutdown` stops them in the reverse order of their dependencies: NetworkManager first, `gps-manager`, `sensors-up` and `sensord` before `modem-up`, `syslog` last.
 
 While `wifi-nm` waits for the modem (about 6 s on every boot), NetworkManager is "starting" and its start holds the service's lock; a shutdown in that window would make the stop of `dbus` wait up to 60 s for it. So the wait gives up within a second once `openrc shutdown` has set the runlevel (`/run/openrc/softlevel` reads `shutdown`), and NetworkManager's start fails.
 
-A failed precondition that cannot change later in the boot (a marker `/init` did not write, the BNEP rule, `wifi-nm`'s checks) fails the start once; nothing retries it every 10 s as the old inittab wrappers did. `rc-status` shows such a service stopped or failed, and `rc-service <name> start` tries again.
+A failed precondition that cannot change later in the boot (a marker `/init` did not write, the BNEP rule, `wifi-nm`'s checks) fails the start once; nothing retries it every 10 s as the old inittab wrappers did. `rc-status` shows such a service stopped or failed, and `rc-service <name> start` tries again. The same for the sensors: when sensord's registry step fails or REG2 does not appear, sensord's start fails, and `sensors-up` (which needs it) does not run, so nothing boots the ADSP for the sensors; `rc-service sensors-up start` tries both again.
 
 **The packaged scripts' dependencies.** Their `depend()` lines name Alpine boot services (`localmount`, `hostname`, `bootmisc`, `clock`, `net`, ...) that would start even outside the runlevel, and `clock` can be `hwclock`, which would set the clock from the RTC over `chef-state`'s restore. Each `conf.d` file removes them (`rc_need="!localmount"` and the like) and adds `rc_use="logger"`; `test_services.py` checks that nothing outside the runlevel is needed, wanted or ordered against.
 
 **Packages.** `scripts/mkrootfs.sh` adds `openrc` (0.63.2; it pulls `ifupdown-ng`, `bridge`, `openrc-user` and `libcap2`, none of them run) and the six `-openrc` subpackages whose scripts run. apk would add every installed package's `-openrc` and ifupdown-ng's executors on its own (install_if); `!` entries keep them out. About 4.7 MB more in the image, about 0.2 MB of it LZMA-compressed. `ifupdown-ng` takes `/sbin/ifup` and `/sbin/ifdown` from busybox; nothing uses either.
 
-**Only our scripts in the image.** `scripts/mkinitramfs.sh` removes every packaged `/etc/init.d` script but the six we configure (and `functions.sh`, the compatibility shim), and the packaged `/etc/conf.d` defaults no remaining script reads. So Alpine's boot and shutdown services (`hwclock`, `localmount`, `bootmisc`, `killprocs`, `mount-ro`, ...) cannot be started by hand on this system, and OpenRC's dependency scan reads 17 scripts instead of 70. `test_services.py` runs that step on every packaged script and checks what is left.
+**Only our scripts in the image.** `scripts/mkinitramfs.sh` removes every packaged `/etc/init.d` script but the six we configure (and `functions.sh`, the compatibility shim), and the packaged `/etc/conf.d` defaults no remaining script reads. So Alpine's boot and shutdown services (`hwclock`, `localmount`, `bootmisc`, `killprocs`, `mount-ro`, ...) cannot be started by hand on this system, and OpenRC's dependency scan reads 18 scripts instead of 71. `test_services.py` runs that step on every packaged script and checks what is left.
 
 ## Readiness
 
@@ -84,9 +85,9 @@ So readiness is a bounded wait in `start_post` where a dependent cannot cope wit
 
 Every service but `modem-up` runs its program in the foreground under `supervise-daemon` (one supervisor process per service). The program leads its own process group (the supervisor `setsid()`s it).
 
-- **Respawn.** A daemon that exits or is killed (`kill -9` included) is started again after `respawn_delay` (1 s; `sensors-up` 10 s, as its old inittab wrapper waited), with no limit. supervise-daemon adds 128 ms for every earlier respawn within `respawn_period` (1800 s, from `rc.conf`), up to 30 s, so a daemon that keeps dying backs off instead of spinning. The supervisor logs each one: `logread | grep supervise-daemon`.
-- **Anything that kills a supervised daemon gets it respawned.** To stop one, stop its service: `rc-service <name> stop`. `chef-state shutdown` does that for chronyd, powerd, sensors-up and the timekeeper.
-- **A stop signals the main process only** (TERM, then KILL after 5 s). Where that leaves children behind, the service's `stop_post` TERMs the rest of its process group: `chef-timekeeper` (a save in flight with its chronyc and rtc-edge, which would keep the save lock), `bt-up` (btattach) and `chef-sshd` (dropbear, which would keep port 22). `sensors-up` does not: an `audio-up` it started keeps running, as before.
+- **Respawn.** A daemon that exits or is killed (`kill -9` included) is started again after `respawn_delay` (1 s), with no limit. supervise-daemon adds 128 ms for every earlier respawn within `respawn_period` (1800 s, from `rc.conf`), up to 30 s, so a daemon that keeps dying backs off instead of spinning. The supervisor logs each one: `logread | grep supervise-daemon`.
+- **Anything that kills a supervised daemon gets it respawned.** To stop one, stop its service: `rc-service <name> stop`. `chef-state shutdown` does that for chronyd, powerd, sensord and the timekeeper.
+- **A stop signals the main process only** (TERM, then KILL after 5 s). Where that leaves children behind, the service's `stop_post` TERMs the rest of its process group: `chef-timekeeper` (a save in flight with its chronyc and rtc-edge, which would keep the save lock), `bt-up` (btattach) and `chef-sshd` (dropbear, which would keep port 22). sensord's own children (`chef-state mag-save`) are its business: it kills them when it exits.
 - **`modem-up` is not supervised.** One modem lifetime per boot, as before: start-stop-daemon backgrounds it once (output to `/run/chef/log/modem-up.log`, pid in `/run/chef/modem-up.pid`), and `rc-status` shows it crashed if it dies. Its `stop` refuses outside `openrc shutdown`: a modem restart within a boot was never tested, and Wi-Fi rides on it. At shutdown it gets 10 s for its cleanup before the KILL.
 
 ## Using it
@@ -107,7 +108,7 @@ Every service but `modem-up` runs its program in the foreground under `supervise
 
 `poweroff`, `reboot`, buttond's and powerd's power-off all go through busybox init, which runs the `::shutdown` lines and then TERMs and KILLs every process:
 
-1. `timeout -k 1 5 chef-state shutdown`: the last RTC offset save; chronyd, powerd, sensors-up and the timekeeper stopped through OpenRC (all at once; chronyd after the offset query) so chronyd writes its drift file and powerd its pending power log rows; the last magnetometer bias ([persistent data](storage.md#persistent-state)).
+1. `timeout -k 1 5 chef-state shutdown`: the last RTC offset save; chronyd, powerd, sensord (it writes the registry copy back on exit) and the timekeeper stopped through OpenRC (all at once; chronyd after the offset query) so chronyd writes its drift file and powerd its pending power log rows; the last magnetometer bias ([persistent data](storage.md#persistent-state)).
 2. `timeout -k 1 3 chef-state log-save`: the syslog ring onto `/data/v1/log` ([logging](logging.md#the-shutdown-save)).
 3. `timeout -k 1 20 openrc shutdown`: every other service in reverse dependency order, modem-up's modem stop included, while `/data` is still mounted. The shutdown runlevel is empty. 20 s covers one service stuck for its whole TERM 5 s and KILL 2 s, or modem-up's 10 s and 2 s, plus the quick stops of the rest.
 4. `timeout -k 1 10 chef-stop-supervisors`: normally finds nothing. When `openrc shutdown` did not finish (its bound expired, or a stop failed), the services it had not reached yet are still running, each with its supervisor, which would respawn whatever the next step TERMs. This step TERMs every `supervise-daemon` still alive (a supervisor then stops its daemon, TERM 5 s and KILL 2 s, and never respawns), waits up to 8 s, KILLs any supervisor left and logs (kmsg) which services it had to stop. What it cannot catch: a start-stop-daemon service (`modem-up`) that `openrc shutdown` did not reach keeps running without its clean stop until init's final TERM and KILL.
@@ -120,7 +121,7 @@ Every service but `modem-up` runs its program in the foreground under `supervise
 
 ## Boot time
 
-The first `openrc` run of a boot scans every script in `/etc/init.d` into its dependency tree (about 0.35 s for 82 scripts on the phone; the image keeps only its 17), then each service costs about 25 ms to start serially. The order above puts chef-settings and modem-up right after syslog. The baseline before OpenRC (installed pair 9a28e590 + 981d4f03): every inittab child started 6.70 to 6.73 s after boot, chef-settings at 6.73 s, "modem up" about 6 s after init, NetworkManager about 10 s after init. The live check measures the same points.
+The first `openrc` run of a boot scans every script in `/etc/init.d` into its dependency tree (about 0.35 s for 82 scripts on the phone; the image keeps only its 18), then each service costs about 25 ms to start serially. The order above puts chef-settings and modem-up right after syslog. The baseline before OpenRC (installed pair 9a28e590 + 981d4f03): every inittab child started 6.70 to 6.73 s after boot, chef-settings at 6.73 s, "modem up" about 6 s after init, NetworkManager about 10 s after init. The live check measures the same points.
 
 ## Tests
 

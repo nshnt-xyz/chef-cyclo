@@ -11,6 +11,9 @@ required_files="/run/chef/udhcpd.conf"
 rc_need="!net"
 rc_after="!firewall"
 rc_use="logger"
+# Early (after the UI and the modem, before the bus and the sensors'
+# registry steps): the USB host gets its lease without waiting for them.
+rc_before="dbus sensord"
 
 # The package's pidfile, /run/udhcpd.pid, is udhcpd's own; supervise-daemon
 # gets its usual one (see conf.d/syslog).

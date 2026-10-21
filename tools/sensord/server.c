@@ -595,6 +595,7 @@ int sn_server_deadline_ms(struct server *s)
 	next = sn_sam_deadline(s, &s->rotvec, next);
 	if (s->reg_dirty && s->reg_path && sn_reg_save_due(s) < next)
 		next = sn_reg_save_due(s);
+	next = sn_mag_save_due(s, next);
 	for (i = 0; i < SENSORD_MAX_PENDING; i++)
 		if (s->pend[i].used && s->pend[i].sent + SENSORD_REQ_TIMEOUT_MS < next)
 			next = s->pend[i].sent + SENSORD_REQ_TIMEOUT_MS;

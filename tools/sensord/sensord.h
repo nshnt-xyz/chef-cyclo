@@ -32,6 +32,10 @@
  * instance), so it is sent once and given longer to answer. */
 #define SENSORD_QMAG_ENABLE_TIMEOUT_MS	10000
 #define SENSORD_QMAG_EXIT_WAIT_MS	1500
+/* chef-state mag-save after a registry write-back (regserv.c): at most
+ * once a minute, as chef-state itself allows, and bounded. */
+#define SENSORD_MAG_SAVE_EVERY_MS	60000
+#define SENSORD_MAG_SAVE_MAX_MS		10000
 #define SENSORD_REQ_TRIES	3
 #define SENSORD_GET_TIMEOUT_MS	5000
 #define SENSORD_MAX_PENDING	8
@@ -223,6 +227,20 @@ struct server {
 	int64_t reg_dirty_at;		/* last unsaved write */
 	int64_t reg_dirty_since;	/* first unsaved write */
 	unsigned long reg_saves, reg_save_errors;
+	/* After a write-back, `mag_cmd mag-save` (chef-state) saves the
+	 * magnetometer bias the DSP learned (group 2980) to /data: a child in
+	 * its own process group, at most one at a time, killed after
+	 * SENSORD_MAG_SAVE_MAX_MS, at most once per SENSORD_MAG_SAVE_EVERY_MS.
+	 * The snapshot stays pending until chef-state accepts it (exit 0; 3
+	 * is its own rate limit), so a refused or failed save is retried. */
+	const char *mag_cmd;		/* NULL: no saves (-k "", tests) */
+	const char *mag_env_run;	/* CHEF_STATE_SENSORS_RUN: reg_path's directory */
+	const char *mag_env_map;	/* CHEF_STATE_MAP: the registry map */
+	bool mag_pending;
+	int64_t mag_at;			/* when the last one started; 0: never */
+	pid_t mag_pid;			/* the running one (its group), 0: none */
+	int64_t mag_until;
+	unsigned long mag_saves, mag_save_fails;
 	struct sam qmag, rotvec;
 	struct heading heading;
 	/* injected for the tests; the defaults are the real clock/logs */
@@ -305,6 +323,10 @@ int64_t sn_sam_deadline(const struct server *s, const struct sam *q, int64_t nex
 
 /* regserv.c */
 void sn_reg_writeback(struct server *s, const char *why);
+void sn_mag_save_tick(struct server *s);
+void sn_mag_save_reap(struct server *s);
+int64_t sn_mag_save_due(const struct server *s, int64_t next);
+void sn_mag_save_stop(struct server *s);
 int64_t sn_reg_save_due(const struct server *s);
 void sn_reg_tick(struct server *s);
 void sn_reg2_rx(struct server *s, struct qrtr_packet *pkt, uint32_t node, uint32_t port);
