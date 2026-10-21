@@ -89,3 +89,36 @@ present for the power-off)
     sequence ("power off: released after 3873 ms, shutting down now"),
     init starting chef-state shutdown, powerd/chronyd/sensord exiting and
     init starting "chef-state log-save".
+
+Install (coordinator, 2026-10-21 about 19:00 to 19:08 IST, user's okay)
+  Built at a clean e64f8c6 (the record commit; image-info dirty 0) with
+  SKIP_KERNEL=1 scripts/mkinstall.sh on the existing kernel #23
+  (Image.gz-dtb 3a907d00...). Code identical to the live-checked b31d547
+  tree (only docs and this log changed since).
+    system_a  out/system_a-9a28e590.img
+              sha256 9a28e590f0bc5c6b318f3a84ac28fcfacec22aaf98d3ab4b40939266220dcc06
+              stamp 1688e9b5...
+    boot_a    out/boot-stage1-981d4f03.img
+              sha256 981d4f033e24fc0674ae778a3d2e0ea48c5429d888f249baac6fc3ed6b00efdb
+    RAM image of the same tree: out/boot-ram-65350e2e.img
+  Backup first: /data/v1 pulled to the evidence dir (install/, mode 600,
+  201 entries, not in the repository); hashes of the settings,
+  gps/enabled and NetworkManager.state recorded.
+  chef-reboot bootloader from the installed pair; current-slot a;
+  fastboot flash system_a OKAY (write 20.6 s); fastboot boot of the
+  stage-1 image: "system_a build stamp matches; switch_root", commit
+  e64f8c6 dirty 0, / ro norecovery, /data rw; chef-reboot bootloader
+  again; fastboot flash boot_a OKAY; fastboot reboot (network up 21 s
+  later).
+  Installed regression: #23, bootreason reboot, image-info e64f8c6
+  dirty 0, host name chef-cyclo, date in IST, boot_a marked successful
+  by abslot, syslogd and the residents running, logread 142 lines in IST
+  with the host name, settings, gps/enabled and NetworkManager.state
+  byte-identical to before, buttond and gps-manager answering status;
+  kmsg: no Call trace, WARNING, dma_comp or clk_branch_wait. The stage-1
+  test boot's ring was saved by its chef-reboot as syslog-197.
+  Ordinary reboot: network back 24 s after the command, bootreason
+  reboot, same image, residents up, boot_a still successful, that boot's
+  ring saved as syslog-198.
+  Fallbacks in out/: 77dd0a57 + f5338097 (aa051eb, first), then
+  61048eae + 087d3c7c, 31f1aa31 + 1c1450bb.
