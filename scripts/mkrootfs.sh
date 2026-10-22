@@ -40,8 +40,8 @@ CACHE=$PWD/toolchain/apk/cache
 # is required. jq supports native ip/rfkill JSON workflows. tcpdump/iperf3
 # are manual diagnostics only; no capture, server or extra manager is started.
 # OpenRC (docs/features/services.md): openrc 0.63.2 (4.4 MB installed; it
-# pulls ifupdown-ng, bridge, openrc-user and libcap2, none of them run)
-# starts and supervises the services from inittab, as on Alpine. Of the
+# pulls ifupdown-ng, bridge, openrc-user and libcap2, none of them run),
+# run from inittab as on Alpine, starts and supervises the services. Of the
 # -openrc subpackages only those whose scripts we run: busybox-openrc
 # (syslog), busybox-extras-openrc (udhcpd), dbus-openrc, bluez-openrc
 # (bluetooth), chrony-openrc (chronyd), networkmanager-openrc; each is a few

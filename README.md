@@ -34,7 +34,7 @@ The USB shell is passwordless root at `telnet 172.16.42.1`; scripts drive it thr
 ## Repository
 
 - `kernel/`, `kernel-config/`: Motorola Linux 4.4.192 tree and project configuration.
-- `rootfs-overlay/`: the image's overlay (init, inittab, helper scripts, config).
+- `rootfs-overlay/`: the image's overlay (init, inittab, the OpenRC services, helper scripts, config).
 - `third_party/lvgl`: LVGL v9.6.0 submodule for the UI platform (`tools/chefui/`).
 - `tools/`, `scripts/`: device helpers, host tests, and image builds.
 - `stock/`, `logs/`: stock backups and development evidence; some artifacts are local-only.

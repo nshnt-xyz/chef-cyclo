@@ -29,9 +29,12 @@ To return to fastboot by hand from one of our images, run `chef-reboot
 bootloader` (in a telnet session or detached with `setsid`) rather than a bare
 `btprobe restart bootloader`: it pauses init, runs `chef-state shutdown` (RTC
 offset, chronyd's drift file, pending power log rows), `chef-state log-save`
-(the syslog ring onto `/data/v1/log`) and `chef-storage shutdown` (`/data`
-read-only and detached), syncs and then calls `btprobe
-restart bootloader`. A failing or hanging step is logged to kmsg and
+(the syslog ring onto `/data/v1/log`), `openrc shutdown` and
+`chef-stop-supervisors` (every other service, the modem's clean stop
+included; up to about 13 s longer than a power-off, see
+[services](features/services.md#shutdown-reboot-and-the-return-to-fastboot))
+and `chef-storage shutdown` (`/data` read-only and detached), syncs and then
+calls `btprobe restart bootloader`. A failing or hanging step is logged to kmsg and
 `/run/chef/log/chef-reboot.log` and the reboot still happens; if btprobe itself returns,
 init is resumed. Images built before the helper (2026-10-10) lack it;
 `scripts/phone-boot.sh` falls back to `chef-storage shutdown --pause-init; sync;
@@ -74,6 +77,29 @@ interface: `scripts/phone.py --ssh ADDR run|push|pull|stream ...` (or
 `logread | grep chef-wifi-ip` (`chef-wifi-ip: ... ssh root@ADDR`). `scripts/phone-boot.sh` still needs USB (fastboot).
 Push a rebuilt static binary instead of rebooting when iterating on a tool;
 `/run` and `/tmp` are RAM.
+
+### Services
+
+Since 2026-10-21 OpenRC starts and supervises the services
+([services](features/services.md)); `inittab` keeps only telnetd, OpenRC
+itself, `abslot` and the way down.
+
+```sh
+rc-status                       # what runs; rc-status -c: crashed, rc-status -a: every script
+rc-service powerd restart       # stop|start|restart one service (up to 1 s per stop)
+rc-service sensord stop         # also stops what needs it (sensors-up)
+logread | grep supervise-daemon # starts, exits and respawns of the supervised daemons
+cat /var/log/rc.log             # OpenRC's own output at boot and shutdown
+```
+
+A supervised daemon that dies or is killed (`kill -9` included) is started
+again by its supervisor after 1 s, so to keep one down, or to run it by hand
+with other options, stop its service first. `modem-up` refuses
+`rc-service modem-up stop|restart` (one modem lifetime per boot); a stopped
+service with a precondition that failed at boot (`rc-status` shows it
+stopped or failed) is retried with `rc-service <name> start`. `rc-update`
+does not work on the read-only root: change
+`rootfs-overlay/etc/runlevels/default/` and rebuild.
 
 ## Gotchas
 

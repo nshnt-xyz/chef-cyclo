@@ -31,9 +31,9 @@
 # LVGL can be overridden on the command line.
 #
 # In the image: chefui-demo is the platform's verification vehicle, a
-# manual opt-in from the shell that inittab does not start; chef-settings
+# manual opt-in from the shell that no service starts; chef-settings
 # (status bar, settings hub and pages, NetworkManager and BlueZ state over
-# basu) is started from inittab (respawn) and owns the panel.
+# basu) is the supervised OpenRC service chef-settings and owns the panel.
 
 REPO_ROOT := ../..
 LVGL ?= $(REPO_ROOT)/third_party/lvgl

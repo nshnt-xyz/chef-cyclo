@@ -19,7 +19,7 @@ The shell is root with no password. In the phone shell, `reboot` returns to the 
 
 ## Modify and verify
 
-Relevant files are `rootfs-overlay/init`, `rootfs-overlay/usr/lib/chef/usb-gadget.sh` (shared with `stage1/init`), `rootfs-overlay/etc/udhcpd.conf`, and `rootfs-overlay/etc/inittab`. Change gadget/address setup in the helper and daemon arguments in the inittab, then rebuild the images (`scripts/mkinstall.sh`). Keep the loopback configuration: gpsd and its UDP broker depend on it.
+Relevant files are `rootfs-overlay/init`, `rootfs-overlay/usr/lib/chef/usb-gadget.sh` (shared with `stage1/init`), `rootfs-overlay/etc/udhcpd.conf`, `rootfs-overlay/etc/conf.d/udhcpd` (the `udhcpd` service's arguments, [services](services.md)) and `rootfs-overlay/etc/inittab` (telnetd). Change gadget/address setup in the helper and daemon arguments in the conf.d file or inittab, then rebuild the images (`scripts/mkinstall.sh`). Keep the loopback configuration: gpsd and its UDP broker depend on it.
 
 Live checks: confirm host enumeration and DHCP, ping and telnet, then unplug/replug and confirm recovery. The 2026-09-18 tests (on the since-dropped ride image) verified NCM re-enumeration, DHCP, and HTTP after reconnecting. The host-side MAC was observed to vary; do not rely on a fixed interface name.
 

@@ -1,11 +1,12 @@
 #!/bin/sh
 # Build out/initramfs.cpio.lzma: the Alpine rootfs from scripts/mkrootfs.sh
-# with the rootfs-overlay/ tree (init, inittab, users, the bring-up scripts,
-# service configuration), our own binaries (the top-level Makefile's device
-# build: btprobe, the GPS/QMI helpers, the daemons, probes and the UI apps;
-# what each one is and why it is packed is beside its Makefile rule), the
-# WCN3990 Bluetooth and Wi-Fi firmware and the Wi-Fi module, tftp-server's
-# RAM-shadow seed and sensord's registry map on top.
+# with the rootfs-overlay/ tree (init, inittab, the OpenRC services, users,
+# the bring-up scripts, service configuration), our own binaries (the
+# top-level Makefile's device build: btprobe, the GPS/QMI helpers, the
+# daemons, probes and the UI apps; what each one is and why it is packed is
+# beside its Makefile rule), the WCN3990 Bluetooth and Wi-Fi firmware and
+# the Wi-Fi module, tftp-server's RAM-shadow seed and sensord's registry
+# map on top.
 #
 # SSH (docs/features/ssh.md): the public keys in secrets/ssh/authorized_keys
 # (gitignored; AUTHORIZED_KEYS overrides the path) are checked with

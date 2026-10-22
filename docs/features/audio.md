@@ -26,7 +26,7 @@ Audio on this SoC runs on the ADSP (Hexagon DSP), not the application processor.
 6. Polls `/proc/asound/cards` (up to 60 s; live it took 1.17 s) for the `sdm660-snd-card` machine driver (`kernel/sound/soc/msm/sdm660-internal.c:3142`) to register, then logs `adsp up, card 0 'sdm660sndcard' N.NNs after boot_adsp, MultiMedia1 playback pcm device 0` with the device parsed from `/proc/asound/pcm`. The check is a bare `grep` — **never `[ -s ]`**, since procfs reports size 0 for this file even when it lists the card. On timeout it dumps the last 40 kernel lines matching `adsp|asoc|snd|apr|q6|tas2560|lpass|pil`, and if it had started a locator it says so before stopping it: the ADSP stays up without a locator, but kernel PDR notifications stop.
 7. If it started nothing (`modem-up` already had a locator up) it exits 0: the ADSP needs no resident process. Otherwise (the common case on a fresh boot without GPS) it stays resident supervising the `servreg-locator` it started; `TERM` stops that locator only, the ADSP stays up.
 
-Manual opt-in only (not in inittab), same policy as `modem-up`: run `audio-up &` from the telnet shell.
+Not a service of its own: run `audio-up &` from the telnet shell, or let the `sensors-up` service start it at boot to bring the ADSP up for the sensors ([sensors](sensors.md)).
 
 `rootfs-overlay/usr/bin/speaker-test-tone` plays a short sine tone out of the TAS2560 loudspeaker once the card is up. `tools/wavtone.c` (`wavtone`) generates the WAV file it hands to tinyalsa's `tinyplay`.
 

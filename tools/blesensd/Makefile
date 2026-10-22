@@ -7,7 +7,7 @@
 # (-DCHEF_BASU; scripts/setup-toolchain.sh fetches it to toolchain/basu).
 # On the phone it is the one owner of the BLE sensors (pairing,
 # reconnection, notifications) behind /run/chef/blesensd.sock, records through
-# chef-state blesens-load/-save, started from inittab (respawn).
+# chef-state blesens-load/-save, the supervised OpenRC service blesensd.
 #
 #   make                 host build: build/host/blesensd
 #   make test            host tests (build/host/tests/)

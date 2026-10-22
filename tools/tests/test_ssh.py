@@ -20,7 +20,7 @@
   idling instead of respawning, failures sleeping before exit, and the kmsg
   rate limit with its suppressed count.
 - the NetworkManager dispatcher line with the Wi-Fi address.
-- inittab: the telnetd line unchanged, chef-sshd respawned; chef-storage
+- inittab: the telnetd line unchanged; chef-sshd is an OpenRC service; chef-storage
   makes /data/v1/ssh; the build wiring (mkrootfs, mkinitramfs, mksystem,
   .gitignore).
 - scripts/phone.py --ssh: the ssh command line, run/push/pull/stream through
@@ -292,7 +292,7 @@ class ChefSshd(unittest.TestCase):
                          ["-F", "-E", "-s", "-m", "-k", "-T", "3", "-K", "30", "-p", "22",
                           "-r", str(self.run_dir / "dropbear_ed25519_host_key"),
                           "-D", str(self.p / "keys"), "-P", str(self.run_dir / "dropbear.pid")])
-        # dropbear's exit is logged, then a sleep before init respawns
+        # dropbear's exit is logged, then a sleep before its supervisor respawns
         self.assertIn("chef-sshd: dropbear exited (3); retrying in 10 s", kmsg)
         self.assertEqual(trace[-1], "sleep 10")
         # the generated key was synced before and after the rename

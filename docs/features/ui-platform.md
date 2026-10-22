@@ -7,7 +7,7 @@ LVGL v9.6.0 on the existing MDSS framebuffer and an SDL2 host backend. It owns
 display access, touch, button claims, screen state, pacing and application
 handoff. Applications use the same source on both backends. The public contract
 is [chefui.h](../../tools/chefui/chefui.h); the demo is a verification tool and
-is installed as `/usr/bin/chefui-demo`, without automatic inittab startup.
+is installed as `/usr/bin/chefui-demo`, without a service: nothing starts it at boot.
 The first application on it is the [system UI](system-ui.md)
 (`chef-settings`), which starts at boot.
 

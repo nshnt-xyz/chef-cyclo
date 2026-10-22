@@ -1,7 +1,7 @@
 /*
  * chef-settings - the system UI app (status bar, settings hub, Display
- * page). Started at boot by inittab (respawn) and owns the panel. See
- * docs/features/system-ui.md.
+ * page). The supervised OpenRC service chef-settings, started at boot right
+ * after syslog; owns the panel. See docs/features/system-ui.md.
  *
  *   chef-settings [--fake-state FILE]... [--page PAGE] [--theme dark|light|auto]
  *                 [--brightness PCT] [--auto-brightness on|off] [--sleep 30|60|300|0]
@@ -37,7 +37,8 @@
  * /run/chef/chef-settings/snapshot.ppm (<--run DIR>/chef-settings/snapshot.ppm)
  * on SIGUSR1. A root-owned /run/chef/chef-settings/args (one option per line)
  * is read once at start and deleted, so the next respawn runs normally:
- * that is how a capture with --fake-state/--page/--theme runs under init.
+ * that is how a capture with --fake-state/--page/--theme runs under its
+ * supervisor.
  *
  * Holding the UI off the panel: `rc-service chef-settings stop`, or
  * `mkdir -p /run/chef/chef-settings; touch /run/chef/chef-settings/stop;
@@ -75,7 +76,7 @@
 
 #define ARGS_FILE CHEF_SETTINGS_APP_DIR "/args"
 #define STOP_FILE CHEF_SETTINGS_APP_DIR "/stop"
-#define INIT_FAIL_SLEEP_S 5	/* so init's respawn does not spin */
+#define INIT_FAIL_SLEEP_S 5	/* so the supervisor's respawn does not spin */
 
 #define FAKE_MAX 4
 

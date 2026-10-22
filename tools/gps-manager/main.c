@@ -1,13 +1,14 @@
 /*
  * gps-manager - demand-driven GNSS for chef-cyclo.
  *
- * modem-up (inittab ::once:) is the boot-resident shared modem owner for GPS
- * and Wi-Fi; this daemon never starts, signals, reaps or restarts it and
- * never changes the modem's operating mode. What it owns is everything
- * GNSS-specific on top of that modem: one QMI LOC client id (CID) with LOC
- * session 1, gpsd, and the `qmicli --loc-follow-nmea | nmea-broker`
- * pipeline. They run only while someone holds a lease on
- * /run/chef/gps-manager.sock (the line protocol is in server.c's header).
+ * modem-up (an OpenRC service started once) is the boot-resident shared
+ * modem owner for GPS and Wi-Fi; this daemon never starts, signals, reaps
+ * or restarts it and never changes the modem's operating mode. What it
+ * owns is everything GNSS-specific on top of that modem: one QMI LOC
+ * client id (CID) with LOC session 1, gpsd, and the
+ * `qmicli --loc-follow-nmea | nmea-broker` pipeline. They run only while
+ * someone holds a lease on /run/chef/gps-manager.sock (the line protocol
+ * is in server.c's header).
  *
  * The GPS switch (`enable`/`disable`) persists through `chef-state
  * gps-save 0|1` (a child, so storage never blocks this loop) and is read
@@ -71,21 +72,21 @@
  * every lease is released or a client sends `retry` (both reset the streak).
  * A lost or replaced owner is not counted: FAILED waits for an owner.
  *
- * Respawn: init restarts this daemon if it dies. One instance at a time: an
- * flock on DIR/lock is taken before anything else and held for life; a
- * second instance exits. Children survive a SIGKILL of the manager (gpsd
- * drops privileges, which clears PR_SET_PDEATHSIG) and a CID stays allocated
- * in qmuxd-lite with LOC session 1 running until someone stops it, so
- * DIR/state (0600, atomic rename) records the CID with the owner that
- * served it as soon as the CID is known, each child's pid + start time
- * right after its fork, and the manager's own pid (for shells and tests,
- * which signal recorded pids only). A new instance kills the recorded
- * follower, broker and gpsd whose start time and name still match (others
- * are skipped and logged), waits for them, and then stops and releases the
- * recorded CID as soon as the same owner is ready, before any bring-up; if
- * the owner was replaced the CID died with the old bridge and is dropped.
- * Clients of the dead instance lost their leases with their connections
- * and lease again.
+ * Respawn: its supervisor (OpenRC's supervise-daemon) restarts this daemon
+ * if it dies. One instance at a time: an flock on DIR/lock is taken before
+ * anything else and held for life; a second instance exits. Children survive
+ * a SIGKILL of the manager (gpsd drops privileges, which clears
+ * PR_SET_PDEATHSIG) and a CID stays allocated in qmuxd-lite with LOC session
+ * 1 running until someone stops it, so DIR/state (0600, atomic rename)
+ * records the CID with the owner that served it as soon as the CID is known,
+ * each child's pid + start time right after its fork, and the manager's own
+ * pid (for shells and tests, which signal recorded pids only). A new
+ * instance kills the recorded follower, broker and gpsd whose start time and
+ * name still match (others are skipped and logged), waits for them, and then
+ * stops and releases the recorded CID as soon as the same owner is ready,
+ * before any bring-up; if the owner was replaced the CID died with the old
+ * bridge and is dropped. Clients of the dead instance lost their leases with
+ * their connections and lease again.
  *
  * Usage: gps-manager [-S SOCK] [-d DIR] [-q QMUX_SOCK] [-o OWNER_LOCK]
  *                    [-b BINDIR] [-s STATE_CMD] [-g GRACE_S] [-v]   daemon
@@ -835,7 +836,7 @@ int main(int argc, char **argv)
 
 		chef_log("%s: %s; another gps-manager is running, exiting in 5 s", path, strerror(e));
 		fprintf(stderr, "gps-manager: already running (%s: %s)\n", path, strerror(e));
-		sleep(5);	/* keeps a respawning init from spinning */
+		sleep(5);	/* keeps its supervisor's respawn from spinning */
 		return 1;
 	}
 

@@ -591,7 +591,8 @@ second reader such as the ride recorder links it alone. The contract:
 
 ## Boot and crash recovery
 
-inittab respawns `/usr/bin/chef-settings` after buttond and powerd. It takes
+The supervised OpenRC service `chef-settings` ([services](services.md)) starts
+`/usr/bin/chef-settings` right after syslog and respawns it. It takes
 the panel through the fb0 lock and tolerates NetworkManager,
 BlueZ, gps-manager and `/data` appearing later (each source retries with
 backoff or follows D-Bus name changes). A boot that starts with

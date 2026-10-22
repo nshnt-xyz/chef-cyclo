@@ -79,11 +79,11 @@ A failed precondition that cannot change later in the boot (a marker `/init` did
 
 OpenRC 0.63.2's own readiness signalling (`notify=`) is not used: both modes are broken here, verified on a host build. `notify=fd:N` breaks every respawn (the supervisor closes the pipe after the first start but keeps the mode, so each respawned child dies in `dup2()` before `exec`, and the supervisor gives up), and `notify=socket:ready` leaves `/run/openrc/supervise-<service>.sock` behind (it unlinks the wrong name), so the next start fails with "Address already in use", and its wait has no timeout. Research notes: `~/chef-cyclo-evidence/openrc-20261021/research/FINDINGS.md`.
 
-So readiness is a bounded wait in `start_post` where a dependent cannot cope without it (only `dbus`, for `bluetooth` and NetworkManager), and everything else stays with the consumer, which already retries: chef-settings' sources, blesensd, gps-manager, `wifi-nm`'s wait for the modem.
+So readiness is a bounded wait in `start_post` where a dependent cannot cope without it (`dbus`, for `bluetooth` and NetworkManager; `sensord`'s REG2, which the ADSP must find before `sensors-up` boots it), and everything else stays with the consumer, which already retries: chef-settings' sources, blesensd, gps-manager, `wifi-nm`'s wait for the modem.
 
 ## Supervision
 
-Every service but `modem-up` runs its program in the foreground under `supervise-daemon` (one supervisor process per service). The program leads its own process group (the supervisor `setsid()`s it).
+Every service but `modem-up` and the one-shot `sensors-up` runs its program in the foreground under `supervise-daemon` (one supervisor process per service). The program leads its own process group (the supervisor `setsid()`s it).
 
 - **Respawn.** A daemon that exits or is killed (`kill -9` included) is started again after `respawn_delay` (1 s), with no limit. supervise-daemon adds 128 ms for every earlier respawn within `respawn_period` (1800 s, from `rc.conf`), up to 30 s, so a daemon that keeps dying backs off instead of spinning. The supervisor logs each one: `logread | grep supervise-daemon`.
 - **Anything that kills a supervised daemon gets it respawned.** To stop one, stop its service: `rc-service <name> stop`. `chef-state shutdown` does that for chronyd, powerd, sensord and the timekeeper.
@@ -95,7 +95,7 @@ Every service but `modem-up` runs its program in the foreground under `supervise
 | What | How |
 |---|---|
 | What runs, what failed | `rc-status` (`rc-status -a` for every script, `rc-status -c` for crashed ones) |
-| Stop, start, restart a service | `rc-service <name> stop\|start\|restart`; a stop also stops the services that `need` it (NetworkManager and bluetooth with dbus) |
+| Stop, start, restart a service | `rc-service <name> stop\|start\|restart`; a stop also stops the services that `need` it (NetworkManager and bluetooth with dbus, sensors-up with sensord) |
 | The supervisors' lines (starts, respawns, exits) | `logread \| grep supervise-daemon` |
 | OpenRC's own boot output | `cat /var/log/rc.log` |
 | Run a daemon by hand with other options | `rc-service <name> stop`, then start it from the shell |
@@ -121,8 +121,8 @@ Every service but `modem-up` runs its program in the foreground under `supervise
 
 ## Boot time
 
-The first `openrc` run of a boot scans every script in `/etc/init.d` into its dependency tree (about 0.35 s for 82 scripts on the phone; the image keeps only its 18), then each service costs about 25 ms to start serially. The order above puts chef-settings and modem-up right after syslog. The baseline before OpenRC (installed pair 9a28e590 + 981d4f03): every inittab child started 6.70 to 6.73 s after boot, chef-settings at 6.73 s, "modem up" about 6 s after init, NetworkManager about 10 s after init. The live check measures the same points.
+The first `openrc` run of a boot scans every script in `/etc/init.d` into its dependency tree (about 0.35 s for 82 scripts on the phone; the image keeps only its 18), then each service costs about 25 ms to start serially. The order above puts chef-settings, modem-up and udhcpd right after syslog. The baseline before OpenRC (installed pair 9a28e590 + 981d4f03): every inittab child started 6.70 to 6.73 s after boot, chef-settings at 6.73 s, "modem up" about 6 s after init, NetworkManager about 10 s after init. The live check measures the same points.
 
 ## Tests
 
-`scripts/tests/test_services.py`: every script and `conf.d` file parses (`sh -n`, also under busybox ash), the runlevel links resolve, the image build keeps only the runlevel's scripts and their `conf.d` files, `inittab` has only the lines above, no service needs, wants or is ordered against anything outside the runlevel, and the hooks run in a harness that sources the files in `openrc-run`'s order with stub supervisors, so the exact command line of every start is checked (respawn and retry settings, pid files, arguments), as are the moved inittab logic (powerd's `/data` choice, the BNEP rule, the dbus wait, `wifi-nm`'s result, the sensors-up log rotation), modem-up's stop refusal and the process-group stops. `test_chef_state.py` checks that `chef-state shutdown` stops through `rc-service` and never signals a daemon itself, `test_chef_reboot.py` the new steps and their bounds, `test_wifi_nm.py` `wifi-nm`'s output and its wait ending at a shutdown. `test_services.py` also runs `chef-stop-supervisors` against stand-in supervisors (one that ignores TERM).
+`scripts/tests/test_services.py`: every script and `conf.d` file parses (`sh -n`, also under busybox ash), the runlevel links resolve, the image build keeps only the runlevel's scripts and their `conf.d` files, `inittab` has only the lines above, no service needs, wants or is ordered against anything outside the runlevel, and the hooks run in a harness that sources the files in `openrc-run`'s order with stub supervisors, so the exact command line of every start is checked (respawn and retry settings, pid files, arguments), as are the moved inittab logic (powerd's `/data` choice, the BNEP rule, the dbus wait, `wifi-nm`'s result), sensord's bounded registry step and REG2 wait, the one-shot `sensors-up`, modem-up's stop refusal and the process-group stops. `test_chef_state.py` checks that `chef-state shutdown` stops through `rc-service`, never signals a daemon itself and waits for the daemon its supervisor recorded (not a client of the same binary), `test_chef_reboot.py` the new steps and their bounds, `test_wifi_nm.py` `wifi-nm`'s output and its wait ending at a shutdown. `test_services.py` also runs `chef-stop-supervisors` against stand-in supervisors (one that ignores TERM).

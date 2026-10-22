@@ -13,8 +13,8 @@
  *   batt_health (vendor_pwric)  a CSV log of power_supply uevents. Stock
  *                               writes it to /data; ours goes to
  *                               /run/chef/power/log.csv, or with -l to a log
- *                               directory on /data (inittab passes
- *                               /data/v1/power when /data is ours),
+ *                               directory on /data (its OpenRC service
+ *                               passes /data/v1/power when /data is ours),
  *                               bounded with one rotation. The persist part (age/cycles in
  *                               /mnt/vendor/persist) is not cloned: persist
  *                               is never written from this project.

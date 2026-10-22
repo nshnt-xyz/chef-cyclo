@@ -980,7 +980,7 @@ int main(int argc, char **argv)
 	rc = tick(&d);
 	if (rc && !d.fb_open) {
 		kmsg_note("cannot open %s: %s; exiting in 5 s", d.fbpath, strerror(-rc));
-		sleep(5);	/* keeps a respawning init from spinning */
+		sleep(5);	/* keeps a respawn loop from spinning */
 		return 1;
 	}
 

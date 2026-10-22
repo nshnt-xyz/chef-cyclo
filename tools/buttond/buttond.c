@@ -1033,7 +1033,7 @@ int main(int argc, char **argv)
 	}
 	if (!ndev) {
 		chef_log("no button device found; exiting in 5 s");
-		sleep(5);	/* keeps a respawning init from spinning */
+		sleep(5);	/* keeps its supervisor's respawn from spinning */
 		return 1;
 	}
 	for (i = 0; i < ndev; i++) {

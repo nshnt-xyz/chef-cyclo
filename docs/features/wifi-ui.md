@@ -18,10 +18,14 @@ cleanup. See the [filtered baseline evidence](../../logs/wifi-standard-nm-live-2
 
 Boot coldplugs eudev network metadata, restores the standard D-Bus activation
 helper to root:messagebus mode4750 before starting the bus, reserves NM ownership,
-and starts one resident `modem-up` with init's `once` action. `wifi-nm` waits for its validated
-PID/start-time, readiness marker and QMUX socket before one firmware/module
-preparation attempt. NM is supervised independently; it never restarts the
-modem after failure. `wifi-nm` starts NM with `--state-file`, which is
+and OpenRC starts one resident `modem-up` (a service started once,
+[services](services.md)). NetworkManager's service (`need dbus modem-up`,
+started last) runs `wifi-nm` in its `start_pre`, which waits for the
+modem owner's validated PID/start-time, readiness marker and QMUX socket
+(up to 600 s, or until a shutdown begins) before one firmware/module
+preparation attempt; a failure fails NM's start. NM is supervised on its
+own; it never restarts the modem after failure. `wifi-nm` prints NM's
+`--state-file`, which is
 `/data/v1/networkmanager/NetworkManager.state` when `chef-state ours` succeeds (else
 the tmpfs `/var/lib/NetworkManager/NetworkManager.state`). NM keeps `WirelessEnabled`
 (the Wi-Fi switch), `NetworkingEnabled` and `WWANEnabled` there, so all three persist

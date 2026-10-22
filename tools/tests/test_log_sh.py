@@ -7,7 +7,7 @@ in); with no pid file, a stale or foreign pid, garbage, CHEF_LOG_KMSG_ONLY=1
 or a failing logger the line is "TAG: MESSAGE" in the kmsg file. logger is
 always a stub that records its arguments, so nothing reaches the host's
 syslog. Never fails, under set -eu too. Also the logging wiring: the
-syslogd inittab line and /init setting the host name it stamps.
+syslogd service's options and /init setting the host name it stamps.
 """
 import os
 from pathlib import Path

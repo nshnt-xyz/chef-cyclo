@@ -127,8 +127,7 @@ $(H)/tests/test-fbtouch: tests/test_fbtouch.c fbtouch.c fbdev.h evdev.h common/c
 
 # On the phone: holds /dev/fb0 open, draws a test pattern through mmap +
 # FBIOPAN_DISPLAY, drives lcd-backlight and decodes the NT36xxx evdev
-# stream. Manual opt-in from the shell, not in inittab (same policy as
-# modem-up).
+# stream. Manual opt-in from the shell; no service starts it.
 $(D)/fbtouch: fbtouch.c fbdev.h evdev.h common/chef_paths.h
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ fbtouch.c
@@ -183,7 +182,8 @@ $(D)/nmea-broker: nmea-broker.c
 # shutdown, batt_health-style power_supply CSV log (/data/v1/power or
 # /run/chef/power) and state file under /run/chef/power, and the thermal-engine
 # SS-BATT-BATT 44/42 C charge throttle on battery/system_temp_level.
-# Started from both inittabs (respawn). Plain libc + <linux/netlink.h>.
+# The supervised OpenRC service powerd (docs/features/services.md). Plain
+# libc + <linux/netlink.h>.
 # The test includes the .c with POWERD_NO_MAIN against a fake sysfs tree
 # with injected hooks; tests/test_powerd.sh runs the host binary end to end
 # with -x so nothing powers off. Logs through common/chef_log.c, compiled

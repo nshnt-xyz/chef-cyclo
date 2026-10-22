@@ -18,9 +18,10 @@
 # not shadow-mount over or start a redundant locator for the first -- see the
 # "audio-up also needs" comments in modem-up for its half of this symmetry.
 #
-# Manual opt-in only (not in inittab), same policy as modem-up: run by hand
-# from the telnet shell with `audio-up &`, or as `audio-up` (it exits once
-# the ADSP is up if it started nothing that needs supervising).
+# Not a service of its own: at boot the sensors-up service starts it
+# (detached) to bring the ADSP up for the sensors; by hand, run it from the
+# telnet shell with `audio-up &`, or as `audio-up` (it exits once the ADSP
+# is up if it started nothing that needs supervising).
 set -u
 
 LOCK=/run/chef/lock/audio-up.lock

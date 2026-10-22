@@ -2,12 +2,12 @@
 # docs/features/gps.md). Leases on /run/chef/gps-manager.sock drive the LOC
 # CID/session, gpsd and the follower | nmea-broker pipeline on top of
 # modem-up's shared modem, and stop them after the last release. Never
-# touches modem-up. Started from inittab (respawn). Plain libc. Sources:
-# core.c (state machine), server.c (lease server), owner.c (owner check,
-# state file), main.c (process shell), cli.c (command-line client), with
-# the internal header gps-manager.h; the socket, its JSON lines and the
-# log come from ../common/ (linesrv, json, chef_log), compiled in from
-# source.
+# touches modem-up. The supervised OpenRC service gps-manager. Plain libc.
+# Sources: core.c (state machine), server.c (lease server), owner.c
+# (owner check, state file), main.c (process shell), cli.c (command-line
+# client), with the internal header gps-manager.h; the socket, its JSON
+# lines and the log come from ../common/ (linesrv, json, chef_log),
+# compiled in from source.
 #
 #   make                 host build: build/host/gps-manager
 #   make test            host tests (build/host/tests/)
