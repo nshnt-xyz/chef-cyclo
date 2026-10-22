@@ -135,6 +135,51 @@ Live check 2 (coordinator, 2026-10-22 about 23:28 to 23:31 IST)
     kernel's 10 s ack timeout as before; openrc shutdown 22.6 s against
     the new 40 s bound; ring syslog-209; fastboot reached.
 
-Install (coordinator, 2026-10-22 about 23:31 IST, user's okay "once
-youre good, flash too and push the commits"): see the install record
-below.
+Installed pair, first flash (coordinator, 2026-10-22 about 23:31 IST,
+user's okay "once youre good, flash too and push the commits"): built at
+911122c with the two coordinator docs uncommitted (image-info dirty 1),
+system_a f193a0bd + boot_a 75ca8b18; checked and then replaced by the
+clean build below.
+  Boot times on that installed pair (like for like with the baseline
+  9a28e590 + 981d4f03 of 2026-10-21, /proc/PID/stat start times, s
+  after boot): telnetd (inittab) 5.95 (baseline init exec 6.70),
+  chef-settings 6.15 (6.73), buttond 6.39, dropbear 6.47 (6.80), powerd
+  6.54 (6.73), sensord 6.77 (6.94), screen on about 6, SMGR ready 8,
+  "modem up" init +6 s (+6 s), NetworkManager 16.63, init +10.7 s
+  (+10 s). OpenRC adds about 0.2 s between inittab and the UI; this
+  boot's stage 1 was 0.75 s quicker, so the lit status bar came earlier
+  overall.
+  Idle, screen off (screen-off present), 120 s of /proc/stat: CPU busy
+  0.20 % of the machine (0.23 to 0.36 % in the 2026-10-17 A/B blocks);
+  the 16 supervise-daemon processes used 0 CPU ticks. No unplugged A/B
+  current run: nothing in userspace to measure.
+
+Install (coordinator, 2026-10-22 about 23:35 to 23:42 IST)
+  Built at a clean 7b2a2f6 (the record commit; image-info dirty 0) with
+  SKIP_KERNEL=1 scripts/mkinstall.sh on the existing kernel #23
+  (Image.gz-dtb 3a907d00...). Code identical to the live-checked 911122c
+  tree (only docs and this log changed since).
+    system_a  out/system_a-96e8c87f.img
+              sha256 96e8c87fc88c3268cff1234e74b60b6f4f7e6a2dc4c934c3a086e04b8b445c88
+              stamp f016b972...
+    boot_a    out/boot-stage1-2915db3c.img
+              sha256 2915db3c65d3ed9af11a23c70b59a8d8ded26ae81e88e1295fa9651af4ede48f
+    RAM image of the same tree: out/boot-ram-f03f8f42.img
+  Hashes of the settings, gps/enabled and NetworkManager.state recorded
+  first. chef-reboot bootloader from the installed pair; current-slot a;
+  fastboot flash system_a OKAY (write 20.6 s); fastboot boot of the
+  stage-1 image: "system_a build stamp matches; switch_root", commit
+  7b2a2f6 dirty 0, / ro norecovery, /data rw; chef-reboot bootloader
+  again; fastboot flash boot_a OKAY; fastboot reboot (network up 21 s
+  later).
+  Installed regression: #23, bootreason reboot, image-info 7b2a2f6
+  dirty 0, host name chef-cyclo, date in IST, boot_a successful, 18
+  services started and none stopped or crashed, logread 147 lines,
+  settings, gps/enabled and NetworkManager.state byte-identical to
+  before, buttond and gps-manager answering status; kmsg: no Call trace,
+  WARNING, dma_comp or clk_branch_wait.
+  Ordinary reboot: telnet back 41 s after the command, bootreason
+  reboot, same image, 18 services started, boot_a still successful, that
+  boot's ring saved as syslog-212.
+  Fallbacks in out/: 9a28e590 + 981d4f03 (e64f8c6, first), then
+  77dd0a57 + f5338097, 61048eae + 087d3c7c.
