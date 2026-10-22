@@ -13,8 +13,11 @@ pidfile=/run/chef/modem-up.pid
 output_log=/run/chef/log/modem-up.log
 error_log=/run/chef/log/modem-up.log
 # Its TERM cleanup stops the support daemons, closes the modem and unmounts
-# /firmware: give it 10 s before the KILL.
-retry="TERM/10/KILL/2"
+# /firmware. The close takes about 10 s: the kernel waits that long for the
+# modem's shutdown ack, which never comes ("Timed out waiting for shutdown
+# ack", live 2026-10-22), so the cleanup needs about 11 s: 15 s before the
+# KILL.
+retry="TERM/15/KILL/2"
 
 # Early, right after the UI: the modem takes about 6 s to come up, and Wi-Fi
 # and GPS wait for it.

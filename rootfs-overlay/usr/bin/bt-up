@@ -7,9 +7,20 @@
 #
 # Run as the supervised OpenRC service bt-up: if btattach exits, this exits,
 # and the next start power-cycles and re-attaches the controller.
+#
+# First of all, a btattach left by an earlier bt-up is stopped: when bt-up
+# itself is killed (kill -9), its supervisor starts a new one, but the old
+# btattach lives on in the old process group and keeps the UART, so the
+# new attach would hang, and the service's stop_post only reaches the
+# current group. Only bt-up starts btattach, so any running one is a
+# leftover.
 set -u
 
-UART=/dev/ttyHS0
+# The paths are overridable for the host test (tools/tests/test_bt_up.py).
+UART=${BT_UP_UART:-/dev/ttyHS0}
+BTPOWER=${BT_UP_BTPOWER:-/dev/btpower}
+POWERED=${BT_UP_POWERED:-/run/chef/bt-powered}
+CMDLINE=${BT_UP_CMDLINE:-/proc/cmdline}
 # syslog through the shared helper (kmsg while syslogd is not up), and
 # stdout
 . "${CHEF_LIB_DIR:-/usr/lib/chef}/log.sh"
@@ -17,10 +28,49 @@ log() { chef_log bt-up "$*"; echo "bt-up: $*"; }
 
 fail() { log "$*"; sleep 5; exit 1; }
 
-[ -c /dev/btpower ] || fail "missing /dev/btpower"
+# alive PID: a process that can still run; a zombie (an orphan that init,
+# which reaps once a second, has not reaped yet) holds nothing.
+alive() {
+    st=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+    st=${st##*) }
+    [ -n "$st" ] && [ "${st%% *}" != Z ]
+}
+
+# Every live btattach: TERM, up to 2 s, then KILL.
+stop_old_btattach() {
+    old=
+    for p in $(pidof btattach 2>/dev/null); do
+        ! alive "$p" || old="$old $p"
+    done
+    [ -n "$old" ] || return 0
+    kill -TERM $old 2>/dev/null
+    i=0
+    while [ "$i" -lt 20 ]; do
+        left=
+        for p in $old; do ! alive "$p" || left="$left $p"; done
+        [ -n "$left" ] || break
+        sleep 0.1; i=$((i+1))
+    done
+    if [ -n "$left" ]; then
+        kill -KILL $left 2>/dev/null
+        i=0
+        while [ "$i" -lt 10 ]; do
+            gone=1
+            for p in $left; do ! alive "$p" || gone=; done
+            [ -z "$gone" ] || break
+            sleep 0.1; i=$((i+1))
+        done
+        log "stopped btattach${old} left by an earlier bt-up (KILL after 2 s:${left})"
+    else
+        log "stopped btattach${old} left by an earlier bt-up"
+    fi
+}
+
+stop_old_btattach
+[ -c "$BTPOWER" ] || fail "missing $BTPOWER"
 [ -c "$UART" ] || fail "missing $UART"
 
-if [ -e /run/chef/bt-powered ]; then
+if [ -e "$POWERED" ]; then
     # A previous attach left the firmware running (btattach died or was
     # restarted).  The rails are shared with Wi-Fi and cutting them does not
     # reliably reset the chip, and a running firmware ignores the power
@@ -35,7 +85,7 @@ if [ -e /run/chef/bt-powered ]; then
 else
     log "enabling WCN3990 power rails"
     btprobe power 1 || fail "btpower failed"
-    touch /run/chef/bt-powered
+    touch "$POWERED"
 fi
 
 # The external circuit on TX decodes these single-byte pulses: c0 = BT core
@@ -58,7 +108,7 @@ BTATTACH=$!
 # controller as unconfigured; program the one the bootloader passes on the
 # cmdline, which configures it and lets bluetoothd take it from there.
 ADDR=
-for a in $(cat /proc/cmdline); do
+for a in $(cat "$CMDLINE"); do
     case "$a" in androidboot.btmacaddr=*) ADDR="${a#*=}" ;; esac
 done
 if [ -n "$ADDR" ]; then

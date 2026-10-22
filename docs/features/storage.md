@@ -77,19 +77,19 @@ bootloader` is a raw `reboot(2)` that skips init's `::shutdown` lines, so the
 helper does their work first: it sends init SIGTSTP (busybox init then
 reaps but respawns nothing), runs `chef-state shutdown` and `chef-state
 log-save` (bounded as in inittab), `openrc shutdown` (every other service,
-[services](services.md#shutdown-reboot-and-the-return-to-fastboot); up to
-about 13 s slower than at a power-off, since a paused init reaps each
+[services](services.md#shutdown-reboot-and-the-return-to-fastboot); 23.5 s
+live against 14.2 s at a power-off, since a paused init reaps each
 stopped supervisor only once a second) and `chef-stop-supervisors` (any
 supervisor that step left), then the plain `chef-storage shutdown` hook,
 `sync`, and `btprobe restart bootloader`. Every step runs in the background
-with a bound (chef-state 8 s, log-save 5 s, openrc 30 s, supervisors 12 s,
+with a bound (chef-state 8 s, log-save 5 s, openrc 45 s, supervisors 12 s,
 chef-storage 100 s, sync 20 s) and is abandoned when it runs over, so a step stuck in D state
 does not block the reboot; a failure or overrun is logged to kmsg and
 `/run/chef/log/chef-reboot.log` and the helper goes on to the bootloader,
 which the recovery path depends on. btprobe calls `sync(2)` itself before
 rebooting, so a wedged eMMC can still hold it (then only the PMIC reset helps). An exit trap
 resumes init with SIGCONT on every path that does not reboot (btprobe
-returning, INT/TERM), a detached 190-second watchdog recovers a killed
+returning, INT/TERM), a detached 205-second watchdog recovers a killed
 helper, SIGHUP is ignored (a closing telnet session) and a lock in
 `/run/chef/lock` keeps a second run from resuming init under the first. Init is paused once,
 by the helper only: chef-storage's own `shutdown --pause-init` mode (an exit

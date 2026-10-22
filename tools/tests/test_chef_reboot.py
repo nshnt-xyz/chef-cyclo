@@ -10,7 +10,7 @@ other sleeps only record, timeout behaves like BusyBox's (it execs the
 command), and flock is the host's with BusyBox's options. Host BusyBox ash
 may prefer its own applets over PATH, so those stubs are also bound as shell
 functions, as in test_storage.py. Covered: the order (pause, chef-state
-under timeout -k 1 5, log-save, openrc shutdown under timeout -k 1 25,
+under timeout -k 1 5, log-save, openrc shutdown under timeout -k 1 40,
 chef-stop-supervisors under timeout -k 1 10, plain chef-storage shutdown,
 sync, btprobe), one pause, the bootloader reached when chef-state, openrc,
 chef-stop-supervisors, chef-storage or sync fail or hang,
@@ -107,7 +107,7 @@ class ChefReboot(unittest.TestCase):
         # Short step bounds; the production values are checked separately.
         text = text.replace("\nSTATE_SECS=8\t", "\nSTATE_SECS=1\t", 1)
         text = text.replace("\nLOGSAVE_SECS=5\t", "\nLOGSAVE_SECS=1\t", 1)
-        text = text.replace("\nOPENRC_SECS=30\t", "\nOPENRC_SECS=1\t", 1)
+        text = text.replace("\nOPENRC_SECS=45\t", "\nOPENRC_SECS=1\t", 1)
         text = text.replace("\nSUPERVISORS_SECS=12\t", "\nSUPERVISORS_SECS=1\t", 1)
         text = text.replace("\nSTORAGE_SECS=100\t", "\nSTORAGE_SECS=1\t", 1)
         text = text.replace("\nSYNC_SECS=20\n", "\nSYNC_SECS=1\n", 1)
@@ -176,11 +176,11 @@ class ChefReboot(unittest.TestCase):
         rc, err, t = self.call("bootloader")
         self.assert_rebooted(rc, t)
         # the watchdog is forked before the pause (its exec may land after it)
-        self.index(t, "setsid sh -c sleep 190; kill -CONT 1")
+        self.index(t, "setsid sh -c sleep 205; kill -CONT 1")
         order = [self.index(t, s) for s in ["kill -TSTP 1",
                                             "timeout -k 1 5 chef-state shutdown", "chef-state shutdown",
                                             "timeout -k 1 3 chef-state log-save", "chef-state log-save",
-                                            "timeout -k 1 25 openrc shutdown", "openrc shutdown",
+                                            "timeout -k 1 40 openrc shutdown", "openrc shutdown",
                                             "timeout -k 1 10 chef-stop-supervisors", "chef-stop-supervisors",
                                             "chef-storage shutdown", "sync", "sleep 2", "btprobe restart bootloader"]]
         self.assertEqual(order, sorted(order), t)
@@ -344,11 +344,11 @@ class ChefReboot(unittest.TestCase):
                            + v["STORAGE_SECS"] + v["SYNC_SECS"] + 2 + 10)
         self.assertGreaterEqual(v["STATE_SECS"], 5 + 1 + 1)  # timeout -k 1 5
         self.assertGreaterEqual(v["LOGSAVE_SECS"], 3 + 1 + 1)  # timeout -k 1 3
-        self.assertGreaterEqual(v["OPENRC_SECS"], 25 + 1 + 1)  # timeout -k 1 25
+        self.assertGreaterEqual(v["OPENRC_SECS"], 40 + 1 + 1)  # timeout -k 1 40
         self.assertGreaterEqual(v["SUPERVISORS_SECS"], 10 + 1 + 1)  # timeout -k 1 10
         self.assertIn("timeout -k 1 5 chef-state shutdown", text)
         self.assertIn("timeout -k 1 3 chef-state log-save", text)
-        self.assertIn("timeout -k 1 25 openrc shutdown", text)
+        self.assertIn("timeout -k 1 40 openrc shutdown", text)
         self.assertIn("timeout -k 1 10 chef-stop-supervisors", text)
         inittab = (ROOT / "rootfs-overlay/etc/inittab").read_text()
         self.assertIn("::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown", inittab)

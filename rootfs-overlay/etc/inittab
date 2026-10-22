@@ -21,21 +21,23 @@
 ::once:/bin/sh -c 'sleep 30; exec /usr/bin/abslot mark-successful >/dev/null'
 ::ctrlaltdel:/sbin/reboot
 # chef-state first (last RTC offset, chronyd stopped so its drift file is
-# written, last magnetometer bias; it stops chronyd, powerd, sensors-up and
+# written, last magnetometer bias; it stops chronyd, powerd, sensord and
 # the timekeeper through OpenRC), bounded so it cannot hold up the rest;
 # then the syslogd ring, with the lines of that stop, onto
 # /data/v1/log/syslog-<seq> (syslogd still runs: init signals every process
 # only after these lines; bounded too); then OpenRC stops every other
 # service in reverse dependency order, modem-up's clean modem stop included,
-# while /data is still mounted (bounded: one service stuck for its whole
-# TERM 5 s and KILL 2 s, or modem-up's 10 s and 2 s, plus the quick stops of
-# the rest; init reaps at once while it runs these lines, so a stop costs
+# while /data is still mounted (bounded: modem-up's stop takes about 11 s,
+# the kernel's 10 s wait for a shutdown ack the modem never sends, and the
+# whole step 14.2 s live; 30 s covers modem-up's TERM 15 s and KILL 2 s plus
+# one other service stuck for its TERM 5 s and KILL 2 s and the quick stops
+# of the rest; init reaps at once while it runs these lines, so a stop costs
 # only its own time); then any supervisor openrc shutdown left (it did not
 # finish) is stopped, so nothing respawns what chef-storage's sweep stops
 # next; then chef-storage makes /data read-only and detaches it.
 ::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown
 ::shutdown:/usr/bin/timeout -k 1 3 /usr/bin/chef-state log-save
-::shutdown:/usr/bin/timeout -k 1 20 /sbin/openrc shutdown
+::shutdown:/usr/bin/timeout -k 1 30 /sbin/openrc shutdown
 ::shutdown:/usr/bin/timeout -k 1 10 /usr/bin/chef-stop-supervisors
 ::shutdown:/usr/bin/chef-storage shutdown
 ::shutdown:/bin/umount -a -r

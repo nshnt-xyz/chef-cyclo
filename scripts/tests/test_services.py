@@ -56,7 +56,7 @@ INITTAB = [
     "::ctrlaltdel:/sbin/reboot",
     "::shutdown:/usr/bin/timeout -k 1 5 /usr/bin/chef-state shutdown",
     "::shutdown:/usr/bin/timeout -k 1 3 /usr/bin/chef-state log-save",
-    "::shutdown:/usr/bin/timeout -k 1 20 /sbin/openrc shutdown",
+    "::shutdown:/usr/bin/timeout -k 1 30 /sbin/openrc shutdown",
     "::shutdown:/usr/bin/timeout -k 1 10 /usr/bin/chef-stop-supervisors",
     "::shutdown:/usr/bin/chef-storage shutdown",
     "::shutdown:/bin/umount -a -r",
@@ -257,7 +257,9 @@ class Services(unittest.TestCase):
                 if svc != "syslog":
                     self.assertTrue("logger" in deps.get("use", set()) or "*" in deps.get("after", set()), svc)
         self.assertEqual(self.depends("syslog").get("provide"), {"logger"})
-        self.assertEqual(self.depends("networkmanager").get("need"), {"dbus", "modem-up"})
+        # use, not need: a refused modem-up stop must not stop NetworkManager
+        self.assertEqual(self.depends("networkmanager").get("need"), {"dbus"})
+        self.assertIn("modem-up", self.depends("networkmanager").get("use"))
         self.assertEqual(self.depends("networkmanager").get("after"), {"*"})
         self.assertEqual(self.depends("bluetooth").get("need"), {"dbus"})
         self.assertIn("bluetooth", self.depends("blesensd").get("after"))
@@ -453,7 +455,7 @@ class Services(unittest.TestCase):
             self.assertEqual("start-stop-daemon [--stop]" in out, rc == 0, out)
             if rc:
                 self.assertIn("eerror modem-up stops only at shutdown", out)
-        self.assertIn("[--retry] [TERM/10/KILL/2]", out)
+        self.assertIn("[--retry] [TERM/15/KILL/2]", out)
         self.assertIn("[--pidfile] [/run/chef/modem-up.pid]", out)
 
     def test_stop_takes_the_whole_process_group(self):

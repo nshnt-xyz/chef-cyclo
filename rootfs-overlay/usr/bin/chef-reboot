@@ -8,17 +8,18 @@
 #      so its inittab lines (telnetd) stay as they are while the rest stops
 #   2. chef-state shutdown, bounded as in inittab (timeout -k 1 5): last RTC
 #      offset save, chronyd's drift write, powerd's pending power log rows
-#      (it stops chronyd, powerd, sensors-up and the timekeeper through
+#      (it stops chronyd, powerd, sensord and the timekeeper through
 #      OpenRC)
 #   3. chef-state log-save, bounded as in inittab (timeout -k 1 3): the
 #      syslogd ring onto /data/v1/log
-#   4. openrc shutdown (timeout -k 1 25): every other service stopped in
-#      reverse dependency order, modem-up's clean modem stop included.
-#      Slower here than in inittab: a stopped supervisor is an orphan of
-#      init, `supervise-daemon --stop` waits until init reaps it, and a
-#      paused busybox init reaps only once a second (inittab's ::shutdown
-#      lines reap at once). The stops run one after another, so about
-#      13 services cost up to about 13 s more than a power-off does.
+#   4. openrc shutdown (timeout -k 1 40): every other service stopped in
+#      reverse dependency order, modem-up's clean modem stop included (about
+#      11 s: the kernel waits 10 s for a shutdown ack the modem never
+#      sends). Slower here than in inittab: a stopped supervisor is an
+#      orphan of init, `supervise-daemon --stop` waits until init reaps it,
+#      and a paused busybox init reaps only once a second (inittab's
+#      ::shutdown lines reap at once). The stops run one after another, so
+#      the step took 23.5 s live against 14.2 s in a power-off.
 #   5. chef-stop-supervisors (timeout -k 1 10): any supervisor openrc
 #      shutdown left is stopped, so nothing respawns what 6 stops
 #   6. chef-storage shutdown (plain, never --pause-init: its exit trap would
@@ -51,11 +52,11 @@ KMSG=${CHEF_REBOOT_KMSG:-/dev/kmsg}
 LOG=$RUN/log/chef-reboot.log
 STATE_SECS=8		# chef-state under timeout -k 1 5, plus margin
 LOGSAVE_SECS=5		# chef-state log-save under timeout -k 1 3, plus margin
-OPENRC_SECS=30		# openrc shutdown under timeout -k 1 25, plus margin
+OPENRC_SECS=45		# openrc shutdown under timeout -k 1 40, plus margin
 SUPERVISORS_SECS=12	# chef-stop-supervisors under timeout -k 1 10, plus margin
 STORAGE_SECS=100	# chef-storage shutdown's own bounds add up to about 85 s
 SYNC_SECS=20
-WATCHDOG_SECS=190	# above 1 + 8 + 5 + 30 + 12 + 100 + 20 + 2 s (a host test checks)
+WATCHDOG_SECS=205	# above 1 + 8 + 5 + 45 + 12 + 100 + 20 + 2 s (a host test checks)
 
 # kmsg only, here (a direct write: the recovery path does not depend on
 # the log helper) and in every child: a hang on the way to the bootloader
@@ -131,7 +132,7 @@ if command -v chef-state >/dev/null 2>&1; then
 	else log "chef-state log-save failed (exit $rc); this boot's syslog lines are not on /data"; fi
 fi
 if command -v openrc >/dev/null 2>&1; then
-	bounded "$OPENRC_SECS" "openrc shutdown" timeout -k 1 25 openrc shutdown
+	bounded "$OPENRC_SECS" "openrc shutdown" timeout -k 1 40 openrc shutdown
 	rc=$?
 	if [ "$rc" = 0 ]; then log "openrc shutdown done"
 	else log "openrc shutdown failed (exit $rc); some services may still run"; fi

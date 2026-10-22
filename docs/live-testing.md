@@ -31,7 +31,7 @@ bootloader` (in a telnet session or detached with `setsid`) rather than a bare
 offset, chronyd's drift file, pending power log rows), `chef-state log-save`
 (the syslog ring onto `/data/v1/log`), `openrc shutdown` and
 `chef-stop-supervisors` (every other service, the modem's clean stop
-included; up to about 13 s longer than a power-off, see
+included; about 24 s live against 14 s in a power-off, see
 [services](features/services.md#shutdown-reboot-and-the-return-to-fastboot))
 and `chef-storage shutdown` (`/data` read-only and detached), syncs and then
 calls `btprobe restart bootloader`. A failing or hanging step is logged to kmsg and
@@ -94,8 +94,10 @@ cat /var/log/rc.log             # OpenRC's own output at boot and shutdown
 
 A supervised daemon that dies or is killed (`kill -9` included) is started
 again by its supervisor after 1 s, so to keep one down, or to run it by hand
-with other options, stop its service first. `modem-up` refuses
-`rc-service modem-up stop|restart` (one modem lifetime per boot); a stopped
+with other options, stop its service first. A new `chef-sshd` or `bt-up`
+first stops the dropbear or btattach a killed predecessor left (one log
+line). `modem-up` refuses `rc-service modem-up stop|restart` (one modem
+lifetime per boot) and leaves everything running; a stopped
 service with a precondition that failed at boot (`rc-status` shows it
 stopped or failed) is retried with `rc-service <name> start`. `rc-update`
 does not work on the read-only root: change

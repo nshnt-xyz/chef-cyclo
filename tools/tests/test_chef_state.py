@@ -1192,7 +1192,7 @@ class ChefState(unittest.TestCase):
         # the ring's save between them, while syslogd and /data are both up
         self.assertEqual(shutdown[1], "::shutdown:/usr/bin/timeout -k 1 3 /usr/bin/chef-state log-save")
         # then every other service, while /data is still there
-        self.assertEqual(shutdown[2], "::shutdown:/usr/bin/timeout -k 1 20 /sbin/openrc shutdown")
+        self.assertEqual(shutdown[2], "::shutdown:/usr/bin/timeout -k 1 30 /sbin/openrc shutdown")
         # any supervisor it left, so nothing respawns what chef-storage's sweep stops
         self.assertEqual(shutdown[3], "::shutdown:/usr/bin/timeout -k 1 10 /usr/bin/chef-stop-supervisors")
         self.assertEqual(shutdown[4], "::shutdown:/usr/bin/chef-storage shutdown")

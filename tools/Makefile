@@ -291,7 +291,8 @@ $(D)/rtc-edge: rtc-edge.c
 # Small libc-free helper used by bt-up to exercise /dev/btpower and the
 # WCN3990 UART; also a raw H4/QCA attach and LE scan for debugging without
 # BlueZ. Built freestanding with the Android GCC that builds the kernel
-# (scripts/setup-toolchain.sh), not with the musl flags.
+# (scripts/setup-toolchain.sh), not with the musl flags. tests/test_bt_up.py
+# runs rootfs-overlay/usr/bin/bt-up with a stub btprobe.
 BTCC ?= $(REPO_ROOT)/toolchain/aarch64-linux-android-4.9/bin/aarch64-linux-android-gcc
 
 $(D)/btprobe: btprobe.c
@@ -334,6 +335,7 @@ test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge test-displa
 	python3 tests/test_chef_reboot.py
 	python3 tests/test_stage1.py
 	python3 tests/test_ssh.py
+	python3 tests/test_bt_up.py
 
 # modem-up (rootfs-overlay/) selection-logic regression; not a build product of
 # this directory, but this is the natural place to run it alongside the

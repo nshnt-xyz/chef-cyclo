@@ -1,7 +1,12 @@
 # NetworkManager (the package's init.d/networkmanager, supervised, -n).
 # Wi-Fi rides on the modem modem-up keeps up. Started last (after every
-# other service), so the wait below holds nothing else back.
-rc_need="modem-up"
+# other service), so the wait below holds nothing else back. `use`, not
+# `need`: OpenRC stops a service's `need` dependents before it calls its
+# stop(), so a refused `rc-service modem-up stop` would still take
+# NetworkManager down. modem-up is in the runlevel, so it still starts
+# first and stops last, and wifi-nm fails the start if the modem owner
+# never comes up.
+rc_use="modem-up"
 rc_after="*"
 
 # wifi-nm does the checks and the waits (USB guard, udev coldplug, no manual

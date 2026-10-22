@@ -17,8 +17,11 @@
   zero-length key moved to .bad and replaced, RAM-only (and a /data
   failure) falling back to an ephemeral /run key that a respawn keeps, the
   exact dropbear arguments (-s, no -B or -R, the /run key, -D), SSH=0 images
-  idling instead of respawning, failures sleeping before exit, and the kmsg
-  rate limit with its suppressed count.
+  idling instead of respawning, failures sleeping before exit, the kmsg
+  rate limit with its suppressed count, and a dropbear left by a chef-sshd
+  killed with kill -9 stopped by the next one (TERM, or KILL when TERM is
+  ignored; its old log loop ends; a pid file naming anything else is left
+  alone).
 - the NetworkManager dispatcher line with the Wi-Fi address.
 - inittab: the telnetd line unchanged; chef-sshd is an OpenRC service; chef-storage
   makes /data/v1/ssh; the build wiring (mkrootfs, mkinitramfs, mksystem,
@@ -200,7 +203,7 @@ chown|sync) exit 0;;
 chmod)
     for a; do case "$a" in "${CHMOD_FAIL_UNDER:-/nonexistent}"*) echo "chmod: $a: Read-only file system" >&2; exit 1;; esac; done
     exec /bin/chmod "$@";;
-sleep) exit 0;;
+sleep) case "$1" in 0.*) exec /bin/sleep "$1";; esac; exit 0;;
 dropbearkey)
     [ "${KEYGEN:-ok}" = ok ] || exit 1
     case "$1" in
@@ -213,6 +216,16 @@ dropbearkey)
     exit 2;;
 dropbear)
     printf '%s\n' "$@" > "$TRACE.dropbear"
+    if [ -n "${DB_STAY:-}" ]; then
+        # a long-running listener: writes its -P file, stays until TERM
+        # (DB_STAY=ignore: never)
+        pf= prev=
+        for a; do [ "$prev" != -P ] || pf=$a; prev=$a; done
+        if [ "$DB_STAY" = ignore ]; then trap '' TERM; else trap 'exit 0' TERM; fi
+        echo "$$" > "$pf"
+        echo "[$$] Oct 10 20:01:02 listening" >&2
+        while :; do /bin/sleep 0.1; done
+    fi
     i=0
     while [ "$i" -lt "${LINES1:-2}" ]; do echo "[4242] Oct 10 20:01:02 line $i" >&2; i=$((i + 1)); done
     if [ -n "${LINES2:-}" ]; then
@@ -424,6 +437,84 @@ class ChefSshd(unittest.TestCase):
         # the smuggled, malformed and bare lines are ordinary: suppressed, counted
         self.assertEqual(kmsg.count("chef-sshd: 34 dropbear log lines suppressed"), 1)
         self.assertFalse(any("user 'x]" in l or "[42x]" in l for l in kmsg))
+
+    def wait_for(self, cond, secs=5):
+        end = time.monotonic() + secs
+        while not cond():
+            if time.monotonic() > end:
+                return False
+            time.sleep(0.05)
+        return True
+
+    def pid_file(self):
+        f = self.run_dir / "dropbear.pid"
+        return int(f.read_text()) if f.exists() and f.read_text().strip() else None
+
+    def test_dropbear_left_by_a_killed_instance_is_stopped(self):
+        # chef-sshd killed with kill -9 (as on the phone): its dropbear and
+        # log loop live on in its process group, port 22 still taken
+        first = subprocess.Popen([*self.shell, str(self.script)], env={**self.env, "DB_STAY": "1"},
+                                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                 start_new_session=True)
+        self.addCleanup(lambda: os.killpg(first.pid, 9) if self.group_alive(first.pid) else None)
+        self.assertTrue(self.wait_for(lambda: self.pid_file() is not None))
+        old = self.pid_file()
+        self.assertTrue(self.wait_for(lambda: "dropbear[%d]: listening" % old in self.kmsg()))
+        first.kill()
+        first.wait()
+        self.assertTrue(self.group_alive(first.pid))
+        (self.p / "kmsg").write_text("")
+        rc, kmsg, trace = self.run_sshd()
+        self.assertEqual(kmsg[0], f"chef-sshd: stopped dropbear {old} left by an earlier chef-sshd")
+        self.assertFalse(os.path.exists(f"/proc/{old}") and self.state(old) != "Z")
+        # the old log loop ended on EOF: nothing of the old group is left
+        self.assertTrue(self.wait_for(lambda: not self.group_alive(first.pid)))
+        # then the normal start
+        self.assertIn("chef-sshd: host key persistent SHA256:testfp; listening on port 22, key login only", kmsg)
+
+    def test_dropbear_ignoring_term_is_killed(self):
+        self.run_dir.mkdir(parents=True)
+        stray = subprocess.Popen([str(self.p / "bin/dropbear"), "-P", str(self.run_dir / "dropbear.pid")],
+                                 env={**self.env, "DB_STAY": "ignore"}, stderr=subprocess.DEVNULL,
+                                 start_new_session=True)
+        self.addCleanup(lambda: os.killpg(stray.pid, 9) if self.group_alive(stray.pid) else None)
+        self.assertTrue(self.wait_for(lambda: self.pid_file() == stray.pid))
+        time.sleep(0.2)
+        t0 = time.monotonic()
+        rc, kmsg, trace = self.run_sshd()
+        self.assertEqual(kmsg[0], f"chef-sshd: stopped dropbear {stray.pid} left by an earlier chef-sshd (KILL after 2 s)")
+        self.assertGreaterEqual(time.monotonic() - t0, 2)
+        self.assertEqual(stray.wait(timeout=5), -9)
+
+    def test_pid_file_naming_something_else_is_left_alone(self):
+        self.run_dir.mkdir(parents=True)
+        other = subprocess.Popen(["sleep", "30"])
+        self.addCleanup(other.wait)
+        self.addCleanup(other.kill)
+        for content in [f"{other.pid}\n", "garbage\n", "999999999\n", ""]:
+            with self.subTest(content=content):
+                (self.run_dir / "dropbear.pid").write_text(content)
+                (self.p / "kmsg").write_text("")
+                rc, kmsg, trace = self.run_sshd()
+                self.assertFalse(any("left by an earlier" in l for l in kmsg))
+                self.assertIsNone(other.poll())
+
+    def state(self, pid):
+        try:
+            return Path(f"/proc/{pid}/stat").read_text().rsplit(") ", 1)[1].split()[0]
+        except (OSError, IndexError):
+            return None
+
+    def group_alive(self, pgid):
+        for d in Path("/proc").iterdir():
+            if d.name.isdigit():
+                try:
+                    st = (d / "stat").read_text().rsplit(") ", 1)[1].split()
+                except (OSError, IndexError):
+                    continue
+                if int(st[2]) == pgid and st[0] != "Z":
+                    return True
+        return False
 
     def test_production_values(self):
         text = SSHD.read_text()

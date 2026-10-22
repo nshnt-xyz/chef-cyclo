@@ -32,6 +32,12 @@
 #      shows a leaked key in use.
 #      Idle, dropbear blocks in select() with no timeout.
 #
+# First of all, a dropbear left by an earlier chef-sshd is stopped: when
+# chef-sshd itself is killed (kill -9), its supervisor starts a new one, but
+# the old dropbear lives on in the old process group and keeps port 22, and
+# the service's stop_post only reaches the current group. The old log loop
+# then ends on EOF, once the old dropbear's sessions (left running) close.
+#
 # A failure sleeps before exiting, so the supervisor's respawn cannot spin.
 KEYS=${CHEF_SSHD_KEYS:-/etc/chef/ssh}
 DATA=${CHEF_SSHD_DATA:-/data}
@@ -141,7 +147,35 @@ logloop() {
 	[ "$dropped" = 0 ] || log "$dropped dropbear log lines suppressed"
 }
 
+# alive PID: a process that can still run; a zombie (an orphan that init,
+# which reaps once a second, has not reaped yet) holds nothing.
+alive() {
+	st=$(cat "/proc/$1/stat" 2>/dev/null) || return 1
+	st=${st##*) }
+	[ -n "$st" ] && [ "${st%% *}" != Z ]
+}
+
+# The listener's pid from dropbear's -P file, if that process is a live
+# dropbear: TERM, up to 2 s, then KILL. Its sessions are not touched.
+stop_old_dropbear() {
+	old=$(cat "$RUN/dropbear.pid" 2>/dev/null)
+	case "$old" in ''|*[!0-9]*) return 0;; esac
+	[ "$(cat "/proc/$old/comm" 2>/dev/null)" = dropbear ] && alive "$old" || return 0
+	kill -TERM "$old" 2>/dev/null
+	i=0
+	while alive "$old" && [ "$i" -lt 20 ]; do sleep 0.1; i=$((i + 1)); done
+	if alive "$old"; then
+		kill -KILL "$old" 2>/dev/null
+		i=0
+		while alive "$old" && [ "$i" -lt 10 ]; do sleep 0.1; i=$((i + 1)); done
+		log "stopped dropbear $old left by an earlier chef-sshd (KILL after 2 s)"
+	else
+		log "stopped dropbear $old left by an earlier chef-sshd"
+	fi
+}
+
 cd / || exit 1
+stop_old_dropbear
 if [ ! -s "$KEYS/authorized_keys" ]; then
 	log "no $KEYS/authorized_keys in this image (built with SSH=0): SSH disabled"
 	sleep 2147483647

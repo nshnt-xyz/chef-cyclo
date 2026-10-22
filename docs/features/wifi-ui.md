@@ -19,7 +19,7 @@ cleanup. See the [filtered baseline evidence](../../logs/wifi-standard-nm-live-2
 Boot coldplugs eudev network metadata, restores the standard D-Bus activation
 helper to root:messagebus mode4750 before starting the bus, reserves NM ownership,
 and OpenRC starts one resident `modem-up` (a service started once,
-[services](services.md)). NetworkManager's service (`need dbus modem-up`,
+[services](services.md)). NetworkManager's service (`need dbus`, `use modem-up`,
 started last) runs `wifi-nm` in its `start_pre`, which waits for the
 modem owner's validated PID/start-time, readiness marker and QMUX socket
 (up to 600 s, or until a shutdown begins) before one firmware/module
