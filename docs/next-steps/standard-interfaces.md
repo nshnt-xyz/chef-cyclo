@@ -23,7 +23,7 @@ Goal, set 2026-10-18: the system should work with hardware and with other progra
 | Logs | journald or syslog | Everything writes to `/dev/kmsg`, plus files under `/run` |
 | Shared settings | dconf, or a D-Bus service | `chef-settings` owns a file; the recorder will need its alert settings |
 | `/run` layout | One directory per package | About 40 names directly under `/run` |
-| Exclusive access | logind, unit conflicts | `flock` files (`gps-up.lock`, `audio-up.lock`, `sensors-up.lock`); acceptable, kept |
+| Exclusive access | logind, unit conflicts | `flock` files (`modem-up.lock`, `audio-up.lock`, `sensors-up.lock`); acceptable, kept |
 
 Items 2 and 3 change what the ride app connects to (buttond for the Hold to finish events, gps-manager for the `ride` lease, blesensd for the sensors, the settings for alerts) and how the recorder is started. The whole plan goes before [ride slice 1](ui-and-ride-app.md#ride-application-design).
 
@@ -37,8 +37,8 @@ Decided 2026-10-18; revised the same day when the user chose to finish all of th
 4. **sensord and blesensd** onto the shared library, their written contracts, and the `sensord.c` and `blesensd.c` splits. **Done 2026-10-20** ([handoff and result](../archive/sensors-blesensd-handoff.md), [log](../../logs/sensors-blesensd-2026-10-19.txt)); installed the same day. The contracts are in the [sensors guide](../features/sensors.md#socket-contract) and the [Bluetooth guide](../features/bluetooth.md#socket-contract); all four sockets are now on the shared protocol.
 5. **`/run/chef/` and the screen handover** (section 4 and the first item of section 5), plus `tzdata`. **Done 2026-10-20** ([handoff and result](../archive/run-chef-handoff.md), [log](../../logs/run-chef-2026-10-20.txt)); installed the same day. The layout is in [runtime files](../features/runtime-files.md); the zone is `Asia/Kolkata` from tzdata with the settings' POSIX string as the fallback.
 6. **syslog** (section 5). **Done 2026-10-21** ([handoff and result](../archive/syslog-handoff.md), [log](../../logs/syslog-2026-10-20.txt)); installed the same day. busybox `syslogd` with a 1 MiB RAM ring (`logread`), our programs through `chef_log` and `usr/lib/chef/log.sh` with the kmsg fallback, kmsg kept for early boot and shutdown, the ring saved to `/data/v1/log` at every orderly shutdown; see [logging](../features/logging.md).
-7. **OpenRC** (section 3), with the shell helper library in `/usr/lib/chef`. Touches the boot path: its own live verification.
-8. **Daemon users** (section 5), on top of the OpenRC service files.
+7. **OpenRC** (section 3). **Done 2026-10-22** ([handoff and result](../archive/openrc-handoff.md), [log](../../logs/openrc-2026-10-21.txt)); installed the same day. busybox init stays PID 1 with the USB telnet shell, `abslot` and the `::shutdown` lines in `inittab`; OpenRC 0.63.2 runs the `default` runlevel from a `::once` line and supervises every service with `supervise-daemon` (`modem-up` started once, never respawned); no `notify=` readiness (broken in this OpenRC), bounded `start_post` waits instead; `gps-up` renamed `modem-up`; sensord its own service with a one-shot `sensors-up`; see [services](../features/services.md). The rest of the shell helper library in `/usr/lib/chef` (the copied `find_subsys`, `card_ready`, `server_present`, `child_running`, `part`) moved to step 8 on 2026-10-22.
+8. **Daemon users** (section 5), on top of the OpenRC service files, plus the rest of the shell helper library in `/usr/lib/chef` (moved from step 7).
 9. **Standard hardware interfaces** (section 1): UPower, `net.hadess.SensorProxy`, key passthrough, vibrator as force feedback; the `powerd.c` split.
 10. **Ride slice 1**, after all of the above.
 

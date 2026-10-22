@@ -1,0 +1,140 @@
+OpenRC (standard interfaces step 7), 2026-10-21 to 2026-10-22
+==============================================================
+
+Plan: docs/archive/openrc-handoff.md (step 7: section 3 of
+docs/next-steps/standard-interfaces.md).
+Pair: openrc_impl and openrc_review (Claude Opus 5.5), coordinator
+openrc_coord. On hold from 2026-10-21 late (out of usage) to 2026-10-22;
+the pair was then restarted fresh (new sessions) and briefed from the
+implementer's hold notes (review/M3-hold-status.md, resume-kickoff.md).
+Evidence: ~/chef-cyclo-evidence/openrc-20261021/ (research/ with
+FINDINGS.md and the bench scripts, review/ diffs, notes and reviews,
+live/ c1..c20 transcripts and build logs, install/).
+
+Commits on main (each approved by openrc_review and checked against the
+reviewed snapshot; the coordinator re-hashed each commit's diff, M1a to
+M2 on 2026-10-21, M3 and M4 on 2026-10-22):
+  0720bc2  M1a gps-up renamed modem-up (script, lock, log, tests, docs)
+  d2c7dbe  M1b busybox init stays PID 1; inittab keeps telnetd (the
+           recovery shell), ::once openrc sysinit + default, abslot's
+           30 s mark and the ::shutdown lines (chef-state shutdown,
+           log-save, openrc shutdown, chef-stop-supervisors,
+           chef-storage, umount); OpenRC 0.63.2 with the packaged
+           scripts we run and conf.d removing their Alpine boot
+           dependencies; the image keeps only the default runlevel's 17
+           scripts; every service under supervise-daemon (respawn 1 s,
+           no limit), modem-up once under start-stop-daemon, refusing a
+           stop outside shutdown; no notify= (both modes broken in this
+           OpenRC), bounded start_post waits; chef-reboot through
+           openrc shutdown; docs/features/services.md (snapshot dbbb6aa6)
+  8051738  M2 sensord its own supervised service, sensors-up a one-shot
+           ADSP boot that needs it, mag-save moved into sensord
+           (snapshot 883721a6)
+  856510e  M3 the guides, live testing, repository layout and code
+           comments (snapshot c732e03f, two review rounds)
+  911122c  M4 from the live check: F1 chef-sshd and bt-up stop a killed
+           predecessor's dropbear or btattach first; F2 NetworkManager
+           rc_use modem-up (was rc_need); F3 modem-up TERM/15/KILL/2,
+           ::shutdown openrc bound 30 s, chef-reboot's openrc step
+           timeout -k 1 40 (watchdog 205 s); F4 docs (snapshot 9acf747a,
+           two review rounds)
+
+Decided during the work: gps-up renamed modem-up in its own commit
+(splitting rmtfs, servreg-locator, tftp and qmuxd-lite into services was
+rejected by the user: not this step); ::once for openrc (::wait would
+block telnetd); serial start; the rest of the shell helper library in
+/usr/lib/chef (find_subsys, card_ready, server_present, child_running,
+part) moved to step 8 on 2026-10-22.
+
+Build note: out/rootfs dated from 2026-10-20, before M1b added OpenRC to
+scripts/mkrootfs.sh, so the first mkinstall.sh stopped at the prune check
+("no /etc/init.d/functions.sh in the image"); scripts/mkrootfs.sh rebuilt
+the base and the build went through.
+
+RAM image 1 (coordinator, SKIP_KERNEL=1 scripts/mkinstall.sh at 856510e,
+the tree dirty only in the two coordinator docs; kernel #23 Image.gz-dtb
+3a907d00...)
+  out/boot-ram-014feeab.img
+  sha256 014feeab9fd7d0a87d71a91c8d8e827105e256b9eb8accb4d3af4f398e314411
+
+Live check 1 (coordinator, 2026-10-22 about 22:51 to 23:10 IST)
+  phone-boot.sh from the installed pair (9a28e590 + 981d4f03).
+  rc-status: the 17 default services started (modem-up and sensors-up
+    without a supervisor), none of Alpine's boot services; /run/openrc
+    and /run/lock present, no cgroup mount; /proc/mounts the RAM image's
+    usual set; /var/log/rc.log written; chronyd -F 1 (seccomp) runs on
+    4.4 and musl.
+  Start times after telnetd (inittab, 10.72 s on the RAM image):
+    chef-settings +0.16 s, screen on about +0.3 s, sensord +0.75 s,
+    "modem up" about +6 s, NetworkManager +10.5 s.
+  rc-service X restart for every service: rc 0 (pids compared for
+    chef-settings, sensord and bluetooth: only the named daemon
+    replaced); dbus also stops and starts networkmanager and bluetooth,
+    sensord also sensors-up (it logs the ADSP already up). bluetooth's
+    stop takes 5.06 s at runtime: bluetoothd waits for the adapter to
+    power off ("Terminating", "Exit" 5 s later); at shutdown bt-up stops
+    first and bluetoothd exits at once.
+  kill -9 of each supervised daemon (15): every one respawned within
+    about 1 s.
+  FOUND F1: after kill -9 of the chef-sshd or bt-up script the old
+    dropbear (port 22) or btattach (/dev/ttyHS0) lives on as an orphan;
+    the new chef-sshd retries every 10 s ("Address in use"), the new
+    bt-up hangs at "shutting down the running WCN3990 firmware", and
+    rc-service X restart does not clear them (stop_post reaches only the
+    current child's group). Same as with inittab. -> M4.
+  FOUND F2: rc-service modem-up stop refused (rc 1) but first printed
+    "Stopping networkmanager" and left it stopped (need dependents stop
+    before stop() runs). -> M4.
+  Hanging service: a test script with start_pre sleeping 45 s in the
+    default runlevel, openrc default run again; while it was starting,
+    telnetd was killed and init respawned it (new pid 7215, new telnet
+    session ok). The test service was removed.
+  Sensors after kill -9 of sensord: sensord list smgr ready;
+    sensord watch illuminance and accel 50 Hz deliver samples. The status
+    bar holds no illuminance claim on this phone (Auto brightness and
+    theme Auto are off), so the claim was checked with sensord's client.
+  chef-reboot bootloader (kmsg streamed to the host): chef-state
+    shutdown stop_rc=0 mag_save_rc=0 (time_save_rc=1: chrony had no
+    source), ring saved as syslog-201 (50087 bytes); "openrc shutdown
+    done" 23.4 s after log-save; fastboot 32 s after the command.
+  Power-off (settled): chef-state shutdown stop_rc=0, ring syslog-202;
+    openrc shutdown plus chef-stop-supervisors 14.2 s; charger-mode
+    boot of the installed pair (USB attached); drift file written at the
+    power-off (23:01:03).
+  Power-off during NetworkManager's modem wait (rc-status
+    "networkmanager starting" at 17.4 s): ring syslog-204 with chef-state
+    shutdown and log-save; previous-boot console (205-charger): the
+    still-booting modem rejected the shutdown request at 22.0 s, the
+    kernel's ack wait timed out at 32.4 s, "reboot: Power down" at
+    37.4 s; next boot e2fsck -p exit 0.
+  chef-reboot with logread -f streamed: the services stop one per second
+    (paused init reaps once a second), then modem-up from 23:06:05 to
+    23:06:17: TERM, the kernel's "wait_for_shutdown_ack(): [modem]: Timed
+    out waiting for shutdown ack" 10 s later, KILL at 11 s; nothing
+    respawned. FOUND F3: openrc shutdown 23.5 s against its 25 s bound,
+    modem-up KILLed just before its cleanup ends. Test image
+    out/boot-modemtest.img (19483fa8, modem-up closing /dev/subsys_modem
+    before stopping its daemons): the close returned at once and the
+    kernel still waited 10 s: the modem never acks a shutdown, whatever
+    the order. -> M4 (bounds), modem-up's order unchanged.
+
+RAM image 2 (coordinator, same command at 911122c, the tree dirty only in
+the two coordinator docs)
+  out/boot-ram-fbf7be01.img
+  sha256 fbf7be0152a9905a901b3202ff1a26b08044be169d5ab48c87fd088251b11045
+
+Live check 2 (coordinator, 2026-10-22 about 23:28 to 23:31 IST)
+  F1: kill -9 of chef-sshd with an SSH session open: "stopped dropbear
+    1450 left by an earlier chef-sshd", the new dropbear listens on 22, a
+    new SSH login works and the open session ran to its end. kill -9 of
+    bt-up: "stopped btattach 1614 left by an earlier bt-up", firmware
+    shut down, attached, address set.
+  F2: rc-service modem-up stop refused (rc 1), networkmanager and
+    modem-up still started.
+  F3: chef-reboot bootloader: modem-up got TERM only (no KILL), the
+    kernel's 10 s ack timeout as before; openrc shutdown 22.6 s against
+    the new 40 s bound; ring syslog-209; fastboot reached.
+
+Install (coordinator, 2026-10-22 about 23:31 IST, user's okay "once
+youre good, flash too and push the commits"): see the install record
+below.

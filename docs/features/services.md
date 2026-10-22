@@ -2,7 +2,7 @@
 
 [Feature index](README.md) · [Boot and recovery](boot.md) · [Logging](logging.md) · [Runtime files](runtime-files.md) · [Persistent data](storage.md)
 
-Since standard interfaces step 7 (2026-10-21) OpenRC starts, supervises and stops our services, the way Alpine does it: busybox `init` stays PID 1 and runs OpenRC from `inittab`. Host-tested; the live check is pending.
+Since standard interfaces step 7 (2026-10-21) OpenRC starts, supervises and stops our services, the way Alpine does it: busybox `init` stays PID 1 and runs OpenRC from `inittab`. Live verified on 2026-10-22 ([log](../../logs/openrc-2026-10-21.txt)).
 
 ## Boot
 
