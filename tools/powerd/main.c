@@ -70,7 +70,7 @@
  *     usb/online, pc_port/online (where an SDP port shows up; usb/online
  *     is 0 for it) and dc/online are each 0 or their psy is absent. An
  *     unreadable status or online counts as powered. Never the sign of
- *     current_now (positive = discharging,
+ *     bms/current_now (positive = discharging,
  *     negative = charging on this FG, and a weak port can AICL-collapse
  *     to a net discharge while status still says Charging).
  *   - Unpowered: warn once at capacity <= 15 %, critical once at <= 5 %

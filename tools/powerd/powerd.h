@@ -47,7 +47,7 @@ struct sample {
 	int capacity;		/* % */
 	int temp;		/* deci-degrees C */
 	int voltage_uv;
-	int current_ua;		/* raw: + = discharging, - = charging (Q1) */
+	int current_ua;		/* bms/current_now, raw: + = discharging, - = charging (Q1) */
 	int profile_fcc_ua;	/* constant_charge_current_max: the battery-profile
 				 * FCC vote only, NOT the effective FCC; the
 				 * throttle's THERMAL_DAEMON_VOTER vote never shows

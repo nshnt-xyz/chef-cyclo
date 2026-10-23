@@ -113,7 +113,8 @@ void sample_read(const char *root, struct sample *s)
 	s->capacity = read_int(root, "battery", "capacity", true);
 	s->temp = read_int(root, "battery", "temp", false);
 	s->voltage_uv = read_int(root, "battery", "voltage_now", true);
-	s->current_ua = read_int(root, "battery", "current_now", true);
+	/* bms, not battery: the battery psy follows the ABI sign (+ = charging) */
+	s->current_ua = read_int(root, "bms", "current_now", true);
 	s->profile_fcc_ua = read_int(root, "battery", "constant_charge_current_max", true);
 	s->stl = read_int(root, "battery", "system_temp_level", true);
 	s->nstl = read_int(root, "battery", "num_system_temp_levels", true);

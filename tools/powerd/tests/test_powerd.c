@@ -191,10 +191,12 @@ static void tree_stock_charging(void)
 	puti("battery", "capacity", 79);
 	puti("battery", "temp", 320);
 	puti("battery", "voltage_now", 4106923);
-	puti("battery", "current_now", 103027);
+	/* the kernel's ABI sign on battery; powerd reads bms (Qualcomm sign) */
+	puti("battery", "current_now", -103027);
 	puti("battery", "constant_charge_current_max", 3000000);
 	puti("battery", "system_temp_level", 0);
 	puti("battery", "num_system_temp_levels", 8);
+	puti("bms", "current_now", 103027);
 	puti("bms", "voltage_ocv", 4102057);
 	puti("bms", "charge_full", 5004000);
 	puti("bms", "charge_counter", 3862092);

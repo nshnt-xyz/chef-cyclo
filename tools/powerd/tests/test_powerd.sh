@@ -47,9 +47,10 @@ put battery present 1
 put battery capacity 79
 put battery temp 320
 put battery voltage_now 4106923
-put battery current_now 103027
+put battery current_now -103027
 put battery system_temp_level 3
 put battery num_system_temp_levels 8
+put bms current_now 103027
 put bms voltage_ocv 4102057
 put bms charge_full 5004000
 put bms cycle_count 0
@@ -92,6 +93,7 @@ wait_for "throttle reaches 7 in the fake sysfs" 5 'grep -qx 7 "$S/battery/system
 check "throttle kmsg" 'grep -q "powerd: charge throttle level 1 of 7 (battery 32.0 C, above set point)" "$T/kmsg"'
 "$BIN" -d "$T/run" status > "$T/status.out"
 check "status prints the state" 'grep -qx "throttle_level=7" "$T/status.out" && grep -qx "overrides=shutdown-cmd throttle-set=30 throttle-clear=29 step-ms=200 confirm-gap-ms=200 poll-s=1" "$T/status.out"'
+check "current_ma from bms/current_now (+ = discharging)" 'grep -qx "current_ma=103" "$T/status.out"'
 
 # unplug: level back to 0, transition logged
 put usb online 0
