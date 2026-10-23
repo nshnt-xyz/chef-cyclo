@@ -67,6 +67,9 @@ PROTECT_DELAY=${PROTECT_DELAY:-0.1}
 PROTECT_POLL_DELAY=${PROTECT_POLL_DELAY:-0.05}
 PROTECT_POLL_ATTEMPTS=${PROTECT_POLL_ATTEMPTS:-20}
 
+# part and card_ready
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/sys.sh"
+
 # Sanity bounds, not a replacement for the per-device value: TAS2560 supports
 # 4-ohm and 8-ohm loads, and this phone's saved cold Rdc is between them.
 RDC_MIN_OHMS=${RDC_MIN_OHMS:-4}
@@ -127,14 +130,6 @@ clamp_amplitude() {
 	awk -v a="$a" -v max="$AMPLITUDE_MAX_DBFS" 'BEGIN { print (a > max) ? max : a }'
 }
 
-card_ready() {
-	# Never test /proc/asound/cards with [ -s ]: procfs reports st_size 0
-	# for it even when it lists the card (this is what made run 1's
-	# audio-up time out and this script refuse -- see audio-up's
-	# card_ready). grep alone is the test; grep on a missing file fails too.
-	grep -q 'sdm660' "$ASOUND_DIR/cards" 2>/dev/null
-}
-
 # Same parsing rule as audio-up's pcm_mm1_device(); duplicated rather than
 # shared because this script must work standalone from the telnet shell
 # without sourcing audio-up (which may not even be resident -- the ADSP,
@@ -157,12 +152,6 @@ pcm_mm1_device() {
 		esac
 	done < "$pcmfile"
 	return 1
-}
-
-part() {
-	for u in "$SYSFS_BLOCK"/*/uevent; do
-		grep -q "^PARTNAME=$1\$" "$u" 2>/dev/null && { basename "$(dirname "$u")"; return; }
-	done
 }
 
 # The factory file is exactly a decimal followed by ';' (no sign, exponent,
@@ -340,8 +329,8 @@ cleanup() {
 }
 
 # Let tools/tests/test_speaker-test-tone.sh source this file for its pure
-# functions (clamp_duration, clamp_amplitude, card_ready, pcm_mm1_device)
-# without running the mixer/playback flow below.
+# functions (clamp_duration, clamp_amplitude, pcm_mm1_device, and sys.sh's
+# card_ready) without running the mixer/playback flow below.
 [ "${SPEAKER_TEST_TONE_SELFTEST:-0}" = 1 ] && return 0 2>/dev/null
 
 while getopts 'f:d:a:v:psh' opt; do

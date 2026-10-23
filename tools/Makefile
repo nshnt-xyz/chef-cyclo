@@ -275,9 +275,11 @@ $(D)/abslot: abslot.c common/chef_paths.h $(CHEF_LOG_DEPS)
 # wall-minus-RTC offset with it. Plain libc. tests/test_rtc_edge.py runs
 # the host binary against a fake since_epoch file (dry run, nothing sets
 # the host clock); tests/test_log_sh.py covers the scripts' log helper
-# rootfs-overlay/usr/lib/chef/log.sh, tests/test_chef_state.py covers
-# rootfs-overlay/usr/bin/chef-state with stubs, and tests/test_chef_reboot.py
-# rootfs-overlay/usr/bin/chef-reboot. tests/test_ssh.py covers SSH:
+# rootfs-overlay/usr/lib/chef/log.sh, tests/test_sys_sh.py the bring-up
+# helpers rootfs-overlay/usr/lib/chef/sys.sh, tests/test_chef_state.py
+# covers rootfs-overlay/usr/bin/chef-state with stubs, and
+# tests/test_chef_reboot.py rootfs-overlay/usr/bin/chef-reboot.
+# tests/test_ssh.py covers SSH:
 # rootfs-overlay/usr/bin/chef-sshd, scripts/ssh-keys.py, the Wi-Fi address
 # dispatcher, the build wiring and scripts/phone.py --ssh.
 $(H)/rtc-edge: rtc-edge.c
@@ -331,6 +333,7 @@ test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge test-displa
 	python3 tests/test_storage.py
 	python3 tests/test_rtc_edge.py
 	python3 tests/test_log_sh.py
+	python3 tests/test_sys_sh.py
 	python3 tests/test_chef_state.py
 	python3 tests/test_chef_reboot.py
 	python3 tests/test_stage1.py

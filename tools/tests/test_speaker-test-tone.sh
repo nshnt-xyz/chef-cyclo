@@ -11,6 +11,8 @@ set -eu
 cd "$(dirname "$0")/../.."
 SCRIPT=rootfs-overlay/usr/bin/speaker-test-tone
 [ -r "$SCRIPT" ] || { echo "cannot find $SCRIPT" >&2; exit 1; }
+# the overlay's helper library (part, card_ready)
+export CHEF_LIB_DIR="$PWD/rootfs-overlay/usr/lib/chef"
 
 TMPROOT=$(mktemp -d /tmp/speaker-test-tone-test.XXXXXX)
 trap 'rm -rf "$TMPROOT"' EXIT
@@ -77,12 +79,6 @@ rm -f "$ASOUND_DIR/cards"
 : > "$ASOUND_DIR/cards"
 if ASOUND_DIR="$ASOUND_DIR" card_ready; then bad "card_ready must fail on an empty cards file"; else ok; fi
 if ASOUND_DIR="$TMPROOT/asound-does-not-exist" card_ready 2>/dev/null; then bad "card_ready must fail on a missing cards file"; else ok; fi
-# Belt and braces: the function body itself must never grow an -s test back.
-body=$(sed -n '/^card_ready() {/,/^}/p' "$SCRIPT" | grep -v '^[[:space:]]*#')
-case "$body" in
-*'[ -s'*|*'test -s'*) bad "card_ready() in $SCRIPT must not use -s (procfs size is 0)" ;;
-*) ok ;;
-esac
 
 # ---- full-flow integration: real subprocess, fake /proc/asound, stub
 # tinymix/tinyplay/wavtone on PATH recording their argv to $LOGFILE ----

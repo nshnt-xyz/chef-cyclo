@@ -28,8 +28,10 @@ start_pre() {
 # boots it, needs this one): wait up to 10 s for 0x10f on the IPC router,
 # else the start fails and its supervisor goes.
 start_post() {
+	. "${CHEF_LIB_DIR:-/usr/lib/chef}/sys.sh"
+	DUMP_SERVERS=/sys/kernel/debug/msm_ipc_router/dump_servers
 	n=0
-	until grep -Eq '^0x0*10f[[:space:]]*[|]' /sys/kernel/debug/msm_ipc_router/dump_servers 2>/dev/null; do
+	until server_present 10f; do
 		n=$((n + 1))
 		if [ "$n" -gt 50 ]; then
 			eerror "sensord: REG2 (0x10f) not served after 10 s"

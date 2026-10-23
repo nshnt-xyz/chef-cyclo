@@ -1,6 +1,7 @@
 #!/bin/sh
 # Host regression test for rootfs-overlay/usr/bin/modem-up's active-slot EFS
-# selection logic: part(), part_size_bytes(), active_slot(), resolve_fsg().
+# selection logic: part_size_bytes(), active_slot(), resolve_fsg(), and the
+# part() it sources from usr/lib/chef/sys.sh.
 #
 # modem-up sources these against real /sys/block/mmcblk0 and /proc/cmdline;
 # SYSFS_BLOCK/CMDLINE let this test point it at a throwaway fake tree

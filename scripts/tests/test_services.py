@@ -413,11 +413,12 @@ class Services(unittest.TestCase):
         self.assertLess(time.monotonic() - start, 5)
         # then REG2 (0x10f) on the IPC router within 10 s, else the start fails
         dump.write_text("0x00000100 |0x00003201 |\n0x0000010f |0x00000002 |\n")
-        r, out = h.run("sensord", "start_post", replace=rep)
+        lib = {"CHEF_LIB_DIR": str(OVERLAY / "usr/lib/chef")}
+        r, out = h.run("sensord", "start_post", replace=rep, env=lib)
         self.assertEqual((r.returncode, out), (0, ""))
         dump.write_text("0x00000100 |0x00003201 |\n")
         start = time.monotonic()
-        r, out = h.run("sensord", "start_post", replace=rep + [("sleep 0.2", "sleep 0.01")])
+        r, out = h.run("sensord", "start_post", replace=rep + [("sleep 0.2", "sleep 0.01")], env=lib)
         self.assertLess(time.monotonic() - start, 5)
         self.assertEqual(r.returncode, 1)
         self.assertIn("eerror sensord: REG2 (0x10f) not served after 10 s", out)

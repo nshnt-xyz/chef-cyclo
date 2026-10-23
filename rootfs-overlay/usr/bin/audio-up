@@ -41,16 +41,13 @@ BOOT_ADSP_NODE=${BOOT_ADSP_NODE:-/sys/kernel/boot_adsp/boot}
 SUBSYS_DIR=${SUBSYS_DIR:-/sys/bus/msm_subsys/devices}
 DUMP_SERVERS=${DUMP_SERVERS:-/sys/kernel/debug/msm_ipc_router/dump_servers}
 
-# part() and active_slot() are copied from modem-up rather than sourced at
-# runtime (modem-up is opt-in and may not be running, and sourcing another
-# script's live process state here would be fragile); keep both copies in
-# sync by hand if the selection rules ever change.
-part() {
-	for u in "$SYSFS_BLOCK"/*/uevent; do
-		grep -q "^PARTNAME=$1\$" "$u" 2>/dev/null && { basename "$(dirname "$u")"; return; }
-	done
-}
+# part, server_present, find_subsys, card_ready and child_running
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/sys.sh"
 
+# active_slot() is copied from modem-up rather than sourced at runtime
+# (modem-up is opt-in and may not be running, and sourcing another script's
+# live process state here would be fragile); keep both copies in sync by
+# hand if the selection rules ever change.
 active_slot() {
 	for arg in $(cat "$CMDLINE" 2>/dev/null); do
 		case "$arg" in
@@ -67,12 +64,6 @@ set_firmware_path() {
 	# same value; whichever of audio-up/modem-up sets it first is fine, since
 	# both write the identical byte string.
 	printf '%s' /firmware/image > "$FW_PATH_NODE"
-}
-
-server_present() {
-	# Same dump_servers column format as modem-up's own server_present (this
-	# 4.4 tree prints the service as 0x000000NN, not the 0xNN shorthand).
-	grep -Eq "^0x0*$1[[:space:]]*[|]" "$DUMP_SERVERS" 2>/dev/null
 }
 
 wait_for_server() {
@@ -92,33 +83,9 @@ wait_for_server() {
 	return 0
 }
 
-find_subsys() {
-	# $1: subsystem "name" node value (e.g. "adsp"). Echoes the matching
-	# /sys/bus/msm_subsys/devices/subsysN path on success.
-	name=$1
-	for s in "$SUBSYS_DIR"/subsys*; do
-		[ -r "$s/name" ] || continue
-		[ "$(cat "$s/name" 2>/dev/null)" = "$name" ] || continue
-		echo "$s"
-		return 0
-	done
-	return 1
-}
-
 boot_adsp() {
 	[ -w "$BOOT_ADSP_NODE" ] || { log "boot_adsp node missing or not writable"; return 1; }
 	echo 1 > "$BOOT_ADSP_NODE"
-}
-
-card_ready() {
-	# /proc/asound/cards containing the sdm660 machine driver's card name
-	# (kernel/sound/soc/msm/sdm660-internal.c:3142, "sdm660-snd-card"; live
-	# it reads ` 0 [sdm660sndcard  ]: sdm660-snd-card - sdm660-snd-card`).
-	# Never test this file with [ -s ]: procfs reports st_size 0 for it even
-	# when it lists the card (live 2026-09-19 run 1: the card was up 1.17 s
-	# after boot_adsp and this wait still timed out at 60 s because of an
-	# -s check). grep alone is the test; grep on a missing file fails too.
-	grep -q 'sdm660' "$ASOUND_DIR/cards" 2>/dev/null
 }
 
 wait_for_card() {
@@ -167,13 +134,6 @@ uptime_s() {
 elapsed_s() {
 	# $1: an earlier uptime_s value. Echoes now - $1 to two decimals.
 	awk -v t0="$1" -v t1="$(uptime_s)" 'BEGIN { printf "%.2f", t1 - t0 }'
-}
-
-child_running() {
-	# See modem-up's child_running comment: a zombie is a failed daemon for
-	# our purposes, so check /proc state rather than trust kill -0 alone.
-	[ -r "/proc/$1/stat" ] || return 1
-	awk '{ exit ($3 == "Z") }' "/proc/$1/stat"
 }
 
 # syslog through the shared helper (kmsg while syslogd is not up), and

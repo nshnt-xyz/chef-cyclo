@@ -1,8 +1,10 @@
 #!/bin/sh
 # Host regression test for rootfs-overlay/usr/bin/audio-up's selection/wait
-# logic: part(), active_slot(), set_firmware_path() (copied from modem-up, same
-# behavior), server_present()/wait_for_server() (the 0x40 symmetry check),
-# find_subsys(), boot_adsp(), card_ready()/wait_for_card(), pcm_mm1_device().
+# logic: active_slot(), set_firmware_path() (copied from modem-up, same
+# behavior), wait_for_server() (the 0x40 symmetry check), boot_adsp(),
+# wait_for_card(), pcm_mm1_device(), and the helpers it sources from
+# usr/lib/chef/sys.sh (part, server_present, find_subsys, card_ready;
+# tools/tests/test_sys_sh.py tests them on their own).
 #
 # AUDIO_UP_SELFTEST=1 makes audio-up return after defining its functions
 # instead of running the ADSP bring-up. Real-filesystem behavior this test
@@ -60,7 +62,7 @@ printf 'console=ttyMSM0 androidboot.slot_suffix=_b rootwait ro\n' > "$TMPROOT/cm
 
 AUDIO_UP_SELFTEST=1 . "./$AUDIO_UP"
 
-# --- active_slot() / part(): copied from modem-up, same behavior ---
+# --- active_slot() (copied from modem-up, same behavior) / part() (sys.sh) ---
 eq "active_slot _a" a "$(CMDLINE=$TMPROOT/cmdline-a active_slot)"
 eq "active_slot _b" b "$(CMDLINE=$TMPROOT/cmdline-b active_slot)"
 eq "part modem_a" mmcblk0p6 "$(part modem_a)"
@@ -159,11 +161,6 @@ cat > "$ASOUND_DIR/cards" <<'EOF'
                       sdm660-snd-card
 EOF
 if ASOUND_DIR="$ASOUND_DIR" wait_for_card 0; then ok; else bad "wait_for_card must succeed immediately when the card is already up"; fi
-body=$(sed -n '/^card_ready() {/,/^}/p' "$AUDIO_UP" | grep -v '^[[:space:]]*#')
-case "$body" in
-*'[ -s'*|*'test -s'*) bad "card_ready() in $AUDIO_UP must not use -s (procfs size is 0)" ;;
-*) ok ;;
-esac
 if ASOUND_DIR="$TMPROOT/asound-does-not-exist" card_ready 2>/dev/null; then bad "card_ready must fail on a missing cards file"; else ok; fi
 
 ASOUND_DIR="$TMPROOT/asound-empty"

@@ -44,11 +44,8 @@ CMDLINE=${CMDLINE:-/proc/cmdline}
 FW_PATH_NODE=${FW_PATH_NODE:-/sys/module/firmware_class/parameters/path}
 DUMP_SERVERS=${DUMP_SERVERS:-/sys/kernel/debug/msm_ipc_router/dump_servers}
 
-part() {
-	for u in "$SYSFS_BLOCK"/*/uevent; do
-		grep -q "^PARTNAME=$1\$" "$u" 2>/dev/null && { basename "$(dirname "$u")"; return; }
-	done
-}
+# part, server_present and child_running
+. "${CHEF_LIB_DIR:-/usr/lib/chef}/sys.sh"
 
 part_size_bytes() {
 	# $1: partition device basename under $SYSFS_BLOCK (e.g. mmcblk0p12).
@@ -94,15 +91,6 @@ set_firmware_path() {
 	printf '%s' /firmware/image > "$FW_PATH_NODE"
 }
 
-server_present() {
-	# dump_servers in this 4.4 tree writes the service in the first column as
-	# 0x000000NN, rather than the shorthand 0xNN used in some newer trees.
-	# DUMP_SERVERS is overridable (see SYSFS_BLOCK above) so audio-up's
-	# "who already serves 0x40" symmetry check below can be exercised
-	# against a fake tree in tools/tests/test_modem-up.sh.
-	grep -Eq "^0x0*$1[[:space:]]*[|]" "$DUMP_SERVERS" 2>/dev/null
-}
-
 wait_for_server() {
 	service=$1
 	name=$2
@@ -126,14 +114,6 @@ wait_for_server() {
 		i=$((i + 1))
 	done
 	return 0
-}
-
-child_running() {
-	# kill -0 alone considers an unreaped zombie alive. A zombie is a failed
-	# daemon for our purposes, so inspect its proc state before deciding that
-	# the modem can remain up. BusyBox's wait -n availability is not assumed.
-	[ -r "/proc/$1/stat" ] || return 1
-	awk '{ exit ($3 == "Z") }' "/proc/$1/stat"
 }
 
 active_slot() {
