@@ -1,0 +1,153 @@
+Daemon users (standard interfaces step 8), 2026-10-23
+======================================================
+
+Plan: docs/archive/daemon-users-handoff.md (step 8: section 5 of
+docs/next-steps/standard-interfaces.md, plus the rest of the shell helper
+library moved from step 7).
+Pair: users_impl and users_review (Claude Opus 5.5), coordinator
+users_coord. The coordinator's context was handed over in the evening and
+the pair restarted fresh before M3 (users_impl had lost its connection
+while writing the M3 note; the work in its tree was kept and finished).
+Evidence: ~/chef-cyclo-evidence/daemon-users-20261023/ (research/ with
+FINDINGS.md, review/ diffs, notes, reviews and coordinator decisions,
+live/ c1..c12 transcripts, the sweep and guided scripts and build logs,
+install/).
+
+Commits on main (each approved by users_review and checked against the
+reviewed snapshot; the coordinator re-hashed each commit's diff against
+its own snapshot, coord-snapshots.txt):
+  a10d733  M1 /usr/lib/chef/sys.sh (find_subsys, card_ready,
+           server_present, child_running, part) and its callers
+  0697efa  M2 users and groups (buttond 200 .. polkitd 206, qmux 210,
+           screen 211, vibrator 212, net_raw 3004), udev rules and the
+           /init coldplug, per-daemon runtime directories with checkpath
+           and the sockets moved into them, the qmux socket root:qmux
+           0660, chef-state kind directories, /data owners, link
+           protection, and the rule that root never writes into a
+           daemon's directory (snapshot ed2f109c)
+  139298a  M3 buttond (cap_kill), powerd (cap_kill), sensord
+           (cap_net_bind_service, net_raw), blesensd and gps-manager drop
+           root; chronyd started as root:chrony (it creates the refclock
+           SHM segment before its own drop, chrony 4.8 main.c); the
+           modem-up lock root:qmux 0750; the gps and blesens saves no
+           longer sync /data/v1, chef-storage does at boot (snapshot
+           0e1a0a53)
+  69116b4  M4 chef-settings as chefui; polkit 127 (polkitd D-Bus
+           activated, pkexec, the agent helper and unix_chkpwd removed,
+           /etc/polkit-1/rules.d root:polkitd 0750), NetworkManager
+           auth-polkit=true with a netdev rule, chrony's command port on
+           localhost, the Time page over 127.0.0.1, settings saves
+           without the /data/v1 fsync, the storage scan opening /data/v1
+           with O_PATH, setuid tests (snapshot 48671ed8)
+  ebf004b  M5 docs/features/users-and-permissions.md, the services User
+           column and the guides (snapshot 5f35fe56, two rounds)
+  84fda46  M6 from the live check: L1 the refclock line is
+           `refclock SHM 2:perm=0660 ...` (a driver option goes after a
+           colon; chronyd refused `SHM 2 perm=0660` and respawned
+           forever), now pinned by a test; L2 the guided-test prompt file
+           must be readable by chefui (0644, not 0600) (snapshot
+           3ba2dadb, three rounds)
+
+Decided during the work (coordinator): chronyd as root:chrony (the
+spec's "chrony creates the segment as chrony" was wrong, corrected in
+the spec and FINDINGS); no cap_sys_boot for buttond and powerd (their
+reboot() last resort fails with EPERM, documented); the /data/v1 sync
+moved to chef-storage; settings.c drops the parent fsync, storage_usage
+opens v1 with O_PATH; two setuid tests (staged trees, and the packaged
+headers surviving mkinitramfs's removals: the D-Bus launch helper and
+wall); /etc/polkit-1/rules.d made readable by polkitd.
+
+Build: out/rootfs rebuilt with polkit by users_impl (scripts/mkrootfs.sh).
+RAM image 1 (coordinator, SKIP_KERNEL=1 scripts/mkinstall.sh at ebf004b,
+the tree dirty only in the two coordinator docs; kernel #23 Image.gz-dtb
+3a907d00...): out/boot-ram-2ed33ede.img
+  sha256 2ed33ede660928e69163ff6e3cdd1d70b1706a20cf2d58cfa2c42226bf7b3374
+  scripts/tests/test_setuid.py on the fresh staged trees: 3 OK.
+RAM image 2 (at 84fda46, same kernel): out/boot-ram-40915b4a.img
+  sha256 40915b4afb4a47daf2807df8553dd8dc5f77a455e3608ed0280f4a66b9725495
+
+Live check (coordinator, 2026-10-23 about 22:34 to 23:15 IST)
+  RAM image 1, phone-boot.sh from the installed pair (96e8c87f +
+  2915db3c).
+  L1: chronyd "Fatal error : Invalid option in refclock directive at line
+    14" and 14 respawns at the first look. chronyd -p accepted the colon
+    form; the rest of the check ran with a corrected copy bind-mounted
+    over chrony.conf and chronyd restarted. Fixed in M6.
+  ps and /proc/PID/status: buttond 200 groups 23 200 211 212, CapEff and
+    CapAmb 0x20; powerd 201 groups 201 212, 0x20; sensord 202 groups 202
+    3004, 0x400; blesensd 203, 0; gps-manager 204 groups 102 204 210, 0;
+    chef-settings 205 groups 23 27 28 200 202 203 204 205 211 212, 0;
+    chronyd uid chrony with CAP_SYS_TIME only. NoNewPrivs is not shown by
+    kernel 4.4's status file (added in 4.10); supervise-daemon's
+    --no-new-privs is on each command line.
+  Nodes: event* root:input 0660, fb0 root:video 0660, /dev/sensors
+    root:sensord 0640, backlight brightness root:video 0664, vibrator
+    enable root:vibrator 0664, battery system_temp_level root:powerd 0664
+    (usb and wireless untouched, 0644).
+  Runtime: buttond, sensord, blesensd, gps-manager directories 0750 with
+    0660 sockets owned by the daemon; /run/chef/qmux_socket root:qmux
+    0660; modem-up.lock root:qmux 0750; /run/chef/screen root:screen 0775
+    with fb0.lock root:screen 0660; /run/chef/state kind directories 0700
+    per daemon; ui-settings.lock chefui 0600; sensors-up's own
+    /run/chef/sensors root 0755 with sns.reg.persist 0444 and the working
+    copy sensord 0600 in /run/chef/sensord.
+  /data: chef-layout 0644, v1 0711, power/sensors/gps/blesens/ui owned by
+    their daemons 0700 with their files (the migration from the
+    root-owned files of earlier boots); chefui cannot list /data/v1.
+  polkit: /etc/polkit-1/rules.d root:polkitd 0750; pkexec, the agent
+    helper and unix_chkpwd absent; the only setuid file on the root is
+    the D-Bus launch helper (root:messagebus 4750); polkitd not running
+    at boot, D-Bus activated on the first NetworkManager check, running
+    as polkitd 206, "Started polkitd version 127", no permission error.
+  nmcli general permissions: all yes as chefui; another daemon user
+    (blesensd) gets auth (refused without an agent).
+  chrony (fixed config): SHM key 0x4e545032 uid 0 gid 102 (chrony) cuid
+    0 cgid 102 mode 0660; 127.0.0.1:323 and [::1]:323 only; chronyc -h
+    127.0.0.1 tracking as chefui works, makestep as chefui "501 Not
+    authorised".
+  Clients: buttond, powerd, sensord (status, 5 accel samples), blesensd
+    and gps-manager status all answer. sensord served REG2 (0x10f) and
+    wrote the registry back as sensord. system_temp_level write as
+    powerd ok, as chefui Permission denied.
+  GPS lease (gps-manager hold map, 45 s, indoors): gpsd, qmicli and
+    nmea-broker as gps (groups chrony gps qmux), ACQUIRING with NMEA
+    flowing, gpsd attached to unit 2 (nattch 3: chronyd's two processes
+    and gpsd) and created its own units 3 to 11 and the GPSD export
+    segment (gps 0666, as non-root gpsd does). No fix indoors, so no GPS
+    samples in chrony; gps time itself is unchanged from 2026-10-04.
+  kill -9 gps-manager under the lease: gpsd gone within 1 s (PDEATHSIG
+    kept as gps), the respawned manager stopped and released the old CID.
+    kill -9 of buttond, powerd, sensord, blesensd, chef-settings: each
+    respawned as its user with the same capabilities. rc-service restart
+    of the six and chronyd: rc 0, all started.
+  Idle 60 s, screen off, polkitd running: CPU busy 0.21 % (0.20 % on the
+    installed OpenRC pair); polkitd 31 ticks over its life, chronyd 8.
+  Guided (on-screen cards, user at the phone): L2 first: the cards were
+    ignored ("prompt ignored: ... Permission denied", the documented
+    0600 writer), rerun with 0644. Touch drag on the brightness slider
+    (51 -> 13) and the settings save on /data (chefui 0600); Wi-Fi off
+    and on through polkit and reconnected; Bluetooth on and off from the
+    Bluetooth page as chefui; the Time page without errors; screen off
+    with chef-settings (flag chefui); with chef-settings stopped, power
+    short woke and blanked the screen through buttond (flag buttond).
+  Bluetooth observation (not a step 8 fault): on RAM image 1 the
+    controller logged "hci0 hardware error 0x91" at 18.97 s, as the
+    WLAN firmware came up, before any user action; BlueZ then refused
+    Powered (Busy, then "Failed to set mode: Failed (0x03)") for chefui
+    and root alike until rc-service bt-up restart. Not seen on the
+    installed pair's boot in between nor on RAM image 2. Open: watch for
+    it on later boots.
+  Power-off: the user held POWER: buttond "released after 3545 ms,
+    shutting down now" as buttond (CAP_KILL), chef-state shutdown
+    stopped powerd (exit flush) and sensord, chronyd wrote its drift
+    (/data/v1/chrony/drift 23:10:42), log-save saved the ring as
+    syslog-214, and the phone came back by itself on the installed pair.
+  RAM image 2: chronyd started at boot without respawns, no "Invalid
+    option"; the SHM segment root:chrony 0660 nattch 2; Bluetooth
+    powered, no hardware error. sys.sh: no "not found" anywhere in the
+    log; sensors-up booted the ADSP through audio-up, audio-up ran again
+    and exited cleanly, speaker-test-tone -s printed the card and
+    controls. checkpath: with /run/chef/blesensd replaced by a symlink
+    to a root directory, rc-service blesensd start failed ("checkpath:
+    open: Symbolic link loop"), nothing was created or chowned through
+    the link; with the link removed the service started as before.
