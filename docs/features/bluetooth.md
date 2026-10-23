@@ -111,7 +111,7 @@ See the [2026-09-15 build-log entries](../build-log.md) for firmware details, me
 
 `blesensd` is the resident owner of Heart Rate (0x180D/0x2A37), Cycling
 Power (0x1818/0x2A63) and Cycling Speed and Cadence (0x1816/0x2A5B).
-Its supervisor (the OpenRC service `blesensd`) respawns it. Settings and future ride clients share its Unix socket,
+Its supervisor (the OpenRC service `blesensd`) respawns it; it runs as user `blesensd`, with no groups or capabilities beyond its own ([users and permissions](users-and-permissions.md)). Settings and future ride clients share its Unix socket,
 `/run/chef/blesensd/blesensd.sock`; they never own separate notification sessions.
 One device has one saved record and connection, even with several services;
 the [Bluetooth pages](system-ui.md#bluetooth-pages) show one row per kind.

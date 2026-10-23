@@ -25,7 +25,7 @@ The modem needs both service-registry and TFTP/RFS support to survive startup. `
 
 ## Use GNSS: gps-manager
 
-`gps-manager` (`tools/gps-manager/`, the supervised OpenRC service `gps-manager`, [services](services.md)) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `modem-up` and never changes the modem's operating mode. Idle, it only listens on `/run/chef/gps-manager/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
+`gps-manager` (`tools/gps-manager/`, the supervised OpenRC service `gps-manager`, [services](services.md); as user `gps` in the `qmux` and `chrony` groups, [users and permissions](users-and-permissions.md)) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `modem-up` and never changes the modem's operating mode. Idle, it only listens on `/run/chef/gps-manager/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
 
 ```sh
 gps-manager hold map          # lease, then print the watch lines until killed (kinds: map, ride)

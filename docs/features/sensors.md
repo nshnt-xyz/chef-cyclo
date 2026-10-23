@@ -27,7 +27,7 @@ The registry is served from a **RAM copy** of persist's `/sensors/sns.reg` (2742
 
 ## Run
 
-Two OpenRC services ([services](services.md)): `rc-service sensord stop` takes the sensors down for a test (and `sensors-up` with it, which needs it), `rc-service sensors-up start` brings both back; `rc-service sensord restart` restarts the daemon alone. A `kill $(pidof sensord)` is a restart too: its supervisor starts it again after 1 s. In the phone shell:
+Two OpenRC services ([services](services.md)); sensord runs as user `sensord`, with CAP_NET_BIND_SERVICE and the `net_raw` group for the IPC router and `/dev/sensors` through its own group, while `sensors-up` stays root ([users and permissions](users-and-permissions.md)): `rc-service sensord stop` takes the sensors down for a test (and `sensors-up` with it, which needs it), `rc-service sensors-up start` brings both back; `rc-service sensord restart` restarts the daemon alone. A `kill $(pidof sensord)` is a restart too: its supervisor starts it again after 1 s. In the phone shell:
 
 ```sh
 rc-service sensors-up start    # sensord (with this boot's registry copy), then the ADSP boot
