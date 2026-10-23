@@ -1269,7 +1269,7 @@ class ChefState(unittest.TestCase):
         self.assertNotIn("log-save", r)
         # buttond and powerd go down through init (::shutdown), as `reboot`
         # and `poweroff` from a shell do
-        for src in ("tools/buttond/buttond.c", "tools/powerd.c"):
+        for src in ("tools/buttond/buttond.c", "tools/powerd/main.c"):
             self.assertIn('execlp("poweroff", "poweroff"', (ROOT / src).read_text(), src)
         # chef-state's fallback flush uses init.d/powerd's log dir and -L
         powerd = (ROOT / "rootfs-overlay/etc/init.d/powerd").read_text()

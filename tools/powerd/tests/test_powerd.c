@@ -1,4 +1,4 @@
-/* Host tests for tools/powerd.c against a fake power_supply sysfs tree in a
+/* Host tests for tools/powerd/ against a fake power_supply sysfs tree in a
  * temp directory: the attribute reader (numbers, the qcom -22/EINVAL
  * convention, missing files, CSV-unsafe strings), the uevent filter
  * (power_supply only, no libudev rebroadcasts), the low-battery policy
@@ -16,10 +16,13 @@
  * pending rows, rotation and header-mismatch rotation inside a batch, a
  * failing or short write kept and never duplicated, the pending bound),
  * and the poll cadence.
- * powerd.c is included with POWERD_NO_MAIN; hooks are injected, nothing
- * touches /sys, /dev/kmsg or powers off.
- * Build/run: see tools/Makefile ("make test").
+ * Links sample.c, policy.c and log.c (not main.c); hooks are injected,
+ * nothing touches /sys, /dev/kmsg or powers off.
+ * Build/run: see tools/powerd/Makefile ("make test").
  */
+#include <errno.h>
+#include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,8 +30,7 @@
 #include <sys/resource.h>
 #include <sys/stat.h>
 
-#define POWERD_NO_MAIN
-#include "../powerd.c"
+#include "powerd.h"
 
 static int g_failures;
 static int g_tests;
@@ -846,7 +848,7 @@ static void test_outputs(void)
 	CHECK(stat(path, &sb) < 0);	/* renamed, not left behind */
 
 	csv = slurp("log.csv");
-	CHECK(csv && strncmp(csv, csv_header, sizeof(csv_header) - 1) == 0);
+	CHECK(csv && strncmp(csv, csv_header, strlen(csv_header)) == 0);
 	CHECK(lines(csv) == 2);
 	CHECK(strstr(csv, "\n12.5,") && strstr(csv, ",start,Charging,usb,USB_CDP,79,4106,103,32.0,Good,Fast,4102,5004000,3862092,0,1,1500,144,4355,150,3000,Source attached (default current),0,0,0,0,none,\n"));
 
@@ -871,11 +873,11 @@ static void test_outputs(void)
 	snprintf(path, sizeof(path), "%s/log.csv", g_run);
 	CHECK(stat(path, &sb) == 0 && sb.st_size <= 2048);
 	csv = slurp("log.csv");
-	CHECK(csv && strncmp(csv, csv_header, sizeof(csv_header) - 1) == 0);
+	CHECK(csv && strncmp(csv, csv_header, strlen(csv_header)) == 0);
 	snprintf(path, sizeof(path), "%s/log.csv.1", g_run);
 	CHECK(stat(path, &sb) == 0 && sb.st_size <= 2048);
 	csv = slurp("log.csv.1");
-	CHECK(csv && strncmp(csv, csv_header, sizeof(csv_header) - 1) == 0);
+	CHECK(csv && strncmp(csv, csv_header, strlen(csv_header)) == 0);
 	csv = slurp("log.csv");
 	CHECK(strstr(csv, "\n39.0,") != NULL);	/* newest row in the live file */
 }
@@ -978,7 +980,7 @@ static void test_logdir(void)
 	CHECK(slurp("state") != NULL);
 	CHECK(slurp("log.csv") == NULL);	/* never in the run dir */
 	csv = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
-	CHECK(csv && strncmp(csv, csv_header, sizeof(csv_header) - 1) == 0);
+	CHECK(csv && strncmp(csv, csv_header, strlen(csv_header)) == 0);
 	CHECK(csv && strstr(csv, ",start,") && strstr(csv, ",none,58cf29ac-5b1a-4c4e-9d19-5742e1808633\n"));
 	CHECK(lines(csv) == 2 && pending_lines() == 0);
 	CHECK(p.flush_due == -1);
@@ -1157,8 +1159,8 @@ static void test_logdir_rotation(void)
 	CHECK(file_size(g_logdir, "log.csv.1") > 0 && file_size(g_logdir, "log.csv.1") <= 4096);
 	cur = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
 	old = slurp_in(g_logdir, "log.csv.1", g_pbuf, sizeof(g_pbuf));
-	CHECK(strncmp(cur, csv_header, sizeof(csv_header) - 1) == 0);
-	CHECK(strncmp(old, csv_header, sizeof(csv_header) - 1) == 0);
+	CHECK(strncmp(cur, csv_header, strlen(csv_header)) == 0);
+	CHECK(strncmp(old, csv_header, strlen(csv_header)) == 0);
 	total = lines(cur) + lines(old) - 2;
 	CHECK(total == 31);	/* start + 30, none lost or doubled */
 	CHECK(strstr(old, "\n0.0,") && strstr(cur, "\n30.0,"));
@@ -1166,7 +1168,7 @@ static void test_logdir_rotation(void)
 	last_old = strrchr(old, '\n');
 	*last_old = '\0';
 	last_old = strrchr(old, '\n') + 1;
-	first_cur = cur + sizeof(csv_header) - 1;
+	first_cur = cur + strlen(csv_header);
 	CHECK(atof(first_cur) == atof(last_old) + 1);
 	CHECK(file_size(g_run, "log.pending") == 0);
 
@@ -1176,7 +1178,7 @@ static void test_logdir_rotation(void)
 	powerd_sample(&p, "start", 0, 5.0);
 	CHECK(file_size(g_logdir, "log.csv.1") == 30);
 	cur = slurp_in(g_logdir, "log.csv", g_lbuf, sizeof(g_lbuf));
-	CHECK(strncmp(cur, csv_header, sizeof(csv_header) - 1) == 0 && lines(cur) == 2);
+	CHECK(strncmp(cur, csv_header, strlen(csv_header)) == 0 && lines(cur) == 2);
 }
 
 /* A failing log directory keeps the rows (one log line), recovers with

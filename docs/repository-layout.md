@@ -27,7 +27,7 @@ Paths below are relative to the repository root.
 | `tools/fbtouch.c`, `tools/fblog/` | [Display/touch probe and on-device log screen](features/display-and-touch.md); generated public-domain X11 font included. |
 | `tools/buttond/` | [Button gesture daemon](features/buttons-and-power-off.md) and socket client. Host tests in `tools/buttond/tests/`. |
 | `tools/common/` | Code shared by our daemons and clients, compiled in from source: the [local socket](features/local-sockets.md) server (`linesrv`) and client (`lineclient`), the JSON line reader and `json_escape` (`json`), the log call (`chef_log`) and the [`/run/chef` paths](features/runtime-files.md) (`chef_paths.h`). Host tests in `tools/common/tests/`; no phone binary. |
-| `tools/powerd.c` | [Battery daemon](features/battery-and-charging.md): low-battery/over-temperature shutdown, charge throttle, `/run/chef/power` state and log, `powerd status`. |
+| `tools/powerd/` | [Battery daemon](features/battery-and-charging.md): low-battery/over-temperature shutdown, charge throttle, `/run/chef/power` state and log, `powerd status`. Host tests in `tools/powerd/tests/`. |
 | `tools/gps-manager/` | [GNSS demand manager](features/gps.md#use-gnss-gps-manager): leases on `/run/chef/gps-manager/gps-manager.sock` run the LOC session, gpsd and the NMEA pipeline. Host tests in `tools/gps-manager/tests/`. |
 | `tools/blesensd/`, `scripts/ble-sensor-emu.py` | [BLE sensors](features/bluetooth.md#ble-sensors): `blesensd`, the one owner of heart rate, cycling power and speed/cadence sensors (BlueZ over static basu), and the emulated sensors on the PC used to test it. |
 | `tools/bt-hid-emu.py` | Host-side HID keyboard test peer for the phone as an HID host. See [Bluetooth](features/bluetooth.md). |

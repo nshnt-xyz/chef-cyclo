@@ -6,7 +6,7 @@
 
 Charging is done by the kernel, the same way stock Android does it: `qpnp-smb2` (PM660 charger: source detection, input and charge current limits, termination), the Motorola `mmi` heartbeat inside `smb-lib.c` (battery-temperature zones, step charging) and `qpnp-fg-gen3` (fuel gauge, battery profile picked by the battery serial). No userspace helper is needed for any of that.
 
-`tools/powerd.c` adds the small policy layer stock userspace puts on top. It runs as the supervised OpenRC service `powerd` ([services](services.md)), as user `powerd` with CAP_KILL for `poweroff` and the `vibrator` group ([users and permissions](users-and-permissions.md)); `system_temp_level` is root:powerd 0664 from the service's `start_pre`:
+`tools/powerd/` adds the small policy layer stock userspace puts on top. It runs as the supervised OpenRC service `powerd` ([services](services.md)), as user `powerd` with CAP_KILL for `poweroff` and the `vibrator` group ([users and permissions](users-and-permissions.md)); `system_temp_level` is root:powerd 0664 from the service's `start_pre`:
 
 - **Low battery** (a clone of Android `BatteryService`). With no power attached, it warns once at 15 % and again at 5 % (critical, plus a 600 ms vibrator pulse), as `powerd` log lines ([logging](logging.md)). Both warnings re-arm when power is attached or the capacity is back at 20 %.
 - **Clean shutdown** when unpowered, `battery/present == 1`, `bms/soc_reporting_ready == 1` and either the capacity is 0 % or `voltage_now` is below 3300 mV with the capacity at or below 5 %. Also when the battery is **above 68.0 °C**, whether or not a charger is attached: this is the only shutdown allowed while powered. Every condition must hold on 3 samples at least 5 s apart. An unreadable or `-22` value counts as unknown and restarts the count. The shutdown is `sync` then busybox `poweroff`, the same orderly path as `buttond`.
@@ -38,7 +38,7 @@ Each of these is logged as `TEST OVERRIDE` and listed in the state file's `overr
 
 ## Modify and verify
 
-`make -C tools test` runs `tools/tests/test_powerd.c` (policy, SDP/unknown handling, throttle, outputs and cadence against a fake sysfs tree with injected hooks) and `tools/tests/test_powerd.sh` (the host binary end to end, shutting down through `-x` only). Then rebuild the image.
+`make -C tools/powerd test` runs `tools/powerd/tests/test_powerd.c` (policy, SDP/unknown handling, throttle, outputs and cadence against a fake sysfs tree with injected hooks) and `tools/powerd/tests/test_powerd.sh` (the host binary end to end, shutting down through `-x` only). Then rebuild the image.
 
 ## Live verification (2026-09-26, QPTS kernel `cbd2b3acf`, `boot.img` `066279cc…`)
 

@@ -15,7 +15,7 @@
 # start with SIGINT and SIGQUIT ignored, which the chef-reboot tests
 # depend on not being.
 
-COMPONENTS := tools tools/rmtfs tools/servreg-locator tools/tftp tools/sensord tools/blesensd tools/buttond tools/gps-manager tools/chefui
+COMPONENTS := tools tools/rmtfs tools/servreg-locator tools/tftp tools/sensord tools/blesensd tools/buttond tools/gps-manager tools/powerd tools/chefui
 # tools/common/ is compiled into its consumers and builds no phone binary
 # of its own: a test suite to run and clean, not a component.
 LIBS := tools/common

@@ -1,18 +1,18 @@
 # Builds this directory's new GPS transport/protocol code -- msmipc
 # (libqrtr-compatible layer on AF_MSM_IPC), irsc, qmuxd-lite, the vendored
-# qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device
-# log screen fblog (fblog/), the gpsd feed nmea-broker, the battery daemon
-# powerd, the WAV tone generator wavtone and atomic TAS2560
-# calibration-control writer tas2560-send-cal (for the speaker test,
-# rootfs-overlay/usr/bin/speaker-test-tone), the Wi-Fi helpers wlan-fw and
-# wifi-psk, the A/B slot marker abslot, rtc-edge, the freestanding
-# Bluetooth helper btprobe, and their host tests. `make test` also runs the
-# host tests of the scripts under rootfs-overlay/ (modem-up's selection
-# logic, audio-up, chef-state, chef-reboot, SSH, storage, stage 1). The
-# modem services in tools/rmtfs/, tools/servreg-locator/, tools/tftp/, the
-# sensors daemon tools/sensord/, the button daemon tools/buttond/ and the
-# GNSS demand manager tools/gps-manager/ have their own Makefiles; the
-# top-level Makefile runs them all.
+# qrtr/ QMI codec -- plus the display/touch probe fbtouch, the on-device log
+# screen fblog (fblog/), the gpsd feed nmea-broker, the WAV tone generator
+# wavtone and atomic TAS2560 calibration-control writer tas2560-send-cal
+# (for the speaker test, rootfs-overlay/usr/bin/speaker-test-tone), the
+# Wi-Fi helpers wlan-fw and wifi-psk, the A/B slot marker abslot, rtc-edge,
+# the freestanding Bluetooth helper btprobe, and their host tests. `make
+# test` also runs the host tests of the scripts under rootfs-overlay/
+# (modem-up's selection logic, audio-up, chef-state, chef-reboot, SSH,
+# storage, stage 1). The modem services in tools/rmtfs/,
+# tools/servreg-locator/, tools/tftp/, the sensors daemon tools/sensord/,
+# the button daemon tools/buttond/, the GNSS demand manager
+# tools/gps-manager/ and the battery daemon tools/powerd/ have their own
+# Makefiles; the top-level Makefile runs them all.
 #
 #   make                 host build: build/host/ (fblog is host-only, a
 #                        debug tool that is not packed)
@@ -41,14 +41,14 @@ D := build/device
 INCLUDES := -I. -Iqrtr -I$(H)/include
 ALL_CFLAGS = $(CFLAGS) $(INCLUDES)
 
-BIN := $(addprefix $(H)/,irsc qmuxd-lite fbtouch fblog nmea-broker powerd wavtone \
+BIN := $(addprefix $(H)/,irsc qmuxd-lite fbtouch fblog nmea-broker wavtone \
        tas2560-send-cal wifi-psk abslot rtc-edge)
 VENDOR_OBJ := $(H)/qmi.o $(H)/logging.o
 TEST_BIN := $(addprefix $(H)/tests/,test-qmux test-msmipc test-evdev test-fbtouch test-fblog \
-            test-nmea-broker test-powerd test-wavtone \
+            test-nmea-broker test-wavtone \
             test-tas2560-send-cal test-wlan-fw)
 DEVICE_BIN := btprobe wifi-psk wlan-fw irsc qmuxd-lite fbtouch nmea-broker \
-              abslot rtc-edge powerd wavtone tas2560-send-cal
+              abslot rtc-edge wavtone tas2560-send-cal
 
 .PHONY: all test test-shell test-wifi clean device install-device
 
@@ -177,30 +177,17 @@ $(D)/nmea-broker: nmea-broker.c
 	@mkdir -p $(@D)
 	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ nmea-broker.c
 
-# Battery daemon (powerd.c, docs/features/battery-and-charging.md):
-# BatteryService low-battery warn/critical and over-temperature clean
-# shutdown, batt_health-style power_supply CSV log (/data/v1/power or
-# /run/chef/power) and state file under /run/chef/power, and the thermal-engine
-# SS-BATT-BATT 44/42 C charge throttle on battery/system_temp_level.
-# The supervised OpenRC service powerd (docs/features/services.md). Plain
-# libc + <linux/netlink.h>.
-# The test includes the .c with POWERD_NO_MAIN against a fake sysfs tree
-# with injected hooks; tests/test_powerd.sh runs the host binary end to end
-# with -x so nothing powers off. Logs through common/chef_log.c, compiled
-# in from source as the daemons under tools/common/'s other consumers do.
+# The battery daemon is built, tested and packed in powerd/ (its
+# Makefile). tests/test_chef_state.py runs the real host binary; this is
+# its own copy, compiled here into build/host/ from powerd/'s sources,
+# so powerd/ never builds into tools/build/ and this directory never into
+# powerd/build/ (the root `make test` runs both suites in parallel).
 CHEF_LOG := common/chef_log.c
 CHEF_LOG_DEPS := $(CHEF_LOG) common/chef_log.h
-$(H)/powerd: powerd.c common/chef_paths.h $(CHEF_LOG_DEPS)
+POWERD_SRC := powerd/sample.c powerd/policy.c powerd/log.c powerd/main.c
+$(H)/powerd: $(POWERD_SRC) powerd/powerd.h common/chef_paths.h $(CHEF_LOG_DEPS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(CHEF_LOG) $(LDFLAGS)
-
-$(H)/tests/test-powerd: tests/test_powerd.c powerd.c common/chef_paths.h $(CHEF_LOG_DEPS)
-	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -o $@ $< $(CHEF_LOG) $(LDFLAGS)
-
-$(D)/powerd: powerd.c common/chef_paths.h $(CHEF_LOG_DEPS)
-	@mkdir -p $(@D)
-	$(DEVICE_CC) $(DEVICE_CFLAGS) -o $@ powerd.c $(CHEF_LOG)
+	$(CC) $(CFLAGS) -I. -o $@ $(POWERD_SRC) $(CHEF_LOG) $(LDFLAGS)
 
 # WAV sine-tone generator for the speaker test (wavtone.c,
 # docs/features/audio.md): tinyalsa's tinyplay only plays WAV files, so
@@ -314,14 +301,13 @@ test-wifi: $(H)/tests/test-wlan-fw $(H)/wifi-psk
 	python3 tests/test_wifi_build.py
 	python3 tests/test_wifi_nm.py
 
-test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge test-display-inventory
+test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge $(H)/powerd test-display-inventory
 	$(H)/tests/test-qmux
 	$(H)/tests/test-msmipc
 	$(H)/tests/test-evdev
 	$(H)/tests/test-fbtouch
 	$(H)/tests/test-fblog
 	$(H)/tests/test-nmea-broker
-	$(H)/tests/test-powerd
 	$(H)/tests/test-wavtone
 	$(H)/tests/test-tas2560-send-cal
 	$(H)/tests/test-wlan-fw
@@ -343,8 +329,7 @@ test: $(TEST_BIN) test-shell $(H)/wifi-psk $(H)/abslot $(H)/rtc-edge test-displa
 # modem-up (rootfs-overlay/) selection-logic regression; not a build product of
 # this directory, but this is the natural place to run it alongside the
 # rest of the GPS test suite. See tests/test_modem-up.sh.
-test-shell: $(H)/powerd
-	sh tests/test_powerd.sh
+test-shell:
 	sh tests/test_modem-up.sh
 	sh tests/test_audio-up.sh
 	sh tests/test_speaker-test-tone.sh
