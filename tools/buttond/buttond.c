@@ -23,7 +23,9 @@
  *   status             {"type":"status","buttons":{"power":"up",...},
  *                      "long_ms":1500,"double_ms":300,"poweroff_hold_ms":1500,
  *                      "poweroff":"idle|armed|ready","claims":{"G":N,...},
- *                      "watchers":N}
+ *                      "watchers":N,"uinput":{"keys":B,"ff":B},
+ *                      "ff":"idle|playing"} (uinput: which of the two
+ *                      devices below exist; ff: an effect plays)
  *   event              {"type":"gesture","gesture":"power.long"} to every
  *                      claimant of G and every watcher
  *   errors             {"type":"error","cmd":"claim","reason":"unknown
@@ -71,6 +73,28 @@
  *                in between cancels too. -p 0 disables this default.
  *   everything else is only logged for now (power menu = UI work).
  *
+ * Key passthrough: the grab hides the buttons from everyone else, so
+ * buttond passes them on, raw (same code and value, each followed by
+ * SYN_REPORT), on a uinput key device `chef-buttons` (BUS_VIRTUAL, EV_KEY
+ * with KEY_POWER, KEY_VOLUMEUP, KEY_VOLUMEDOWN, no EV_REP): every press of
+ * a button no connection claims a gesture of (server_pass_key() has the
+ * rule), and that press's repeats and release. Gestures, defaults and
+ * claims work as above whatever is passed: a long power hold reaches
+ * other programs as a long press, and buttond still powers off on its
+ * release. Not created with -G (the devices are shared then).
+ *
+ * Vibrator as force feedback: a uinput FF device `chef-vibrator`
+ * (BUS_VIRTUAL, FF_RUMBLE, FF_PERIODIC with FF_SINE, FF_GAIN, 16 effects;
+ * feedbackd finds it through FEEDBACKD_TYPE=vibra from 70-chef.rules)
+ * plays its clients' effects on timed_output, one at a time, the motor
+ * simply on or off (the rules are at the ff_* functions). The direct
+ * writers (buttond's own buzzes, powerd's, chef-settings') keep writing
+ * timed_output; a buttond buzz ends an effect that plays.
+ *
+ * Both devices live as long as buttond. buttond reads only physical
+ * buttons: its scan skips BUS_VIRTUAL devices, so a restarted buttond
+ * never takes its own chef-buttons.
+ *
  * Why release, why 3 s: the PM660's own PON block was read on 2026-09-19
  * (registers 0x840.., see the 2026-09-19 (power-off, live) entry in
  * docs/build-log.md): the power key alone hard-
@@ -85,10 +109,11 @@
  * held into the bootloader; the software power-menu chord is power+volup.
  *
  * Usage: buttond [-i DEV]... [-l LONG_MS] [-d DOUBLE_MS] [-p HOLD_MS]
- *                [-S SOCK] [-o OFF_FILE] [-V VIB] [-G] [-v]
- *   -i  evdev device to use (repeatable; default: every /dev/input/event*,
- *       in numeric order, that reports KEY_POWER/KEY_VOLUMEUP/KEY_VOLUMEDOWN
- *       and no ABS axes: tools/evdev.h's evdev_scan + evdev_key_mask)
+ *                [-S SOCK] [-o OFF_FILE] [-V VIB] [-u UINPUT] [-G] [-v]
+ *   -i  evdev device to use (repeatable; taken as given, a virtual one
+ *       too; default: every /dev/input/event*, in numeric order, that
+ *       reports KEY_POWER/KEY_VOLUMEUP/KEY_VOLUMEDOWN, no ABS axes and is
+ *       not BUS_VIRTUAL: tools/evdev.h's evdev_scan + evdev_key_mask)
  *   -l  long-hold threshold in ms (default 1500)
  *   -d  double-tap window in ms (default 300)
  *   -p  extra hold after power.long before a release powers off
@@ -96,7 +121,11 @@
  *   -S  socket path (default /run/chef/buttond/buttond.sock)
  *   -o  screen-off flag (default /run/chef/screen/off)
  *   -V  vibrator (default /sys/class/timed_output/vibrator/enable, ms)
- *   -G  do not EVIOCGRAB the devices (shared, for experiments)
+ *   -u  uinput node for chef-buttons and chef-vibrator (default
+ *       /dev/uinput; '' = neither); a device that cannot be made is
+ *       logged once and buttond runs without it
+ *   -G  do not EVIOCGRAB the devices (shared, for experiments; no
+ *       chef-buttons)
  *   -v  echo the log lines to stderr as well
  * Client mode, for the shell (the hello is never printed):
  *   buttond status            the status line; exit 0, or 1 on an error
@@ -105,8 +134,9 @@
  *   buttond claim GESTURE...  per line, until EOF or ^C
  *
  * The pure parts (gesture recognizer, gesture names, claim registry,
- * protocol line handling, dispatch, the screen toggle and the power-off
- * state machine with injected paths/hooks) are separated from the
+ * protocol line handling, dispatch, the screen toggle, the power-off
+ * state machine, the passthrough decision and the force-feedback playback
+ * with injected paths/hooks) are separated from the
  * syscalls and covered by tools/buttond/tests/test_buttond.c, which
  * includes this file with BUTTOND_NO_MAIN and never powers anything off.
  */
@@ -129,6 +159,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <linux/input.h>
+#include <linux/uinput.h>
 
 #include "evdev.h"
 #include "common/chef_log.h"
@@ -137,6 +168,7 @@
 #include "common/linesrv.h"
 
 #define BUTTOND_VIB_PATH   "/sys/class/timed_output/vibrator/enable"
+#define BUTTOND_UINPUT_PATH "/dev/uinput"
 #define BUTTOND_LONG_MS    1500
 #define BUTTOND_DOUBLE_MS  300
 #define BUTTOND_POWEROFF_HOLD_MS 1500	/* after power.long: 3 s held in all */
@@ -397,6 +429,196 @@ static int recog_deadline_ms(const struct recog *r, int64_t now)
 	return best - now > INT32_MAX ? INT32_MAX : (int)(best - now);
 }
 
+/* ----------------------------------------------------- force feedback */
+
+/*
+ * The chef-vibrator device's effects and playback, on timed_output (one
+ * channel, no amplitude: the motor is on or off). Pure: the clock comes in
+ * as `now` and the motor goes through the vib hook (a duration in ms, 0 =
+ * stop), so the tests drive it without uinput. One effect plays at a time
+ * and the newest play wins.
+ */
+#define BUTTOND_FF_EFFECTS    16
+#define BUTTOND_FF_FOREVER_MS 15000	/* replay.length 0: the driver's maximum, re-armed */
+
+struct ff_slot {
+	bool used;
+	bool silent;		/* magnitude 0: plays, but never turns the motor on */
+	unsigned length_ms;	/* 0 = until stopped */
+	unsigned delay_ms;
+};
+
+enum ff_phase { FF_DELAY, FF_BUZZ };
+
+struct ff {
+	struct ff_slot e[BUTTOND_FF_EFFECTS];
+	unsigned gain;		/* FF_GAIN, 0..0xffff: only 0 versus not matters */
+	int id;			/* the effect playing, -1 = idle */
+	int left;		/* plays left, the current one included */
+	enum ff_phase phase;
+	bool motor;		/* this play wrote a buzz that is not over yet */
+	int64_t until;		/* when the current phase ends */
+	void (*vib)(void *ctx, unsigned ms);
+	void *ctx;
+};
+
+static void ff_init(struct ff *ff, void (*vib)(void *ctx, unsigned ms), void *ctx)
+{
+	memset(ff, 0, sizeof(*ff));
+	ff->gain = 0xffff;
+	ff->id = -1;
+	ff->vib = vib;
+	ff->ctx = ctx;
+}
+
+/*
+ * UI_FF_UPLOAD: store the effect; 0, or -EINVAL for an id outside 0..15
+ * or a type or waveform the device does not offer. Uploading over an
+ * effect that plays (an update) changes only what comes next: the running
+ * phase keeps its end, later phases and repeats use the new values.
+ */
+static int ff_upload(struct ff *ff, const struct ff_effect *e)
+{
+	struct ff_slot *slot;
+	bool silent;
+
+	if (e->id < 0 || e->id >= BUTTOND_FF_EFFECTS)
+		return -EINVAL;
+	if (e->type == FF_RUMBLE)
+		silent = !e->u.rumble.strong_magnitude && !e->u.rumble.weak_magnitude;
+	else if (e->type == FF_PERIODIC && e->u.periodic.waveform == FF_SINE)
+		silent = !e->u.periodic.magnitude;
+	else
+		return -EINVAL;
+	slot = &ff->e[e->id];
+	slot->used = true;
+	slot->silent = silent;
+	slot->length_ms = e->replay.length;
+	slot->delay_ms = e->replay.delay;
+	return 0;
+}
+
+/*
+ * Stop the motor if, and only if, this play has it on: a stop must never
+ * cut another writer's buzz (powerd's, chef-settings', buttond's own).
+ * Needed at all because the driver never shortens a running buzz.
+ */
+static void ff_motor_off(struct ff *ff)
+{
+	if (ff->motor)
+		ff->vib(ff->ctx, 0);
+	ff->motor = false;
+}
+
+static void ff_idle(struct ff *ff)
+{
+	ff_motor_off(ff);
+	ff->id = -1;
+}
+
+/* Buzz replay.length ms (forever: 15 s at a time). Silence (a magnitude
+ * or the gain 0) is decided here, at each buzz start: a gain change does
+ * not cut a running buzz. A silent buzz still lasts its length. */
+static void ff_buzz(struct ff *ff, int64_t now)
+{
+	const struct ff_slot *slot = &ff->e[ff->id];
+	unsigned ms = slot->length_ms ? slot->length_ms : BUTTOND_FF_FOREVER_MS;
+
+	ff->phase = FF_BUZZ;
+	ff->until = now + (int64_t)ms;
+	if (!slot->silent && ff->gain) {
+		ff->vib(ff->ctx, ms);
+		ff->motor = true;
+	}
+}
+
+/* One play of the effect: wait replay.delay, then buzz. */
+static void ff_round(struct ff *ff, int64_t now)
+{
+	const struct ff_slot *slot = &ff->e[ff->id];
+
+	if (slot->delay_ms) {
+		ff->phase = FF_DELAY;
+		ff->until = now + (int64_t)slot->delay_ms;
+	} else {
+		ff_buzz(ff, now);
+	}
+}
+
+/*
+ * EV_FF code = id: value N > 0 plays the effect N times, replacing what
+ * plays; 0 stops it if it is the one playing (a stop of another is
+ * ignored). -ENOENT for an id never uploaded or erased: ignored.
+ */
+static int ff_play(struct ff *ff, int id, int value, int64_t now)
+{
+	if (id < 0 || id >= BUTTOND_FF_EFFECTS || !ff->e[id].used)
+		return -ENOENT;
+	if (value <= 0) {
+		if (id == ff->id)
+			ff_idle(ff);
+		return 0;
+	}
+	ff_idle(ff);
+	ff->id = id;
+	ff->left = value;
+	ff_round(ff, now);
+	return 0;
+}
+
+/* UI_FF_ERASE (ff-core sends a stop first when it plays): stop it if it
+ * plays and forget it. Always 0. */
+static int ff_erase(struct ff *ff, int id)
+{
+	if (id < 0 || id >= BUTTOND_FF_EFFECTS)
+		return 0;
+	if (id == ff->id)
+		ff_idle(ff);
+	ff->e[id].used = false;
+	return 0;
+}
+
+static void ff_set_gain(struct ff *ff, int gain)
+{
+	ff->gain = gain < 0 ? 0 : gain > 0xffff ? 0xffff : (unsigned)gain;
+}
+
+/* A buzz of buttond's own replaced whatever the motor did: the effect
+ * that played ends (no write: that buzz is on now). */
+static void ff_overridden(struct ff *ff)
+{
+	ff->motor = false;
+	ff->id = -1;
+}
+
+/* Advance the phases whose end has passed. */
+static void ff_tick(struct ff *ff, int64_t now)
+{
+	while (ff->id >= 0 && now >= ff->until) {
+		if (ff->phase == FF_DELAY) {
+			ff_buzz(ff, now);
+		} else if (!ff->e[ff->id].length_ms) {
+			ff_buzz(ff, now);	/* until stopped: re-arm */
+		} else {
+			ff->motor = false;	/* the driver stopped it by itself */
+			if (--ff->left > 0)
+				ff_round(ff, now);
+			else
+				ff->id = -1;
+		}
+	}
+}
+
+/* Milliseconds until ff_tick() has something to do, or -1 for never. */
+static int ff_deadline_ms(const struct ff *ff, int64_t now)
+{
+	if (ff->id < 0)
+		return -1;
+	if (ff->until <= now)
+		return 0;
+	return ff->until - now > INT32_MAX ? INT32_MAX : (int)(ff->until - now);
+}
+
 /* ------------------------------------------------- clients and claims */
 
 /* buttond's own state per connection, indexed by the linesrv slot. */
@@ -417,12 +639,19 @@ struct server {
 	enum poweroff_state po_state;
 	int64_t po_armed_at;		/* when power.long fired */
 	unsigned po_presses;		/* recog presses at arm time: re-press cancels */
+	/* key passthrough, per button: down since a press, and that press passed */
+	bool pt_down[BTN_COUNT];
+	bool pt_pass[BTN_COUNT];
+	bool keys_dev;			/* chef-buttons exists (status) */
+	bool ff_dev;			/* chef-vibrator exists (status) */
+	struct ff ff;
 	/* injected for the tests; the defaults are the real actions */
 	void (*log)(const char *fmt, ...);
 	void (*poweroff)(struct server *s);
 };
 
 static void system_poweroff(struct server *s);
+static void ff_vib(void *ctx, unsigned ms);
 static void on_connect(struct linesrv *srv, struct linesrv_client *c);
 static void on_line(struct linesrv *srv, struct linesrv_client *c, int argc, char **argv);
 static void on_close(struct linesrv *srv, struct linesrv_client *c);
@@ -450,6 +679,7 @@ static int server_init(struct server *s, unsigned long_ms, unsigned double_ms,
 	s->poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;
 	s->log = cfg.log;
 	s->poweroff = system_poweroff;
+	ff_init(&s->ff, ff_vib, s);
 	s->srv = linesrv_new(&cfg);
 	return s->srv ? 0 : -ENOMEM;
 }
@@ -527,7 +757,9 @@ static void server_status_line(const struct server *s, char *buf, size_t len)
 	for (i = 0, n = 0; i < BUTTOND_MAX_CLIENTS; i++)
 		if (linesrv_client_at(s->srv, i) && s->clients[i].watch)
 			n++;
-	snprintf(buf + off, len - off, "},\"watchers\":%d}\n", n);
+	snprintf(buf + off, len - off, "},\"watchers\":%d,\"uinput\":{\"keys\":%s,\"ff\":%s},\"ff\":\"%s\"}\n",
+		 n, s->keys_dev ? "true" : "false", s->ff_dev ? "true" : "false",
+		 s->ff.id >= 0 ? "playing" : "idle");
 }
 
 /* One request, already split into words by the library. */
@@ -611,15 +843,30 @@ static int screen_toggle(struct server *s)
 	return 0;
 }
 
-/* timed_output: a duration in ms, the driver stops by itself. */
-static void buzz(struct server *s, unsigned ms)
+/* timed_output: a duration in ms, the driver stops by itself; 0 stops. */
+static void vib_write(const char *path, unsigned ms)
 {
-	int fd = open(s->vib_path, O_WRONLY | O_CLOEXEC);
+	int fd = open(path, O_WRONLY | O_CLOEXEC);
 
 	if (fd < 0)
 		return;
 	dprintf(fd, "%u\n", ms);
 	close(fd);
+}
+
+/* The FF playback's motor (struct ff's hook). */
+static void ff_vib(void *ctx, unsigned ms)
+{
+	struct server *s = ctx;
+
+	vib_write(s->vib_path, ms);
+}
+
+/* buttond's own buzz; it ends a force-feedback effect that plays. */
+static void buzz(struct server *s, unsigned ms)
+{
+	vib_write(s->vib_path, ms);
+	ff_overridden(&s->ff);
 }
 
 /*
@@ -670,10 +917,11 @@ static void server_tick(struct server *s, int64_t now)
 	}
 }
 
-/* Poll timeout: the recognizer's deadline or the READY transition. */
+/* Poll timeout: the recognizer's deadline, the READY transition or the
+ * force-feedback playback's next phase. */
 static int server_deadline_ms(const struct server *s, int64_t now)
 {
-	int d = recog_deadline_ms(&s->recog, now);
+	int d = recog_deadline_ms(&s->recog, now), f = ff_deadline_ms(&s->ff, now);
 
 	if (s->po_state == PO_ARMED) {
 		int64_t t = s->po_armed_at + (int64_t)s->poweroff_hold_ms - now;
@@ -682,6 +930,8 @@ static int server_deadline_ms(const struct server *s, int64_t now)
 		if (d < 0 || p < d)
 			d = p;
 	}
+	if (f >= 0 && (d < 0 || f < d))
+		d = f;
 	return d;
 }
 
@@ -736,6 +986,55 @@ static void server_drain(struct server *s, int64_t now)
 
 	while ((g = recog_pop(&s->recog)) >= 0)
 		server_dispatch(s, (enum gesture)g, now);
+}
+
+/* ---------------------------------------------------- key passthrough */
+
+/* Every gesture that uses button b: its short, double and long, and each
+ * chord it is part of. */
+static uint32_t button_gestures(enum button b)
+{
+	uint32_t m = 1u << gesture_of(b, KIND_SHORT) | 1u << gesture_of(b, KIND_DOUBLE) |
+		     1u << gesture_of(b, KIND_LONG);
+
+	if (b != BTN_VOLDOWN)
+		m |= 1u << GES_POWER_VOLUP;
+	if (b != BTN_VOLUP)
+		m |= 1u << GES_POWER_VOLDOWN;
+	return m;
+}
+
+/*
+ * Does this source key event (value 1 press, 0 release, 2 repeat) go on to
+ * chef-buttons? A press does when, at the press, no connection claims a
+ * gesture that uses its button (watch is not a claim). The decision holds
+ * until that key's release: a passed press always gets its release passed
+ * (a claim in between never leaves the key stuck down), a press that was
+ * not passed never does, and repeats follow it. A release or repeat with
+ * no press seen (held at startup) is not passed. buttond's own recognizer,
+ * defaults and claims run the same whatever is passed.
+ */
+static bool server_pass_key(struct server *s, enum button b, int value)
+{
+	bool pass;
+	int i;
+
+	if (value == 1) {
+		if (!s->pt_down[b]) {
+			uint32_t claims = 0;
+
+			for (i = 0; i < BUTTOND_MAX_CLIENTS; i++)
+				if (linesrv_client_at(s->srv, i))
+					claims |= s->clients[i].claims;
+			s->pt_down[b] = true;
+			s->pt_pass[b] = !(claims & button_gestures(b));
+		}
+		return s->pt_pass[b];
+	}
+	pass = s->pt_down[b] && s->pt_pass[b];
+	if (value == 0)
+		s->pt_down[b] = s->pt_pass[b] = false;
+	return pass && (value == 0 || value == 2);
 }
 
 /* --------------------------------------------------------- syscalls */
@@ -851,7 +1150,14 @@ struct keydev_scan_ctx {
 static int keydev_scan_one(int fd, const char *path, void *arg)
 {
 	struct keydev_scan_ctx *c = arg;
-	int rc = fd < 0 ? fd : keydev_setup(&c->kds[c->n], fd, path, c->grab);
+	struct input_id id;
+	int rc;
+
+	/* physical buttons only: never a virtual device, such as the
+	 * chef-buttons of a buttond that ran before */
+	if (fd >= 0 && ioctl(fd, EVIOCGID, &id) == 0 && id.bustype == BUS_VIRTUAL)
+		return EVDEV_SCAN_REJECT;
+	rc = fd < 0 ? fd : keydev_setup(&c->kds[c->n], fd, path, c->grab);
 
 	if (rc) {
 		if (rc != -ENODEV)
@@ -870,6 +1176,117 @@ static int keydev_scan(struct keydev *kds, int max, bool grab)
 	return evdev_scan("/dev/input", keydev_scan_one, &c);
 }
 
+/* ----------------------------------------------------------- uinput */
+
+/*
+ * Create chef-buttons (the passed keys) or, with ff, chef-vibrator (force
+ * feedback) on the uinput node at path. The 4.4 kernel speaks uinput
+ * protocol 4: no UI_DEV_SETUP, the device is described by writing struct
+ * uinput_user_dev before UI_DEV_CREATE. Returns the fd (the device lives
+ * as long as it is open), or -errno.
+ */
+static int uinput_create(const char *path, bool ff)
+{
+	struct uinput_user_dev u;
+	int fd = open(path, O_RDWR | O_NONBLOCK | O_CLOEXEC), i, ok = 1;
+
+	if (fd < 0)
+		return -errno;
+	if (ff) {
+		ok = ioctl(fd, UI_SET_EVBIT, EV_FF) == 0 && ioctl(fd, UI_SET_FFBIT, FF_RUMBLE) == 0 &&
+		     ioctl(fd, UI_SET_FFBIT, FF_PERIODIC) == 0 && ioctl(fd, UI_SET_FFBIT, FF_SINE) == 0 &&
+		     ioctl(fd, UI_SET_FFBIT, FF_GAIN) == 0;
+	} else {
+		ok = ioctl(fd, UI_SET_EVBIT, EV_KEY) == 0;
+		for (i = 0; ok && i < BTN_COUNT; i++)
+			ok = ioctl(fd, UI_SET_KEYBIT, button_codes[i]) == 0;
+	}
+	memset(&u, 0, sizeof(u));
+	snprintf(u.name, sizeof(u.name), "%s", ff ? "chef-vibrator" : "chef-buttons");
+	u.id.bustype = BUS_VIRTUAL;
+	u.id.version = 1;
+	u.ff_effects_max = ff ? BUTTOND_FF_EFFECTS : 0;
+	if (!ok || write(fd, &u, sizeof(u)) != (ssize_t)sizeof(u) || ioctl(fd, UI_DEV_CREATE) < 0) {
+		int e = errno ? errno : EIO;
+
+		close(fd);
+		return -e;
+	}
+	return fd;
+}
+
+/* One passed key event on chef-buttons: the same code and value, then
+ * SYN_REPORT. A failed write is logged once. */
+static void uinput_key(int fd, unsigned code, int value)
+{
+	static bool warned;
+	struct input_event ev[2];
+
+	memset(ev, 0, sizeof(ev));
+	ev[0].type = EV_KEY;
+	ev[0].code = (unsigned short)code;
+	ev[0].value = value;
+	ev[1].type = EV_SYN;
+	ev[1].code = SYN_REPORT;
+	if (write(fd, ev, sizeof(ev)) != (ssize_t)sizeof(ev) && !warned) {
+		chef_log("chef-buttons: write: %s (key events lost)", strerror(errno));
+		warned = true;
+	}
+}
+
+/*
+ * chef-vibrator's owner side: answer the uploads and erases its clients
+ * wait for (EVIOCSFF and EVIOCRMFF block until UI_END_*), and feed plays,
+ * stops and the gain to the playback. -1 when the device failed and must
+ * be dropped, else 0.
+ */
+static int uinput_ff_read(struct server *s, int fd, int64_t now)
+{
+	struct input_event ev[16];
+	ssize_t len = read(fd, ev, sizeof(ev));
+
+	if (len < 0 && (errno == EAGAIN || errno == EINTR))
+		return 0;
+	if (len <= 0) {
+		chef_log("chef-vibrator: read: %s; no force-feedback vibrator", len ? strerror(errno) : "EOF");
+		return -1;
+	}
+	for (size_t k = 0; k < (size_t)len / sizeof(ev[0]); k++) {
+		const struct input_event *e = &ev[k];
+
+		if (e->type == EV_UINPUT && e->code == UI_FF_UPLOAD) {
+			struct uinput_ff_upload up;
+
+			memset(&up, 0, sizeof(up));
+			up.request_id = (unsigned)e->value;
+			if (ioctl(fd, UI_BEGIN_FF_UPLOAD, &up) < 0) {
+				chef_log("chef-vibrator: UI_BEGIN_FF_UPLOAD: %s", strerror(errno));
+				continue;
+			}
+			up.retval = ff_upload(&s->ff, &up.effect);
+			if (ioctl(fd, UI_END_FF_UPLOAD, &up) < 0)
+				chef_log("chef-vibrator: UI_END_FF_UPLOAD: %s", strerror(errno));
+		} else if (e->type == EV_UINPUT && e->code == UI_FF_ERASE) {
+			struct uinput_ff_erase er;
+
+			memset(&er, 0, sizeof(er));
+			er.request_id = (unsigned)e->value;
+			if (ioctl(fd, UI_BEGIN_FF_ERASE, &er) < 0) {
+				chef_log("chef-vibrator: UI_BEGIN_FF_ERASE: %s", strerror(errno));
+				continue;
+			}
+			er.retval = ff_erase(&s->ff, (int)er.effect_id);
+			if (ioctl(fd, UI_END_FF_ERASE, &er) < 0)
+				chef_log("chef-vibrator: UI_END_FF_ERASE: %s", strerror(errno));
+		} else if (e->type == EV_FF && e->code == FF_GAIN) {
+			ff_set_gain(&s->ff, e->value);
+		} else if (e->type == EV_FF && ff_play(&s->ff, e->code, e->value, now) && g_verbose) {
+			chef_log("chef-vibrator: play of effect %u, which is not stored: ignored", e->code);
+		}
+	}
+	return 0;
+}
+
 static void on_signal(int sig)
 {
 	(void)sig;
@@ -879,7 +1296,7 @@ static void on_signal(int sig)
 static void usage(void)
 {
 	fprintf(stderr,
-		"usage: buttond [-i DEV]... [-l LONG_MS] [-d DOUBLE_MS] [-p HOLD_MS] [-S SOCK] [-o OFF_FILE] [-V VIB] [-G] [-v]\n"
+		"usage: buttond [-i DEV]... [-l LONG_MS] [-d DOUBLE_MS] [-p HOLD_MS] [-S SOCK] [-o OFF_FILE] [-V VIB] [-u UINPUT] [-G] [-v]\n"
 		"       buttond [-S SOCK] status | watch | claim GESTURE...\n");
 }
 
@@ -971,13 +1388,13 @@ int main(int argc, char **argv)
 	struct keydev kds[BUTTOND_MAX_DEVS];
 	const char *explicit[BUTTOND_MAX_DEVS];
 	const char *sock_path = CHEF_BUTTOND_SOCK, *off_path = CHEF_SCREEN_OFF;
-	const char *vib_path = BUTTOND_VIB_PATH;
+	const char *vib_path = BUTTOND_VIB_PATH, *uinput_path = BUTTOND_UINPUT_PATH;
 	unsigned long_ms = BUTTOND_LONG_MS, double_ms = BUTTOND_DOUBLE_MS;
 	unsigned poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;
 	bool grab = true;
-	int nexplicit = 0, ndev = 0, nsrv, rc, opt, i;
+	int nexplicit = 0, ndev = 0, nsrv, nff, keys_fd = -1, ff_fd = -1, rc, opt, i;
 
-	while ((opt = getopt(argc, argv, "i:l:d:p:S:o:V:Gv")) != -1) {
+	while ((opt = getopt(argc, argv, "i:l:d:p:S:o:V:u:Gv")) != -1) {
 		switch (opt) {
 		case 'i':
 			if (nexplicit == BUTTOND_MAX_DEVS) {
@@ -992,6 +1409,7 @@ int main(int argc, char **argv)
 		case 'S': sock_path = optarg; break;
 		case 'o': off_path = optarg; break;
 		case 'V': vib_path = optarg; break;
+		case 'u': uinput_path = optarg; break;
 		case 'G': grab = false; break;
 		case 'v': g_verbose = true; break;
 		default: usage(); return 64;
@@ -1046,6 +1464,23 @@ int main(int argc, char **argv)
 		chef_log("%s %s", grab ? "grabbed" : "reading", desc);
 	}
 
+	/* The uinput devices, after the scan. A failure is logged once and
+	 * buttond carries on without that device: the buttons and the
+	 * power-off keep working. With -G the real devices are shared
+	 * already, so no key device. */
+	if (uinput_path[0] && grab) {
+		keys_fd = uinput_create(uinput_path, false);
+		if (keys_fd < 0)
+			chef_log("%s: chef-buttons: %s; no key passthrough", uinput_path, strerror(-keys_fd));
+	}
+	if (uinput_path[0]) {
+		ff_fd = uinput_create(uinput_path, true);
+		if (ff_fd < 0)
+			chef_log("%s: chef-vibrator: %s; no force-feedback vibrator", uinput_path, strerror(-ff_fd));
+	}
+	s.keys_dev = keys_fd >= 0;
+	s.ff_dev = ff_fd >= 0;
+
 	rc = linesrv_listen(s.srv, sock_path);
 	if (rc < 0) {
 		chef_log("listen %s: %s; exiting in 5 s", sock_path, strerror(-rc));
@@ -1060,13 +1495,16 @@ int main(int argc, char **argv)
 			  sock_path, long_ms, double_ms, off_path);
 
 	while (!g_stop) {
-		struct pollfd pfd[BUTTOND_MAX_DEVS + 1 + BUTTOND_MAX_CLIENTS];
+		struct pollfd pfd[BUTTOND_MAX_DEVS + 1 + 1 + BUTTOND_MAX_CLIENTS];
 
 		for (i = 0; i < ndev; i++)
 			pfd[i] = (struct pollfd){ .fd = kds[i].fd, .events = POLLIN };
-		nsrv = linesrv_pollfds(s.srv, pfd + ndev, 1 + BUTTOND_MAX_CLIENTS);
+		nff = ff_fd >= 0;
+		if (nff)
+			pfd[ndev] = (struct pollfd){ .fd = ff_fd, .events = POLLIN };
+		nsrv = linesrv_pollfds(s.srv, pfd + ndev + nff, 1 + BUTTOND_MAX_CLIENTS);
 
-		rc = poll(pfd, (nfds_t)(ndev + nsrv), server_deadline_ms(&s, now_ms()));
+		rc = poll(pfd, (nfds_t)(ndev + nff + nsrv), server_deadline_ms(&s, now_ms()));
 		if (rc < 0 && errno != EINTR)
 			break;
 		if (g_stop)
@@ -1098,13 +1536,22 @@ int main(int argc, char **argv)
 				if (g_verbose)
 					fprintf(stderr, "buttond: %s %s\n", button_names[b],
 						ev[k].value == 1 ? "press" : ev[k].value == 0 ? "release" : "repeat");
+				if (keys_fd >= 0 && server_pass_key(&s, (enum button)b, ev[k].value))
+					uinput_key(keys_fd, ev[k].code, ev[k].value);
 				recog_key(&s.recog, (enum button)b, ev[k].value, now_ms());
 			}
 		}
 		if (g_stop)
 			break;
+		if (nff && (pfd[ndev].revents & (POLLIN | POLLERR | POLLHUP)) &&
+		    uinput_ff_read(&s, ff_fd, now_ms()) < 0) {
+			ff_idle(&s.ff);
+			close(ff_fd);
+			ff_fd = -1;
+			s.ff_dev = false;
+		}
 		if (rc > 0)
-			linesrv_handle(s.srv, pfd + ndev, nsrv);
+			linesrv_handle(s.srv, pfd + ndev + nff, nsrv);
 
 		{
 			int64_t now = now_ms();
@@ -1112,10 +1559,16 @@ int main(int argc, char **argv)
 			recog_tick(&s.recog, now);
 			server_drain(&s, now);
 			server_tick(&s, now);
+			ff_tick(&s.ff, now);
 		}
 	}
 
 	chef_log("exiting");
+	ff_idle(&s.ff);		/* a buzz of an effect that played: off */
+	if (keys_fd >= 0)
+		close(keys_fd);	/* the devices go with their fds */
+	if (ff_fd >= 0)
+		close(ff_fd);
 	server_fini(&s);
 	for (i = 0; i < ndev; i++)
 		close(kds[i].fd);	/* releases the grab */

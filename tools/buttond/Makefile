@@ -5,10 +5,12 @@
 # /run/chef/buttond/buttond.sock to claimants, by default toggles the
 # screen-off flag /run/chef/screen/off on an unclaimed power.short and powers
 # off cleanly (sync + busybox `poweroff`) when power is held 3 s and released.
-# The supervised OpenRC service buttond. Only libc's <linux/input.h> (device
-# discovery through the header-only ../evdev.h); the socket, its JSON lines
-# and the log come from ../common/ (linesrv, json, chef_log), compiled in from
-# source.
+# Unclaimed keys go on to the uinput key device chef-buttons, and the uinput
+# force-feedback device chef-vibrator plays effects on the vibrator.
+# The supervised OpenRC service buttond. Only libc's <linux/input.h> and
+# <linux/uinput.h> (device discovery through the header-only ../evdev.h);
+# the socket, its JSON lines and the log come from ../common/ (linesrv, json,
+# chef_log), compiled in from source.
 # tools/tests/test_fblog.c (tools/Makefile) also includes buttond.c, for
 # the screen-off flag protocol.
 #
@@ -18,7 +20,8 @@
 #   make install-device DESTDIR=DIR   it into DIR/usr/bin
 #
 # The test includes buttond.c with BUTTOND_NO_MAIN and drives the server
-# over socketpairs with an injected log/kill and a temp flag file, also
+# over socketpairs with an injected log/kill and a temp flag file, and the
+# passthrough decision and force-feedback playback without uinput, also
 # under ASan/UBSan.
 
 REPO_ROOT := ../..

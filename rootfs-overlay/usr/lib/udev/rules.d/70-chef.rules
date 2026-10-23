@@ -1,8 +1,9 @@
 # Groups for the device nodes and sysfs attributes our non-root daemons use
 # (docs/features/users-and-permissions.md). /init coldplugs these
-# subsystems (and input, graphics, net) once at boot. input and graphics
-# need no rule here: the stock 50-udev-default.rules gives event* the input
-# group and fb0 the video group.
+# subsystems (and input, graphics, net, and misc's uinput node alone) once
+# at boot. input and graphics need no rule here: the stock
+# 50-udev-default.rules gives event* the input group and fb0 the video
+# group.
 #
 # /dev/sensors (class ssc): sensord reads and controls the SSC through it.
 ACTION=="add", SUBSYSTEM=="ssc", KERNEL=="sensors", GROUP="sensord", MODE="0640"
@@ -10,3 +11,9 @@ ACTION=="add", SUBSYSTEM=="ssc", KERNEL=="sensors", GROUP="sensord", MODE="0640"
 ACTION=="add", SUBSYSTEM=="leds", KERNEL=="lcd-backlight", RUN+="/bin/chgrp video /sys%p/brightness", RUN+="/bin/chmod 0664 /sys%p/brightness"
 # The vibrator: whoever may buzz (buttond, powerd, chef-settings).
 ACTION=="add", SUBSYSTEM=="timed_output", KERNEL=="vibrator", RUN+="/bin/chgrp vibrator /sys%p/enable", RUN+="/bin/chmod 0664 /sys%p/enable"
+# /dev/uinput: buttond creates its key passthrough and force-feedback
+# devices through it.
+ACTION=="add", SUBSYSTEM=="misc", KERNEL=="uinput", GROUP="uinput", MODE="0660"
+# buttond's force-feedback vibrator, for feedbackd (its own rules match
+# other device names).
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="chef-vibrator", ENV{FEEDBACKD_TYPE}="vibra"

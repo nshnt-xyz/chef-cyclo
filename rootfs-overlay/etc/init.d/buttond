@@ -4,15 +4,18 @@
 # press toggles the screen-off flag /run/chef/screen/off, and power held 3 s
 # (buzz at 1.5 s, long buzz at 3 s) then released runs `poweroff`, the orderly
 # way down through init (::shutdown, SIGTERM to all, RB_POWER_OFF). The
-# PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look
+# PMIC hard-resets on its own at ~8.7 s held. Unclaimed keys go on to the
+# uinput device chef-buttons, and chef-vibrator plays force-feedback
+# effects on the vibrator. `buttond watch` to look
 # (docs/features/buttons-and-power-off.md).
 
 description="Side buttons and power-off"
 supervisor=supervise-daemon
 command=/usr/bin/buttond
 # Its own user (docs/features/users-and-permissions.md): the evdev nodes,
-# the screen-off flag and the vibrator through its groups (input, screen,
-# vibrator), CAP_KILL for `poweroff` (busybox signals init).
+# the screen-off flag, the vibrator and /dev/uinput through its groups
+# (input, screen, vibrator, uinput), CAP_KILL for `poweroff` (busybox
+# signals init).
 command_user="buttond:buttond"
 capabilities="^cap_kill"
 no_new_privs=yes

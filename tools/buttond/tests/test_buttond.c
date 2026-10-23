@@ -8,7 +8,15 @@
  * default, the screen toggle against a temp flag file (it only creates
  * and removes the flag), and the power-off state machine (arm at long, cancel on early
  * release or re-press, READY buzz, act on release, claimed/-p 0 variants)
- * with an injected poweroff and a temp vibrator file. buttond.c is
+ * with an injected poweroff and a temp vibrator file, the key passthrough
+ * decision (every single claim against every button, claims from two
+ * connections, watch, a claim or release between press and release,
+ * repeats, releases without a press) and the force-feedback playback
+ * (uploads and their checks, play counts with delay and length, stops,
+ * erase while playing, gain and magnitude 0, length 0 re-armed every 15 s,
+ * a replacing play writing 0 first, updates and gain changes while playing,
+ * buttond's own buzz ending an effect, the status members) with a
+ * recording vibrator hook. buttond.c is
  * included with BUTTOND_NO_MAIN; no evdev device, socket path or process
  * is touched and nothing powers off. Build/run: see tools/buttond/Makefile
  * ("make test").
@@ -400,7 +408,8 @@ static void test_server_claims(void)
 	ask(&s, &a, "status\n",
 	    "{\"type\":\"status\",\"buttons\":{\"power\":\"up\",\"volup\":\"up\",\"voldown\":\"up\"},"
 	    "\"long_ms\":1500,\"double_ms\":300,\"poweroff_hold_ms\":1500,\"poweroff\":\"idle\","
-	    "\"claims\":{\"power.double\":1,\"power.long\":1},\"watchers\":0}\n");
+	    "\"claims\":{\"power.double\":1,\"power.long\":1},\"watchers\":0,"
+	    "\"uinput\":{\"keys\":false,\"ff\":false},\"ff\":\"idle\"}\n");
 
 	/* a second claimant, then release/disconnect bookkeeping */
 	b = connect_peer(&s);
@@ -417,7 +426,8 @@ static void test_server_claims(void)
 	ask(&s, &b, "status\n",
 	    "{\"type\":\"status\",\"buttons\":{\"power\":\"down\",\"volup\":\"up\",\"voldown\":\"up\"},"
 	    "\"long_ms\":1500,\"double_ms\":300,\"poweroff_hold_ms\":1500,\"poweroff\":\"idle\","
-	    "\"claims\":{\"power.double\":1,\"power.long\":1},\"watchers\":1}\n");
+	    "\"claims\":{\"power.double\":1,\"power.long\":1},\"watchers\":1,"
+	    "\"uinput\":{\"keys\":false,\"ff\":false},\"ff\":\"idle\"}\n");
 	s.recog.b[BTN_POWER].down = false;
 
 	/* peer b goes away: its claims vanish and doubles disarm */
@@ -787,6 +797,423 @@ static void test_server_poweroff(void)
 	rmdir(dir);
 }
 
+/* ---- key passthrough ---- */
+
+/* Press, repeat and release of b with nothing changing in between: what
+ * each passed, as "PRX" letters or "-" for not passed. */
+static void press_release(struct server *s, enum button b, char out[4])
+{
+	out[0] = server_pass_key(s, b, 1) ? 'P' : '-';
+	out[1] = server_pass_key(s, b, 2) ? 'R' : '-';
+	out[2] = server_pass_key(s, b, 0) ? 'X' : '-';
+	out[3] = '\0';
+}
+
+static void test_passthrough(void)
+{
+	/* the gestures that use each button, by name (not from the code) */
+	static const char *const uses[BTN_COUNT][5] = {
+		{ "power.short", "power.double", "power.long", "power+volup", "power+voldown" },
+		{ "volup.short", "volup.double", "volup.long", "power+volup", NULL },
+		{ "voldown.short", "voldown.double", "voldown.long", "power+voldown", NULL },
+	};
+	struct server s;
+	struct peer a, b;
+	char got[4], line[64], reply[128];
+	int g, k, i;
+
+	CHECK(server_init(&s, 1500, 300, test_log) == 0);
+	/* nothing claimed: every button passes, press, repeat and release */
+	for (k = 0; k < BTN_COUNT; k++) {
+		press_release(&s, (enum button)k, got);
+		CHECK(strcmp(got, "PRX") == 0);
+	}
+	a = connect_peer(&s);
+	/* watch is not a claim */
+	ask(&s, &a, "watch\n", "{\"type\":\"ok\",\"cmd\":\"watch\"}\n");
+	press_release(&s, BTN_POWER, got);
+	CHECK(strcmp(got, "PRX") == 0);
+	/* every gesture claimed on its own, against every button */
+	for (g = 0; g < GES_COUNT; g++) {
+		snprintf(line, sizeof(line), "claim %s\n", gesture_names[g]);
+		snprintf(reply, sizeof(reply), "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"%s\"}\n",
+			 gesture_names[g]);
+		ask(&s, &a, line, reply);
+		for (k = 0; k < BTN_COUNT; k++) {
+			bool used = false;
+
+			for (i = 0; i < 5; i++)
+				used |= uses[k][i] && strcmp(uses[k][i], gesture_names[g]) == 0;
+			press_release(&s, (enum button)k, got);
+			CHECK(strcmp(got, used ? "---" : "PRX") == 0);
+			if (strcmp(got, used ? "---" : "PRX"))
+				fprintf(stderr, "  %s claimed, %s: %s\n", gesture_names[g], button_names[k], got);
+		}
+		snprintf(line, sizeof(line), "release %s\n", gesture_names[g]);
+		snprintf(reply, sizeof(reply), "{\"type\":\"ok\",\"cmd\":\"release\",\"gesture\":\"%s\"}\n",
+			 gesture_names[g]);
+		ask(&s, &a, line, reply);
+	}
+	/* claims of two connections add up; a closed connection's claims go */
+	b = connect_peer(&s);
+	ask(&s, &a, "claim volup.long\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"volup.long\"}\n");
+	ask(&s, &b, "claim power+voldown\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power+voldown\"}\n");
+	press_release(&s, BTN_VOLUP, got);
+	CHECK(strcmp(got, "---") == 0);
+	press_release(&s, BTN_VOLDOWN, got);
+	CHECK(strcmp(got, "---") == 0);
+	press_release(&s, BTN_POWER, got);
+	CHECK(strcmp(got, "---") == 0);
+	close(b.fd);
+	pump(&s);
+	press_release(&s, BTN_VOLDOWN, got);
+	CHECK(strcmp(got, "PRX") == 0);
+	press_release(&s, BTN_POWER, got);
+	CHECK(strcmp(got, "PRX") == 0);
+	press_release(&s, BTN_VOLUP, got);
+	CHECK(strcmp(got, "---") == 0);
+	ask(&s, &a, "release volup.long\n", "{\"type\":\"ok\",\"cmd\":\"release\",\"gesture\":\"volup.long\"}\n");
+
+	/* a claim between press and release: the passed press keeps its
+	 * repeats and release, the next press is not passed */
+	CHECK(server_pass_key(&s, BTN_POWER, 1));
+	ask(&s, &a, "claim power.short\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.short\"}\n");
+	CHECK(server_pass_key(&s, BTN_POWER, 2));
+	CHECK(server_pass_key(&s, BTN_POWER, 1));	/* a duplicate press follows it too */
+	CHECK(server_pass_key(&s, BTN_POWER, 0));
+	CHECK(!server_pass_key(&s, BTN_POWER, 1));
+	/* a release between press and release: the press that was not passed
+	 * gets no repeat or release, the next press is passed */
+	ask(&s, &a, "release power.short\n", "{\"type\":\"ok\",\"cmd\":\"release\",\"gesture\":\"power.short\"}\n");
+	CHECK(!server_pass_key(&s, BTN_POWER, 2));
+	CHECK(!server_pass_key(&s, BTN_POWER, 0));
+	CHECK(server_pass_key(&s, BTN_POWER, 1));
+	CHECK(server_pass_key(&s, BTN_POWER, 0));
+	/* a release or repeat with no press seen (held at startup) */
+	CHECK(!server_pass_key(&s, BTN_VOLUP, 0));
+	CHECK(!server_pass_key(&s, BTN_VOLUP, 2));
+	/* the claimant dies between press and release: still no release */
+	ask(&s, &a, "claim voldown.double\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"voldown.double\"}\n");
+	CHECK(!server_pass_key(&s, BTN_VOLDOWN, 1));
+	close(a.fd);
+	pump(&s);
+	CHECK(!server_pass_key(&s, BTN_VOLDOWN, 0));
+	press_release(&s, BTN_VOLDOWN, got);
+	CHECK(strcmp(got, "PRX") == 0);
+	server_fini(&s);
+}
+
+/* ---- force feedback ---- */
+
+#define NVIB 32
+static unsigned g_vib[NVIB];
+static int g_nvib;
+
+static void test_vib(void *ctx, unsigned ms)
+{
+	(void)ctx;
+	if (g_nvib < NVIB)
+		g_vib[g_nvib] = ms;
+	g_nvib++;
+}
+
+/* The writes since the last call, as "100,0,..." ("" for none). */
+static const char *vibs(void)
+{
+	static char buf[256];
+	size_t off = 0;
+	int i;
+
+	buf[0] = '\0';
+	for (i = 0; i < g_nvib && i < NVIB; i++)
+		off += (size_t)snprintf(buf + off, sizeof(buf) - off, "%s%u", i ? "," : "", g_vib[i]);
+	g_nvib = 0;
+	return buf;
+}
+
+static struct ff_effect rumble(int id, unsigned strong, unsigned weak, unsigned length, unsigned delay)
+{
+	struct ff_effect e;
+
+	memset(&e, 0, sizeof(e));
+	e.type = FF_RUMBLE;
+	e.id = (short)id;
+	e.u.rumble.strong_magnitude = (unsigned short)strong;
+	e.u.rumble.weak_magnitude = (unsigned short)weak;
+	e.replay.length = (unsigned short)length;
+	e.replay.delay = (unsigned short)delay;
+	return e;
+}
+
+static struct ff_effect sine(int id, int magnitude, unsigned length, unsigned delay)
+{
+	struct ff_effect e;
+
+	memset(&e, 0, sizeof(e));
+	e.type = FF_PERIODIC;
+	e.id = (short)id;
+	e.u.periodic.waveform = FF_SINE;
+	e.u.periodic.period = 10;
+	e.u.periodic.magnitude = (short)magnitude;
+	e.replay.length = (unsigned short)length;
+	e.replay.delay = (unsigned short)delay;
+	return e;
+}
+
+static void test_ff_upload(void)
+{
+	struct ff ff;
+	struct ff_effect e;
+
+	ff_init(&ff, test_vib, NULL);
+	e = rumble(0, 0xffff, 0, 100, 0);
+	CHECK(ff_upload(&ff, &e) == 0 && ff.e[0].used && !ff.e[0].silent);
+	e = rumble(15, 0, 0x4000, 100, 0);
+	CHECK(ff_upload(&ff, &e) == 0 && !ff.e[15].silent);
+	e = sine(7, 0x6000, 300, 200);
+	CHECK(ff_upload(&ff, &e) == 0 && ff.e[7].length_ms == 300 && ff.e[7].delay_ms == 200);
+	/* outside 0..15, another type, another waveform: -EINVAL, nothing stored */
+	e = rumble(16, 0xffff, 0, 100, 0);
+	CHECK(ff_upload(&ff, &e) == -EINVAL);
+	e = rumble(-1, 0xffff, 0, 100, 0);
+	CHECK(ff_upload(&ff, &e) == -EINVAL);
+	e = rumble(3, 0xffff, 0, 100, 0);
+	e.type = FF_CONSTANT;
+	CHECK(ff_upload(&ff, &e) == -EINVAL && !ff.e[3].used);
+	e = sine(3, 0x6000, 100, 0);
+	e.u.periodic.waveform = FF_SQUARE;
+	CHECK(ff_upload(&ff, &e) == -EINVAL && !ff.e[3].used);
+	/* magnitude 0 is stored as silent */
+	e = rumble(4, 0, 0, 100, 0);
+	CHECK(ff_upload(&ff, &e) == 0 && ff.e[4].silent);
+	e = sine(5, 0, 100, 0);
+	CHECK(ff_upload(&ff, &e) == 0 && ff.e[5].silent);
+	CHECK(ff.id == -1 && strcmp(vibs(), "") == 0);
+	CHECK(ff_deadline_ms(&ff, 0) == -1);
+}
+
+static void test_ff_play(void)
+{
+	struct ff ff;
+	struct ff_effect e;
+
+	ff_init(&ff, test_vib, NULL);
+	/* twice, with a 200 ms delay before each 100 ms buzz */
+	e = sine(2, 0x6000, 100, 200);
+	CHECK(ff_upload(&ff, &e) == 0);
+	CHECK(ff_play(&ff, 2, 2, 1000) == 0);
+	CHECK(ff.id == 2 && strcmp(vibs(), "") == 0);
+	CHECK(ff_deadline_ms(&ff, 1000) == 200);
+	ff_tick(&ff, 1199);
+	CHECK(strcmp(vibs(), "") == 0);
+	ff_tick(&ff, 1200);
+	CHECK(strcmp(vibs(), "100") == 0 && ff.motor);
+	CHECK(ff_deadline_ms(&ff, 1250) == 50);
+	ff_tick(&ff, 1300);		/* the driver ends the buzz itself: no write */
+	CHECK(strcmp(vibs(), "") == 0 && !ff.motor && ff.id == 2);
+	ff_tick(&ff, 1500);
+	CHECK(strcmp(vibs(), "100") == 0);
+	ff_tick(&ff, 1600);
+	CHECK(ff.id == -1 && strcmp(vibs(), "") == 0);
+	CHECK(ff_deadline_ms(&ff, 1600) == -1);
+	/* no delay: the buzz starts with the play; once */
+	e = rumble(1, 0xffff, 0, 250, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	CHECK(ff_play(&ff, 1, 1, 2000) == 0 && strcmp(vibs(), "250") == 0);
+	ff_tick(&ff, 2250);
+	CHECK(ff.id == -1 && strcmp(vibs(), "") == 0);
+
+	/* a stop while it buzzes writes 0; a stop of another effect is ignored */
+	CHECK(ff_play(&ff, 1, 3, 3000) == 0 && strcmp(vibs(), "250") == 0);
+	CHECK(ff_play(&ff, 2, 0, 3100) == 0 && ff.id == 1 && strcmp(vibs(), "") == 0);
+	CHECK(ff_play(&ff, 1, 0, 3100) == 0 && ff.id == -1 && strcmp(vibs(), "0") == 0);
+	ff_tick(&ff, 4000);
+	CHECK(strcmp(vibs(), "") == 0);
+	/* a stop in the delay: the motor is not this play's, no write */
+	CHECK(ff_play(&ff, 2, 1, 5000) == 0 && strcmp(vibs(), "") == 0);
+	CHECK(ff_play(&ff, 2, 0, 5100) == 0 && ff.id == -1 && strcmp(vibs(), "") == 0);
+	/* the stop after the buzz ended on its own: no write either */
+	CHECK(ff_play(&ff, 1, 1, 6000) == 0 && strcmp(vibs(), "250") == 0);
+	ff_tick(&ff, 6250);
+	CHECK(ff_play(&ff, 1, 0, 6300) == 0 && strcmp(vibs(), "") == 0);
+
+	/* a play of an id never uploaded: ignored */
+	CHECK(ff_play(&ff, 9, 1, 7000) == -ENOENT && ff.id == -1 && strcmp(vibs(), "") == 0);
+	CHECK(ff_play(&ff, 16, 1, 7000) == -ENOENT && ff_play(&ff, -1, 1, 7000) == -ENOENT);
+}
+
+static void test_ff_erase_replace(void)
+{
+	struct ff ff;
+	struct ff_effect e;
+
+	ff_init(&ff, test_vib, NULL);
+	e = rumble(0, 0xffff, 0, 400, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	e = rumble(1, 0x8000, 0, 100, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	e = sine(2, 0x6000, 100, 200);
+	CHECK(ff_upload(&ff, &e) == 0);
+	/* erase while it buzzes: stopped (0) and forgotten; a later play ignored */
+	CHECK(ff_play(&ff, 0, 1, 0) == 0 && strcmp(vibs(), "400") == 0);
+	CHECK(ff_erase(&ff, 0) == 0 && ff.id == -1 && !ff.e[0].used && strcmp(vibs(), "0") == 0);
+	CHECK(ff_play(&ff, 0, 1, 10) == -ENOENT && strcmp(vibs(), "") == 0);
+	/* erasing another or an unknown id leaves the playing one alone */
+	CHECK(ff_play(&ff, 1, 1, 100) == 0 && strcmp(vibs(), "100") == 0);
+	CHECK(ff_erase(&ff, 2) == 0 && ff_erase(&ff, 40) == 0 && ff.id == 1 && strcmp(vibs(), "") == 0);
+	CHECK(!ff.e[2].used);
+	/* a new play replacing a buzzing one writes 0 first */
+	e = rumble(0, 0xffff, 0, 400, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	CHECK(ff_play(&ff, 0, 1, 150) == 0 && strcmp(vibs(), "0,400") == 0 && ff.id == 0);
+	/* the same effect again: also 0 first, from the start */
+	CHECK(ff_play(&ff, 0, 1, 300) == 0 && strcmp(vibs(), "0,400") == 0);
+	CHECK(ff_deadline_ms(&ff, 300) == 400);
+	/* replacing one in its delay: no 0 (the motor is not its) */
+	e = sine(2, 0x6000, 100, 200);
+	CHECK(ff_upload(&ff, &e) == 0);
+	ff_tick(&ff, 700);
+	CHECK(ff.id == -1 && strcmp(vibs(), "") == 0);
+	CHECK(ff_play(&ff, 2, 1, 1000) == 0 && strcmp(vibs(), "") == 0);
+	CHECK(ff_play(&ff, 1, 1, 1100) == 0 && strcmp(vibs(), "100") == 0 && ff.id == 1);
+	ff_tick(&ff, 1300);		/* nothing of effect 2 is left */
+	CHECK(ff.id == -1 && strcmp(vibs(), "") == 0);
+}
+
+static void test_ff_gain_forever_update(void)
+{
+	struct ff ff;
+	struct ff_effect e;
+
+	ff_init(&ff, test_vib, NULL);
+	CHECK(ff.gain == 0xffff);
+	/* gain 0: silent, but it plays for its time */
+	e = rumble(0, 0xffff, 0, 100, 50);
+	CHECK(ff_upload(&ff, &e) == 0);
+	ff_set_gain(&ff, 0);
+	CHECK(ff_play(&ff, 0, 2, 0) == 0);
+	ff_tick(&ff, 50);
+	CHECK(ff.id == 0 && !ff.motor && strcmp(vibs(), "") == 0);
+	CHECK(ff_deadline_ms(&ff, 50) == 100);
+	ff_tick(&ff, 150);
+	ff_tick(&ff, 200);
+	CHECK(ff.id == 0 && strcmp(vibs(), "") == 0);
+	ff_tick(&ff, 300);
+	CHECK(ff.id == -1);
+	/* any other gain is full on; out of range is clamped */
+	ff_set_gain(&ff, 1);
+	CHECK(ff_play(&ff, 0, 1, 1000) == 0);
+	ff_tick(&ff, 1050);
+	CHECK(strcmp(vibs(), "100") == 0);
+	ff_tick(&ff, 1150);
+	CHECK(ff.id == -1);
+	ff_set_gain(&ff, 0x7fffffff);
+	CHECK(ff.gain == 0xffff);
+	ff_set_gain(&ff, -5);
+	CHECK(ff.gain == 0);
+	ff_set_gain(&ff, 0xc000);
+	/* magnitude 0 (rumble both, periodic): silent for its time */
+	e = rumble(1, 0, 0, 200, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	CHECK(ff_play(&ff, 1, 1, 2000) == 0 && ff.id == 1 && strcmp(vibs(), "") == 0);
+	ff_tick(&ff, 2200);
+	CHECK(ff.id == -1);
+	e = sine(2, 0, 200, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	CHECK(ff_play(&ff, 2, 1, 2500) == 0 && ff.id == 2 && strcmp(vibs(), "") == 0);
+	CHECK(ff_play(&ff, 2, 0, 2600) == 0 && strcmp(vibs(), "") == 0);
+
+	/* gain 0 during a buzz does not cut it; the next repeat is silent */
+	e = rumble(3, 0xffff, 0, 100, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	CHECK(ff_play(&ff, 3, 2, 3000) == 0 && strcmp(vibs(), "100") == 0);
+	ff_set_gain(&ff, 0);
+	CHECK(strcmp(vibs(), "") == 0 && ff.motor);
+	ff_tick(&ff, 3100);
+	CHECK(ff.id == 3 && strcmp(vibs(), "") == 0);
+	ff_tick(&ff, 3200);
+	CHECK(ff.id == -1);
+	ff_set_gain(&ff, 0xffff);
+
+	/* replay.length 0: 15000 ms written, re-armed every 15 s until the stop */
+	e = rumble(4, 0xffff, 0, 0, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	CHECK(ff_play(&ff, 4, 1, 10000) == 0 && strcmp(vibs(), "15000") == 0);
+	CHECK(ff_deadline_ms(&ff, 10000) == 15000);
+	ff_tick(&ff, 24999);
+	CHECK(strcmp(vibs(), "") == 0);
+	ff_tick(&ff, 25000);
+	CHECK(strcmp(vibs(), "15000") == 0 && ff.id == 4);
+	ff_tick(&ff, 40000);
+	CHECK(strcmp(vibs(), "15000") == 0);
+	CHECK(ff_play(&ff, 4, 0, 41000) == 0 && strcmp(vibs(), "0") == 0 && ff.id == -1);
+
+	/* an update while it plays: the running phase keeps its end, the next
+	 * repeat uses the new values */
+	e = rumble(5, 0xffff, 0, 100, 0);
+	CHECK(ff_upload(&ff, &e) == 0);
+	CHECK(ff_play(&ff, 5, 2, 50000) == 0 && strcmp(vibs(), "100") == 0);
+	e = rumble(5, 0xffff, 0, 300, 0);
+	CHECK(ff_upload(&ff, &e) == 0 && ff.id == 5);
+	CHECK(ff_deadline_ms(&ff, 50000) == 100);
+	ff_tick(&ff, 50100);
+	CHECK(strcmp(vibs(), "300") == 0);
+	ff_tick(&ff, 50400);
+	CHECK(ff.id == -1 && strcmp(vibs(), "") == 0);
+}
+
+/* The playback inside the server: buttond's own buzz ends an effect, the
+ * status members, the poll deadline. */
+static void test_ff_server(void)
+{
+	struct server s;
+	struct peer a;
+	struct ff_effect e;
+	char buf[1024];
+	char dir[] = "/tmp/buttond-test-XXXXXX";
+	char vib[128];
+	int poweroffs = g_poweroffs;
+
+	CHECK(mkdtemp(dir) != NULL);
+	snprintf(vib, sizeof(vib), "%s/vibrator", dir);
+	CHECK(vib_read(vib) == -1);
+	CHECK(server_init(&s, 1500, 300, test_log) == 0);
+	s.poweroff = test_poweroff;
+	s.vib_path = vib;
+	s.keys_dev = true;
+	s.ff_dev = true;
+	a = connect_peer(&s);
+	e = rumble(0, 0xffff, 0, 0, 0);
+	CHECK(ff_upload(&s.ff, &e) == 0);
+	CHECK(ff_play(&s.ff, 0, 1, 0) == 0);
+	CHECK(vib_read(vib) == 15000);		/* through the server's vibrator path */
+	CHECK(server_deadline_ms(&s, 0) == 15000);
+	say(&s, &a, "status\n");
+	recv_line(a.fd, buf, sizeof(buf));
+	CHECK(strstr(buf, ",\"watchers\":0,\"uinput\":{\"keys\":true,\"ff\":true},\"ff\":\"playing\"}\n") != NULL);
+	/* power held: buttond's arm buzz replaces the effect, which ends */
+	recog_key(&s.recog, BTN_POWER, 1, 0);
+	recog_tick(&s.recog, 1500);
+	server_drain(&s, 1500);
+	CHECK(s.po_state == PO_ARMED && vib_read(vib) == 100);
+	CHECK(s.ff.id == -1 && !s.ff.motor);
+	CHECK(server_deadline_ms(&s, 1500) == 1500);	/* the READY point, no FF deadline */
+	ff_tick(&s.ff, 15000);
+	CHECK(vib_read(vib) == -1);			/* nothing re-armed */
+	recog_key(&s.recog, BTN_POWER, 0, 2000);
+	server_drain(&s, 2000);
+	server_tick(&s, 2000);
+	CHECK(s.po_state == PO_IDLE && g_poweroffs == poweroffs);
+	s.keys_dev = false;
+	say(&s, &a, "status\n");
+	recv_line(a.fd, buf, sizeof(buf));
+	CHECK(strstr(buf, "\"uinput\":{\"keys\":false,\"ff\":true},\"ff\":\"idle\"}\n") != NULL);
+	close(a.fd);
+	unlink(vib);
+	server_fini(&s);
+	rmdir(dir);
+}
+
 int main(void)
 {
 	chef_log_set_socket("/nonexistent/chef-log-socket");	/* never the host's /dev/log */
@@ -800,6 +1227,12 @@ int main(void)
 	test_server_slow_claimant();
 	test_server_dispatch();
 	test_server_poweroff();
+	test_passthrough();
+	test_ff_upload();
+	test_ff_play();
+	test_ff_erase_replace();
+	test_ff_gain_forever_update();
+	test_ff_server();
 	printf("test-buttond: %d/%d checks passed\n", g_tests - g_failures, g_tests);
 	return g_failures ? 1 : 0;
 }

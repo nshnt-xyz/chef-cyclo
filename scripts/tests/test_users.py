@@ -28,6 +28,7 @@ GROUPS = {
     "qmux": (210, {"gps"}),
     "screen": (211, {"buttond", "chefui"}),
     "vibrator": (212, {"buttond", "powerd", "chefui"}),
+    "uinput": (213, {"buttond"}),
     "net_raw": (3004, {"sensord"}),
     "input": (23, {"buttond", "chefui"}),
     "video": (27, {"root", "chefui"}),
@@ -76,6 +77,9 @@ class Users(unittest.TestCase):
             'RUN+="/bin/chmod 0664 /sys%p/brightness"',
             'ACTION=="add", SUBSYSTEM=="timed_output", KERNEL=="vibrator", RUN+="/bin/chgrp vibrator /sys%p/enable", '
             'RUN+="/bin/chmod 0664 /sys%p/enable"',
+            'ACTION=="add", SUBSYSTEM=="misc", KERNEL=="uinput", GROUP="uinput", MODE="0660"',
+            'ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="chef-vibrator", '
+            'ENV{FEEDBACKD_TYPE}="vibra"',
         ])
         self.assertIn("docs/features/users-and-permissions.md", rules[1])
         groups = {g[0] for g in table("group")}

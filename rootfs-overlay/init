@@ -129,22 +129,26 @@ else
 fi
 
 # Initialize native device metadata before NetworkManager starts. Preserve
-# kernel names; packaged eudev has no predictive net-renaming rule. Coldplug
-# only what needs it, about 10 ms each: net for NetworkManager, and the
-# nodes our non-root daemons open, where the stock rules give event*
-# (input) the input group and fb0 (graphics) the video group, and
+# kernel names; packaged eudev has no predictive net-renaming rule.
+# Coldplug only what needs it, about 10 ms each: net for NetworkManager,
+# and the nodes our non-root daemons open, where the stock rules give
+# event* (input) the input group and fb0 (graphics) the video group, and
 # 70-chef.rules /dev/sensors (ssc) the sensord group, the backlight's
-# brightness (leds) video and the vibrator's enable (timed_output)
-# vibrator. Storage stays out (probing it delayed boot and settle timed
-# out on this kernel), and so does power_supply (0.4 s for the battery
-# alone; powerd's service sets system_temp_level's group instead). Other
-# nodes remain devtmpfs (mdev fallback); new device events are still
-# handled by the resident udev daemon.
+# brightness (leds) video, the vibrator's enable (timed_output) vibrator
+# and /dev/uinput the uinput group. uinput is the one misc node wanted:
+# its own trigger, since --sysname-match in the first one would filter
+# every subsystem by that name. Storage stays out (probing it delayed boot
+# and settle timed out on this kernel), and so does power_supply (0.4 s
+# for the battery alone; powerd's service sets system_temp_level's group
+# instead). Other nodes remain devtmpfs (mdev fallback); new device events
+# are still handled by the resident udev daemon.
 mkdir -p /run/udev
 if /sbin/udevd --daemon; then
     if udevadm trigger --action=add --subsystem-match=net --subsystem-match=input \
            --subsystem-match=graphics --subsystem-match=leds --subsystem-match=timed_output \
-           --subsystem-match=ssc && udevadm settle --timeout=20; then
+           --subsystem-match=ssc &&
+       udevadm trigger --action=add --subsystem-match=misc --sysname-match=uinput &&
+       udevadm settle --timeout=20; then
         touch /run/chef/udev-ready
     else
         log "udev coldplug failed; NetworkManager will remain unavailable and device nodes stay root-only"

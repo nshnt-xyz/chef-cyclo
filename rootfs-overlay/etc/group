@@ -46,4 +46,5 @@ upower:x:207:
 qmux:x:210:gps
 screen:x:211:buttond,chefui
 vibrator:x:212:buttond,powerd,chefui
+uinput:x:213:buttond
 net_raw:x:3004:sensord
