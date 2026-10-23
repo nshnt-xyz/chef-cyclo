@@ -31,7 +31,7 @@ CACHE = REPO / "toolchain/apk/cache"
 # The default runlevel: every service the image starts.
 DEFAULT = {"syslog", "udhcpd", "dbus", "bluetooth", "root-session-bus", "modem-up", "networkmanager",
            "chronyd", "chef-timekeeper", "bt-up", "blesensd", "buttond", "chef-sshd", "gps-manager",
-           "powerd", "sensord", "sensors-up", "chef-settings"}
+           "powerd", "sensord", "sensors-up", "chef-settings", "upower"}
 # Alpine's scripts we run, adjusted by conf.d only, and the package each comes from.
 PACKAGED = {"syslog": "busybox-openrc", "udhcpd": "busybox-extras-openrc", "dbus": "dbus-openrc",
             "bluetooth": "bluez-openrc", "chronyd": "chrony-openrc", "networkmanager": "networkmanager-openrc"}
@@ -267,6 +267,8 @@ class Services(unittest.TestCase):
         self.assertEqual(self.depends("sensors-up").get("need"), {"sensord"})
         self.assertIn("modem-up", self.depends("sensord").get("after"))
         self.assertIn("modem-up", self.depends("gps-manager").get("after"))
+        self.assertEqual(self.depends("upower").get("need"), {"dbus"})
+        self.assertIn("powerd", self.depends("upower").get("after"))
         # the screen first, then the modem, then the rest
         self.assertLessEqual({"dbus", "udhcpd", "modem-up", "chronyd", "bt-up"}, self.depends("chef-settings")["before"])
         self.assertLessEqual({"dbus", "udhcpd", "chronyd", "bt-up"}, self.depends("modem-up")["before"])
@@ -310,7 +312,7 @@ class Services(unittest.TestCase):
     USERS = {"buttond": ("buttond:buttond", "^cap_kill", True), "powerd": ("powerd:powerd", "^cap_kill", True),
              "sensord": ("sensord:sensord", "^cap_net_bind_service", True),
              "blesensd": ("blesensd:blesensd", None, True), "gps-manager": ("gps:gps", None, True),
-             "chef-settings": ("chefui:chefui", None, True),
+             "chef-settings": ("chefui:chefui", None, True), "upower": ("upower:upower", None, True),
              "chronyd": ("root:chrony", None, False)}
 
     def test_daemon_users(self):
@@ -429,8 +431,9 @@ class Services(unittest.TestCase):
         self.assertIn("\nPOWER_LOG_MAX=4194304\t", state)
         self.assertIn("-l '$DATA/v1/power' -L $POWER_LOG_MAX flush", state)
 
-    # The daemons' directories under /run/chef, made by their services every
-    # start with the daemon's user as owner; a failed checkpath fails the start.
+    # The daemons' directories (under /run/chef; upowerd's in /var/lib), made
+    # by their services every start with the daemon's user as owner; a failed
+    # checkpath fails the start.
     RUN_DIRS = {
         "buttond": ["-d -o buttond:buttond -m 0750 /run/chef/buttond"],
         "blesensd": ["-d -o blesensd:blesensd -m 0750 /run/chef/blesensd",
@@ -443,6 +446,7 @@ class Services(unittest.TestCase):
         "chef-settings": ["-d -o chefui:chefui -m 0755 /run/chef/chef-settings",
                           "-d -o chefui:chefui -m 0700 /run/chef/ui",
                           "-f -o chefui:chefui -m 0600 /run/chef/lock/ui-settings.lock"],
+        "upower": ["-d -o upower:upower -m 0755 /var/lib/upower"],
     }
     FAKES = ('checkpath() { echo "checkpath $*" >> "$OUT"; case "$*" in *"${CP_FAIL:-none}"*) return 1;; esac; }\n'
              'chgrp() { echo "chgrp $*" >> "$OUT"; return "${CHGRP_RC:-0}"; }\n'
@@ -701,6 +705,64 @@ class Services(unittest.TestCase):
         pkgs = rootfs.split('PKGS="', 1)[1].split('"', 1)[0].split()
         self.assertIn("openrc", pkgs)
         self.assertEqual({p for p in pkgs if p.endswith("-openrc") and not p.startswith("!")}, set(PACKAGED.values()))
+
+    def test_upower(self):
+        # upowerd itself, its GLib warnings to syslog, nothing on stdout
+        args, _ = Harness(self, self.shell).start("upower")
+        opt = dict(zip(args, args[1:]))
+        self.assertIn("/usr/libexec/upowerd", args)
+        self.assertEqual(opt["--stderr-logger"], "logger -t upowerd -p daemon.warning")
+        self.assertNotIn("--stdout-logger", args)
+        # never D-Bus activated (the package's file would start it as root)
+        build = (REPO / "scripts/mkinitramfs.sh").read_text()
+        self.assertIn('\nrm -f "$ROOT"/usr/share/dbus-1/system-services/org.freedesktop.UPower.service\n', build)
+        self.assertFalse((OVERLAY / "usr/share/dbus-1/system-services/org.freedesktop.UPower.service").exists())
+        pkgs = (REPO / "scripts/mkrootfs.sh").read_text().split('PKGS="', 1)[1].split('"', 1)[0].split()
+        self.assertIn("upower", pkgs)
+        # the whole UPower.conf: it reports, powerd decides (keys as UPower
+        # 1.91.0's up-config.c and up-daemon.c read them)
+        conf = (OVERLAY / "etc/UPower/UPower.conf").read_text().splitlines()
+        self.assertEqual([l for l in conf if l and not l.startswith("#")], [
+            "[UPower]", "EnableWattsUpPro=false", "IgnoreLid=true", "UsePercentageForPolicy=true",
+            "PercentageLow=15.0", "PercentageCritical=5.0", "PercentageAction=2.0",
+            "AllowRiskyCriticalPowerAction=true", "CriticalPowerAction=Ignore"])
+        self.assertFalse((OVERLAY / "etc/UPower/UPower.conf.d").exists())
+
+    @unittest.skipUnless(shutil.which("dbus-daemon"), "needs dbus-daemon")
+    def test_upower_bus_policy(self):
+        # chef-upower.conf on a private bus that, like the system bus, lets
+        # nobody own a name by default, with its user replaced by ours: the
+        # daemon parses it, and that user may own org.freedesktop.UPower and
+        # nothing else.
+        try:
+            import dbus
+        except ImportError:
+            self.skipTest("needs python3 dbus")
+        policy = (OVERLAY / "usr/share/dbus-1/system.d/chef-upower.conf").read_text()
+        self.assertEqual(policy.count('<policy user="upower">'), 1)
+        self.assertEqual(re.findall(r"<(allow|deny)\b[^>]*>", policy), ["allow"])
+        with tempfile.TemporaryDirectory() as tmp:
+            me = __import__("pwd").getpwuid(os.getuid()).pw_name
+            (Path(tmp) / "chef-upower.conf").write_text(policy.replace('user="upower"', f'user="{me}"'))
+            conf = Path(tmp) / "bus.conf"
+            conf.write_text(
+                '<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"\n'
+                ' "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">\n'
+                f'<busconfig><type>session</type><listen>unix:path={tmp}/bus</listen><auth>EXTERNAL</auth>'
+                '<policy context="default"><allow send_destination="*" eavesdrop="true"/>'
+                '<allow eavesdrop="true"/><deny own="*"/></policy>'
+                f'<include>{tmp}/chef-upower.conf</include></busconfig>\n')
+            bus = subprocess.Popen(["dbus-daemon", "--nofork", "--nosyslog", "--config-file", str(conf),
+                                    "--print-address"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            self.addCleanup(lambda: (bus.kill(), bus.wait(), bus.stdout.close(), bus.stderr.close()))
+            address = bus.stdout.readline().strip()
+            self.assertTrue(address, bus.stderr.read() if bus.poll() is not None else "no address")
+            conn = dbus.bus.BusConnection(address)
+            self.addCleanup(conn.close)
+            self.assertEqual(conn.request_name("org.freedesktop.UPower"), dbus.bus.REQUEST_NAME_REPLY_PRIMARY_OWNER)
+            with self.assertRaises(dbus.exceptions.DBusException) as e:
+                conn.request_name("net.hadess.SensorProxy")
+            self.assertEqual(e.exception.get_dbus_name(), "org.freedesktop.DBus.Error.AccessDenied")
 
 
 @unittest.skipUnless(shutil.which("busybox"), "needs busybox")

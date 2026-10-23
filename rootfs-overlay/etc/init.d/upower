@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+# UPower: the battery and the power supplies on the system bus
+# (org.freedesktop.UPower, `upower -d`). It only reports: powerd owns the
+# low-battery and shutdown policy (/etc/UPower/UPower.conf,
+# docs/features/battery-and-charging.md).
+
+description="Power supply reporting on D-Bus"
+supervisor=supervise-daemon
+command=/usr/libexec/upowerd
+# Its own user (docs/features/users-and-permissions.md): the power_supply
+# attributes it reads are world-readable, the bus name is its own
+# (chef-upower.conf), its history files in /var/lib/upower.
+command_user="upower:upower"
+no_new_privs=yes
+# GLib warnings go to stderr
+error_logger="logger -t upowerd -p daemon.warning"
+
+depend() {
+	need dbus
+	use logger
+	after powerd
+}
+
+# Its history directory (tmpfs /var), its own every start.
+start_pre() {
+	checkpath -d -o upower:upower -m 0755 /var/lib/upower
+}

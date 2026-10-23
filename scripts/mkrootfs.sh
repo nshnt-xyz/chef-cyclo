@@ -57,13 +57,19 @@ CACHE=$PWD/toolchain/apk/cache
 # activated (the package's service file) and drops to polkitd itself;
 # polkit-openrc stays out. mkinitramfs.sh removes pkexec,
 # polkit-agent-helper-1 and unix_chkpwd.
+# UPower (docs/features/battery-and-charging.md): upower 1.91.0-r2 (128 KB
+# apk, 468 KB installed; libgudev and libpolkit-gobject are already in the
+# root), with upower-udev, which apk adds on its own (install_if udev). Our
+# OpenRC service upower runs upowerd as user upower; mkinitramfs.sh removes
+# the package's D-Bus activation file, which would start a root upowerd
+# whenever the service is down.
 PKGS="alpine-baselayout musl busybox busybox-extras
       dbus bluez bluez-btmgmt bluez-btmon bluez-deprecated
       qmi-utils gpsd tinyalsa wpa_supplicant iw
       iproute2 util-linux-misc curl ca-certificates-bundle jq tcpdump iperf3
       networkmanager networkmanager-wifi networkmanager-cli networkmanager-tui
       eudev glib apk-tools iptables iptables-legacy chrony e2fsprogs e2fsprogs-extra
-      dropbear openssh-sftp-server tzdata polkit
+      dropbear openssh-sftp-server tzdata polkit upower
       openrc busybox-openrc busybox-extras-openrc dbus-openrc bluez-openrc
       chrony-openrc networkmanager-openrc
       !bluez-deprecated-openrc !dropbear-openrc !eudev-openrc !gpsd-openrc
@@ -94,5 +100,5 @@ ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/
    "$ROOT/sbin/openrc" "$ROOT/sbin/supervise-daemon" "$ROOT/etc/init.d/syslog" \
    "$ROOT/etc/init.d/udhcpd" "$ROOT/etc/init.d/dbus" "$ROOT/etc/init.d/bluetooth" \
    "$ROOT/etc/init.d/chronyd" "$ROOT/etc/init.d/networkmanager" \
-   "$ROOT/usr/lib/polkit-1/polkitd" \
+   "$ROOT/usr/lib/polkit-1/polkitd" "$ROOT/usr/libexec/upowerd" \
    "$ROOT/usr/share/dbus-1/system-services/org.freedesktop.PolicyKit1.service"

@@ -14,7 +14,7 @@ import unittest
 OVERLAY = Path(__file__).resolve().parents[2] / "rootfs-overlay"
 
 USERS = {"buttond": 200, "powerd": 201, "sensord": 202, "blesensd": 203, "gps": 204, "chefui": 205,
-         "polkitd": 206}
+         "polkitd": 206, "upower": 207}
 # group: (gid, members)
 GROUPS = {
     "buttond": (200, {"chefui"}),
@@ -24,6 +24,7 @@ GROUPS = {
     "gps": (204, {"chefui"}),
     "chefui": (205, set()),
     "polkitd": (206, set()),
+    "upower": (207, set()),
     "qmux": (210, {"gps"}),
     "screen": (211, {"buttond", "chefui"}),
     "vibrator": (212, {"buttond", "powerd", "chefui"}),

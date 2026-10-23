@@ -42,6 +42,7 @@ blesensd:x:203:chefui
 gps:x:204:chefui
 chefui:x:205:
 polkitd:x:206:
+upower:x:207:
 qmux:x:210:gps
 screen:x:211:buttond,chefui
 vibrator:x:212:buttond,powerd,chefui

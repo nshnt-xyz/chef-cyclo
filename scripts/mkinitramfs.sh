@@ -149,6 +149,11 @@ done
 # ones before polkit. --- privileged helpers ---
 rm -f "$ROOT"/usr/bin/pkexec "$ROOT"/usr/lib/polkit-1/polkit-agent-helper-1 "$ROOT"/usr/sbin/unix_chkpwd
 # --- end privileged helpers ---
+# UPower's D-Bus activation file: with it the bus would start upowerd as
+# root (its User=) for any caller whenever the OpenRC service upower is
+# down. Only the service starts it, as user upower. The rest of the
+# package stays.
+rm -f "$ROOT"/usr/share/dbus-1/system-services/org.freedesktop.UPower.service
 # Busybox applet links at build time (read-only root at runtime).
 scripts/link-applets.sh "$ROOT"
 # NetworkManager (rc-manager=unmanaged) keeps its resolver file in /run.
