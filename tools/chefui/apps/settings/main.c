@@ -36,8 +36,9 @@
  *
  * Device captures: the running app writes
  * /run/chef/chef-settings/snapshot.ppm (<--run DIR>/chef-settings/snapshot.ppm)
- * on SIGUSR1. A root-owned /run/chef/chef-settings/args (one option per line)
- * is read once at start and deleted, so the next respawn runs normally:
+ * on SIGUSR1. A root-owned /run/chef/chef-settings/args (one option per line;
+ * 0644, readable by chefui, which this runs as) is read once at start and
+ * deleted, so the next respawn runs normally:
  * that is how a capture with --fake-state/--page/--theme runs under its
  * supervisor.
  *

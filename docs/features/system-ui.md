@@ -164,15 +164,17 @@ until 123456789            CLOCK_MONOTONIC ms when the step ends (optional)
 With `until` the card counts down whole seconds (`12 s`); a single 1 s timer exists
 only while such a card is shown, so a screen without a prompt costs nothing. The
 file is noticed by inotify on the directory (no polling); a writer makes a temp file
-in `/run/chef/chef-settings` and renames it over `prompt`. Same trust rules as the args
-file: a regular file owned by root, not group or other writable, not a symlink, at
-most 1 KiB, otherwise ignored with one log line. Text is ASCII, other bytes show as
-`?`. Example writer:
+in `/run/chef/chef-settings` and renames it over `prompt`. Stricter trust rules than
+the args file (a root-owned regular file, not a symlink): also not group or other
+writable, and at most 1 KiB, otherwise ignored with one log line. It must also be
+readable by `chefui`, the user chef-settings runs as: make it 0644 (a 0600 file is
+ignored with `prompt ignored: ...: Permission denied`). Text is ASCII, other bytes
+show as `?`. Example writer:
 
 ```sh
 now=$(awk '{printf "%d", $1 * 1000}' /proc/uptime)
 printf 'title STEP 3/9\ntext COVER the sensor\nuntil %d\n' $((now + 12000)) > /run/chef/chef-settings/prompt.tmp
-chmod 600 /run/chef/chef-settings/prompt.tmp && mv /run/chef/chef-settings/prompt.tmp /run/chef/chef-settings/prompt
+chmod 644 /run/chef/chef-settings/prompt.tmp && mv /run/chef/chef-settings/prompt.tmp /run/chef/chef-settings/prompt
 rm -f /run/chef/chef-settings/prompt      # hide it
 ```
 
@@ -698,8 +700,9 @@ the open entry page's keyboard, for captures; a real passphrase never comes
 from arguments), `--page gps|gps-sats|bt|bt-sensor|sound|time|storage|about` (sensor detail uses the first listed kind), `--prompt-uid UID`, `--theme dark|light|auto`, `--auto-brightness on|off`, `--brightness PCT`, `--clock 12|24` and `--sleep
 30|60|300|0` (this run only, not saved), `--snapshot PATH [--snapshot-after MS]` (write the frame as PPM and
 exit), `--data DIR --run DIR` (settings roots). On the phone a root-owned
-`/run/chef/chef-settings/args` (options, one per line) is read once at start and
-deleted, and `kill -USR1 $(pidof chef-settings)` writes the current frame to
+`/run/chef/chef-settings/args` (options, one per line; readable by `chefui`:
+root's umask 022 makes it 0644, so never `chmod 600` it, or it is skipped without
+a log line and left in place) is read once at start and deleted, and `kill -USR1 $(pidof chef-settings)` writes the current frame to
 `/run/chef/chef-settings/snapshot.ppm` (see `chefui_snapshot()` in the
 [platform guide](ui-platform.md#snapshots)).
 

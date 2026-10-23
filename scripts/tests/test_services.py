@@ -367,6 +367,12 @@ class Services(unittest.TestCase):
                          ["bindcmdaddress /run/chrony/chronyd.sock", "bindcmdaddress 127.0.0.1"])
         self.assertFalse([l for l in lines if l.startswith(("cmdport", "cmdallow", "allow"))])
         self.assertIn("port 0", lines)
+        # the GPS refclock, exactly: chrony takes driver options after a colon
+        # in the driver parameter and exits on `SHM 2 perm=0660` ("Invalid
+        # option in refclock directive", live 2026-10-23); no chronyd on the
+        # host to parse it, so the line is pinned
+        self.assertEqual([l for l in lines if l.startswith("refclock ")],
+                         ["refclock SHM 2:perm=0660 refid GPS offset 0.013 delay 1.0 precision 1e-3"])
 
     def test_preconditions_fail_the_start(self):
         h = Harness(self, self.shell)

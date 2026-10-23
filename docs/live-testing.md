@@ -111,7 +111,11 @@ does not work on the read-only root: change
   belongs to chef-settings' user (`chefui`). That is the one exception to
   the rule that root never creates or writes through a path in a daemon's
   directory ([users and permissions](features/users-and-permissions.md)):
-  they are typed by hand, and nothing automatic runs them.
+  they are typed by hand, and nothing automatic runs them. `args` and
+  `prompt` must stay root-owned and readable by `chefui` (0644, which
+  root's umask 022 gives): a 0600 `prompt` is ignored with `prompt
+  ignored: ...: Permission denied`, a 0600 `args` is skipped without a
+  log line and left in place.
 - **Background jobs die with the session.** Closing telnet SIGHUPs foreground
   and `&` jobs. Start anything that must outlive the command with
   `setsid CMD </dev/null >/run/CMD.out 2>&1 &`.

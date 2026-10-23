@@ -12,9 +12,10 @@
  *
  * With `until` the card counts down whole seconds ("12 s"); one 1 s timer
  * exists only while such a card is shown. The file is noticed by inotify (a
- * writer renames a temp file over it); same trust rules as the args file:
+ * writer renames a temp file over it); stricter rules than the args file:
  * a regular file, owned by root, not group/other writable, not a symlink,
- * at most 1 KiB; anything else is ignored with one log line. Text is
+ * at most 1 KiB, readable by the user this runs as (chefui on the phone:
+ * 0644); anything else is ignored with one log line. Text is
  * ASCII (other bytes show as '?'). The card is never clickable, never counts
  * as activity and never wakes the screen. See docs/features/system-ui.md.
  */
