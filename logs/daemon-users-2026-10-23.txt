@@ -151,3 +151,37 @@ Live check (coordinator, 2026-10-23 about 22:34 to 23:15 IST)
     to a root directory, rc-service blesensd start failed ("checkpath:
     open: Symbolic link loop"), nothing was created or chowned through
     the link; with the link removed the service started as before.
+
+Install (coordinator, 2026-10-23 about 23:16 to 23:35 IST)
+  Built at a clean 49f98a1 (the record commit; image-info dirty 0) with
+  SKIP_KERNEL=1 scripts/mkinstall.sh on the existing kernel #23
+  (Image.gz-dtb 3a907d00...). Code identical to the live-checked 84fda46
+  tree (only docs and this log changed since).
+    system_a  out/system_a-7fb63760.img
+              sha256 7fb637609e8887c91497671bd9b89f4e5932e06d9f3eb014cc8c494724f761ab
+    boot_a    out/boot-stage1-6d7adb8d.img
+              sha256 6d7adb8d9f51f8cd14546d110313fd97b671eda62062c2c3c65ee93a75913529
+    RAM image of the same tree: out/boot-ram-411685e5.img
+  Hashes of the settings, gps/enabled and NetworkManager.state recorded
+  first. chef-reboot bootloader from RAM image 2 (its ring saved as
+  syslog-215, chronyd's drift written); current-slot a; fastboot flash
+  system_a OKAY (write 20.7 s); fastboot boot of the stage-1 image:
+  "system_a build stamp matches; switch_root", commit 49f98a1 dirty 0, /
+  ro norecovery, /data rw; chef-reboot bootloader again; fastboot flash
+  boot_a OKAY; fastboot reboot.
+  Installed regression: #23, image-info 49f98a1 dirty 0, boot_a
+  successful, 18 services started and none stopped or crashed, the six
+  daemons and chronyd as their users, the SHM segment root 660, settings,
+  gps/enabled and NetworkManager.state byte-identical to before, buttond
+  and gps-manager answering status; kmsg: no Call trace, WARNING or BT
+  hardware error.
+  Boot times: the first boot after the flash started telnetd at 8.72 s
+  and chef-settings at 8.92 s, the extra 3 s between udevd's start and
+  chef-storage's e2fsck line (each coldplugged subsystem re-triggered
+  afterwards took 10 to 20 ms; e2fsck -n 0.07 s). After an ordinary
+  reboot (telnet back 59 s after the command, bootreason reboot, ring
+  saved as syslog-218): telnetd 5.45 s, chef-settings 5.66 s (6.15 s on
+  the OpenRC pair), udevd to chef-storage 0.25 s. The first-boot gap was
+  not seen again.
+  Fallbacks in out/: 96e8c87f + 2915db3c (7b2a2f6, first), then
+  9a28e590 + 981d4f03, 77dd0a57 + f5338097.
