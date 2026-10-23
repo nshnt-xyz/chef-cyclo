@@ -5,14 +5,16 @@
 #
 # Under one fakeroot session the tree is copied to out/system-root, made
 # root-owned (as the cpio's --owner=+0:+0), the D-Bus launch helper gets
-# root:messagebus 4750 (stage 2 cannot chown a read-only root), mtimes are
-# set to SOURCE_DATE_EPOCH, the manifest and /etc/chef/build-stamp are
-# written (scripts/chef-stamp.py) and mke2fs packs it with the pinned
-# features in scripts/system-mke2fs.conf, label chefroot, no journal, UUID
-# and hash seed from the manifest hash. Then the image is checked: label,
-# feature list, block count, e2fsck -fn, the stamp and the helper's mode
-# read back with debugfs. Outputs: out/system_a.img, out/system_a.stamp,
-# out/system_a.manifest.
+# root:messagebus 4750 (stage 2 cannot chown a read-only root), polkit's
+# /etc/polkit-1/rules.d root:polkitd 0750 (as polkit-common ships it; apk
+# --usermode drops the group), mtimes are set to SOURCE_DATE_EPOCH, the
+# manifest and /etc/chef/build-stamp are written (scripts/chef-stamp.py)
+# and mke2fs packs it with the pinned features in
+# scripts/system-mke2fs.conf, label chefroot, no journal, UUID and hash
+# seed from the manifest hash. Then the image is checked: label, feature
+# list, block count, e2fsck -fn, the stamp and the helper's and the rules
+# directory's modes read back with debugfs. Outputs: out/system_a.img,
+# out/system_a.stamp, out/system_a.manifest.
 #
 # Host /usr/sbin/mke2fs (e2fsprogs >= 1.47) by full path: PATH may find the
 # Android SDK's mke2fs first.
@@ -26,6 +28,7 @@ SYMVERS=${SYMVERS:-out/kernel/Module.symvers}
 RELEASE=$(cat "${KRELEASE:-out/kernel/include/config/kernel.release}")
 BYTES=2684354560
 HELPER=usr/libexec/dbus-daemon-launch-helper
+RULES=etc/polkit-1/rules.d
 E2=/usr/sbin
 [ -x "$SRC/init" ] || { echo "run scripts/mkinitramfs.sh first" >&2; exit 1; }
 # Host keys are only ever made on the phone (docs/features/ssh.md).
@@ -34,15 +37,17 @@ for t in mke2fs e2fsck debugfs dumpe2fs; do
     [ -x "$E2/$t" ] || { echo "missing $E2/$t (e2fsprogs)" >&2; exit 1; }
 done
 command -v fakeroot >/dev/null || { echo "fakeroot is required" >&2; exit 1; }
-# Account IDs the helper relies on; mkinitramfs.sh gates the same entries.
+# Account IDs the helper relies on (mkinitramfs.sh gates the same entries),
+# and polkitd's group for its rules directory.
 grep -qx 'messagebus:x:101:101:[^:]*:[^:]*:[^:]*' "$SRC/etc/passwd" &&
     grep -q '^messagebus:x:101:' "$SRC/etc/group" || { echo "messagebus is not 101:101" >&2; exit 1; }
+grep -q '^polkitd:x:206:' "$SRC/etc/group" || { echo "polkitd is not gid 206" >&2; exit 1; }
 
 SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}
 E2FSPROGS_FAKE_TIME=$SOURCE_DATE_EPOCH
 MKE2FS_CONFIG=$PWD/scripts/system-mke2fs.conf
 export SOURCE_DATE_EPOCH E2FSPROGS_FAKE_TIME MKE2FS_CONFIG KERNEL SYMVERS RELEASE
-export SRC TREE IMG BYTES HELPER E2
+export SRC TREE IMG BYTES HELPER RULES E2
 
 rm -f "$IMG" out/system_a.stamp out/system_a.manifest
 fakeroot -- sh -eu -c '
@@ -52,6 +57,8 @@ fakeroot -- sh -eu -c '
     chmod 755 "$TREE"
     chown 0:101 "$TREE/$HELPER"
     chmod 4750 "$TREE/$HELPER"
+    chown 0:206 "$TREE/$RULES"
+    chmod 750 "$TREE/$RULES"
     rm -f "$TREE/etc/chef/build-stamp"
     find "$TREE" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
     python3 scripts/chef-stamp.py manifest "$TREE" > out/system_a.manifest
@@ -81,6 +88,9 @@ FEATURES=$(field 'Filesystem features')
 "$E2/debugfs" -R "stat /$HELPER" "$IMG" 2>/dev/null | grep -Eq 'Mode: +04750' &&
     "$E2/debugfs" -R "stat /$HELPER" "$IMG" 2>/dev/null | grep -Eq 'User: +0 +Group: +101 ' ||
     { echo "launch helper is not root:messagebus 4750 in $IMG" >&2; exit 1; }
+"$E2/debugfs" -R "stat /$RULES" "$IMG" 2>/dev/null | grep -Eq 'Mode: +0750' &&
+    "$E2/debugfs" -R "stat /$RULES" "$IMG" 2>/dev/null | grep -Eq 'User: +0 +Group: +206 ' ||
+    { echo "polkit rules directory is not root:polkitd 0750 in $IMG" >&2; exit 1; }
 "$E2/debugfs" -R 'stat /init' "$IMG" 2>/dev/null | grep -Eq 'User: +0 +Group: +0 ' ||
     { echo "/init is not root-owned in $IMG" >&2; exit 1; }
 python3 scripts/chef-stamp.py check out/system_a.stamp "$TREE" "$KERNEL" "$SYMVERS" "$RELEASE"

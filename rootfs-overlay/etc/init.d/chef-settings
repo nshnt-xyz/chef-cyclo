@@ -12,6 +12,12 @@
 description="System UI"
 supervisor=supervise-daemon
 command=/usr/bin/chef-settings
+# Its own user (docs/features/users-and-permissions.md): the panel, touch
+# and backlight (video, input), the screen handover (screen), buzz
+# (vibrator), NetworkManager through polkit (netdev) and the four daemons'
+# sockets through their groups.
+command_user="chefui:chefui"
+no_new_privs=yes
 
 # Right after syslog: the screen lights first, the slower services follow.
 depend() {

@@ -981,6 +981,19 @@ static void test_storage_usage_scan(void)
 	CHECK(u.root_ino > 0 && u.mount_id > 0 && u.sampled_mono_ms > 0);
 	CHECK(u.maps_bytes + u.rides_bytes + u.routes_bytes + u.other_bytes <=
 	      u.total_bytes - u.free_bytes);
+	/* v1 searchable but not readable, as root 0711 is for chefui: the owner
+	 * stands in with 0111 (a test runs as no other uid); same exact result */
+	{
+		struct sys_usage_result full = u;
+
+		snprintf(path, sizeof(path), "%s/v1", root);
+		CHECK(chmod(path, 0111) == 0);
+		scan_quiet(root, fixture_mountpoint, NULL, &u);
+		CHECK(chmod(path, 0700) == 0);
+		CHECK(u.known && u.ours && u.complete);
+		CHECK(u.maps_bytes == full.maps_bytes && u.rides_bytes == full.rides_bytes &&
+		      u.routes_bytes == full.routes_bytes);
+	}
 	/* the scan runs on the settings worker: musl gives a thread 128 KB of
 	 * stack, so it must not keep its inode table there (it crashed the
 	 * app on the phone while glibc's 8 MB hid it) */

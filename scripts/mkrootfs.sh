@@ -49,17 +49,25 @@ CACHE=$PWD/toolchain/apk/cache
 # subpackages apk would add on its own (install_if: a package's -openrc
 # once openrc is in, ifupdown-ng's executors): scripts we never run, and
 # each init.d script costs time in OpenRC's dependency scan.
+# polkit (docs/features/users-and-permissions.md): 127-r2 (133 KB
+# installed) with polkit-common (371 KB), polkit-noelogind-libs (200 KB),
+# duktape-libs (329 KB, its JavaScript rules engine) and linux-pam (3.3 MB,
+# 2.7 MB of it PAM modules nothing here loads), so NetworkManager can let
+# the netdev group (chef-settings, as chefui) drive it. polkitd is D-Bus
+# activated (the package's service file) and drops to polkitd itself;
+# polkit-openrc stays out. mkinitramfs.sh removes pkexec,
+# polkit-agent-helper-1 and unix_chkpwd.
 PKGS="alpine-baselayout musl busybox busybox-extras
       dbus bluez bluez-btmgmt bluez-btmon bluez-deprecated
       qmi-utils gpsd tinyalsa wpa_supplicant iw
       iproute2 util-linux-misc curl ca-certificates-bundle jq tcpdump iperf3
       networkmanager networkmanager-wifi networkmanager-cli networkmanager-tui
       eudev glib apk-tools iptables iptables-legacy chrony e2fsprogs e2fsprogs-extra
-      dropbear openssh-sftp-server tzdata
+      dropbear openssh-sftp-server tzdata polkit
       openrc busybox-openrc busybox-extras-openrc dbus-openrc bluez-openrc
       chrony-openrc networkmanager-openrc
       !bluez-deprecated-openrc !dropbear-openrc !eudev-openrc !gpsd-openrc
-      !iperf3-openrc !iptables-openrc !udev-init-scripts-openrc
+      !iperf3-openrc !iptables-openrc !polkit-openrc !udev-init-scripts-openrc
       !wpa_supplicant-openrc !ifupdown-ng-iproute2 !ifupdown-ng-wifi"
 
 rm -rf "$ROOT"
@@ -85,4 +93,6 @@ ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/
    "$ROOT/usr/share/zoneinfo/Asia/Kolkata" \
    "$ROOT/sbin/openrc" "$ROOT/sbin/supervise-daemon" "$ROOT/etc/init.d/syslog" \
    "$ROOT/etc/init.d/udhcpd" "$ROOT/etc/init.d/dbus" "$ROOT/etc/init.d/bluetooth" \
-   "$ROOT/etc/init.d/chronyd" "$ROOT/etc/init.d/networkmanager"
+   "$ROOT/etc/init.d/chronyd" "$ROOT/etc/init.d/networkmanager" \
+   "$ROOT/usr/lib/polkit-1/polkitd" \
+   "$ROOT/usr/share/dbus-1/system-services/org.freedesktop.PolicyKit1.service"

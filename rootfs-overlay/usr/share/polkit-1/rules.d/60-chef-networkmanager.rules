@@ -1,0 +1,11 @@
+// NetworkManager for the netdev group (chef-settings runs as chefui, a
+// member): every org.freedesktop.NetworkManager.* action is allowed without
+// authentication. Root is always allowed by NetworkManager itself; anyone
+// else gets the defaults of NetworkManager's policy. The stock
+// 50-default.rules keeps its wheel admin rule. See
+// docs/features/users-and-permissions.md.
+polkit.addRule(function(action, subject) {
+	if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 &&
+	    subject.isInGroup("netdev"))
+		return polkit.Result.YES;
+});

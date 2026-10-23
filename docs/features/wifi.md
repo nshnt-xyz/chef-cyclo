@@ -52,7 +52,8 @@ Wi-Fi down leaves the module and firmware resident and disables wlan0; it does
 not establish that the WLAN hardware is powered off.
 
 The image binds telnet to 172.16.42.1. Keep gpsd without `-G` so its client port stays on loopback. Earlier manual images had no chrony. New standard builds add client-only chrony
-with `port 0`/`cmdport 0` and root-only Unix control, described in the
+with `port 0`, root-only Unix control and monitoring-only commands on
+127.0.0.1, described in the
 [standard guide](wifi-ui.md). Wi-Fi teardown never controls the
 shared BT rails, and bt-up retains its vendor pre-shutdown restart sequence.
 

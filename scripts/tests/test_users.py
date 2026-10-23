@@ -4,7 +4,8 @@ nodes and sysfs attributes a group (docs/features/users-and-permissions.md).
 Static checks of rootfs-overlay/etc/passwd, etc/group and
 usr/lib/udev/rules.d/70-chef.rules: the fixed IDs (files on /data keep
 numeric owners across images, so they never change once installed), the
-group members, and that every group a rule names exists.
+group members, and that every group a rule names exists; and
+NetworkManager's polkit authorization with our one rule.
 """
 from pathlib import Path
 import re
@@ -79,6 +80,21 @@ class Users(unittest.TestCase):
         groups = {g[0] for g in table("group")}
         named = set(re.findall(r'GROUP="(\w+)"', "\n".join(body))) | set(re.findall(r"chgrp (\w+)", "\n".join(body)))
         self.assertLessEqual(named, groups)
+
+    def test_networkmanager_through_polkit(self):
+        # NM asks polkit; the one rule gives netdev (chefui) every NM action
+        conf = (OVERLAY / "etc/NetworkManager/conf.d/90-chef.conf").read_text().splitlines()
+        self.assertEqual([l for l in conf if l.startswith("auth-polkit")], ["auth-polkit=true"])
+        rule = (OVERLAY / "usr/share/polkit-1/rules.d/60-chef-networkmanager.rules").read_text().splitlines()
+        self.assertEqual([l for l in rule if not l.startswith("//")], [
+            'polkit.addRule(function(action, subject) {',
+            '\tif (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 &&',
+            '\t    subject.isInGroup("netdev"))',
+            '\t\treturn polkit.Result.YES;',
+            '});',
+        ])
+        self.assertIn("chefui", dict((g[0], g[3]) for g in table("group"))["netdev"].split(","))
+        self.assertFalse((OVERLAY / "etc/polkit-1").exists())
 
 
 if __name__ == "__main__":

@@ -137,6 +137,18 @@ for n in $keep; do
         { echo "no /etc/init.d/$n in the image" >&2; exit 1; }
 done
 # --- end OpenRC prune ---
+# Privileged helpers nothing here uses, removed like the unused init
+# scripts (apk --usermode already left them without their bits; gone, no
+# later fixup can make them privileged): polkit's pkexec and
+# polkit-agent-helper-1 (setuid root in the package; no authentication
+# agent runs, polkitd only answers NetworkManager's checks) and
+# unix_chkpwd (setgid shadow; it came with linux-pam for polkit and serves
+# pam_unix password checks for non-root users, which nothing here does).
+# linux-pam itself stays. A host test (scripts/tests/test_setuid.py) checks
+# that the packages' setuid and setgid files left after this block are the
+# ones before polkit. --- privileged helpers ---
+rm -f "$ROOT"/usr/bin/pkexec "$ROOT"/usr/lib/polkit-1/polkit-agent-helper-1 "$ROOT"/usr/sbin/unix_chkpwd
+# --- end privileged helpers ---
 # Busybox applet links at build time (read-only root at runtime).
 scripts/link-applets.sh "$ROOT"
 # NetworkManager (rc-manager=unmanaged) keeps its resolver file in /run.

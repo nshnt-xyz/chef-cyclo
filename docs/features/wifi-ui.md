@@ -61,8 +61,12 @@ retained. Compatible tools can be installed with ordinary `apk add`; packages
 and runtime files remain RAM-only. With a provisioned phase 2 data volume,
 saved keyfiles persist through the [storage bind](storage.md); `save no`
 profiles remain volatile. There are no seeded credentials or
-connections. Root is the current authorization scope; a future nonroot UI
-needs deliberate D-Bus/polkit authorization.
+connections. NetworkManager authorizes through polkit (`auth-polkit=true`):
+root is always allowed, and the netdev group (chef-settings runs as
+`chefui`, a member) gets every NetworkManager action from
+`usr/share/polkit-1/rules.d/60-chef-networkmanager.rules`; anyone else gets
+the policy's defaults. polkitd is D-Bus activated on the first check
+([users and permissions](users-and-permissions.md)).
 
 For an interactive WPA2 personal connection, create a volatile profile without
 a saved secret, then answer nmcli's secret prompt:
@@ -120,8 +124,10 @@ requires a real wall clock and the packaged CA bundle; keep certificate checks
 enabled. A foreground chronyd (dedicated chrony UID/GID102, privilege drop via libcap) starts independently at boot as an NTP client
 (pool.ntp.org, initial large-clock step permitted for the first three updates).
 Its private drift/PID and root-accessible chronyc Unix socket are under /run/chrony. `port 0`
-and `cmdport 0` disable NTP server and UDP command listeners; no allow rule or
-RTC write is configured. A bounded, best-effort NetworkManager dispatcher refreshes chrony pool DNS
+disables the NTP server; the UDP command port listens on 127.0.0.1 only, where
+chrony accepts monitoring commands (`tracking`, `sources`) from any local user
+and nothing else (the default `cmdallow`). No allow rule or RTC write is
+configured. A bounded, best-effort NetworkManager dispatcher refreshes chrony pool DNS
 on WLAN up and DHCP updates, because chrony initially starts without DNS.
 A refresh failure leaves WLAN connected and time synchronization pending.
 Network availability and a reachable pool are required;

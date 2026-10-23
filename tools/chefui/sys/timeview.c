@@ -1,7 +1,9 @@
 /*
  * timeview.c - where the current time came from, for the Time page. While
- * the page is visible it asks chrony (`chronyc -c -n -h <socket> tracking`,
- * posix_spawn, no shell) on entry and every 30 s, and parses the answer
+ * the page is visible it asks chrony (`chronyc -c -n -h 127.0.0.1 tracking`,
+ * posix_spawn, no shell; chronyd's localhost command port, which answers
+ * monitoring commands for any user, as chef-settings is not root or chrony)
+ * on entry and every 30 s, and parses the answer
  * strictly; the boot provenance in /run/chef/state/time is read on the
  * settings worker. All of it runs on the UI thread (the loop's fd watch and
  * LVGL timers) except the provenance read; nothing blocks.
@@ -253,7 +255,7 @@ static bool query_start(void)
 #ifdef CHEFUI_TEST
 		test_executable ? test_executable :
 #endif
-		"/usr/bin/chronyc"), "-c", "-n", "-h", "/run/chrony/chronyd.sock",
+		"/usr/bin/chronyc"), "-c", "-n", "-h", "127.0.0.1",
 		"tracking", NULL };
 	char *envp[] = { "LC_ALL=C", "PATH=/usr/bin:/bin", NULL };
 

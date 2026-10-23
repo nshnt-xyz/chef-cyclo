@@ -247,10 +247,11 @@ static int write_all(int fd, const char *p, size_t n)
 	return 0;
 }
 
-/* mkdir 0700 (or keep it), make the entry durable in its parent (every
- * time: a previous fsync may have failed), tmp 0600 in the same
- * directory, fsync, rename, fsync the directory; under a lock in
- * <run>/lock. */
+/* mkdir 0700 (or keep it), tmp 0600 in the same directory, fsync, rename,
+ * fsync the directory; under a lock in <run>/lock. The parent is never
+ * fsynced: /data/v1/ui is made by chef-storage every boot, which syncs
+ * /data/v1 itself (and chefui cannot open /data/v1, root 0711), and /run
+ * is tmpfs. */
 static int do_save(const struct job *j)
 {
 	char buf[512], parent[260], dir[280], path[300], tmp[300], lockdir[260], lock[280];
@@ -290,9 +291,6 @@ static int do_save(const struct job *j)
 		r = -errno;
 		goto out;
 	}
-	r = fsync_dir(parent);
-	if (r)
-		goto out;
 	fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0600);
 	if (fd < 0) {
 		r = -errno;

@@ -310,6 +310,7 @@ class Services(unittest.TestCase):
     USERS = {"buttond": ("buttond:buttond", "^cap_kill", True), "powerd": ("powerd:powerd", "^cap_kill", True),
              "sensord": ("sensord:sensord", "^cap_net_bind_service", True),
              "blesensd": ("blesensd:blesensd", None, True), "gps-manager": ("gps:gps", None, True),
+             "chef-settings": ("chefui:chefui", None, True),
              "chronyd": ("root:chrony", None, False)}
 
     def test_daemon_users(self):
@@ -359,6 +360,13 @@ class Services(unittest.TestCase):
         self.assertNotIn(cmd["chronyd"][0], ("/run/chrony/chronyd.pid",))
         conf = (OVERLAY / "etc/chrony/chrony.conf").read_text()
         self.assertIn("pidfile /run/chrony/chronyd.pid", conf)
+        # commands: the Unix socket and UDP on localhost (the default port),
+        # never anywhere else; no NTP server
+        lines = conf.splitlines()
+        self.assertEqual([l for l in lines if l.startswith("bindcmdaddress ")],
+                         ["bindcmdaddress /run/chrony/chronyd.sock", "bindcmdaddress 127.0.0.1"])
+        self.assertFalse([l for l in lines if l.startswith(("cmdport", "cmdallow", "allow"))])
+        self.assertIn("port 0", lines)
 
     def test_preconditions_fail_the_start(self):
         h = Harness(self, self.shell)

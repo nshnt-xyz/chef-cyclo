@@ -365,7 +365,10 @@ static void usage_scan(const char *data, bool (*mountpoint)(const char *),
 		r.complete = false;
 		goto done;
 	}
-	v1fd = openat(rootfd, "v1", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+	/* O_PATH: v1 is root 0711, so chefui may search it but not read it. The
+	 * scan never lists v1, it only openat()s the category names under it,
+	 * and fd_mount_id's fdinfo has mnt_id for an O_PATH descriptor too. */
+	v1fd = openat(rootfd, "v1", O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
 	if (v1fd < 0) {
 		if (errno != ENOENT)
 			r.complete = false;

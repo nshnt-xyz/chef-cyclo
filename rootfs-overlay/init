@@ -81,6 +81,15 @@ dbus-uuidgen --ensure 2>/dev/null
 mkdir -p /run/chrony /var/lib/chrony && chown chrony:chrony /run/chrony /var/lib/chrony &&
     chmod 700 /run/chrony /var/lib/chrony || log "chrony directories not set up; chronyd may not start"
 
+# polkitd (as polkitd) reads /etc/polkit-1/rules.d, which polkit-common
+# ships root:polkitd 0750; apk --usermode drops the group. system_a has it
+# from the build; set it in the RAM cpio. Without it polkitd logs an error
+# on each rules load (ours are in /usr/share/polkit-1/rules.d).
+RULES=/etc/polkit-1/rules.d
+[ "$(stat -c '%u:%g %a' "$RULES")" = '0:206 750' ] ||
+    { chown root:polkitd "$RULES" && chmod 0750 "$RULES"; } ||
+    log "polkit rules directory not set up; polkitd cannot read it"
+
 # apk --usermode/no-scripts omit the privileged activation helper metadata.
 # Only the system-bus account may execute this root helper. system_a has it
 # from the build (uid 0, gid 101 messagebus, 4750); the RAM cpio is all

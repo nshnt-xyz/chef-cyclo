@@ -110,14 +110,30 @@ int main(void)
 	sys_timeview_test_waitpid(hook_waitpid);
 	sys_timeview_init();
 
-	/* success; leaving clears the verified state */
-	script("printf '" CSV "'\n");
+	/* success, over chronyd's localhost command port; leaving clears the
+	 * verified state */
+	snprintf(body, sizeof(body), "echo \"$*\" > %s/args\nprintf '" CSV "'\n", dir);
+	script(body);
 	sys_timeview_want(true);
 	CHECK(fakeloop_run_until(verified, NULL, 1000));
 	CHECK(sys_state.timeview.source == SYS_TIME_GPS);
 	CHECK(sys_state.timeview.reference_epoch == 1791448320.0);
 	sys_timeview_want(false);
 	CHECK(!sys_state.timeview.verified);
+	{
+		char path[300], args[128] = { 0 };
+		FILE *f;
+
+		snprintf(path, sizeof(path), "%s/args", dir);
+		f = fopen(path, "r");
+		CHECK(f != NULL);
+		if (f) {
+			CHECK(fgets(args, sizeof(args), f) != NULL);
+			fclose(f);
+			unlink(path);
+		}
+		CHECK(strcmp(args, "-c -n -h 127.0.0.1 tracking\n") == 0);
+	}
 
 	/* EOF strictly before exit: stdout is closed, the child lives on for 0.3 s */
 	script("printf '" CSV "'\nexec >&-\nsleep 0.3\nexit 0\n");

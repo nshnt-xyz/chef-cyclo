@@ -228,9 +228,11 @@ its example (`14:16 instead of 2:16 pm`). The last-sync line is
 
 *Where the time came from.* `/run/chef/state/time` is boot provenance only. The
 page therefore asks chrony while it is visible: on entry or wake, then every
-30 s, `chronyc -c -n -h /run/chrony/chronyd.sock tracking` (fixed argv,
-`LC_ALL=C`, posix_spawn, no shell), parsed strictly (14 CSV columns, leap
-Normal, finite reference time in 2026 to 2100 not after now, no `LOCL`).
+30 s, `chronyc -c -n -h 127.0.0.1 tracking` (chronyd's localhost command
+port, which answers monitoring commands for any user: chef-settings runs as
+`chefui`; fixed argv, `LC_ALL=C`, posix_spawn, no shell), parsed strictly (14
+CSV columns, leap Normal, finite reference time in 2026 to 2100 not after now,
+no `LOCL`).
 Reference `GPS` with refid `47505300` reads `Set by GPS`, a numeric NTP
 address `Set by network`; anything else is unverified. Failure or leaving the
 page clears the verified state at once (no stale claim). The last-sync time
@@ -251,7 +253,9 @@ includes filesystem metadata, service state and reserved blocks (it is not
 the OS image: that is on `system_a`). The scan runs on the settings worker
 as a separate job: descriptor-relative (`openat`, `O_NOFOLLOW`), never
 following symlinks, staying on `/data`'s mount (`mnt_id` from fdinfo), hard
-links counted once (first category wins), only metadata. Bounds: depth 32,
+links counted once (first category wins), only metadata. `/data/v1` is root
+0711, so the scan opens it `O_PATH` (search, never listed) and opens only the
+three names under it. Bounds: depth 32,
 10000 entries, 10000 inode keys and 250 ms of monotonic time; on a bound, an
 error or a capacity change during the walk the numbers are shown as
 estimates (`~6.4 GB`, note `Usage estimate; storage changed or could not be
@@ -512,8 +516,9 @@ picker. The file follows
 the chef-state rules: checked version, layout, ranges and checksum, a bad
 file ignored with a log line (defaults, replaced at the next save), never
 fatal. Writes are debounced 2 s after the last change and flushed at exit:
-the `ui` directory (0700; `/data/v1` itself is never created here) has its
-parent fsynced on every save, then a 0600 temp file is written, fsynced,
+in the `ui` directory (0700; `/data/v1` itself is never created here, and
+never fsynced: chef-storage makes `/data/v1/ui` and syncs `/data/v1` at boot,
+and `chefui` cannot open it, root 0711) a 0600 temp file is written, fsynced,
 renamed and the directory fsynced, under `/run/chef/lock/ui-settings.lock`. A failed
 save is logged once per kind of error and retried at the next change or at
 exit; the change stays in memory.

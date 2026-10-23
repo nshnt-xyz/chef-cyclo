@@ -158,6 +158,34 @@ with tempfile.TemporaryDirectory() as t:
     assert (p/'stats').read_text().splitlines()[0]=='-c %u:%g %a /usr/libexec/dbus-daemon-launch-helper'
 print('test_wifi_nm: strict D-Bus helper setup and failure gating PASS')
 
+# polkit's rules directory: root:polkitd 0750, as polkit-common ships it.
+# system_a has it from the build (verify only); the RAM cpio gets
+# chown/chmod; a failure is one log line and nothing else.
+rules=init.split('RULES=/etc/polkit-1/rules.d\n',1)[1].split('# apk --usermode/no-scripts omit',1)[0]
+rules='RULES=/etc/polkit-1/rules.d\n'+rules
+with tempfile.TemporaryDirectory() as t:
+    p=pathlib.Path(t);b=p/'bin';b.mkdir()
+    for command in ('chown','chmod'):
+        (b/command).write_text('#!/bin/sh\nprintf "%s %s\\n" "'+command+'" "$*" >> "$CALLS"\n[ "${SETUP_FAIL:-}" != "'+command+'" ]\n')
+        (b/command).chmod(0o755)
+    (b/'stat').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$STATS"\necho "$MODE"\n')
+    (b/'stat').chmod(0o755)
+    code='log() { echo "$*" >> "$LOG"; }; '+rules
+    for mode,failure,calls,logged in [('0:206 750','',[],False),
+                                      ('0:0 750','',['chown root:polkitd /etc/polkit-1/rules.d','chmod 0750 /etc/polkit-1/rules.d'],False),
+                                      ('0:0 750','chown',['chown root:polkitd /etc/polkit-1/rules.d'],True),
+                                      ('0:0 750','chmod',['chown root:polkitd /etc/polkit-1/rules.d','chmod 0750 /etc/polkit-1/rules.d'],True)]:
+        for f in ('calls','log'):(p/f).unlink(missing_ok=True)
+        env=dict(os.environ,PATH=str(b)+':'+os.environ['PATH'],CALLS=str(p/'calls'),STATS=str(p/'stats'),LOG=str(p/'log'),SETUP_FAIL=failure,MODE=mode)
+        subprocess.run(['sh','-c',code],env=env,check=True)
+        assert ((p/'calls').read_text().splitlines() if (p/'calls').exists() else [])==calls,(mode,failure)
+        assert (p/'log').exists()==logged,(mode,failure)
+        if logged:assert (p/'log').read_text()=='polkit rules directory not set up; polkitd cannot read it\n'
+    assert (p/'stats').read_text().splitlines()[0]=='-c %u:%g %a /etc/polkit-1/rules.d'
+# the image has polkitd as gid 206, the number the check compares against
+assert 'polkitd:x:206:' in (R/'rootfs-overlay/etc/group').read_text()
+print('test_wifi_nm: polkit rules directory group and failure logging PASS')
+
 # Run the real link-time refresh hook with bounded-command and chronyc stubs.
 refresh=R/'rootfs-overlay/etc/NetworkManager/dispatcher.d/20-chef-chrony-refresh'
 with tempfile.TemporaryDirectory() as t:

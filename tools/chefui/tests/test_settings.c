@@ -679,8 +679,8 @@ static void test_store(void)
 	CHECK(await_saved());
 	CHECK(!ui_store_pending());
 	CHECK(read_back(path, &t) == 0 && t.brightness == 60);
-	/* first save: mkdir ui, fsync v1, fsync tmp, rename, fsync ui */
-	snprintf(want, sizeof(want), "mkdir /data/v1/ui;fsync /data/v1;fsync /data/v1/ui/settings.tmp;"
+	/* first save: mkdir ui, fsync tmp, rename, fsync ui (never v1) */
+	snprintf(want, sizeof(want), "mkdir /data/v1/ui;fsync /data/v1/ui/settings.tmp;"
 		 "rename /data/v1/ui/settings.tmp /data/v1/ui/settings;fsync /data/v1/ui;");
 	if (strcmp(ops(), want))
 		fprintf(stderr, "ops: %s\n", ops());
@@ -690,22 +690,19 @@ static void test_store(void)
 	snprintf(want, sizeof(want), "%s/v1/ui/settings.tmp", data);
 	CHECK(access(want, F_OK) != 0);		/* temp renamed away */
 
-	/* a failed parent fsync fails the save; the retry fsyncs it again
-	 * although ui exists by then */
+	/* the parent is never fsynced (chef-storage syncs /data/v1 at boot;
+	 * chefui cannot open it, root 0711): a v1 fsync that would fail
+	 * fails nothing */
 	fail_parent_fsync = 1;
-	s.brightness = 62;
-	ui_store_changed(&s);
-	gen = ui_store_wanted_gen();
-	CHECK(await_failed(gen));
-	CHECK(ui_store_pending() && ui_store_persisted_gen() < gen);
-	CHECK(fakeloop_log_count("failed") >= 1);
-	CHECK(settle());
 	oplog_clear();
 	s.brightness = 63;
 	ui_store_changed(&s);
 	CHECK(await_saved());
 	CHECK(!ui_store_pending());
-	CHECK(strstr(ops(), "mkdir /data/v1/ui;fsync /data/v1;") == ops());
+	CHECK(strstr(ops(), "mkdir /data/v1/ui;fsync /data/v1/ui/settings.tmp;") == ops());
+	CHECK(strstr(ops(), "fsync /data/v1;") == NULL);
+	CHECK(fail_parent_fsync == 1);
+	fail_parent_fsync = 0;
 	CHECK(read_back(path, &t) == 0 && t.brightness == 63);
 
 	/* F1: a failed save blocks nothing. The free-space, usage, device and boot
