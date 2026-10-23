@@ -7,6 +7,11 @@
 supervisor=supervise-daemon
 FAST_STARTUP=yes
 command_args="-u chrony"
+# Group chrony from the start, still uid 0 with every capability until its
+# own -u drop: the GPS refclock's SHM 2 segment is created before that drop
+# and takes the creator's egid, so it comes out root:chrony 0660 and gpsd,
+# as gps (in group chrony), can attach it (chrony.conf).
+command_user="root:chrony"
 # Its GPS refclock needs no network: start early, not after one (and there
 # is no firewall service).
 rc_need="!net"

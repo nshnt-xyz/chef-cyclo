@@ -622,9 +622,6 @@ gps_save_locked() {
 	if [ "$f" = "$GPS_FILE" ]; then
 		d=${f%/*}
 		mkdir -p "$d" && chmod 700 "$d" || { log "gps: cannot create $d"; return 1; }
-		# the directory's own entry in /data/v1: synced on every save, in
-		# case an earlier save's sync failed
-		sync "${d%/*}" || { log "gps: cannot sync ${d%/*}"; return 1; }
 	fi
 	printf 'chef-gps 1\nenabled %s\n' "$1" | seal | put "$f" || { log "gps: writing $f failed"; return 1; }
 	[ "$f" = "$GPS_FILE" ] || log "gps: /data is not ours; switch kept on /run until reboot"
@@ -678,7 +675,6 @@ blesens_save_locked() {
 	if [ "$f" = "$BLESENS_FILE" ]; then
 		d=${f%/*}
 		mkdir -p "$d" && chmod 700 "$d" || { log "blesens: cannot create $d"; return 1; }
-		sync "${d%/*}" || { log "blesens: cannot sync ${d%/*}"; return 1; }
 	fi
 	if [ -z "$1" ]; then
 		printf 'chef-blesens 1\n'

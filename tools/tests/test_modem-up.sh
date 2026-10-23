@@ -156,6 +156,24 @@ fi
 # fake tree the way the selection logic above can; it is covered by manual
 # review and live verification only (see docs/features/audio.md).
 
+# --- the qmux group's access (static: the bring-up needs the device) ---
+# The lock directory root:qmux 0750 right after it is made, before owner is
+# written (gps-manager as gps reads ready and owner); the QMUX socket
+# root:qmux 0660 after its check, before ready. Either failing is fatal.
+line_of() { grep -nF -- "$1" "$MODEM_UP" | head -n 1 | cut -d: -f1; }
+lock_l=$(line_of 'chgrp qmux "$LOCK" && chmod 0750 "$LOCK" || { log "$LOCK group or mode not set"; exit 1; }')
+sock_l=$(line_of 'chgrp qmux /run/chef/qmux_socket && chmod 0660 /run/chef/qmux_socket ||')
+if [ -n "$lock_l" ] && [ "$lock_l" -lt "$(line_of '> "$LOCK/owner.tmp"')" ] &&
+   [ "$lock_l" -gt "$(line_of 'if ! mkdir "$LOCK"')" ]; then ok; else bad "lock directory group/mode line missing or misplaced"; fi
+if [ -n "$sock_l" ] && [ "$sock_l" -gt "$(line_of '[ -S /run/chef/qmux_socket ]')" ] &&
+   [ "$sock_l" -lt "$(line_of 'touch "$LOCK/ready"')" ] &&
+   sed -n "$((sock_l + 1))p" "$MODEM_UP" | grep -qF '{ log "qmux socket group or mode not set"; exit 1; }'; then
+	ok
+else
+	bad "qmux socket group/mode line missing or misplaced"
+fi
+grep -q '^chmod 700 "$LOCK"' "$MODEM_UP" && bad "lock directory still 0700"
+
 # A failing run must SAY so rather than print "PASS:" regardless and leave
 # the exit status as the only signal -- the last line of a suite's output is
 # what a reader (and `make test`'s log) actually sees. Exit behaviour is

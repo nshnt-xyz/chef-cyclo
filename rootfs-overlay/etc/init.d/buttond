@@ -10,6 +10,12 @@
 description="Side buttons and power-off"
 supervisor=supervise-daemon
 command=/usr/bin/buttond
+# Its own user (docs/features/users-and-permissions.md): the evdev nodes,
+# the screen-off flag and the vibrator through its groups (input, screen,
+# vibrator), CAP_KILL for `poweroff` (busybox signals init).
+command_user="buttond:buttond"
+capabilities="^cap_kill"
+no_new_privs=yes
 
 depend() {
 	use logger

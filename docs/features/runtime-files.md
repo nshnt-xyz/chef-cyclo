@@ -42,7 +42,7 @@ The mode column gives the owner and group where they are not root.
 | `log/audio-up.log` | by hand ([audio](audio.md)) | 0644 | `audio-up` run by hand |
 | `log/chef-reboot.log` | `chef-reboot` | 0644 | the reboot helper's failures |
 | `log/storage.log`, `log/storage-watchdog.log` | `chef-storage` | 0644 | `/data` checks and mounts, the shutdown watchdog |
-| `lock/modem-up.lock/` (with `ready`) | `modem-up` | 0700 | modem ownership: a directory while `modem-up` owns the modem, `ready` once its stack is up; read by `gps-manager`, `wifi-prepare` and `usr/lib/chef/modem-owner.sh`. `modem-up` was called `gps-up` until 2026-10-21, and so were this lock and `log/modem-up.log` (older logs say `gps-up.lock`, `gps-up.log`) |
+| `lock/modem-up.lock/` (with `ready`) | `modem-up` | `root:qmux` 0750 (so `gps-manager`, as `gps`, can read `ready` and `owner`) | modem ownership: a directory while `modem-up` owns the modem, `ready` once its stack is up; read by `gps-manager`, `wifi-prepare` and `usr/lib/chef/modem-owner.sh`. `modem-up` was called `gps-up` until 2026-10-21, and so were this lock and `log/modem-up.log` (older logs say `gps-up.lock`, `gps-up.log`) |
 | `lock/audio-up.lock/` | `audio-up` | 0755 | one `audio-up` at a time (`sensors-up adsp` starts none while it exists) |
 | `lock/sensors-up.lock` | `sensors-up` | 0644 | `flock`: one `sensors-up` |
 | `lock/storage.lock` | `chef-storage` | 0644 | `flock`: one storage operation |

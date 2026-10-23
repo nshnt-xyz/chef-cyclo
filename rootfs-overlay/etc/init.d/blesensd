@@ -7,6 +7,10 @@
 description="BLE sensor daemon"
 supervisor=supervise-daemon
 command=/usr/bin/blesensd
+# Its own user (docs/features/users-and-permissions.md): BlueZ over the
+# system bus, which BlueZ's D-Bus policy opens to every user.
+command_user="blesensd:blesensd"
+no_new_privs=yes
 
 depend() {
 	use logger

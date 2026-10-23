@@ -1377,8 +1377,10 @@ static const char *g_shutdown_cmd;	/* -x: replaces the whole chain */
  * The orderly way down, as buttond does it: sync, then `poweroff` (busybox:
  * SIGUSR2 to init -> ::shutdown entries, SIGTERM/SIGKILL to everything,
  * reboot(RB_POWER_OFF)); if the applet fails, the same signal directly; if
- * init will not take it either, the syscall. With -x CMD only `sh -c CMD`
- * runs, with no fallback.
+ * init will not take it either, the syscall. That syscall needs
+ * CAP_SYS_BOOT, which powerd does not have (only CAP_KILL, for the signal),
+ * so it fails with EPERM; the line logged just before it says why init was
+ * not reached. With -x CMD only `sh -c CMD` runs, with no fallback.
  */
 static void system_shutdown(struct powerd *p)
 {

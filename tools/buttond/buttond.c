@@ -746,7 +746,9 @@ static void server_drain(struct server *s, int64_t now)
  * second later and calls reboot(RB_POWER_OFF)). If the applet is not there
  * the same signal is sent directly; if even init will not take it, the
  * last resort is the syscall after a sync -- the user is holding the
- * power button asking for exactly this.
+ * power button asking for exactly this. That syscall needs CAP_SYS_BOOT,
+ * which buttond does not have (only CAP_KILL, for the signal), so it fails
+ * with EPERM; the line logged just before it says why init was not reached.
  */
 static void system_poweroff(struct server *s)
 {

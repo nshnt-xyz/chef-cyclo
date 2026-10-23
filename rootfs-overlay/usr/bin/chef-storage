@@ -120,6 +120,9 @@ optional_consumers() {
     else
         log 'chrony drift directory failed; drift stays in RAM'; ok=
     fi
+    # The new entries in /data/v1 made durable here, once: the daemons'
+    # saves cannot open /data/v1 (root 0711) for a sync of their own.
+    sync "$DATA/v1" || { log 'state directory entries not synced'; ok=; }
     [ -n "$ok" ]
 }
 # Check the entire filesystem, including aliases outside the consumer paths.

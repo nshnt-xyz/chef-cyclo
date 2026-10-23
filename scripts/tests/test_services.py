@@ -303,6 +303,36 @@ class Services(unittest.TestCase):
         self.assertIn("--background", args)
         self.assertIn("--make-pidfile", args)
 
+    # Who runs as whom (docs/features/users-and-permissions.md): the
+    # supervisor drops to the user (and its groups from /etc/group), keeps
+    # only the listed capabilities and sets no_new_privs. chronyd stays root
+    # but starts with group chrony (its SHM 2 segment's group; conf.d).
+    USERS = {"buttond": ("buttond:buttond", "^cap_kill", True), "powerd": ("powerd:powerd", "^cap_kill", True),
+             "sensord": ("sensord:sensord", "^cap_net_bind_service", True),
+             "blesensd": ("blesensd:blesensd", None, True), "gps-manager": ("gps:gps", None, True),
+             "chronyd": ("root:chrony", None, False)}
+
+    def test_daemon_users(self):
+        h = Harness(self, self.shell)
+        stub = h.tmp / "up-stub"
+        stub.write_text("#!/bin/sh\nexit 0\n")
+        stub.chmod(0o755)
+        rep = [("/usr/bin/chef-state ours", "false"), ("/usr/bin/sensors-up", str(stub)),
+               ("/run/chef/log/sensors-up.log", str(h.tmp / "up.log")), ("$(/usr/bin/wifi-nm)", "--state-file=/x"),
+               ("/run/user/0", str(h.tmp / "user0"))]
+        for svc in sorted(DEFAULT - {"modem-up", "sensors-up"}):
+            with self.subTest(svc=svc):
+                body = 'chgrp() { :; }; chmod() { :; }; [ "$(command -v start_pre)" != start_pre ] || start_pre || exit $?\nstart\n'
+                r, out = h.run(svc, body, replace=rep)
+                self.assertEqual(r.returncode, 0, (r.stderr, out))
+                line = [l for l in out.splitlines() if l.startswith("supervise-daemon ")][0]
+                args = re.findall(r"\[(.*?)\]", line)
+                opt = dict(zip(args, args[1:]))
+                user, caps, nnp = self.USERS.get(svc, (None, None, False))
+                self.assertEqual(opt.get("--user"), user)
+                self.assertEqual(opt.get("--capabilities"), caps)
+                self.assertEqual("--no-new-privs" in args, nnp)
+
     def test_packaged_daemons_run_in_the_foreground_as_before(self):
         h = Harness(self, self.shell)
         cmd = {}

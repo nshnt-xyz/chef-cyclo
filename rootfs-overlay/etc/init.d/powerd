@@ -8,6 +8,12 @@
 description="Battery policy and power log"
 supervisor=supervise-daemon
 command=/usr/bin/powerd
+# Its own user (docs/features/users-and-permissions.md): its state and log
+# directories, system_temp_level through its group (start_pre), the
+# vibrator (vibrator), CAP_KILL for `poweroff` (busybox signals init).
+command_user="powerd:powerd"
+capabilities="^cap_kill"
+no_new_privs=yes
 
 depend() {
 	use logger

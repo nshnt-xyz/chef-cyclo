@@ -721,20 +721,17 @@ class ChefState(unittest.TestCase):
         self.assertIn(": NUL bytes", self.kmsg)
         self.assertFalse([str(x) for x in (self.p / "run").rglob("*.err")])
 
-    def test_gps_save_syncs_the_new_directory(self):
+    def test_gps_save_never_syncs_data_v1(self):
+        # as gps it cannot open /data/v1 (root 0711): chef-storage syncs the
+        # new entries at boot; the save syncs only its file and directory
         v1 = str(self.data / "v1")
         d = str(self.data / "v1/gps")
-        r = self.call("gps-save", "0")
+        r = self.call("gps-save", "0", SYNC_FAIL=v1)
         self.assertEqual(r.returncode, 0, r.stderr)
         syncs = [l.split(" ", 1)[1] for l in self.trace.splitlines() if l.startswith("sync ")]
-        # /data/v1 (the new gps entry) before the file and the gps directory
-        self.assertEqual(syncs[0], v1, self.trace)
-        self.assertIn(d, syncs[1:])
-        # every save syncs it again; a failure there fails the save
-        r = self.call("gps-save", "1", SYNC_FAIL=v1)
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("gps: cannot sync", self.kmsg)
-        self.assertEqual(self.call("gps-load").stdout, "enabled 0\n")	# not replaced
+        self.assertNotIn(v1, syncs, self.trace)
+        self.assertIn(d, syncs)
+        self.assertEqual(self.call("gps-load").stdout, "enabled 0\n")
 
     def test_gps_save_failure(self):
         (self.data / "v1/gps").write_text("not a directory\n")
@@ -794,17 +791,15 @@ class ChefState(unittest.TestCase):
             self.assertFalse(f.exists())
             (self.p / "run/state/blesens/sensors").unlink()
 
-    def test_blesens_save_syncs_and_fails_cleanly(self):
+    def test_blesens_save_never_syncs_data_v1_and_fails_cleanly(self):
+        # as blesensd it cannot open /data/v1 (root 0711): never synced here
         v1 = str(self.data / "v1")
-        r = self.call("blesens-save", input=self.BS1)
+        r = self.call("blesens-save", input=self.BS1, SYNC_FAIL=v1)
         self.assertEqual(r.returncode, 0, r.stderr)
         syncs = [l.split(" ", 1)[1] for l in self.trace.splitlines() if l.startswith("sync ")]
-        self.assertEqual(syncs[0], v1, self.trace)
-        self.assertIn(str(self.data / "v1/blesens"), syncs[1:])
-        r = self.call("blesens-save", input="", SYNC_FAIL=v1)
-        self.assertEqual(r.returncode, 1)
-        self.assertIn("blesens: cannot sync", self.kmsg)
-        self.assertEqual(self.call("blesens-load").stdout, self.BS1)	# not replaced
+        self.assertNotIn(v1, syncs, self.trace)
+        self.assertIn(str(self.data / "v1/blesens"), syncs)
+        self.assertEqual(self.call("blesens-load").stdout, self.BS1)
         (self.data / "v1/blesens/sensors").unlink()
         (self.data / "v1/blesens").rmdir()
         (self.data / "v1/blesens").write_text("not a directory\n")

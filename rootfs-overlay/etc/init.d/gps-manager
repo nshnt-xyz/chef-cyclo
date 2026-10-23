@@ -7,6 +7,12 @@
 description="GNSS leases"
 supervisor=supervise-daemon
 command=/usr/bin/gps-manager
+# As user gps (docs/features/users-and-permissions.md), and so are its
+# qmicli, gpsd and nmea-broker: modem-up's lock and the QMUX bridge through
+# the qmux group, NTP SHM unit 2 through chrony's (gpsd as non-root uses
+# units 2 and up; chrony.conf).
+command_user="gps:gps"
+no_new_privs=yes
 
 # After modem-up, so `openrc shutdown` stops it (and a lease's LOC session)
 # before the modem goes.

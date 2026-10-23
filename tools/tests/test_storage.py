@@ -31,6 +31,7 @@ case "$name" in
 mkdir) case "$*" in */v1/crash*) [ "${FAIL_OPTIONAL:-0}" = 0 ] || exit 1;; esac
     case "$*" in */v1/*) [ "${FAIL_CMD:-}" != "$name" ] || exit 1;; esac;;
 chmod|chown) [ "${FAIL_CMD:-}" != "$name" ] || exit 1;;
+sync) [ -z "${FAIL_SYNC:-}" ] || [ "$FAIL_SYNC" != "$*" ] || exit 1;;
 stat) echo "${IDENTITY:-103:24}";;
 blockdev) echo "${SIZE:-55289298432}"; exit "${SIZE_RC:-0}";;
 e2label) echo "${TEST_LABEL:-chefdata}"; exit "${LABEL_RC:-0}";;
@@ -161,6 +162,10 @@ esac
         self.assertIn(f'chmod 711 {self.data}/v1\n',t)
         self.assertNotIn(f'chmod 700 {self.data}/v1 ',t)
         self.assertIn('state directories and chrony drift ready',r.stderr)
+        # the new directory entries synced once, after every directory is made
+        self.assertEqual(t.count(f'sync {self.data}/v1\n'),1)
+        self.assertLess(t.index(f'chown chrony:chrony {self.data}/v1/chrony'),t.index(f'sync {self.data}/v1\n'))
+        self.assertLess(t.index(f'mount --bind {self.data}/v1/chrony'),t.index(f'sync {self.data}/v1\n'))
     def test_optional_consumer_failures_keep_binds(self):
         for env in [{'FAIL_OPTIONAL':'1'},{'FAIL_BIND':'3'}]:
             r,t=self.call('boot',**env);self.assertEqual(r.returncode,0,r.stderr)
@@ -168,6 +173,10 @@ esac
             self.assertIn('optional state consumers incomplete; continuing',r.stderr)
             self.assertIn('layout v1 mounted with BlueZ and NetworkManager',r.stderr)
         r,t=self.call('boot',FAIL_BIND='3');self.assertIn('chrony drift bind failed',r.stderr)
+        r,t=self.call('boot',FAIL_SYNC=f'{self.data}/v1');self.assertEqual(r.returncode,0,r.stderr)
+        self.assertIn('state directory entries not synced',r.stderr)
+        self.assertIn('optional state consumers incomplete; continuing',r.stderr)
+        self.assertNotIn('umount ',t)
     def test_shutdown_detaches_chrony_first(self):
         (self.p/'mounts').write_text(f'25 0 259:36 / {self.data} rw - ext4 node rw\n26 0 259:36 / /var/lib/bluetooth rw - ext4 node rw\n27 0 259:36 / /run/NetworkManager/system-connections rw - ext4 node rw\n28 0 259:36 /v1/chrony /var/lib/chrony rw - ext4 node rw\n')
         r,t=self.call('shutdown');self.assertEqual(r.returncode,0,r.stderr)

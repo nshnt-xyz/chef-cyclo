@@ -14,7 +14,7 @@ class SysvipcGateTests(unittest.TestCase):
     def test_config_fragment_backs_the_shm_refclock(self):
         chrony = (REPO / "rootfs-overlay/etc/chrony/chrony.conf").read_text()
         fragment = (REPO / "kernel-config/chef-cyclo.config").read_text().splitlines()
-        self.assertIn("refclock SHM 0 ", chrony)
+        self.assertIn("refclock SHM 2 perm=0660 ", chrony)
         self.assertIn("CONFIG_SYSVIPC=y", fragment)
 
     def test_mkinitramfs_refuses_kconfig_without_sysvipc(self):

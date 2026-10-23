@@ -163,7 +163,9 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 	exit 1
 fi
 trap cleanup EXIT HUP INT TERM
-chmod 700 "$LOCK"
+# root:qmux 0750: gps-manager, as user gps in the qmux group, reads ready
+# and owner in it (the files stay 0644); everyone else stays out
+chgrp qmux "$LOCK" && chmod 0750 "$LOCK" || { log "$LOCK group or mode not set"; exit 1; }
 OWNER_START=$(awk 'sub(/^.*\) /, "") { print $20 }' /proc/$$/stat)
 [ -n "$OWNER_START" ] || exit 1
 printf '%s %s\n' "$$" "$OWNER_START" > "$LOCK/owner.tmp"

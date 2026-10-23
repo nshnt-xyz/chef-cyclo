@@ -12,6 +12,13 @@
 description="Sensors: SMGR client and REG2 server"
 supervisor=supervise-daemon
 command=/usr/bin/sensord
+# Its own user (docs/features/users-and-permissions.md): /dev/sensors
+# through its group, the IPC router through CAP_NET_BIND_SERVICE (creating
+# and publishing REG2) and net_raw (gid 3004, the kernel's default rule for
+# sending to the SMGR).
+command_user="sensord:sensord"
+capabilities="^cap_net_bind_service"
+no_new_privs=yes
 
 depend() {
 	use logger
