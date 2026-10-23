@@ -432,6 +432,22 @@ static void test_header(void)
  * succeeds again once that child exits -- which is how a killed fbtouch
  * hands the screen back too. Two pipes: ready (child -> parent) and
  * release (parent -> child), so neither side can consume its own byte. */
+/* The lock is never opened through a symlink: root tools open it too and
+ * its directory is group-writable. */
+static void test_lock_no_symlink(void)
+{
+	char dir[] = "/tmp/fblog-link-test-XXXXXX", link[64], target[64];
+
+	CHECK(mkdtemp(dir) != NULL);
+	snprintf(link, sizeof(link), "%s/fb0.lock", dir);
+	snprintf(target, sizeof(target), "%s/target", dir);
+	CHECK(symlink(target, link) == 0);
+	CHECK(fb_lock_open(link) == -ELOOP);
+	CHECK(access(target, F_OK) != 0);
+	unlink(link);
+	rmdir(dir);
+}
+
 static void test_lock_handshake(void)
 {
 	char path[] = "/tmp/fblog-lock-test-XXXXXX";
@@ -1005,6 +1021,7 @@ int main(void)
 	test_daemon_idle_flag_removed_while_locked();
 	test_timing();
 	test_lock_handshake();
+	test_lock_no_symlink();
 	test_kmsg_parse();
 	test_policy();
 	test_ring();

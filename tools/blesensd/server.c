@@ -2,10 +2,10 @@
  * blesensd's clients and requests, and the event lines it sends them.
  * The daemon as a whole is described in main.c.
  *
- * Socket protocol on /run/chef/blesensd.sock: the shared local socket protocol
- * (docs/features/local-sockets.md, tools/common/linesrv.c), proto 1,
- * written down in docs/features/bluetooth.md ("Socket contract"). One
- * request per line, plain words; every line from the daemon is one JSON
+ * Socket protocol on /run/chef/blesensd/blesensd.sock: the shared local
+ * socket protocol (docs/features/local-sockets.md, tools/common/linesrv.c),
+ * proto 1, written down in docs/features/bluetooth.md ("Socket contract").
+ * One request per line, plain words; every line from the daemon is one JSON
  * object with a "type" member:
  *
  *   (connect)         {"type":"hello","daemon":"blesensd","proto":1}
@@ -54,7 +54,6 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 
 #include "blesensd.h"
 #include "common/json.h"
@@ -118,8 +117,6 @@ int bd_server_start(const char *path)
 	if (!D.srv)
 		return -ENOMEM;
 	rc = linesrv_listen(D.srv, path);
-	if (!rc && chmod(path, 0600) < 0)
-		rc = -errno;
 	if (rc) {
 		bd_server_fini();
 		return rc;

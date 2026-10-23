@@ -1,8 +1,8 @@
 #!/sbin/openrc-run
-# GNSS on demand: idle until a client leases it on /run/chef/gps-manager.sock
-# (`gps-manager hold map`), then runs the LOC session, gpsd and the NMEA
-# pipeline on top of modem-up's modem; never starts or stops modem-up
-# (docs/features/gps.md).
+# GNSS on demand: idle until a client leases it on
+# /run/chef/gps-manager/gps-manager.sock (`gps-manager hold map`), then runs
+# the LOC session, gpsd and the NMEA pipeline on top of modem-up's modem;
+# never starts or stops modem-up (docs/features/gps.md).
 
 description="GNSS leases"
 supervisor=supervise-daemon
@@ -13,4 +13,11 @@ command=/usr/bin/gps-manager
 depend() {
 	use logger
 	after modem-up
+}
+
+# Its directory (socket, logs, record) and chef-state's for the GPS switch
+# (the lock, and the switch while /data is not ours), its own every start.
+start_pre() {
+	checkpath -d -o gps:gps -m 0750 /run/chef/gps-manager &&
+		checkpath -d -o gps:gps -m 0700 /run/chef/state/gps
 }

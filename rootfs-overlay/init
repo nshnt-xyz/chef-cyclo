@@ -29,9 +29,29 @@ mount -t tmpfs    tmpfs    /run
 # Our runtime files live under /run/chef (docs/features/runtime-files.md),
 # made before anything writes under /run. Root's and 0755, never group or
 # world writable: root-only files (the SSH host key in /run/chef/ssh) sit
-# below them.
-mkdir -p -m 0755 /run/chef /run/chef/log /run/chef/lock
+# below them. chef-state's own directory is here too: the services make
+# their daemons' directories in it.
+mkdir -p -m 0755 /run/chef /run/chef/log /run/chef/lock /run/chef/state
+# The screen handover (fb0.lock, fb0.lit, off) for the screen group: group
+# write on the directory lets one member remove a flag another made. The
+# lock is made here, 0660, so a member can always open it, whoever opens it
+# first.
+if mkdir -m 0775 /run/chef/screen && chgrp screen /run/chef/screen &&
+   : > /run/chef/screen/fb0.lock && chgrp screen /run/chef/screen/fb0.lock &&
+   chmod 0660 /run/chef/screen/fb0.lock; then
+    :
+else
+    log "screen handover directory not set up"
+fi
 mount -t configfs configfs /sys/kernel/config
+# No hard link to a file one does not own, no following another user's
+# symlink in a sticky world-writable directory: what every mainstream
+# distribution sets (this kernel defaults both to 0). With protected
+# hardlinks a daemon cannot link a root file into its own directory, so
+# chef-storage's chown -R -h of a daemon's directory reaches only the
+# daemon's own files.
+{ echo 1 > /proc/sys/fs/protected_hardlinks && echo 1 > /proc/sys/fs/protected_symlinks; } 2>/dev/null ||
+    log "fs.protected_hardlinks/protected_symlinks not set"
 # The host name every syslog line carries (syslogd reads it once at start)
 # and the shell prompt shows; nothing else applies /etc/hostname.
 hostname -F /etc/hostname || log "hostname not set from /etc/hostname"
@@ -101,15 +121,24 @@ fi
 
 # Initialize native device metadata before NetworkManager starts. Preserve
 # kernel names; packaged eudev has no predictive net-renaming rule. Coldplug
-# only net: probing every storage/input device delayed boot and settle timed
-# out on this kernel. Existing nodes remain devtmpfs (mdev fallback); new
-# device events are still handled by the resident udev daemon.
+# only what needs it, about 10 ms each: net for NetworkManager, and the
+# nodes our non-root daemons open, where the stock rules give event*
+# (input) the input group and fb0 (graphics) the video group, and
+# 70-chef.rules /dev/sensors (ssc) the sensord group, the backlight's
+# brightness (leds) video and the vibrator's enable (timed_output)
+# vibrator. Storage stays out (probing it delayed boot and settle timed
+# out on this kernel), and so does power_supply (0.4 s for the battery
+# alone; powerd's service sets system_temp_level's group instead). Other
+# nodes remain devtmpfs (mdev fallback); new device events are still
+# handled by the resident udev daemon.
 mkdir -p /run/udev
 if /sbin/udevd --daemon; then
-    if udevadm trigger --action=add --subsystem-match=net && udevadm settle --timeout=20; then
+    if udevadm trigger --action=add --subsystem-match=net --subsystem-match=input \
+           --subsystem-match=graphics --subsystem-match=leds --subsystem-match=timed_output \
+           --subsystem-match=ssc && udevadm settle --timeout=20; then
         touch /run/chef/udev-ready
     else
-        log "network udev initialization failed; NetworkManager will remain unavailable"
+        log "udev coldplug failed; NetworkManager will remain unavailable and device nodes stay root-only"
     fi
 else
     log "udev initialization failed; NetworkManager will remain unavailable"

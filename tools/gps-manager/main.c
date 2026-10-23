@@ -7,8 +7,8 @@
  * owns is everything GNSS-specific on top of that modem: one QMI LOC
  * client id (CID) with LOC session 1, gpsd, and the
  * `qmicli --loc-follow-nmea | nmea-broker` pipeline. They run only while
- * someone holds a lease on /run/chef/gps-manager.sock (the line protocol
- * is in server.c's header).
+ * someone holds a lease on /run/chef/gps-manager/gps-manager.sock (the
+ * line protocol is in server.c's header).
  *
  * The GPS switch (`enable`/`disable`) persists through `chef-state
  * gps-save 0|1` (a child, so storage never blocks this loop) and is read
@@ -871,8 +871,6 @@ int main(int argc, char **argv)
 
 	/* the stale path is unlinked only ever while holding the instance lock */
 	rc = linesrv_listen(sh->srv.srv, sock_path);
-	if (rc == 0 && chmod(sock_path, 0660) < 0)
-		rc = -errno;
 	if (rc < 0) {
 		chef_log("listen %s: %s; exiting in 5 s", sock_path, strerror(-rc));
 		sleep(5);

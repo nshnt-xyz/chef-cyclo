@@ -53,8 +53,9 @@ void sys_gps_stop(void);
 /* The client itself (pure, no LVGL) and its parsers: gpsclient.h, gpsview.h. */
 
 /* Ambient light: an illuminance claim on sensord (default
- * /run/chef/sensord.sock) while wanted, fed through the pure logic in als.h.
- * The callback gets every applied brightness change and theme transition.
+ * /run/chef/sensord/sensord.sock) while wanted, fed through the pure logic in
+ * als.h. The callback gets every applied brightness change and theme
+ * transition.
  * offset: the user's auto_offset, used for the next sample. */
 typedef void (*sys_als_cb)(const struct als_event *ev, void *user);
 int sys_als_start(const char *sock, const struct als_params *p);

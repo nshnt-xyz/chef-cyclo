@@ -75,7 +75,8 @@ struct linesrv_config {
 struct linesrv *linesrv_new(const struct linesrv_config *cfg);
 
 /* Listen on PATH: AF_UNIX stream, non-blocking, CLOEXEC, a stale socket
- * file unlinked first, backlog 8. 0 or -errno. */
+ * file unlinked first, mode 0660 (set between bind and listen, whatever
+ * the umask), backlog 8. 0 or -errno (the path unlinked again). */
 int linesrv_listen(struct linesrv *srv, const char *path);
 
 /* Put an already connected fd in the table, as if accepted (on_connect

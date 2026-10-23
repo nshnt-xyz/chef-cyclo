@@ -70,9 +70,11 @@ static bool flag_present(const struct cu_fbscreen *s)
 	return access(s->p.flag, F_OK) == 0;
 }
 
+/* The screen files never through a symlink: root tools create them too,
+ * and their directory is group-writable. */
 static int flag_create(struct cu_fbscreen *s)
 {
-	int fd = open(s->p.flag, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+	int fd = open(s->p.flag, O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
 
 	if (fd < 0) {
 		int e = errno;
@@ -94,7 +96,7 @@ static int flag_remove(struct cu_fbscreen *s)
 
 static int lit_create(struct cu_fbscreen *s)
 {
-	int fd = open(s->p.lit, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+	int fd = open(s->p.lit, O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
 
 	if (fd < 0) {
 		int e = errno;
@@ -160,7 +162,7 @@ static int adopt_lock(struct cu_fbscreen *s)
 	fd = strtol(v, &end, 10);
 	unsetenv(CU_FB_LOCK_ENV);
 	if (end == v || *end || fd < 0 || fd > 65535 ||
-	    fstat((int)fd, &a) < 0 || stat(s->p.lock, &b) < 0 ||
+	    fstat((int)fd, &a) < 0 || lstat(s->p.lock, &b) < 0 ||
 	    a.st_dev != b.st_dev || a.st_ino != b.st_ino) {
 		s->log("%s=%s is not the screen lock; taking it normally", CU_FB_LOCK_ENV, v);
 		return -EBADF;

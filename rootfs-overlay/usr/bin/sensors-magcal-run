@@ -9,7 +9,7 @@
 #   sensors-magcal-run --list     print the step list and exit
 #
 # Needs the sensors up (the sensord and sensors-up services: sensord on
-# /run/chef/sensord.sock, SMGR ready). The
+# /run/chef/sensord/sensord.sock, SMGR ready). The
 # production sensord is not touched: extra sensord instances with -R (no
 # REG2 server, only an SMGR client, each on its own socket under the
 # output directory) supply the other calibration selects and the
@@ -60,7 +60,7 @@
 set -u
 
 SENSORD=${SENSORD:-sensord}
-MAIN_SOCK=${MAIN_SOCK:-/run/chef/sensord.sock}
+MAIN_SOCK=${MAIN_SOCK:-/run/chef/sensord/sensord.sock}
 OUT_BASE=${OUT_BASE:-/run/chef/sensortest}
 KMSG=${KMSG:-/dev/kmsg}
 LOGREAD=${LOGREAD:-logread}

@@ -1,9 +1,9 @@
 /*
- * gps-manager's lease server on /run/chef/gps-manager.sock. Requests are
- * words, one line each; every line gps-manager sends is one JSON object
- * with a "type" member (the shared envelope of
- * docs/features/local-sockets.md, served by tools/common/linesrv.c),
- * proto 1, written down in docs/features/gps.md "Socket contract":
+ * gps-manager's lease server on /run/chef/gps-manager/gps-manager.sock.
+ * Requests are words, one line each; every line gps-manager sends is one JSON
+ * object with a "type" member (the shared envelope of
+ * docs/features/local-sockets.md, served by tools/common/linesrv.c), proto 1,
+ * written down in docs/features/gps.md "Socket contract":
  *
  *   (connect)        {"type":"hello","daemon":"gps-manager","proto":1}
  *   lease K          {"type":"ok","cmd":"lease","kind":"map","held":1}

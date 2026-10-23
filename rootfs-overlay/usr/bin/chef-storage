@@ -85,7 +85,11 @@ mount_data() {
 }
 consumers() {
     mkdir -p "$DATA/v1/bluetooth" "$DATA/v1/networkmanager/system-connections" /var/lib/bluetooth /run/NetworkManager/system-connections || return 1
-    chmod 700 "$DATA/v1" "$DATA/v1/bluetooth" "$DATA/v1/networkmanager" "$DATA/v1/networkmanager/system-connections" || return 1
+    # The non-root daemons must read the marker (chef-state ours) and reach
+    # their directories in v1, which they may traverse but not list.
+    chmod 644 "$DATA/chef-layout" || return 1
+    chmod 711 "$DATA/v1" || return 1
+    chmod 700 "$DATA/v1/bluetooth" "$DATA/v1/networkmanager" "$DATA/v1/networkmanager/system-connections" || return 1
     chown -R 0:0 "$DATA/v1/bluetooth" "$DATA/v1/networkmanager" || return 1
     for profile in "$DATA/v1/networkmanager/system-connections"/* "$DATA/v1/networkmanager/system-connections"/.[!.]* "$DATA/v1/networkmanager/system-connections"/..?*; do
         [ -e "$profile" ] || [ -L "$profile" ] || continue
@@ -95,13 +99,21 @@ consumers() {
     timeout -k 5 10 mount --bind "$DATA/v1/bluetooth" /var/lib/bluetooth || return 1
     timeout -k 5 10 mount --bind "$DATA/v1/networkmanager/system-connections" /run/NetworkManager/system-connections
 }
-# Optional state directories (chef-state, powerd, chef-sshd's host key) and
-# chronyd's drift directory. A failure here is logged and leaves BlueZ and
+# Optional state directories (chef-state, chef-sshd's host key and the
+# daemons' own) and chronyd's drift directory, each owned by its user every
+# boot, before any service starts: chown -R also gives a daemon back the files
+# a root process wrote there (the shutdown flushes, older images). It never
+# follows a link (-h, busybox's default -P), and with fs.protected_hardlinks
+# (/init) a daemon cannot hard-link a root file into its directory: root never
+# writes through a path in a daemon's directory, and this reaches only the
+# daemon's own files. A failure here is logged and leaves BlueZ and
 # NetworkManager bound: these consumers fall back to /run on their own.
 optional_consumers() {
     ok=1
-    for dir in crash time power sensors ssh; do
-        mkdir -p "$DATA/v1/$dir" && chown 0:0 "$DATA/v1/$dir" && chmod 700 "$DATA/v1/$dir" || { log "optional state dir $dir failed"; ok=; }
+    for pair in crash:root time:root ssh:root power:powerd sensors:sensord gps:gps blesens:blesensd ui:chefui; do
+        dir=${pair%:*} user=${pair#*:}
+        mkdir -p "$DATA/v1/$dir" && chown -R -h "$user:$user" "$DATA/v1/$dir" && chmod 700 "$DATA/v1/$dir" ||
+            { log "optional state dir $dir failed"; ok=; }
     done
     if mkdir -p "$DATA/v1/chrony" /var/lib/chrony && chown chrony:chrony "$DATA/v1/chrony" && chmod 700 "$DATA/v1/chrony"; then
         timeout -k 5 10 mount --bind "$DATA/v1/chrony" /var/lib/chrony || { log 'chrony drift bind failed; drift stays in RAM'; ok=; }
@@ -243,9 +255,10 @@ format)
     mke2fs -t ext4 -O none,has_journal,ext_attr,resize_inode,dir_index,filetype,extent,64bit,flex_bg,sparse_super,large_file,huge_file,uninit_bg,dir_nlink,extra_isize -b 4096 -I 256 -m 1 -F -L "$LABEL" -E nodiscard,lazy_itable_init=0,lazy_journal_init=0 "$node" </dev/null
     mount_data
     printf '%s\n' "$MARKER" > "$DATA/chef-layout"
-    chmod 600 "$DATA/chef-layout"
+    chmod 644 "$DATA/chef-layout"
     mkdir -p "$DATA/v1/bluetooth" "$DATA/v1/networkmanager/system-connections"
-    chmod 700 "$DATA/v1" "$DATA/v1/bluetooth" "$DATA/v1/networkmanager" "$DATA/v1/networkmanager/system-connections"
+    chmod 711 "$DATA/v1"
+    chmod 700 "$DATA/v1/bluetooth" "$DATA/v1/networkmanager" "$DATA/v1/networkmanager/system-connections"
     sync; umount "$DATA"
     log 'format complete; reboot to attach consumers'
     ;;

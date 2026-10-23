@@ -41,13 +41,13 @@
  * panel-on/touch-resume path fbtouch's own -c cycle exercises. Killing
  * fbtouch mid-run releases the lock the same way.
  *
- * /run/chef/screen-off is the system-wide "screen deliberately off" flag
+ * /run/chef/screen/off is the system-wide "screen deliberately off" flag
  * (buttond's default power.short toggle, chefui applications, a shell).
  * Nobody signals fblog: it watches the flag itself, in four places:
  *   - at startup: with the flag present it idles without touching fb0
  *     (panel and touch IC stay powered down);
  *   - while lit: an inotify watch on the flag's directory (the quiet
- *     /run/chef) wakes fblog when an entry there is created or renamed
+ *     /run/chef/screen) wakes fblog when an entry there is created or renamed
  *     in; once the flag exists it does POWERDOWN, closes fb0 and idles;
  *   - when resuming after a borrow: a foreground client (a chefui
  *     application) that exited or died with the screen deliberately off

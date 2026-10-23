@@ -105,6 +105,13 @@ does not work on the read-only root: change
 
 ## Gotchas
 
+- **Root writes into chef-settings' directory by hand only.** The commands
+  that drive the system UI in a live test write `args`, `stop` and the
+  guided-step `prompt` as root into `/run/chef/chef-settings`, which
+  belongs to chef-settings' user (`chefui`). That is the one exception to
+  the rule that root never creates or writes through a path in a daemon's
+  directory ([users and permissions](features/users-and-permissions.md)):
+  they are typed by hand, and nothing automatic runs them.
 - **Background jobs die with the session.** Closing telnet SIGHUPs foreground
   and `&` jobs. Start anything that must outlive the command with
   `setsid CMD </dev/null >/run/CMD.out 2>&1 &`.
@@ -126,10 +133,15 @@ does not work on the read-only root: change
   from any of our images.
 - **Our runtime files are under `/run/chef`** (sockets, markers, logs, locks;
   [runtime files](features/runtime-files.md)) in images built since
-  2026-10-20. Older images, the installed fallbacks among them, keep the
-  same names directly under `/run`, and the screen-off flag there is
-  `/run/fblog.off`. The scratch names above (`/run/push`,
-  `/run/x`, `/run/CMD.out`) work on both.
+  2026-10-20. Older images keep the same names directly under `/run`, and
+  the screen-off flag there is `/run/fblog.off`. Images built before
+  2026-10-23 have the sockets directly in `/run/chef` (`buttond.sock`,
+  `sensord.sock`, `blesensd.sock`, `gps-manager.sock`), the registry copy in
+  `/run/chef/sensors` and the screen files there too (`fb0.lock`, `fb0.lit`,
+  `screen-off`); since then each socket is in its daemon's directory
+  (`/run/chef/buttond/buttond.sock` and so on) and the screen files in
+  `/run/chef/screen` (`fb0.lock`, `fb0.lit`, `off`). The scratch names above
+  (`/run/push`, `/run/x`, `/run/CMD.out`) work on all of them.
 - **Evidence under `/run` and `/tmp` is in RAM.** Pull it before rebooting. A phase 2 image persists the reviewed BlueZ and NetworkManager directories under `/data`; see [storage](features/storage.md).
 - **`poweroff` with USB attached comes back.** The cable re-powers the phone in
   about 24 s (`androidboot.mode=charger`), and the installed image boots (the stage-1 layout ran the full OS on such a charger-mode boot on 2026-10-05). Unplug

@@ -359,7 +359,7 @@ static void test_server_claims(void)
 	char buf[512];
 
 	CHECK(server_init(&s, 1500, 300, test_log) == 0);
-	CHECK(s.off_path && strcmp(s.off_path, "/run/chef/screen-off") == 0);
+	CHECK(s.off_path && strcmp(s.off_path, "/run/chef/screen/off") == 0);
 
 	a = connect_peer(&s);
 	ask(&s, &a, "claim power.long\n", "{\"type\":\"ok\",\"cmd\":\"claim\",\"gesture\":\"power.long\"}\n");
@@ -561,6 +561,16 @@ static void test_server_dispatch(void)
 	CHECK(rc == -ENOENT);
 	CHECK(strstr(last_log(), "screen off: create") != NULL);
 	s.off_path = off;
+	/* never through a symlink: the flag's directory is group-writable */
+	{
+		char target[160];
+
+		snprintf(target, sizeof(target), "%s/target", dir);
+		CHECK(symlink(target, off) == 0);
+		CHECK(screen_toggle(&s) == -ELOOP);
+		CHECK(access(target, F_OK) != 0);
+		CHECK(unlink(off) == 0);
+	}
 
 	/* other unclaimed gestures only log (power.long is test_server_poweroff) */
 	server_dispatch(&s, GES_POWER_VOLDOWN, 0);

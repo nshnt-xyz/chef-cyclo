@@ -13,7 +13,7 @@ The OpenRC service `syslog` (Alpine's script, `etc/conf.d/syslog`; [services](se
 syslogd stamps every line with its own clock, in local time (IST) to the second. Our C daemons send no timestamp; musl's `syslog(3)` (busybox `logger`, so our scripts, and NetworkManager, BlueZ, chrony and the rest) sends one in UTC (`gmtime_r`), and `-t` makes syslogd drop it, so the ring never mixes zones (seen live 2026-10-21 before `-t`: a 12:16 UTC `logger` line beside a 17:46 IST one). Lines in the ring read
 
 ```text
-Oct 20 23:41:02 chef-cyclo daemon.info buttond[612]: ready: /run/chef/buttond.sock, long 1500 ms
+Oct 20 23:41:02 chef-cyclo daemon.info buttond[612]: ready: /run/chef/buttond/buttond.sock, long 1500 ms
 Oct 20 23:41:05 chef-cyclo daemon.info modem-up: modem ready
 ```
 

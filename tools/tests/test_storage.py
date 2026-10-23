@@ -151,6 +151,15 @@ esac
         self.assertIn(f'mount --bind {self.data}/v1/chrony /var/lib/chrony',t)
         self.assertIn(f'chown chrony:chrony {self.data}/v1/chrony',t)
         for d in ['crash','time','power','sensors','chrony']: self.assertIn(f'chmod 700 {self.data}/v1/{d}',t)
+        # each daemon's directory (and what root wrote in it) is its own again every boot
+        for d,user in [('crash','root'),('time','root'),('ssh','root'),('power','powerd'),('sensors','sensord'),
+                       ('gps','gps'),('blesens','blesensd'),('ui','chefui')]:
+            self.assertIn(f'chown -R -h {user}:{user} {self.data}/v1/{d}\n',t)
+            self.assertIn(f'chmod 700 {self.data}/v1/{d}\n',t)
+        # the marker readable and v1 traversable by the non-root consumers
+        self.assertIn(f'chmod 644 {self.data}/chef-layout\n',t)
+        self.assertIn(f'chmod 711 {self.data}/v1\n',t)
+        self.assertNotIn(f'chmod 700 {self.data}/v1 ',t)
         self.assertIn('state directories and chrony drift ready',r.stderr)
     def test_optional_consumer_failures_keep_binds(self):
         for env in [{'FAIL_OPTIONAL':'1'},{'FAIL_BIND':'3'}]:
@@ -254,6 +263,7 @@ esac
         r,t=self.call('format','--yes-erase-userdata',LABEL='android');self.assertEqual(r.returncode,0,r.stderr)
         self.assertIn('-F -L chefdata',t);self.assertNotIn('-F -F',t);self.assertIn('-O none,has_journal',t);self.assertIn('nodiscard,lazy_itable_init=0,lazy_journal_init=0',t)
         self.assertEqual((self.data/'chef-layout').read_text(),'chef-cyclo-data-v1\n')
+        self.assertIn(f'chmod 644 {self.data}/chef-layout\n',t);self.assertIn(f'chmod 711 {self.data}/v1\n',t)
 
 class AshStorage(Storage):
     shell = ["busybox", "ash"]

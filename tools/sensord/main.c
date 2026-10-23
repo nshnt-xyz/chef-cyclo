@@ -86,21 +86,21 @@
  * CLOCK_MONOTONIC. -T cntvct reads the QTimer directly instead; -T rx
  * pins the newest sample of each indication to its receive time.
  *
- * Socket API: /run/chef/sensord.sock, plain-text requests, one JSON object per
- * line back; the protocol is in server.c's header. A sensor is powered
- * (report added on the DSP) only while at least one connection claims
+ * Socket API: /run/chef/sensord/sensord.sock, plain-text requests, one JSON
+ * object per line back; the protocol is in server.c's header. A sensor is
+ * powered (report added on the DSP) only while at least one connection claims
  * it; a claim lives on its connection.
  *
  * Usage: sensord [-r REG] [-m MAP] [-k CMD] [-S SOCK] [-T dsps|cntvct|rx]
  *                [-b HZ] [-s CH=ID:DT]... [-c CH=full|factory|raw]...
  *                [-i BASE] [-M MOUNT] [-D DEG] [-Q] [-V] [-P] [-t] [-R]
  *                [-F] [-v]
- *   -r  registry copy to serve (default /run/chef/sensors/sns.reg)
+ *   -r  registry copy to serve (default /run/chef/sensord/sns.reg)
  *   -m  registry map (default /usr/share/sensord/sns_reg.map)
  *   -k  run `CMD mag-save` after a registry write-back, with
  *       CHEF_STATE_SENSORS_RUN (REG's directory) and CHEF_STATE_MAP (MAP)
  *       in its environment (default chef-state; "" turns it off)
- *   -S  socket path (default /run/chef/sensord.sock)
+ *   -S  socket path (default /run/chef/sensord/sensord.sock)
  *   -T  timestamp source (default dsps, falls back to rx if /dev/sensors
  *       cannot be opened)
  *   -b  cap the SMGR report rate (indications/s) below the sample rate,

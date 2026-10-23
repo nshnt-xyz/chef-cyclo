@@ -6,23 +6,29 @@ Everything our own programs keep in RAM at run time lives under `/run/chef/`: so
 
 ## Who creates what
 
-`/init` mounts the `/run` tmpfs and immediately creates `/run/chef`, `/run/chef/log` and `/run/chef/lock` with `mkdir -p -m 0755`: owned by root and not group or world writable, since root-only files sit below them (the [SSH](ssh.md) host key in `/run/chef/ssh`, the BLE sensor socket). Everything below them is created by its owner as needed, with the mode in the table. Files a program writes atomically get a temp name beside the file they replace (`state/time.tmp`, `power/.state.tmp`) and are renamed over it; a lock with no owning directory goes to `lock/`.
+`/init` mounts the `/run` tmpfs and immediately creates `/run/chef`, `/run/chef/log`, `/run/chef/lock` and `/run/chef/state` with `mkdir -p -m 0755`: owned by root and not group or world writable, since root-only files sit below them (the [SSH](ssh.md) host key in `/run/chef/ssh`). Right after, it creates the screen handover directory `/run/chef/screen` (root:screen 0775) and the screen lock `screen/fb0.lock` in it (root:screen 0660), so every member of the `screen` group can open the lock and remove a flag another member made.
 
-C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen files, `power`, `sensors/sns.reg`, `gps-manager`, `lock/modem-up.lock`, `log/abslot.log`, `state/time`, the settings store's base), so a client and its daemon cannot disagree. Shell scripts spell the paths out. Programs that take a run base directory default to `/run/chef` and build their paths from it: `chef-state` (`CHEF_STATE_RUN`), `chef-storage` (`CHEF_STORAGE_RUN`), `chef-reboot` (`CHEF_REBOOT_RUN`), `speaker-test-tone` (`RUN_DIR`), the settings store (`--run` of `chef-settings`, the same base for its `chef-settings` directory). Every override keeps working, and the host tests use them.
+Each daemon's service makes the daemon's directory in its `start_pre` with OpenRC's `checkpath`, which sets the owner and mode on every start: `buttond/`, `sensord/`, `blesensd/`, `gps-manager/`, `power/`, `chef-settings/`, `ui/`, and, for the `chef-state` saves run on a daemon's behalf, `state/mag/`, `state/gps/` and `state/blesens/` (the owners are in the table and in [users and permissions](users-and-permissions.md)). A daemon's socket is in its own directory, mode 0660 whatever the umask (`tools/common/linesrv.c` sets it between `bind()` and `listen()`), so its group can connect and the directory's 0750 keeps everyone else out. Everything else is created by its owner as needed, with the mode in the table. Files a program writes atomically get a temp name beside the file they replace (`state/time.tmp`, `power/.state.tmp`) and are renamed over it; a lock with no owning directory goes to `lock/`.
+
+C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen files, `power`, `sensord/sns.reg`, `gps-manager`, `lock/modem-up.lock`, `log/abslot.log`, `state/time`, the settings store's base), so a client and its daemon cannot disagree. Shell scripts spell the paths out. Programs that take a run base directory default to `/run/chef` and build their paths from it: `chef-state` (`CHEF_STATE_RUN`), `chef-storage` (`CHEF_STORAGE_RUN`), `chef-reboot` (`CHEF_REBOOT_RUN`), `speaker-test-tone` (`RUN_DIR`), the settings store (`--run` of `chef-settings`, the same base for its `chef-settings` directory). Every override keeps working, and the host tests use them.
 
 ## Layout
 
+The mode column gives the owner and group where they are not root.
+
 | Path under `/run/chef/` | Owner (creates it) | Mode | What |
 |---|---|---|---|
-| `buttond.sock` | `buttond` | 0755 (umask) | [buttons](buttons-and-power-off.md#socket-contract) |
-| `gps-manager.sock` | `gps-manager` | 0660 | [GPS leases](gps.md#socket-contract) |
-| `sensord.sock` | `sensord` | 0755 (umask) | [sensors](sensors.md#socket-contract) |
-| `blesensd.sock` | `blesensd` | 0600 | [BLE sensors](bluetooth.md#socket-contract) |
-| `qmux_socket` | `qmuxd-lite` (started by `modem-up`) | 0600 | the QMUX bridge for `qmicli -d`; libqmi recognises it by the name `qmux_socket` in the path |
-| `fb0.lock` | the first screen client (`chef-settings`, `fbtouch`, a hand-run `fblog`) | 0600 | the [screen lock](display-and-touch.md#framebuffer-and-touch-contract): `LOCK_EX` before fb0 is opened |
-| `fb0.lit` | chefui applications | 0644 | the panel is lit; a start that finds it power-cycles the panel once ([UI platform](ui-platform.md)) |
-| `screen-off` | chefui applications, `buttond`'s default `power.short`, a shell | 0644 | the screen is deliberately off ([display and touch](display-and-touch.md#the-screen-off-flag)) |
-| `udev-ready` | `/init` | 0644 | network coldplug done (NetworkManager waits for it) |
+| `buttond/` | the `buttond` service (`checkpath`) | `buttond:buttond` 0750 | `buttond.sock` (0660), the [buttons](buttons-and-power-off.md#socket-contract) socket |
+| `sensord/` | the `sensord` service (`checkpath`) | `sensord:sensord` 0750 | `sensord.sock` (0660), the [sensors](sensors.md#socket-contract) socket; the working registry copy `sns.reg` (`sensord:sensord` 0600), which `sensors-up registry` builds in `sensors/` and moves in (`mv -fT`), and into which `sensord` writes the DSP's writes back |
+| `sensors/` | `sensors-up registry` | 0755 | the registry copy as read from persist `sns.reg.persist` (0444, so the bias saves run as `sensord` can compare against it), the boot it was made in `sns.reg.boot_id`, the staging copy `sns.reg.tmp`, and `persist-ro/` while persist is mounted |
+| `blesensd/` | the `blesensd` service (`checkpath`) | `blesensd:blesensd` 0750 | `blesensd.sock` (0660), the [BLE sensors](bluetooth.md#socket-contract) socket |
+| `gps-manager/` | the `gps-manager` service (`checkpath`) | `gps:gps` 0750 | `gps-manager.sock` (0660), the [GPS leases](gps.md#socket-contract) socket; the output of its qmicli, broker and gpsd children |
+| `qmux_socket` | `qmuxd-lite` (started by `modem-up`, which sets its group) | `root:qmux` 0660 | the QMUX bridge for `qmicli -d`; libqmi recognises it by the name `qmux_socket` in the path, so it stays here |
+| `screen/` | `/init` | `root:screen` 0775 | the screen handover; group write lets one member remove a flag another made, so every program opens or creates the three files with `O_NOFOLLOW` (root tools use them too) |
+| `screen/fb0.lock` | `/init` | `root:screen` 0660 | the [screen lock](display-and-touch.md#framebuffer-and-touch-contract): `LOCK_EX` before fb0 is opened (`chef-settings`, `fbtouch`, a hand-run `fblog`) |
+| `screen/fb0.lit` | chefui applications | 0644 | the panel is lit; a start that finds it power-cycles the panel once ([UI platform](ui-platform.md)) |
+| `screen/off` | chefui applications, `buttond`'s default `power.short`, a shell | 0644 | the screen is deliberately off ([display and touch](display-and-touch.md#the-screen-off-flag)) |
+| `udev-ready` | `/init` | 0644 | the boot coldplug done (NetworkManager waits for it) |
 | `dbus-helper-ready` | `/init` | 0644 | the D-Bus launch helper is set up (the system bus waits for it) |
 | `wifi-nm-mode` | `/init`, `wifi-nm` | 0644 | NetworkManager owns WLAN; `wifi-up` refuses to run |
 | `wifi-usb-guard-ready` | `wifi-usb-guard` | 0644 | the USB-interface firewall guard is in place (`wifi-prepare` checks it) |
@@ -41,17 +47,18 @@ C code takes these paths from `tools/common/chef_paths.h` (sockets, the screen f
 | `lock/sensors-up.lock` | `sensors-up` | 0644 | `flock`: one `sensors-up` |
 | `lock/storage.lock` | `chef-storage` | 0644 | `flock`: one storage operation |
 | `lock/chef-reboot.lock` | `chef-reboot` | 0644 | `flock`: one reboot at a time |
-| `lock/ui-settings.lock` | `chef-settings` | 0600 | `flock`: one settings writer |
+| `lock/ui-settings.lock` | the `chef-settings` service (`checkpath`) | `chefui:chefui` 0600 | `flock`: one settings writer (made by the service, so the store needs no write access to `lock/`) |
 | `speaker-test-tone-<pid>.wav` | `speaker-test-tone` (`RUN_DIR`) | 0644 | its test tone while it plays, removed after |
-| `power/` | `powerd` | 0755 | [battery](battery-and-charging.md) state, `shutdown-pending`, the RAM power log and `log.pending` |
-| `sensors/` | `sensors-up registry` | 0755 | the registry copy `sns.reg` (with `.boot_id`, `.persist`; sensord writes the DSP's writes back to it), `persist-ro/` while persist is mounted |
+| `power/` | the `powerd` service (`checkpath`) | `powerd:powerd` 0755 | [battery](battery-and-charging.md) state (world-readable: `powerd status`), `shutdown-pending`, the RAM power log and `log.pending` |
 | `sensortest/` | `sensors-compass-run`, `sensors-magcal-run` | 0755 | [sensor](sensors.md) test evidence directories |
-| `gps-manager/` | `gps-manager` | 0700 | the output of its qmicli, broker and gpsd children |
 | `wifi/` | `wifi-up` | 0755 | a manual Wi-Fi session (never with NetworkManager) |
 | `ssh/` | `chef-sshd` | 0700 | the host key dropbear serves, `host-key-source` |
-| `ui/` | `chef-settings` | 0700 | `settings` while `/data` is not ours ([system UI](system-ui.md#settings)) |
-| `chef-settings/` | `chef-settings` | 0755 | `stop`, the one-shot `args`, `prompt` and `snapshot.ppm` |
-| `state/` | `chef-state` | 0755 | `time` (boot clock provenance, read by the Time and date page), `gps-enabled` and `blesens` (while `/data` is not ours), `mag-last`, a `<kind>.lock` per saved kind and its transient `<kind>.err` ([persistent data](storage.md#persistent-state)) |
+| `ui/` | the `chef-settings` service (`checkpath`) | `chefui:chefui` 0700 | `settings` while `/data` is not ours ([system UI](system-ui.md#settings)) |
+| `chef-settings/` | the `chef-settings` service (`checkpath`) | `chefui:chefui` 0755 | `stop`, the one-shot `args`, `prompt` and `snapshot.ppm` |
+| `state/` | `/init` | 0755 | `chef-state`'s files ([persistent data](storage.md#persistent-state)): `time` (boot clock provenance, read by the Time and date page), `time.lock` and `log.lock`, and the directories below |
+| `state/mag/` | the `sensord` service (`checkpath`) | `sensord:sensord` 0700 | `lock` (the bias saves), `last` (when the last one was written) |
+| `state/gps/` | the `gps-manager` service (`checkpath`) | `gps:gps` 0700 | `lock`, and `enabled` (the GPS switch) while `/data` is not ours |
+| `state/blesens/` | the `blesensd` service (`checkpath`) | `blesensd:blesensd` 0700 | `lock`, and `sensors` (the BLE sensor records) while `/data` is not ours |
 
 ## What stays outside
 

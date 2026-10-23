@@ -353,6 +353,9 @@ if ! kill -0 "$QMUX_PID" 2>/dev/null; then
 	exit 1
 fi
 [ -S /run/chef/qmux_socket ] || { log "qmux socket missing"; exit 1; }
+# The modem's QMI for the qmux group (gps-manager's user), no one else
+chgrp qmux /run/chef/qmux_socket && chmod 0660 /run/chef/qmux_socket ||
+	{ log "qmux socket group or mode not set"; exit 1; }
 touch "$LOCK/ready"
 log "modem up, qmux bridge on /run/chef/qmux_socket"
 

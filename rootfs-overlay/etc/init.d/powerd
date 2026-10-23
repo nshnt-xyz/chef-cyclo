@@ -13,9 +13,18 @@ depend() {
 	use logger
 }
 
-# The log on /data only when it is ours; chef-state's fallback flush at
-# shutdown uses the same directory and size (a host test checks).
+# Its state directory, its own every start (world-readable: `powerd
+# status`). The charge throttle's system_temp_level gets powerd's group
+# here, not from a udev rule: /init leaves power_supply out of its coldplug
+# (0.4 s for the battery alone). If that fails powerd's write fails too and
+# it leaves the throttle disabled. The log on /data only when it is ours;
+# chef-state's fallback flush at shutdown uses the same directory and size
+# (a host test checks).
 start_pre() {
+	checkpath -d -o powerd:powerd -m 0755 /run/chef/power || return 1
+	stl=/sys/class/power_supply/battery/system_temp_level
+	chgrp powerd "$stl" && chmod 0664 "$stl" ||
+		ewarn "powerd: $stl not writable for powerd; charge throttle disabled"
 	command_args=
 	if /usr/bin/chef-state ours; then
 		command_args="-l /data/v1/power -L 4194304"

@@ -1,13 +1,14 @@
 # buttond: the side-button gesture daemon (buttond.c), see buttond.c's file
 # header and docs/features/buttons-and-power-off.md. It grabs the
 # qpnp_pon/gpio-keys evdev nodes, turns presses into
-# short/double/long/chord gestures, publishes them on /run/chef/buttond.sock
-# to claimants, by default toggles the screen-off flag /run/chef/screen-off
-# on an unclaimed power.short and powers off cleanly (sync + busybox
-# `poweroff`) when power is held 3 s and released. The supervised OpenRC
-# service buttond. Only libc's <linux/input.h> (device discovery through the
-# header-only ../evdev.h); the socket, its JSON lines and the log come from
-# ../common/ (linesrv, json, chef_log), compiled in from source.
+# short/double/long/chord gestures, publishes them on
+# /run/chef/buttond/buttond.sock to claimants, by default toggles the
+# screen-off flag /run/chef/screen/off on an unclaimed power.short and powers
+# off cleanly (sync + busybox `poweroff`) when power is held 3 s and released.
+# The supervised OpenRC service buttond. Only libc's <linux/input.h> (device
+# discovery through the header-only ../evdev.h); the socket, its JSON lines
+# and the log come from ../common/ (linesrv, json, chef_log), compiled in from
+# source.
 # tools/tests/test_fblog.c (tools/Makefile) also includes buttond.c, for
 # the screen-off flag protocol.
 #

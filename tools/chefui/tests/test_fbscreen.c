@@ -30,7 +30,7 @@ struct rec {
 	unsigned long req;
 	long arg;
 	bool flag;		/* flag present at the call */
-	bool lit;		/* /run/chef/fb0.lit stand-in present at the call */
+	bool lit;		/* fb0.lit stand-in present at the call */
 	char bl[8];		/* backlight file content at the call */
 };
 
@@ -271,6 +271,38 @@ static void test_start_off_on_exit(void)
 	CHECK(count(FBIOPUT_VSCREENINFO, -1) == 0);
 }
 
+/* The screen files are never created or opened through a symlink: their
+ * directory is group-writable and root tools use them too. */
+static void test_no_symlinks(void)
+{
+	struct cu_fbscreen s;
+	struct stat st;
+	char target[128];
+	bool dark = true;
+
+	fixture();
+	paths(&s);
+	snprintf(target, sizeof(target), "%s/target", g_dir);
+	CHECK(symlink(target, g_lit) == 0);
+	CHECK(cu_fb_start(&s, 96, &dark) == 0 && !dark && s.on);
+	CHECK(access(target, F_OK) != 0);
+	CHECK(symlink(target, g_flag) == 0);
+	CHECK(cu_fb_screen_off(&s) == 0);
+	CHECK(access(target, F_OK) != 0);
+	CHECK(lstat(g_flag, &st) == 0 && S_ISLNK(st.st_mode));
+	cu_fb_shutdown(&s);
+	CHECK(!fb_is_open() && lock_free());
+	/* nor the lock: the start fails, nothing is created behind it */
+	fixture();
+	paths(&s);
+	CHECK(unlink(g_lock) == 0 && symlink(target, g_lock) == 0);
+	CHECK(cu_fb_start(&s, 96, &dark) < 0);
+	CHECK(access(target, F_OK) != 0 && !fb_is_open());
+	CHECK(unlink(g_lock) == 0);
+	unlink(g_flag);
+	unlink(g_lit);
+}
+
 static void test_exit_screen_off(void)
 {
 	struct cu_fbscreen s;
@@ -498,7 +530,7 @@ static void test_handoff_exec_fails(void)
 	cu_fb_shutdown(&s);
 }
 
-/* --- /run/chef/fb0.lit (lit marker, 2026-10-17) --- */
+/* --- /run/chef/screen/fb0.lit (lit marker, 2026-10-17) --- */
 
 static void test_lit_marker(void)
 {
@@ -628,6 +660,7 @@ int main(int argc, char **argv)
 	test_handoff();
 	test_handoff_exec_fails();
 	test_lit_marker();
+	test_no_symlinks();
 	unlink(g_fb);
 	unlink(g_lock);
 	unlink(g_flag);

@@ -1,6 +1,7 @@
 /*
- * alsclient.c - the ambient light claim on sensord (/run/chef/sensord.sock) for
- * Auto brightness and theme Auto, feeding the pure logic in als.c.
+ * alsclient.c - the ambient light claim on sensord
+ * (/run/chef/sensord/sensord.sock) for Auto brightness and theme Auto,
+ * feeding the pure logic in als.c.
  *
  * Wanted state: set by the app (sys_als_want): the screen is on and either
  * Auto brightness or theme Auto is set. Wanted: connect, wait for the

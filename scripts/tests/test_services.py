@@ -377,13 +377,61 @@ class Services(unittest.TestCase):
     def test_powerd_log_on_data_only_when_ours(self):
         h = Harness(self, self.shell)
         for ours, want in (("true", "-l /data/v1/power -L 4194304"), ("false", "")):
-            r, out = h.run("powerd", 'start_pre; echo "args=$command_args" >> "$OUT"',
+            r, out = h.run("powerd", 'chgrp() { :; }; chmod() { :; }; start_pre; echo "args=$command_args" >> "$OUT"',
                            replace=[("/usr/bin/chef-state ours", ours)])
-            self.assertEqual(out.strip(), "args=" + want)
+            self.assertEqual(out.splitlines()[-1], "args=" + want)
         # chef-state's fallback flush uses the same directory and size
         state = (OVERLAY / "usr/bin/chef-state").read_text()
         self.assertIn("\nPOWER_LOG_MAX=4194304\t", state)
-        self.assertIn('-l "$DATA/v1/power" -L "$POWER_LOG_MAX" flush', state)
+        self.assertIn("-l '$DATA/v1/power' -L $POWER_LOG_MAX flush", state)
+
+    # The daemons' directories under /run/chef, made by their services every
+    # start with the daemon's user as owner; a failed checkpath fails the start.
+    RUN_DIRS = {
+        "buttond": ["-d -o buttond:buttond -m 0750 /run/chef/buttond"],
+        "blesensd": ["-d -o blesensd:blesensd -m 0750 /run/chef/blesensd",
+                     "-d -o blesensd:blesensd -m 0700 /run/chef/state/blesens"],
+        "gps-manager": ["-d -o gps:gps -m 0750 /run/chef/gps-manager",
+                        "-d -o gps:gps -m 0700 /run/chef/state/gps"],
+        "sensord": ["-d -o sensord:sensord -m 0750 /run/chef/sensord",
+                    "-d -o sensord:sensord -m 0700 /run/chef/state/mag"],
+        "powerd": ["-d -o powerd:powerd -m 0755 /run/chef/power"],
+        "chef-settings": ["-d -o chefui:chefui -m 0755 /run/chef/chef-settings",
+                          "-d -o chefui:chefui -m 0700 /run/chef/ui",
+                          "-f -o chefui:chefui -m 0600 /run/chef/lock/ui-settings.lock"],
+    }
+    FAKES = ('checkpath() { echo "checkpath $*" >> "$OUT"; case "$*" in *"${CP_FAIL:-none}"*) return 1;; esac; }\n'
+             'chgrp() { echo "chgrp $*" >> "$OUT"; return "${CHGRP_RC:-0}"; }\n'
+             'chmod() { echo "chmod $*" >> "$OUT"; return "${CHMOD_RC:-0}"; }\n')
+
+    def test_runtime_directories(self):
+        h = Harness(self, self.shell)
+        stub = h.tmp / "up-stub"
+        stub.write_text('#!/bin/sh\necho "sensors-up $*" >> "$OUT"\n')
+        stub.chmod(0o755)
+        rep = [("/usr/bin/sensors-up", str(stub)), ("/run/chef/log/sensors-up.log", str(h.tmp / "up.log")),
+               ("/usr/bin/chef-state ours", "false")]
+        for service, dirs in self.RUN_DIRS.items():
+            r, out = h.run(service, self.FAKES + "start_pre", replace=rep)
+            self.assertEqual(r.returncode, 0, (service, r.stderr, out))
+            self.assertEqual([l[len("checkpath "):] for l in out.splitlines() if l.startswith("checkpath ")], dirs)
+            if service == "sensord":
+                self.assertEqual(out.splitlines()[-1], "sensors-up registry")
+            # any failed checkpath fails the start, before the rest
+            for i, d in enumerate(dirs):
+                r, out = h.run(service, self.FAKES + "start_pre", replace=rep, env={"CP_FAIL": d})
+                self.assertNotEqual(r.returncode, 0, (service, d))
+                self.assertEqual(len([l for l in out.splitlines() if l.startswith("checkpath ")]), i + 1)
+                self.assertNotIn("sensors-up", out)
+        # powerd: system_temp_level for its group; a failure only warns
+        stl = "/sys/class/power_supply/battery/system_temp_level"
+        r, out = h.run("powerd", self.FAKES + "start_pre", replace=rep)
+        self.assertEqual(out.splitlines()[1:], [f"chgrp powerd {stl}", f"chmod 0664 {stl}"])
+        for env in ({"CHGRP_RC": "1"}, {"CHMOD_RC": "1"}):
+            r, out = h.run("powerd", self.FAKES + 'start_pre; echo "rc=$?" >> "$OUT"', replace=rep, env=env)
+            self.assertIn(f"ewarn powerd: {stl} not writable for powerd; charge throttle disabled", out)
+            self.assertEqual(out.splitlines()[-1], "rc=0")
+        self.assertNotIn("chmod", h.run("powerd", self.FAKES + "start_pre", replace=rep, env={"CHGRP_RC": "1"})[1])
 
     def test_sensors(self):
         h = Harness(self, self.shell)

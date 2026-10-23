@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "chef_log.h"
@@ -240,6 +241,8 @@ static void test_listener(void)
 {
 	char dir[] = "/tmp/linesrv-test-XXXXXX", path[128], buf[512];
 	struct linesrv *srv;
+	struct stat st;
+	mode_t old_umask;
 	int fd, fd2, i;
 
 	if (!mkdtemp(dir)) {
@@ -254,8 +257,12 @@ static void test_listener(void)
 	/* a stale socket file is replaced */
 	fd = open(path, O_WRONLY | O_CREAT, 0600);
 	close(fd);
+	old_umask = umask(077);
 	CHECK(linesrv_listen(srv, path) == 0);
+	umask(old_umask);
 	CHECK(linesrv_listen(srv, path) == -EBUSY);
+	/* 0660 whatever the umask: the daemon's group may connect */
+	CHECK(stat(path, &st) == 0 && S_ISSOCK(st.st_mode) && (st.st_mode & 07777) == 0660);
 	CHECK(linesrv_max_pollfds(srv) == 3);
 
 	fd = linesrv_connect(path);

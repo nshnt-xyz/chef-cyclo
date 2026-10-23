@@ -134,11 +134,12 @@ pans. The user confirmed smooth slider dragging after the fix on 2026-10-03.
 ## Display, touch, buttons and lifecycle
 
 The [framebuffer contract](display-and-touch.md#framebuffer-and-touch-contract)
-is binding: take `/run/chef/fb0.lock` exclusively before opening fb0, never change
-its format with `FBIOPUT_VSCREENINFO`, never read its write-combined mapping,
-and POWERDOWN through the fb notifier before closing. Rendering uses cached
-XRGB8888 RAM, copy/swizzle into the back page, then `FBIOPAN_DISPLAY`. Failed
-pans mark both pages stale for recovery on a subsequent frame.
+is binding: take `/run/chef/screen/fb0.lock` exclusively before opening fb0,
+never change its format with `FBIOPUT_VSCREENINFO`, never read its
+write-combined mapping, and POWERDOWN through the fb notifier before closing.
+Rendering uses cached XRGB8888 RAM, copy/swizzle into the back page, then
+`FBIOPAN_DISPLAY`. Failed pans mark both pages stale for recovery on a
+subsequent frame.
 
 Touch is discovered by direct-input properties and MT axes: the lowest-numbered
 such `/dev/input/event*` node. Discovery and MT-B slot decoding are the shared
@@ -158,7 +159,7 @@ reserved. Reconnection retries once per second and reclaims configured gestures.
 Host keys are P/Shift+P/Ctrl+P for power short/long/double, Up/Down for volume
 short, and Shift+Up/Down for volume long. Host mouse supplies a single contact.
 
-`/run/chef/screen-off` means the screen is deliberately off system-wide.
+`/run/chef/screen/off` means the screen is deliberately off system-wide.
 Screen-off POWERDOWNs, creates the flag, releases touch contacts and pauses
 rendering. Application timers/fds continue; animations pause best effort until
 screen-on. Screen-on removes the flag, UNBLANKs, writes brightness, resyncs
@@ -169,13 +170,13 @@ app running nobody holds fb0, the panel is already off and the next screen
 owner honours the flag (a hand-run fblog watches it, see
 [display and touch](display-and-touch.md#the-screen-off-flag)).
 
-`/run/chef/fb0.lit` means the panel is lit: it is created before every UNBLANK
-and removed after every successful POWERDOWN (screen-off, clean exit, handoff
-close). A start that finds it (the previous owner died with the panel lit; its
-last close powered the panel down behind the touch driver) does one POWERDOWN
-before its UNBLANK so the touch driver suspends and resumes with its reset. A
-start with the flag present does nothing until its first screen-on, which then
-does the same check. `fbtouch` does not use the marker.
+`/run/chef/screen/fb0.lit` means the panel is lit: it is created before every
+UNBLANK and removed after every successful POWERDOWN (screen-off, clean exit,
+handoff close). A start that finds it (the previous owner died with the panel
+lit; its last close powered the panel down behind the touch driver) does one
+POWERDOWN before its UNBLANK so the touch driver suspends and resumes with its
+reset. A start with the flag present does nothing until its first screen-on,
+which then does the same check. `fbtouch` does not use the marker.
 
 `chefui_handoff_exec(path, argv, dark)` powers down and closes fb0, retains the
 lock across exec in `CHEFUI_LOCK_FD`, and lets the peer adopt it without an

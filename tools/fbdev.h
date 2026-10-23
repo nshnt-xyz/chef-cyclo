@@ -26,7 +26,8 @@
  * Screen lock: several processes may hold fb0 open (the driver refcounts
  * opens), so two clients drawing into the same buffer is the real hazard.
  * The convention here is an advisory flock(2) on CHEF_FB0_LOCK
- * (/run/chef/fb0.lock):
+ * (/run/chef/screen/fb0.lock, which /init creates root:screen 0660 so that
+ * every member of the screen group can open it, whoever opens it first):
  *   - a resident background client (fblog) takes LOCK_SH|LOCK_NB only for
  *     the milliseconds it draws and commits, never while idle, and treats
  *     a failed try as "someone borrowed the screen": it stops drawing,
@@ -41,7 +42,7 @@
  * tools/chefui/fbscreen.c), so the background client never sees the
  * screen free in between. Nothing here touches any input device.
  *
- * Screen-off flag: /run/chef/screen-off (CHEF_SCREEN_OFF) means "screen
+ * Screen-off flag: /run/chef/screen/off (CHEF_SCREEN_OFF) means "screen
  * deliberately off" system-wide. Whoever turns the panel off with
  * POWERDOWN creates it afterwards and removes it before the next UNBLANK;
  * a client started with it present does not open fb0 (the first open
@@ -235,10 +236,12 @@ static inline void fb_powerdown_close(struct fbdev *fb)
 
 /* ---------------------------------------------------------------- lock */
 
-/* Open (creating) the lock file; -errno on failure. The fd is the lock. */
+/* Open (creating) the lock file; -errno on failure. The fd is the lock.
+ * Never through a symlink: root tools open it too, and its directory is
+ * group-writable. */
 static inline int fb_lock_open(const char *path)
 {
-	int fd = open(path ? path : CHEF_FB0_LOCK, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+	int fd = open(path ? path : CHEF_FB0_LOCK, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0600);
 	return fd < 0 ? -errno : fd;
 }
 

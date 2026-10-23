@@ -69,7 +69,7 @@ ink). A theme switch restyles every widget in place.
 its lines read with the shared JSON reader, `test-alsclient`) drive Auto
 brightness and theme Auto.
 
-**Claim rules.** The UI claims `illuminance` at 5 Hz on `/run/chef/sensord.sock` ([runtime files](runtime-files.md))
+**Claim rules.** The UI claims `illuminance` at 5 Hz on `/run/chef/sensord/sensord.sock` ([runtime files](runtime-files.md))
 (`--sensord-sock PATH`) only while the screen is on and Auto brightness or
 theme Auto is set; screen off or both settings off closes the connection (a
 claim lives on its connection, no `release` is sent) and cancels any retry. A
@@ -582,9 +582,9 @@ second reader such as the ride recorder links it alone. The contract:
   (4096) and a regular file, not followed through a link. A file that fails
   gives the defaults (`ui_settings_defaults()`), as chef-settings does; a
   missing one (`-ENOENT`) too.
-- Access: the file is 0600 and its directory 0700, owned by root. A reader
-  runs as root until standard interfaces step 8 (daemon users), which must
-  give readers a group.
+- Access: the file is 0600 and its directory 0700, owned by `chefui`
+  (`chef-storage` gives it the `ui` directory every boot). A second reader
+  that does not run as `chefui` needs a group on them first.
 - The fields a second reader uses: the ride recorder takes `alert_volume`,
   `alert_sounds`, `haptics` and `quiet_paused`. The inotify reader itself
   lands with ride slice 1, its first consumer, built on `settings_file.c`.
@@ -596,19 +596,19 @@ The supervised OpenRC service `chef-settings` ([services](services.md)) starts
 the panel through the fb0 lock and tolerates NetworkManager,
 BlueZ, gps-manager and `/data` appearing later (each source retries with
 backoff or follows D-Bus name changes). A boot that starts with
-`/run/chef/screen-off` stays dark. If `chefui_init()` fails the app sleeps 5 s
+`/run/chef/screen/off` stays dark. If `chefui_init()` fails the app sleeps 5 s
 before exiting so respawn does not spin. When it dies (`kill -9` included),
 the lock is released and respawn takes the panel back.
 
-While the panel is lit the screen layer keeps a marker `/run/chef/fb0.lit`
-(created before every UNBLANK, removed after every successful POWERDOWN). A
-clean exit or a screen-off removes it. If the app dies with the screen on,
-the kernel's last close of fb0 powers the panel down behind the touch driver,
-which would leave touch dead (see the TDDI gotcha in
-[display-and-touch.md](display-and-touch.md)); the next start finds the
-marker and power-cycles the panel once (about 0.5 s of black) so touch
-resumes. A boot, a start with the screen off and a clean restart need no
-cycle (`/run` is fresh at every boot).
+While the panel is lit the screen layer keeps a marker
+`/run/chef/screen/fb0.lit` (created before every UNBLANK, removed after every
+successful POWERDOWN). A clean exit or a screen-off removes it. If the app
+dies with the screen on, the kernel's last close of fb0 powers the panel down
+behind the touch driver, which would leave touch dead (see the TDDI gotcha in
+[display-and-touch.md](display-and-touch.md)); the next start finds the marker
+and power-cycles the panel once (about 0.5 s of black) so touch resumes. A
+boot, a start with the screen off and a clean restart need no cycle (`/run` is
+fresh at every boot).
 
 To keep the UI off the panel, for example to run another screen client,
 stop its service ([services](services.md)):
@@ -633,9 +633,9 @@ All on the chefui loop, nonblocking, none polling while idle:
 - **Clock**: a `CLOCK_REALTIME` timerfd armed for the next minute with
   `TFD_TIMER_CANCEL_ON_SET`, so a clock step (chrony's first step after the
   1970 boot clock, the chef-state restore) redraws at once.
-- **GPS**: a `watch` connection to `/run/chef/gps-manager.sock` (its JSON
-  lines, the [socket contract](gps.md#socket-contract), read with the
-  shared reader), reconnected with backoff 1 s doubling to 8 s. It carries
+- **GPS**: a `watch` connection to `/run/chef/gps-manager/gps-manager.sock`
+  (its JSON lines, the [socket contract](gps.md#socket-contract), read with
+  the shared reader), reconnected with backoff 1 s doubling to 8 s. It carries
   no lease, except one `map` lease while a GPS page is seen (sent after
   the `switch` line, again after a reconnect or when the switch comes back
   on; an error with reason `disabled` means none is held; `release map`
@@ -658,10 +658,10 @@ All on the chefui loop, nonblocking, none polling while idle:
   over 100 ms. A lost bus is closed (not flushed) and reopened with backoff
   1 s doubling to 10 s.
 - **BLE sensors** (`sys/blesclient.c`, no LVGL, with `sys/blesens.c` its
-  chefui wrapper through `sys/lcwatch.c`): a nonblocking watch connection
-  to `/run/chef/blesensd.sock` (a `tools/common/lineclient`), retrying from 1 to
-  8 seconds when absent; structured JSON updates, read with the shared
-  reader, for records, values, advertisements and our pairing.
+  chefui wrapper through `sys/lcwatch.c`): a nonblocking watch connection to
+  `/run/chef/blesensd/blesensd.sock` (a `tools/common/lineclient`), retrying
+  from 1 to 8 seconds when absent; structured JSON updates, read with the
+  shared reader, for records, values, advertisements and our pairing.
 - **Storage**: the ownership check and `statvfs` on hub entry, run on the
   persistence worker below (never on the UI thread).
 - **Wi-Fi pages** (`sys/wifi.c`, the pure parts in `sys/wifi_model.c`):

@@ -8,11 +8,11 @@
  * double, long, two-button chords) with more than one consumer, and the
  * evdev layer hands every event to every reader, so this daemon is the
  * single owner of those devices (EVIOCGRAB) and publishes gestures on a
- * Unix stream socket, /run/chef/buttond.sock, in the same lease shape the GPS
- * manager uses. Requests are words, one line each; every line buttond
+ * Unix stream socket, /run/chef/buttond/buttond.sock, in the same lease shape
+ * the GPS manager uses. Requests are words, one line each; every line buttond
  * sends is one JSON object with a "type" member (the shared envelope of
- * docs/features/local-sockets.md, served by tools/common/linesrv.c), proto
- * 1, written down in docs/features/buttons-and-power-off.md:
+ * docs/features/local-sockets.md, served by tools/common/linesrv.c), proto 1,
+ * written down in docs/features/buttons-and-power-off.md:
  *
  *   (connect)          {"type":"hello","daemon":"buttond","proto":1}
  *   claim G            {"type":"ok","cmd":"claim","gesture":"G"}
@@ -53,7 +53,7 @@
  *
  * Built-in defaults (used when nobody claims the gesture):
  *   power.short  toggle the system-wide screen-off flag
- *                /run/chef/screen-off: off creates it, on removes it,
+ *                /run/chef/screen/off: off creates it, on removes it,
  *                nothing else. Unclaimed means no chefui application runs,
  *                so nobody holds fb0 and the panel is already off; the next
  *                screen owner honours the flag (a hand-run fblog watches
@@ -93,8 +93,8 @@
  *   -d  double-tap window in ms (default 300)
  *   -p  extra hold after power.long before a release powers off
  *       (default 1500; 0 = never power off, only log)
- *   -S  socket path (default /run/chef/buttond.sock)
- *   -o  screen-off flag (default /run/chef/screen-off)
+ *   -S  socket path (default /run/chef/buttond/buttond.sock)
+ *   -o  screen-off flag (default /run/chef/screen/off)
  *   -V  vibrator (default /sys/class/timed_output/vibrator/enable, ms)
  *   -G  do not EVIOCGRAB the devices (shared, for experiments)
  *   -v  echo the log lines to stderr as well
@@ -591,7 +591,8 @@ static int screen_toggle(struct server *s)
 	int fd, e;
 
 	if (off) {
-		fd = open(s->off_path, O_WRONLY | O_CREAT | O_CLOEXEC, 0644);
+		/* never through a symlink: the directory is group-writable */
+		fd = open(s->off_path, O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
 		if (fd < 0) {
 			e = errno;
 			s->log("screen off: create %s: %s", s->off_path, strerror(e));

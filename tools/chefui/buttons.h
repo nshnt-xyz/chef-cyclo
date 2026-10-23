@@ -1,5 +1,5 @@
 /*
- * buttons.h - buttond client (/run/chef/buttond.sock, protocol in
+ * buttons.h - buttond client (/run/chef/buttond/buttond.sock, protocol in
  * tools/buttond/buttond.c's header) and gesture dispatch. No LVGL: covered
  * by tests/test_buttons.c over a real AF_UNIX listener.
  *

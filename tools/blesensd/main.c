@@ -7,9 +7,9 @@
  * that client leaves the bus, so one long-lived owner is needed. See
  * docs/features/bluetooth.md ("BLE sensors").
  *
- * Socket protocol on /run/chef/blesensd.sock: the shared local socket protocol
- * (docs/features/local-sockets.md), proto 1; the requests, replies and
- * events are in server.c's header.
+ * Socket protocol on /run/chef/blesensd/blesensd.sock: the shared local
+ * socket protocol (docs/features/local-sockets.md), proto 1; the
+ * requests, replies and events are in server.c's header.
  *
  * A device may carry several sensor kinds (a power meter with cadence, or
  * the PC emulator with all three): one record, one connection, one value

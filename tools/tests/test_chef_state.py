@@ -126,6 +126,9 @@ class ChefState(unittest.TestCase):
         p = self.p = Path(self.tmp.name)
         for d in ["data/v1", "run", "rtc", "pstore", "sensors", "proc", "bin"]:
             (p / d).mkdir(parents=True)
+        # the daemons' kind directories, as their services make them
+        for d in ["mag", "gps", "blesens"]:
+            (p / "run/state" / d).mkdir(parents=True)
         (p / "data/chef-layout").write_text("chef-cyclo-data-v1\n")
         (p / "kmsg").write_text("")
         (p / "cmdline").write_text("androidboot.slot_suffix=_a androidboot.bootreason=power_key_press quiet\n")
@@ -153,6 +156,12 @@ class ChefState(unittest.TestCase):
         (p / "bin/logger").write_text('#!/bin/sh\necho "logger $*" >> "$LOGGER_OUT"\n')
         (p / "bin/logger").chmod(0o755)
         (p / "bin/powerd").chmod(0o755)
+        # busybox su: records itself, then runs the command as this user,
+        # this test's copy of chef-state standing in for /usr/bin/chef-state
+        (p / "bin/su").write_text('#!/bin/sh\necho "su $*" >> "$TRACE"\n'
+                                  '[ "$1 $2 $4" = "-s /bin/sh -c" ] && [ "$#" = 5 ] || exit 99\n'
+                                  'exec /bin/sh -c "$(printf %s "$5" | sed "s#/usr/bin/chef-state#$TEST_SELF#")"\n')
+        (p / "bin/su").chmod(0o755)
         wrapper = "".join(f'{n}() {{ "$TEST_BIN/{n}" "$@"; }}\n' for n in names)
         self.script = p / "chef-state"
         self.script.write_text(SCRIPT.read_text().replace("\nDATA=", "\n" + wrapper + "DATA=", 1))
@@ -167,8 +176,10 @@ class ChefState(unittest.TestCase):
                     "LOGREAD_OUT": str(p / "ring"),
                     "CHEF_STATE_BOOT_ID": str(p / "boot_id"), "CHEF_STATE_RTC": str(p / "rtc"),
                     "CHEF_STATE_PSTORE": str(p / "pstore"), "CHEF_STATE_SENSORS_RUN": str(p / "sensors"),
+                    "CHEF_STATE_SENSORS_PRISTINE": str(p / "sensors/sns.reg.persist"),
                     "CHEF_STATE_MAP": str(p / "map"), "CHEF_STATE_PROC": str(p / "proc"),
                     "CHEF_STATE_RC_OPTIONS": str(p / "rc-options"),
+                    "CHEF_STATE_SU": str(p / "bin/su"), "TEST_SELF": " ".join([*self.shell, str(p / "chef-state")]),
                     "CHRONYC_OUT": str(p / "chronyc.out"), "EDGE_OUT": str(p / "edge.out"),
                     "REAL_DD": subprocess.run(["sh", "-c", "command -v dd"], capture_output=True, text=True).stdout.strip(),
                     "REAL_FLOCK": subprocess.run(["sh", "-c", "command -v flock"], capture_output=True, text=True).stdout.strip(),
@@ -654,9 +665,61 @@ class ChefState(unittest.TestCase):
             self.assertIn("switch kept on /run", self.kmsg)
             self.assertEqual(self.call("gps-load", **env).stdout, "enabled 0\n")
             self.assertFalse(f.exists())
-            (self.p / "run/state/gps-enabled").unlink()
+            (self.p / "run/state/gps/enabled").unlink()
         self.call("gps-save", "1")
         self.assertIn("flock", self.trace)	# under the gps lock
+
+    def test_kind_directories(self):
+        # a daemon's kind keeps its lock and RAM file in its own directory
+        st = self.p / "run/state"
+        self.assertEqual(self.call("gps-save", "0", MP_DATA="1").returncode, 0)
+        self.assertEqual(self.call("blesens-save", input=self.BS1, MP_DATA="1").returncode, 0)
+        (self.p / "sensors/sns.reg").write_bytes(self.reg_with_bias(100, 0, 0))
+        self.assertEqual(self.call("mag-save").returncode, 0)
+        self.assertEqual(sorted(x.name for x in (st / "gps").iterdir()), ["enabled", "lock"])
+        self.assertEqual(sorted(x.name for x in (st / "blesens").iterdir()), ["lock", "sensors"])
+        self.assertEqual(sorted(x.name for x in (st / "mag").iterdir()), ["last", "lock"])
+        self.assertFalse([x.name for x in st.iterdir() if x.is_file()])
+        # chef-state never makes them: without one, that kind's saves fail
+        # with a line and write nothing; its loads read as nothing saved
+        for kind in ("gps", "blesens", "mag"):
+            for x in (st / kind).iterdir():
+                x.unlink()
+            (st / kind).rmdir()
+        for args, kw in ((("gps-save", "0"), {}), (("gps-save", "0"), {"MP_DATA": "1"}),
+                         (("blesens-save",), {"input": self.BS1}), (("mag-save",), {"CHEF_STATE_MAG_FINAL": "1"})):
+            r = self.call(*args, **kw)
+            kind = args[0].split("-")[0]
+            self.assertEqual(r.returncode, 1, args)
+            self.assertIn(f"{kind}: no {st}/{kind} (its service makes it); not saved", self.kmsg)
+        self.assertFalse([x.name for x in st.iterdir() if x.name not in ("time",)])
+        self.assertFalse((self.data / "v1/gps").exists() or (self.data / "v1/blesens").exists())
+        r = self.call("gps-load", MP_DATA="1")
+        self.assertEqual((r.returncode, r.stdout, self.kmsg), (0, "enabled 1\n", ""))
+        r = self.call("blesens-load", MP_DATA="1")
+        self.assertEqual((r.returncode, r.stdout, self.kmsg), (0, "", ""))
+
+    def test_invalid_files_leave_no_scratch_files(self):
+        # the reason comes from a second unseal, never from a file on /run
+        (self.data / "v1/gps").mkdir()
+        (self.data / "v1/gps/enabled").write_text(seal("chef-gps 1\nenabled 0\n")[:-5] + "0000\n")
+        self.assertEqual(self.call("gps-load").stdout, "enabled 1\n")
+        self.assertIn("gps: ignoring " + str(self.data / "v1/gps/enabled") + ": checksum mismatch", self.kmsg)
+        (self.data / "v1/blesens").mkdir()
+        (self.data / "v1/blesens/sensors").write_text("chef-blesens 1\n")
+        self.assertEqual(self.call("blesens-load").stdout, "")
+        self.assertIn("blesens: ignoring " + str(self.data / "v1/blesens/sensors") + ": no checksum line", self.kmsg)
+        self.mag_file().parent.mkdir(parents=True, exist_ok=True)
+        self.mag_file().write_text("x" * 5000 + "\n")
+        target = self.p / "target"
+        target.write_bytes(self.pristine)
+        self.assertEqual(self.call("mag-restore", str(target)).returncode, 0)
+        self.assertIn("mag: ignoring " + str(self.mag_file()) + ": size 5001", self.kmsg)
+        (self.data / "v1/time").mkdir()
+        (self.data / "v1/time/rtc-offset").write_bytes(b"chef\0\n")
+        self.assertEqual(self.call("boot").returncode, 0)
+        self.assertIn(": NUL bytes", self.kmsg)
+        self.assertFalse([str(x) for x in (self.p / "run").rglob("*.err")])
 
     def test_gps_save_syncs_the_new_directory(self):
         v1 = str(self.data / "v1")
@@ -729,7 +792,7 @@ class ChefState(unittest.TestCase):
             self.assertIn("sensors kept on /run", self.kmsg)
             self.assertEqual(self.call("blesens-load", **env).stdout, self.BS1)
             self.assertFalse(f.exists())
-            (self.p / "run/state/blesens").unlink()
+            (self.p / "run/state/blesens/sensors").unlink()
 
     def test_blesens_save_syncs_and_fails_cleanly(self):
         v1 = str(self.data / "v1")
@@ -903,6 +966,10 @@ class ChefState(unittest.TestCase):
         self.assertEqual(t.count("rc-service "), 4)
         self.assertTrue((self.data / "v1/time/rtc-offset").exists())
         self.assertTrue(self.mag_file().exists())
+        # the last bias save as sensord, whose files these are
+        self.assertIn("su -s /bin/sh sensord -c CHEF_LOG_KMSG_ONLY=0 CHEF_STATE_MAG_FINAL=1 "
+                      "exec /usr/bin/chef-state mag-save\n", t)
+        self.assertRegex(self.kmsg, r"mag_save_rc=0 ")
         self.assertLess(took, 3.5)
         self.assertRegex(self.kmsg, r"shutdown: time_save_rc=0 .*mag_save_rc=0 sync_rc=0 stop_rc=1 \(uptime [0-9.]+ -> [0-9.]+\)")
 
@@ -926,7 +993,7 @@ class ChefState(unittest.TestCase):
         # Hold the bias-save lock (unbounded wait) beyond the entire outer
         # hook budget; the time-save lock is bounded, see below. Real
         # BusyBox timeout is the same 5s TERM +1s KILL as inittab.
-        with open(self.state("mag.lock"), "w") as lock:
+        with open(self.state("mag/lock"), "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             with open(self.p / "outer.out", "w") as output:
                 start = time.monotonic()
@@ -1127,8 +1194,11 @@ class ChefState(unittest.TestCase):
         pending.write_text(self.PENDING_ROWS + "12.0,x,po")  # torn tail
         r = self.call("shutdown", CHEF_STATE_PROC="/proc")
         self.assertEqual(r.returncode, 0, r.stderr)
+        # as powerd, whose files these are; its lines go to syslog (kmsg is root's)
+        self.assertIn(f"su -s /bin/sh powerd -c CHEF_LOG_KMSG_ONLY=0 exec powerd -d '{self.p}/run/power' "
+                      f"-l '{logdir}' -L 4194304 flush", self.trace)
         self.assertIn(f"powerd -d {self.p}/run/power -l {logdir} -L 4194304 flush", self.trace)
-        self.assertIn("powerd CHEF_LOG_KMSG_ONLY=1", self.trace)  # its lines stay on kmsg too
+        self.assertIn("powerd CHEF_LOG_KMSG_ONLY=0", self.trace)
         self.assertIn("power: appended 2 pending rows a stopped powerd left", self.kmsg)
         self.assertIn("power_flush_rc=0", self.kmsg)
         self.assertEqual((logdir / "log.csv.1").read_text(), "uptime,utc,reason\n1.0,x,start\n")
@@ -1211,7 +1281,7 @@ class ChefState(unittest.TestCase):
         script = SCRIPT.read_text()
         self.assertEqual(powerd.count('command_args="-l /data/v1/power -L 4194304"'), 1)
         self.assertIn("\nPOWER_LOG_MAX=4194304\t", script)
-        self.assertIn('-l "$DATA/v1/power" -L "$POWER_LOG_MAX" flush', script)
+        self.assertIn("-l '$DATA/v1/power' -L $POWER_LOG_MAX flush", script)
 
     def test_shutdown_terms_powerd_before_time_save(self):
         pr = self.spawn()
@@ -1349,7 +1419,8 @@ class ChefState(unittest.TestCase):
 
     def test_log_lines_follow_syslogd(self):
         # running modes log through the helper to syslogd (logger), boot and
-        # shutdown to kmsg: boot runs before syslogd, shutdown forces it
+        # shutdown to kmsg: boot runs before syslogd, shutdown forces it, but
+        # not for the bias save it runs as sensord (kmsg is root's)
         self.start_syslogd()
         out = self.p / "logger.out"
         self.assertEqual(self.call("mag-restore").returncode, 1)
@@ -1360,7 +1431,9 @@ class ChefState(unittest.TestCase):
         r = self.call("shutdown", CHEF_STATE_PROC="/proc")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("chef-state: shutdown: time_save_rc=", self.kmsg)
-        self.assertEqual(out.read_text(), "")
+        self.assertTrue(all(l.startswith("logger -t chef-state -p daemon.info -- mag: ")
+                            for l in out.read_text().splitlines()), out.read_text())
+        out.write_text("")
         (self.p / "syslogd.pid").unlink()
         self.call("boot")
         self.assertIn("chef-state: ", self.kmsg)

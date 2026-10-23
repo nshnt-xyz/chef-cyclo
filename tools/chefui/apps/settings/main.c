@@ -27,7 +27,8 @@
  * --snapshot     write the frame as PPM after MS (default 500) and exit
  * --data/--run   settings roots instead of /data and /run/chef (host runs)
  * --prompt-uid   host captures: trust a prompt file owned by this uid (default root)
- * --sensord-sock the light sensor's socket (default /run/chef/sensord.sock)
+ * --sensord-sock the light sensor's socket (default
+ *                /run/chef/sensord/sensord.sock)
  * --als-light/--als-dark   theme Auto thresholds in lux (defaults 2500 and
  *                800; dark must be below light)
  * --als-light-hold/--als-dark-hold   seconds the light/dark condition must

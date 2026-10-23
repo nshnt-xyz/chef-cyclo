@@ -1,9 +1,9 @@
 # sensord: SSC sensors daemon (REG2 server + SMGR client + socket API),
 # see main.c's file header and docs/features/sensors.md. On the phone it
-# is the REG2 registry server + SMGR client behind /run/chef/sensord.sock,
-# the supervised OpenRC service sensord (registry copy made by
-# rootfs-overlay/usr/bin/sensors-up registry);
-# same transport/codec as servreg-locator.
+# is the REG2 registry server + SMGR client behind
+# /run/chef/sensord/sensord.sock, the supervised OpenRC service sensord
+# (registry copy made by rootfs-overlay/usr/bin/sensors-up registry); same
+# transport/codec as servreg-locator.
 #
 #   make                 host build: build/host/sensord and the host tool
 #                        build/host/compass-replay

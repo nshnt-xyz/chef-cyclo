@@ -51,7 +51,8 @@ printf 'PARTNAME=persist\n' > "$SYSFS_BLOCK/mmcblk0p38/uevent"
 printf 'PARTNAME=modem_a\n' > "$SYSFS_BLOCK/mmcblk0p6/uevent"
 export PROC_MOUNTS="$T/mounts"
 : > "$PROC_MOUNTS"
-export RUN_DIR="$T/run"
+export RUN_DIR="$T/run" SENSORD_DIR="$T/sensord"
+mkdir -p "$SENSORD_DIR"
 export REG_MAP="$T/sns_reg.map"
 printf 'size 16\ngroup 1 0 16\n' > "$REG_MAP"
 FAKE_PERSIST="$T/persist-content"
@@ -69,9 +70,9 @@ STATE_CALLS="$T/state-calls"
 CHEF_STATE="$T/chef-state-stub"
 cat > "$CHEF_STATE" <<'STUB'
 #!/bin/sh
-echo "$* run=$CHEF_STATE_SENSORS_RUN map=$CHEF_STATE_MAP" >> "$STATE_CALLS"
+echo "$* pristine=$CHEF_STATE_SENSORS_PRISTINE map=$CHEF_STATE_MAP" >> "$STATE_CALLS"
 if [ "$1" = mag-restore ]; then
-	[ -f "$CHEF_STATE_SENSORS_RUN/sns.reg.persist" ] || { echo "no pristine before overlay" >> "$STATE_CALLS"; exit 1; }
+	[ -f "$CHEF_STATE_SENSORS_PRISTINE" ] || { echo "no pristine before overlay" >> "$STATE_CALLS"; exit 1; }
 	printf M | dd of="$2" bs=1 conv=notrunc 2>/dev/null
 fi
 STUB
@@ -102,11 +103,19 @@ umount() {
 	[ "$UMOUNT_FAIL" -eq 1 ] && return 1
 	rm -rf "${1:?}"/*
 }
+# the host cannot give a file to sensord: recorded, not done
+CHOWN_CALLS="$T/chown-calls"
+CHOWN_FAIL=0
+chown() {
+	echo "chown $*" >> "$CHOWN_CALLS"
+	[ "$CHOWN_FAIL" -eq 0 ]
+}
 
 eq "part persist" mmcblk0p38 "$(part persist)"
 eq "map_size" 16 "$(map_size)"
 
-# --- normal path: ro,noload mount, copy, unmount, 0400 copy -------------
+# --- normal path: ro,noload mount, copy, unmount, built in root's
+# directory, then given to sensord and moved into its directory ----------
 copy_registry > "$T/out" 2>&1 || bad "copy_registry failed: $(cat "$T/out")"
 eq "setro first" "blockdev --setro /dev/mmcblk0p38" "$(sed -n 1p "$CALLS")"
 eq "getro second" "blockdev --getro /dev/mmcblk0p38" "$(sed -n 2p "$CALLS")"
@@ -114,28 +123,48 @@ eq "mount args" "mount -t ext4 -o ro,noload /dev/mmcblk0p38 $RUN_DIR/persist-ro"
 eq "umount args" "umount $RUN_DIR/persist-ro" "$(sed -n 4p "$CALLS")"
 eq "calls" 4 "$(grep -c . "$CALLS")"
 grep -q "set read-only at the block layer (blockdev --getro = 1)" "$T/out" || bad "getro proof line missing"
-eq "copy content with the saved group overlaid" M123456789abcdef "$(cat "$RUN_DIR/sns.reg")"
+eq "copy content with the saved group overlaid" M123456789abcdef "$(cat "$SENSORD_DIR/sns.reg")"
 eq "pristine copy has no overlay" 0123456789abcdef "$(cat "$RUN_DIR/sns.reg.persist")"
-eq "mag-restore on the temp copy" "mag-restore $RUN_DIR/sns.reg.tmp run=$RUN_DIR map=$REG_MAP" "$(cat "$STATE_CALLS")"
-eq "copy mode" "-r--------" "$(ls -l "$RUN_DIR/sns.reg" | cut -c1-10)"
+eq "pristine mode (sensord's bias saves read it)" "-r--r--r--" "$(ls -l "$RUN_DIR/sns.reg.persist" | cut -c1-10)"
+eq "mag-restore on the temp copy" "mag-restore $RUN_DIR/sns.reg.tmp pristine=$RUN_DIR/sns.reg.persist map=$REG_MAP" "$(cat "$STATE_CALLS")"
+eq "given to sensord before the move" "chown sensord:sensord $RUN_DIR/sns.reg.tmp" "$(cat "$CHOWN_CALLS")"
+eq "copy mode" "-rw-------" "$(ls -l "$SENSORD_DIR/sns.reg" | cut -c1-10)"
+[ -e "$RUN_DIR/sns.reg" ] && bad "working copy in root's directory"
 eq "mounted flag" 0 "$PERSIST_MOUNTED"
 [ -e "$RUN_DIR/persist-ro" ] && bad "mount point left behind"
 [ -e "$RUN_DIR/sns.reg.tmp" ] && bad "temp copy left behind"
 
+# --- a link planted in sensord's directory is replaced, never written
+# through --------------------------------------------------------------------
+rm -f "$SENSORD_DIR/sns.reg"
+ln -s "$T/planted" "$SENSORD_DIR/sns.reg"
+copy_registry > "$T/out" 2>&1 || bad "copy over a planted link: $(cat "$T/out")"
+[ ! -h "$SENSORD_DIR/sns.reg" ] && [ -f "$SENSORD_DIR/sns.reg" ] || bad "planted link not replaced"
+[ -e "$T/planted" ] && bad "written through the planted link"
+# a failed hand-over: nothing served, nothing left
+: > "$CHOWN_CALLS"
+rm -f "$SENSORD_DIR/sns.reg"
+CHOWN_FAIL=1
+if copy_registry > "$T/out" 2>&1; then bad "failed chown accepted"; fi
+grep -q "cannot hand the registry copy to sensord" "$T/out" || bad "hand-over failure message: $(cat "$T/out")"
+[ -e "$SENSORD_DIR/sns.reg" ] && bad "copy served after a failed chown"
+[ -e "$RUN_DIR/sns.reg.tmp" ] && bad "temp copy left after a failed chown"
+CHOWN_FAIL=0
+
 # --- persist already mounted: copy from there, no mount/umount ---------
 : > "$CALLS"
-rm -f "$RUN_DIR/sns.reg"
+rm -f "$SENSORD_DIR/sns.reg"
 mkdir -p "$T/already/sensors"
 printf 'fedcba9876543210' > "$T/already/sensors/sns.reg"
 printf '/dev/mmcblk0p38 %s ext4 ro,relatime 0 0\n' "$T/already" > "$PROC_MOUNTS"
 copy_registry > "$T/out" 2>&1 || bad "copy from existing mount failed"
 eq "no mount/blockdev when already mounted" 0 "$(grep -c . "$CALLS")"
-eq "copied from existing mount" Medcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+eq "copied from existing mount" Medcba9876543210 "$(cat "$SENSORD_DIR/sns.reg")"
 # SENSORS_FRESH=1: fresh copy, no overlay
 : > "$STATE_CALLS"
-rm -f "$RUN_DIR/sns.reg"
+rm -f "$SENSORD_DIR/sns.reg"
 SENSORS_FRESH=1 copy_registry > "$T/out" 2>&1 || bad "fresh copy with SENSORS_FRESH=1"
-eq "SENSORS_FRESH=1: no overlay" fedcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+eq "SENSORS_FRESH=1: no overlay" fedcba9876543210 "$(cat "$SENSORD_DIR/sns.reg")"
 eq "SENSORS_FRESH=1: chef-state not called" 0 "$(grep -c . "$STATE_CALLS")"
 grep -q "SENSORS_FRESH=1: no saved magnetometer bias applied" "$T/out" || bad "SENSORS_FRESH overlay message"
 # a mag-restore that fails after writing part of its overlay: the served
@@ -147,26 +176,26 @@ exit 1
 STUB
 chmod +x "$T/chef-state-partial"
 CHEF_STATE="$T/chef-state-partial"
-rm -f "$RUN_DIR/sns.reg"
+rm -f "$SENSORD_DIR/sns.reg"
 copy_registry > "$T/out" 2>&1 || bad "copy failed with a partial overlay"
-eq "partial overlay: served copy is persist's" "$(cat "$RUN_DIR/sns.reg.persist")" "$(cat "$RUN_DIR/sns.reg")"
-eq "partial overlay: plain copy" fedcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+eq "partial overlay: served copy is persist's" "$(cat "$RUN_DIR/sns.reg.persist")" "$(cat "$SENSORD_DIR/sns.reg")"
+eq "partial overlay: plain copy" fedcba9876543210 "$(cat "$SENSORD_DIR/sns.reg")"
 # a failing mag-restore costs only the overlay
 CHEF_STATE=false
-rm -f "$RUN_DIR/sns.reg"
+rm -f "$SENSORD_DIR/sns.reg"
 copy_registry > "$T/out" 2>&1 || bad "copy failed with a failing chef-state"
-eq "failing chef-state: plain copy" fedcba9876543210 "$(cat "$RUN_DIR/sns.reg")"
+eq "failing chef-state: plain copy" fedcba9876543210 "$(cat "$SENSORD_DIR/sns.reg")"
 grep -q "saved magnetometer bias not applied" "$T/out" || bad "failed overlay message"
 CHEF_STATE="$T/chef-state-stub"
 : > "$PROC_MOUNTS"
 
 # --- wrong size: refused, nothing left, persist still unmounted --------
 : > "$CALLS"
-rm -f "$RUN_DIR/sns.reg"
+rm -f "$SENSORD_DIR/sns.reg"
 printf 'short' > "$FAKE_PERSIST/sensors/sns.reg"
 if copy_registry > "$T/out" 2>&1; then bad "short registry accepted"; fi
 grep -q "the map expects 16" "$T/out" || bad "size mismatch message: $(cat "$T/out")"
-[ -e "$RUN_DIR/sns.reg" ] && bad "short registry copied"
+[ -e "$SENSORD_DIR/sns.reg" ] && bad "short registry copied"
 eq "unmounted after size failure" "umount $RUN_DIR/persist-ro" "$(sed -n 4p "$CALLS")"
 printf '0123456789abcdef' > "$FAKE_PERSIST/sensors/sns.reg"
 
@@ -187,10 +216,10 @@ for case in getro0 getroempty setrofail; do
 	getroempty) GETRO= ;;
 	setrofail) SETRO_FAIL=1 ;;
 	esac
-	rm -f "$RUN_DIR/sns.reg"
+	rm -f "$SENSORD_DIR/sns.reg"
 	if copy_registry > "$T/out" 2>&1; then bad "$case: copy_registry went ahead"; fi
 	[ "$(grep -c '^mount' "$CALLS")" -eq 0 ] || bad "$case: mounted anyway"
-	[ -e "$RUN_DIR/sns.reg" ] && bad "$case: registry copied"
+	[ -e "$SENSORD_DIR/sns.reg" ] && bad "$case: registry copied"
 	grep -q "not mounting" "$T/out" || bad "$case: refusal not logged"
 done
 GETRO=1
@@ -211,20 +240,20 @@ grep -q '^	reuse_registry || copy_registry || exit 1$' "$SCRIPT" || bad "reuse n
 BOOT_ID_FILE="$T/boot_id"
 echo aaa > "$BOOT_ID_FILE"
 SENSORS_FRESH=0
-rm -f "$RUN_DIR"/sns.reg*
+rm -f "$RUN_DIR"/sns.reg* "$SENSORD_DIR/sns.reg"
 copy_registry > "$T/out" 2>&1 || bad "fresh copy for reuse: $(cat "$T/out")"
 eq "boot id recorded" aaa "$(cat "$RUN_DIR/sns.reg.boot_id")"
 eq "pristine copy" 0123456789abcdef "$(cat "$RUN_DIR/sns.reg.persist")"
 : > "$STATE_CALLS"
-eq "pristine mode" "-r--------" "$(ls -l "$RUN_DIR/sns.reg.persist" | cut -c1-10)"
+eq "pristine mode" "-r--r--r--" "$(ls -l "$RUN_DIR/sns.reg.persist" | cut -c1-10)"
 # the DSP learned something (sensord's atomic write-back replaces the file)
-printf 'X123456789abcdeY' > "$RUN_DIR/sns.reg.new" && mv -f "$RUN_DIR/sns.reg.new" "$RUN_DIR/sns.reg"
+printf 'X123456789abcdeY' > "$SENSORD_DIR/sns.reg.new" && mv -f "$SENSORD_DIR/sns.reg.new" "$SENSORD_DIR/sns.reg"
 : > "$CALLS"
 reuse_registry > "$T/out" 2>&1 || bad "same boot not reused: $(cat "$T/out")"
 eq "reuse: no blockdev/mount/umount" 0 "$(grep -c . "$CALLS")"
 grep -q "registry reused from this boot: .*DSP writes kept: 2 bytes differ from persist's; persist not touched" "$T/out" \
 	|| bad "reuse message: $(cat "$T/out")"
-eq "reuse keeps the DSP writes" X123456789abcdeY "$(cat "$RUN_DIR/sns.reg")"
+eq "reuse keeps the DSP writes" X123456789abcdeY "$(cat "$SENSORD_DIR/sns.reg")"
 eq "reuse: no overlay" 0 "$(grep -c . "$STATE_CALLS")"
 # ... even with the persist partition gone: reuse never looks for it
 mv "$SYSFS_BLOCK/mmcblk0p38" "$T/hidden-p38"
@@ -234,7 +263,9 @@ mv "$T/hidden-p38" "$SYSFS_BLOCK/mmcblk0p38"
 SENSORS_FRESH=1
 if reuse_registry > "$T/out" 2>&1; then bad "SENSORS_FRESH=1 reused"; fi
 grep -q "SENSORS_FRESH=1: fresh registry copy from persist" "$T/out" || bad "SENSORS_FRESH message"
+[ -e "$SENSORD_DIR/sns.reg" ] && bad "SENSORS_FRESH=1 kept the working copy"
 SENSORS_FRESH=0
+printf 'X123456789abcdeY' > "$SENSORD_DIR/sns.reg"	# back, as sensord left it
 # another boot: not reused, and the fresh copy restores persist's bytes
 echo bbb > "$BOOT_ID_FILE"
 if reuse_registry > "$T/out" 2>&1; then bad "copy from another boot reused"; fi
@@ -242,21 +273,29 @@ grep -q "not from this boot" "$T/out" || bad "boot mismatch message: $(cat "$T/o
 : > "$CALLS"
 copy_registry > "$T/out" 2>&1 || bad "fresh copy after boot mismatch"
 eq "fresh copy goes through setro" "blockdev --setro /dev/mmcblk0p38" "$(sed -n 1p "$CALLS")"
-eq "fresh content" M123456789abcdef "$(cat "$RUN_DIR/sns.reg")"
+eq "fresh content" M123456789abcdef "$(cat "$SENSORD_DIR/sns.reg")"
 eq "new boot id" bbb "$(cat "$RUN_DIR/sns.reg.boot_id")"
 # unreadable boot id: never reused
 BOOT_ID_FILE="$T/no-such-boot-id"
 if reuse_registry > "$T/out" 2>&1; then bad "reused without a boot id"; fi
 BOOT_ID_FILE="$T/boot_id"
 # wrong size: not reused
-chmod u+w "$RUN_DIR/sns.reg"
-printf 'short' > "$RUN_DIR/sns.reg"
+printf 'short' > "$SENSORD_DIR/sns.reg"
 if reuse_registry > "$T/out" 2>&1; then bad "short copy reused"; fi
 grep -q "registry copy is 5 bytes, the map expects 16; fresh copy from persist" "$T/out" || bad "size message: $(cat "$T/out")"
 # missing copy: not reused, quietly
-rm -f "$RUN_DIR/sns.reg"
+rm -f "$SENSORD_DIR/sns.reg"
 if reuse_registry > "$T/out" 2>&1; then bad "missing copy reused"; fi
 eq "missing copy: no message" 0 "$(grep -c . "$T/out")"
+# a link in sensord's directory is never followed: not reused (its target
+# here would pass every check)
+ln -s "$RUN_DIR/sns.reg.persist" "$SENSORD_DIR/sns.reg"
+if reuse_registry > "$T/out" 2>&1; then bad "linked copy reused"; fi
+rm -f "$SENSORD_DIR/sns.reg"
+# SENSORS_FRESH=1 removes the working copy first
+printf '0123456789abcdef' > "$SENSORD_DIR/sns.reg"
+SENSORS_FRESH=1 reuse_registry > /dev/null 2>&1
+[ -e "$SENSORD_DIR/sns.reg" ] && bad "SENSORS_FRESH=1 kept the working copy"
 : > "$CALLS"
 
 # --- no persist partition ----------------------------------------------
@@ -308,14 +347,14 @@ grep -Eq '^[^#]*(sensord.pid|"\$SENSORD"|SMGR_WAIT)' "$SCRIPT" && bad "sensors-u
 
 # --- registry: the whole verb on a reusable copy (irsc stubbed) ---------------
 H=$T/h
-mkdir -p "$H/run" "$H/bin"
-printf '0123456789abcdef' > "$H/run/sns.reg"
+mkdir -p "$H/run" "$H/sensord" "$H/bin"
+printf '0123456789abcdef' > "$H/sensord/sns.reg"
 echo hostboot > "$H/boot_id"
 cp "$H/boot_id" "$H/run/sns.reg.boot_id"
 printf '0x0000010f |0x00000002 |0x00000001 |0x0000003c |\n' > "$H/dump"
 printf '#!/bin/sh\necho irsc >> "%s/irsc.calls"\nexit "${IRSC_RC:-0}"\n' "$H" > "$H/bin/irsc"
 chmod +x "$H/bin/irsc"
-UPENV="PATH=$H/bin:$PATH LOCK=$H/up.lock RUN_DIR=$H/run REG_MAP=$T/sns_reg.map BOOT_ID_FILE=$H/boot_id DUMP_SERVERS=$H/dump"
+UPENV="PATH=$H/bin:$PATH LOCK=$H/up.lock RUN_DIR=$H/run SENSORD_DIR=$H/sensord REG_MAP=$T/sns_reg.map BOOT_ID_FILE=$H/boot_id DUMP_SERVERS=$H/dump"
 env $UPENV sh "$SCRIPT" registry > "$H/o1" 2>&1; eq "registry: exit" 0 "$?"
 grep -q "registry reused from this boot" "$H/o1" || bad "registry verb: $(cat "$H/o1")"
 eq "registry: irsc once" irsc "$(cat "$H/irsc.calls")"

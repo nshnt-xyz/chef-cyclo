@@ -3,9 +3,9 @@
  * docs/features/bluetooth.md "BLE sensors"): the view of saved sensors
  * with their state and live values, devices found while scanning and the
  * pairing in progress, kept from a `watch` connection on
- * /run/chef/blesensd.sock (a ../common/lineclient, reconnected with backoff 1 s
- * doubling to 8 s, back to 1 s on `ok watch`). blesensd's lines are read
- * with the shared JSON reader; a hello with a proto other than
+ * /run/chef/blesensd/blesensd.sock (a ../common/lineclient, reconnected
+ * with backoff 1 s doubling to 8 s, back to 1 s on `ok watch`). blesensd's
+ * lines are read with the shared JSON reader; a hello with a proto other than
  * BLESC_PROTO is logged once and the client carries on (the compatibility
  * rule of docs/features/local-sockets.md). "hold on" and "scan on" are
  * sent while wanted, after `ok watch`, again after a reconnect; closing the

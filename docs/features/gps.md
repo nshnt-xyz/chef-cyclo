@@ -19,13 +19,13 @@ The clean standard-NetworkManager baseline verifies one shared resident modem ow
 - `tools/tftp/`: bounded TFTP/RFS service with read-only firmware and a RAM-backed writable namespace seeded from the stock persist backup at build time.
 - `tools/qmux.{c,h}`, `tools/qmuxd-lite.c`: the bridge used by stock Alpine `qmicli`.
 - `tools/nmea-broker.c`: follower stdout to checksum-verified NMEA UDP datagrams for gpsd.
-- `tools/gps-manager/` (`main.c`, with the state machine in `core.c`, the lease server in `server.c`, the owner check and state file in `owner.c` and the command-line client in `cli.c`): leases on `/run/chef/gps-manager.sock` run the LOC session, gpsd and the follower/broker pipeline on demand ([below](#use-gnss-gps-manager)).
+- `tools/gps-manager/` (`main.c`, with the state machine in `core.c`, the lease server in `server.c`, the owner check and state file in `owner.c` and the command-line client in `cli.c`): leases on `/run/chef/gps-manager/gps-manager.sock` run the LOC session, gpsd and the follower/broker pipeline on demand ([below](#use-gnss-gps-manager)).
 
 The modem needs both service-registry and TFTP/RFS support to survive startup. `modem-up` does not automatically restart a crashed modem. Do not run competing owners or reopen the modem repeatedly after failure; retain evidence and reboot.
 
 ## Use GNSS: gps-manager
 
-`gps-manager` (`tools/gps-manager/`, the supervised OpenRC service `gps-manager`, [services](services.md)) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `modem-up` and never changes the modem's operating mode. Idle, it only listens on `/run/chef/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
+`gps-manager` (`tools/gps-manager/`, the supervised OpenRC service `gps-manager`, [services](services.md)) runs GNSS on demand on top of the shared modem owner. It never starts, signals or restarts `modem-up` and never changes the modem's operating mode. Idle, it only listens on `/run/chef/gps-manager/gps-manager.sock`. A client takes a lease; the first lease brings GNSS up, and 30 s after the last lease goes it is torn down again. A lease lives on its connection, so a client that dies releases it.
 
 ```sh
 gps-manager hold map          # lease, then print the watch lines until killed (kinds: map, ride)
@@ -51,7 +51,7 @@ Restart safety: one instance holds an flock on `/run/chef/gps-manager/lock`; a s
 
 ## Socket contract
 
-`/run/chef/gps-manager.sock` speaks the shared [local socket protocol](local-sockets.md): requests are words on one line, every line from the manager is a JSON object with a `type`. This is proto 1 (2026-10-18; before it the manager spoke plain `ok`/`err`/`state`/`acq`/`enabled` lines).
+`/run/chef/gps-manager/gps-manager.sock` speaks the shared [local socket protocol](local-sockets.md): requests are words on one line, every line from the manager is a JSON object with a `type`. This is proto 1 (2026-10-18; before it the manager spoke plain `ok`/`err`/`state`/`acq`/`enabled` lines).
 
 | Request | Reply |
 |---|---|
@@ -89,7 +89,7 @@ Errors:
 
 A word sent back (`<as sent>`) is its first 32 bytes, JSON-escaped. Empty lines are ignored; a CR before the newline is stripped.
 
-Lease lifetime and limits: leases and `watch` live on the connection and go when it closes, whatever the reason, so a client that dies releases its leases (the last one starts the grace). The socket is mode 0660 (root's today). Up to 16 connections. Each has a 4096-byte output queue and every line is must-deliver: a client that stops reading until a reply or event no longer fits is dropped like one that closed, and its leases with it. Clients ignore unknown `type`s and members; a new member or type keeps proto 1, a change that breaks a client bumps it (the [compatibility rules](local-sockets.md#replies-and-events-the-envelope)).
+Lease lifetime and limits: leases and `watch` live on the connection and go when it closes, whatever the reason, so a client that dies releases its leases (the last one starts the grace). The socket is mode 0660, in the `gps:gps` 0750 directory `/run/chef/gps-manager` ([runtime files](runtime-files.md)). Up to 16 connections. Each has a 4096-byte output queue and every line is must-deliver: a client that stops reading until a reply or event no longer fits is dropped like one that closed, and its leases with it. Clients ignore unknown `type`s and members; a new member or type keeps proto 1, a change that breaks a client bumps it (the [compatibility rules](local-sockets.md#replies-and-events-the-envelope)).
 
 The command-line client never prints the hello. `status`, `retry`, `enable` and `disable` print the one reply line on stdout (an error reply too) and exit 0, or 1 on an error reply, without a connection, or when the manager closes it before replying; `watch` and `hold KIND...` print every later line as it comes (one JSON object per line) until the manager goes or ^C; `hold` sends its leases, then `watch`. Usage errors exit 64.
 

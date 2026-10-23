@@ -19,8 +19,8 @@
 
 extern struct ble_view ble_view;
 
-/* The connection (sock NULL = /run/chef/blesensd.sock), reconnected with
- * backoff (1 s doubling to 8 s) while blesensd is away. */
+/* The connection (sock NULL = /run/chef/blesensd/blesensd.sock),
+ * reconnected with backoff (1 s doubling to 8 s) while blesensd is away. */
 int sys_ble_start(const char *sock);
 void sys_ble_stop(void);
 /* What the pages want: sensors kept connected (a Bluetooth page is seen),

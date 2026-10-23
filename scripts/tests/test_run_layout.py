@@ -6,9 +6,14 @@ that is neither `chef` nor in ALLOWED. Not caught: a path assembled at run
 time from a base the scan cannot see (an environment variable set outside
 the image's files, a C path built from a non-literal base), and names that
 other packages choose for themselves inside their own /run directories.
+Also: the paths standard interfaces step 8 moved are gone from the image,
+and /init makes /run/chef/state and the screen handover directory.
 """
 from pathlib import Path
+import os
 import re
+import subprocess
+import tempfile
 import unittest
 
 REPO = Path(__file__).resolve().parents[2]
@@ -105,6 +110,66 @@ class RunLayoutTests(unittest.TestCase):
                     if top != "chef" and top not in ALLOWED:
                         bad.append(f"{rel}:{n}: {value}")
         self.assertEqual(bad, [], "run-directory defaults outside /run/chef")
+
+    def test_moved_paths_are_gone(self):
+        # step 8 moved each daemon's socket into its own directory, the
+        # working registry copy into sensord's and the screen handover into
+        # screen/
+        old = ("/run/chef/buttond.sock", "/run/chef/sensord.sock", "/run/chef/blesensd.sock",
+               "/run/chef/gps-manager.sock", "/run/chef/sensors/sns.reg\"", "/run/chef/fb0.", "/run/chef/screen-off",
+               "$ST/mag-last", "$ST/gps-enabled", "$ST/blesens\t")
+        bad = []
+        for path in image_files():
+            body = text(path)
+            for n, line in enumerate((body or "").splitlines(), 1):
+                bad += [f"{path.relative_to(REPO)}:{n}: {o}" for o in old if o in line]
+        self.assertEqual(bad, [])
+
+    def test_init_makes_the_shared_directories(self):
+        init = (REPO / "rootfs-overlay/init").read_text()
+        self.assertIn("\nmkdir -p -m 0755 /run/chef /run/chef/log /run/chef/lock /run/chef/state\n", init)
+        block = "if mkdir -m 0775 /run/chef/screen" + init.split("if mkdir -m 0775 /run/chef/screen", 1)[1]
+        block = block[:block.index("\nfi\n") + 4]
+        self.assertLess(init.index("/run/chef/state\n"), init.index(block))
+        self.assertLess(init.index(block), init.index("exec /sbin/init"))
+        with tempfile.TemporaryDirectory() as tmp:
+            calls = Path(tmp) / "calls"
+            code = ('log() { echo "log $*" >> "$CALLS"; }\n'
+                    'chgrp() { echo "chgrp $*" >> "$CALLS"; return "${CHGRP_RC:-0}"; }\n'
+                    + block.replace("/run/chef", tmp + "/chef"))
+            os.mkdir(tmp + "/chef")
+            env = {**os.environ, "CALLS": str(calls)}
+            subprocess.run(["sh", "-c", code], env=env, check=True)
+            screen = Path(tmp) / "chef/screen"
+            self.assertEqual(screen.stat().st_mode & 0o7777, 0o775)
+            self.assertEqual((screen / "fb0.lock").stat().st_mode & 0o7777, 0o660)
+            self.assertEqual(calls.read_text(), f"chgrp screen {screen}\nchgrp screen {screen}/fb0.lock\n")
+            # any failure: one line, and init goes on
+            (screen / "fb0.lock").unlink()
+            screen.rmdir()
+            calls.unlink()
+            subprocess.run(["sh", "-c", code], env={**env, "CHGRP_RC": "1"}, check=True)
+            self.assertEqual(calls.read_text(), f"chgrp screen {screen}\nlog screen handover directory not set up\n")
+
+    def test_init_protects_links(self):
+        # before chef-storage boot hands the daemons their /data directories
+        init = (REPO / "rootfs-overlay/init").read_text()
+        line = ("{ echo 1 > /proc/sys/fs/protected_hardlinks && echo 1 > /proc/sys/fs/protected_symlinks; } "
+                "2>/dev/null ||\n    log \"fs.protected_hardlinks/protected_symlinks not set\"\n")
+        self.assertEqual(init.count(line), 1)
+        self.assertLess(init.index("log()"), init.index(line))
+        self.assertLess(init.index(line), init.index("/usr/bin/chef-storage boot"))
+        with tempfile.TemporaryDirectory() as tmp:
+            fs = Path(tmp) / "fs"
+            fs.mkdir()
+            code = 'log() { echo "log $*"; }\n' + line.replace("/proc/sys/fs", str(fs))
+            r = subprocess.run(["sh", "-c", code], capture_output=True, text=True, check=True)
+            self.assertEqual(((fs / "protected_hardlinks").read_text(), (fs / "protected_symlinks").read_text(),
+                              r.stdout), ("1\n", "1\n", ""))
+            (fs / "protected_hardlinks").unlink()
+            (fs / "protected_hardlinks").mkdir()  # a write that fails
+            r = subprocess.run(["sh", "-c", code], capture_output=True, text=True, check=True)
+            self.assertEqual((r.stdout, r.stderr), ("log fs.protected_hardlinks/protected_symlinks not set\n", ""))
 
     def test_patterns(self):
         hits = lambda s: [m.group(1) for m in NAME.finditer(s)]

@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -106,10 +107,20 @@ int linesrv_listen(struct linesrv *srv, const char *path)
 	sa.sun_family = AF_UNIX;
 	strcpy(sa.sun_path, path);
 	unlink(path);
-	if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0 || listen(fd, 8) < 0) {
+	if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
 		int err = errno;
 
 		close(fd);
+		free(copy);
+		return -err;
+	}
+	/* 0660 whatever the umask, before anyone can connect: the clients are
+	 * the daemon's group (the directory's 0750 keeps others out meanwhile) */
+	if (chmod(path, 0660) < 0 || listen(fd, 8) < 0) {
+		int err = errno;
+
+		close(fd);
+		unlink(path);
 		free(copy);
 		return -err;
 	}

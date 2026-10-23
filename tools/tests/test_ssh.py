@@ -588,7 +588,7 @@ class Wiring(unittest.TestCase):
         self.assertFalse((ROOT / "rootfs-overlay/etc/shells").exists())
 
     def test_storage_makes_ssh_dir(self):
-        self.assertIn("for dir in crash time power sensors ssh; do", (ROOT / "rootfs-overlay/usr/bin/chef-storage").read_text())
+        self.assertIn(" ssh:root ", (ROOT / "rootfs-overlay/usr/bin/chef-storage").read_text())
 
     def test_build(self):
         rootfs = (ROOT / "scripts/mkrootfs.sh").read_text()

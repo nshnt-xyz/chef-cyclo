@@ -121,16 +121,17 @@ with tempfile.TemporaryDirectory() as t:
     (b/'udevadm').write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALLS"\n[ "${UDEV_FAIL:-}" != "$1" ]\n')
     for f in b.iterdir():f.chmod(0o755)
     code='log() { :; }; '+coldplug.replace('/sbin/udevd',str(b/'udevd')).replace('/run/chef/udev-ready',str(p/'udev-ready')).replace('/run/udev',str(p/'udev'))
-    # No input coldplug or background udev work: nothing consumes input metadata.
-    assert 'subsystem-match=input' not in init and ') &' not in coldplug
+    # One trigger for the subsystems that need it, never storage or
+    # power_supply, and no background udev work.
+    assert 'subsystem-match=block' not in init and 'subsystem-match=power_supply' not in init and ') &' not in coldplug
     for failure in ('','daemon','trigger','settle'):
         ready=p/'udev-ready';ready.unlink(missing_ok=True)
         calls=p/'calls';calls.unlink(missing_ok=True)
         env=dict(os.environ,PATH=str(b)+':'+os.environ['PATH'],CALLS=str(calls),UDEV_FAIL=failure)
         subprocess.run(['sh','-c',code],env=env,check=True)
         assert ready.exists()==(failure=='')
-        if failure=='':assert calls.read_text().splitlines()==['trigger --action=add --subsystem-match=net','settle --timeout=20']
-print('test_wifi_nm: network-only coldplug and fail-closed readiness PASS')
+        if failure=='':assert calls.read_text().splitlines()==['trigger --action=add --subsystem-match=net --subsystem-match=input --subsystem-match=graphics --subsystem-match=leds --subsystem-match=timed_output --subsystem-match=ssc','settle --timeout=20']
+print('test_wifi_nm: one-trigger coldplug and fail-closed readiness PASS')
 
 # Execute real metadata setup without invoking privileged host chown/chmod.
 # system_a carries the mode from the build (verify only, no writes); the RAM

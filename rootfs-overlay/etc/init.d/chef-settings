@@ -1,13 +1,13 @@
 #!/sbin/openrc-run
 # The system UI (chef-settings: status bar, settings hub, Display page). It
-# takes the panel through /run/chef/fb0.lock, claims power.short from
+# takes the panel through /run/chef/screen/fb0.lock, claims power.short from
 # buttond (Back on a page, screen off on the hub) and picks up
 # NetworkManager, BlueZ, gps-manager and /data whenever they appear. A boot
-# with /run/chef/screen-off present stays dark. If it dies with the panel
+# with /run/chef/screen/off present stays dark. If it dies with the panel
 # lit, the next start power-cycles the panel once so touch resumes
-# (/run/chef/fb0.lit, docs/features/ui-platform.md); a failed start waits
-# 5 s first. Settings: /data/v1/ui/settings (or /run/chef/ui when /data is
-# not ours). See docs/features/system-ui.md.
+# (/run/chef/screen/fb0.lit, docs/features/ui-platform.md); a failed start
+# waits 5 s first. Settings: /data/v1/ui/settings (or /run/chef/ui when /data
+# is not ours). See docs/features/system-ui.md.
 
 description="System UI"
 supervisor=supervise-daemon
@@ -17,4 +17,13 @@ command=/usr/bin/chef-settings
 depend() {
 	use logger
 	before dbus udhcpd modem-up chronyd bt-up
+}
+
+# Its directories (stop, args, captures; the RAM settings) and the settings
+# store's lock, its own every start, so the store needs no write access to
+# /run/chef/lock.
+start_pre() {
+	checkpath -d -o chefui:chefui -m 0755 /run/chef/chef-settings &&
+		checkpath -d -o chefui:chefui -m 0700 /run/chef/ui &&
+		checkpath -f -o chefui:chefui -m 0600 /run/chef/lock/ui-settings.lock
 }

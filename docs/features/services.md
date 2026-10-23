@@ -7,7 +7,7 @@ Since standard interfaces step 7 (2026-10-21) OpenRC starts, supervises and stop
 ## Boot
 
 1. Stage 1 (`stage1/init`, in `boot_a`) checks and mounts the read-only `system_a` root and switches to it ([boot](boot.md)).
-2. `/init` (`rootfs-overlay/init`) mounts `/proc`, `/sys`, `/dev`, the `/run`, `/tmp`, `/var` and `/root` tmpfs, makes `/run/chef`, sets the host name, the D-Bus helper and the chrony directories, brings up loopback and the USB network, runs udevd with the network coldplug, `chef-storage boot` and `chef-state boot`, and execs busybox init.
+2. `/init` (`rootfs-overlay/init`) mounts `/proc`, `/sys`, `/dev`, the `/run`, `/tmp`, `/var` and `/root` tmpfs, makes `/run/chef` (with `log`, `lock`, `state` and the screen handover directory `screen`), sets the host name, the D-Bus helper and the chrony directories, brings up loopback and the USB network, runs udevd with the boot coldplug (`net`, `input`, `graphics`, `leds`, `timed_output`, `ssc`), `chef-storage boot` and `chef-state boot`, and execs busybox init.
 3. busybox init runs `inittab`: the USB telnet shell, OpenRC, and `abslot`'s 30 s mark.
 4. OpenRC runs its own sysinit step, then the `default` runlevel: every service below, one at a time in dependency order.
 
@@ -45,25 +45,27 @@ All in the `default` runlevel (`rootfs-overlay/etc/runlevels/default/`). Third-p
 | Service | Script | Runs | Depends | Readiness and preconditions |
 |---|---|---|---|---|
 | `syslog` | packaged (`busybox-openrc`) | `syslogd -t -C1024 -n` ([logging](logging.md)) | provides `logger`; every other service uses it, so it starts first | |
-| `chef-settings` | own | the system UI ([system UI](system-ui.md)) | before `modem-up`, `dbus`, `udhcpd`, `chronyd`, `bt-up` | picks up everything else whenever it appears |
+| `chef-settings` | own | the system UI ([system UI](system-ui.md)) | before `modem-up`, `dbus`, `udhcpd`, `chronyd`, `bt-up` | its directories and the settings lock (`checkpath`, below) in `start_pre`; picks up everything else whenever it appears |
 | `modem-up` | own | the modem and its support daemons ([GPS](gps.md)) | after `chef-settings`, before the slower services | not supervised (below); its start returns at once, consumers wait for the modem themselves |
 | `udhcpd` | packaged (`busybox-extras-openrc`) | `udhcpd -f -S /run/chef/udhcpd.conf -f` (DHCP for the USB host) | before `dbus` and `sensord`, so the lease does not wait for them | needs `/run/chef/udhcpd.conf` (from `/init`) |
 | `dbus` | packaged | the system bus | | needs `/run/chef/dbus-helper-ready` (from `/init`); waits up to 10 s for `/run/dbus/system_bus_socket`, else the start fails |
 | `bluetooth` | packaged (`bluez-openrc`) | `bluetoothd -n` | needs `dbus` | the BNEP firewall rule in `start_pre`; without it the start fails (`bnep-guard` log line) |
-| `blesensd` | own | BLE sensors ([Bluetooth](bluetooth.md)) | after `bluetooth` | retries BlueZ on its own |
+| `blesensd` | own | BLE sensors ([Bluetooth](bluetooth.md)) | after `bluetooth` | its directories (`checkpath`) in `start_pre`; retries BlueZ on its own |
 | `bt-up` | own | the WCN3990 attach | | |
-| `buttond` | own | side buttons ([buttons](buttons-and-power-off.md)) | | |
+| `buttond` | own | side buttons ([buttons](buttons-and-power-off.md)) | | its socket's directory (`checkpath`) in `start_pre` |
 | `chef-sshd` | own | dropbear ([SSH](ssh.md)) | | |
 | `chronyd` | packaged (`chrony-openrc`) | `chronyd -f /etc/chrony/chrony.conf -F 1 -u chrony -n` | | needs its config |
 | `chef-timekeeper` | own | `chef-state timekeeper` ([persistent data](storage.md#persistent-state)) | after `chronyd` | |
-| `gps-manager` | own | GNSS leases ([GPS](gps.md#use-gnss-gps-manager)) | after `modem-up` | waits for the modem owner on its own |
-| `powerd` | own | battery policy ([battery](battery-and-charging.md)) | | `-l /data/v1/power -L 4194304` when `/data` is ours (`start_pre`) |
+| `gps-manager` | own | GNSS leases ([GPS](gps.md#use-gnss-gps-manager)) | after `modem-up` | its directories (`checkpath`) in `start_pre`; waits for the modem owner on its own |
+| `powerd` | own | battery policy ([battery](battery-and-charging.md)) | | in `start_pre`: its state directory (`checkpath`), `system_temp_level`'s group (a failure only disables the charge throttle), `-l /data/v1/power -L 4194304` when `/data` is ours |
 | `root-session-bus` | own | root's session bus at `/run/user/0/bus` | | |
-| `sensord` | own | the SMGR client and REG2 server ([sensors](sensors.md)) | after `modem-up` | `sensors-up registry` in `start_pre` (this boot's registry copy, persist read-only; bounded at 30 s, since it runs inside the serial boot); waits up to 10 s for REG2 (`0x10f`) on the IPC router, else the start fails |
+| `sensord` | own | the SMGR client and REG2 server ([sensors](sensors.md)) | after `modem-up` | its directories (`checkpath`), then `sensors-up registry` in `start_pre` (this boot's registry copy, persist read-only; bounded at 30 s, since it runs inside the serial boot); waits up to 10 s for REG2 (`0x10f`) on the IPC router, else the start fails |
 | `sensors-up` | own, one-shot | `sensors-up adsp`: starts `audio-up` (detached) to boot the ADSP unless it is up | needs `sensord`, after `modem-up` | nothing stays running under it; sensord polls for the ADSP's sensor manager |
 | `networkmanager` | packaged | `NetworkManager --state-file=... -n` ([Wi-Fi](wifi.md)) | needs `dbus`, uses `modem-up` (so a refused `modem-up` stop leaves it running); after every other service | `wifi-nm` in `start_pre`: USB guard, udev coldplug, no manual Wi-Fi session, the modem owner (up to 600 s, or until a shutdown begins), the WLAN driver; any failure fails the start |
 
 That is the start order, as `rc-depend` computes it on the staged tree. `openrc shutdown` stops them in the reverse order of their dependencies: NetworkManager first, `gps-manager`, `sensors-up` and `sensord` before `modem-up`, `syslog` last.
+
+**Runtime directories.** The services of `buttond`, `powerd`, `sensord`, `blesensd`, `gps-manager` and `chef-settings` make their daemon's directories under `/run/chef` (its socket's directory, its state, `chef-state`'s directory for the saves run on its behalf, and chef-settings' settings lock) in `start_pre` with OpenRC's `checkpath`, which sets the owner (the daemon's user) and the mode on every start; a failed `checkpath` fails the start. The list, owners and modes are in [runtime files](runtime-files.md).
 
 While `wifi-nm` waits for the modem (about 6 s on every boot), NetworkManager is "starting" and its start holds the service's lock; a shutdown in that window would make the stop of `dbus` wait up to 60 s for it. So the wait gives up within a second once `openrc shutdown` has set the runlevel (`/run/openrc/softlevel` reads `shutdown`), and NetworkManager's start fails.
 

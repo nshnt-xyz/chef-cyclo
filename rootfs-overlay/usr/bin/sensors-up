@@ -7,7 +7,7 @@
 #                         into RAM (or reuse this boot's copy), then irsc;
 #                         sensord then serves the copy to the ADSP as QMI
 #                         REG2 and is the SMGR client behind
-#                         /run/chef/sensord.sock
+#                         /run/chef/sensord/sensord.sock
 #   sensors-up adsp       the sensors-up service (one-shot, after sensord):
 #                         boot the ADSP through audio-up unless it is
 #                         ONLINE or audio-up is running. The ADSP's sensor
@@ -25,14 +25,18 @@
 # ro,noload (noload is still needed: a read-only device with a journal to
 # replay fails to mount without it), copies the one file, and unmounts
 # before doing anything else. If persist is already mounted somewhere, it
-# copies from there and leaves that mount alone. sensord gets the copy
-# under /run and writes the DSP's registry writes back to that copy only
-# (never to persist). A later `sensors-up registry` in the same boot (boot id
-# recorded beside the copy, size matching the map) reuses that copy
-# without touching persist at all, so the DSP's registry writes (the
-# magnetometer hard-iron bias) stay available for an ADSP restart or
-# re-read (the ADSP itself keeps its state across a sensord restart); a new boot, a
-# size mismatch or SENSORS_FRESH=1 makes a fresh copy as above.
+# copies from there and leaves that mount alone. Its own files (the mount
+# point, the copy as read, the boot id, the staging copy) are in root's
+# /run/chef/sensors; sensord gets its working copy in its own
+# /run/chef/sensord, built here and moved in (mv -fT: root never writes
+# through a path in a daemon's directory), and writes the DSP's registry
+# writes back to that copy only (never to persist). A later `sensors-up
+# registry` in the same boot (boot id recorded in /run/chef/sensors, size
+# matching the map) reuses that copy without touching persist at all, so the
+# DSP's registry writes (the magnetometer hard-iron bias) stay available for
+# an ADSP restart or re-read (the ADSP itself keeps its state across a sensord
+# restart); a new boot, a size mismatch or SENSORS_FRESH=1 makes a fresh copy
+# as above.
 #
 # Across boots only the magnetometer's group 2980 (the hard-iron bias the
 # ADSP learns) is kept, by chef-state on /data, never the whole registry:
@@ -65,7 +69,8 @@ SYSFS_BLOCK=${SYSFS_BLOCK:-/sys/block/mmcblk0}
 PROC_MOUNTS=${PROC_MOUNTS:-/proc/mounts}
 DUMP_SERVERS=${DUMP_SERVERS:-/sys/kernel/debug/msm_ipc_router/dump_servers}
 SUBSYS_DIR=${SUBSYS_DIR:-/sys/bus/msm_subsys/devices}
-RUN_DIR=${RUN_DIR:-/run/chef/sensors}
+RUN_DIR=${RUN_DIR:-/run/chef/sensors}		# root's: this script's files
+SENSORD_DIR=${SENSORD_DIR:-/run/chef/sensord}	# sensord's: its working copy
 PERSIST_MNT=${PERSIST_MNT:-$RUN_DIR/persist-ro}
 PERSIST_FSTYPE=${PERSIST_FSTYPE:-ext4}
 REG_PATH_IN_PERSIST=${REG_PATH_IN_PERSIST:-sensors/sns.reg}
@@ -75,7 +80,8 @@ AUDIO_LOCK=${AUDIO_LOCK:-/run/chef/lock/audio-up.lock}
 BOOT_ID_FILE=${BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}
 SENSORS_FRESH=${SENSORS_FRESH:-0}
 CHEF_STATE=${CHEF_STATE:-chef-state}
-REG_COPY="$RUN_DIR/sns.reg"
+REG_COPY="$SENSORD_DIR/sns.reg"	# the working copy sensord serves
+REG_TMP="$RUN_DIR/sns.reg.tmp"	# where the next working copy is built
 REG_BOOT="$RUN_DIR/sns.reg.boot_id"	# the boot the copy was made in
 REG_PRISTINE="$RUN_DIR/sns.reg.persist"	# the copy as read from persist
 
@@ -102,18 +108,21 @@ file_size() {
 }
 
 # Copy sns.reg from persist to $REG_COPY. persist is only ever mounted
-# read-only, noload, and unmounted before this returns.
+# read-only, noload, and unmounted before this returns. The copy is built
+# in $RUN_DIR, then given to sensord and renamed over its working copy
+# (rename replaces whatever is there, a planted link included; -T refuses
+# a directory).
 copy_registry() {
 	persist=$(part persist)
 	[ -n "$persist" ] || { log "persist partition not found"; return 1; }
 	want=$(map_size)
 	[ -n "$want" ] || { log "registry map $REG_MAP missing or has no size line"; return 1; }
 	mkdir -p "$RUN_DIR"
-	rm -f "$REG_COPY.tmp"
+	rm -f "$REG_TMP"
 	src_mnt=$(persist_mountpoint "$persist")
 	if [ -n "$src_mnt" ]; then
 		log "persist already mounted at $src_mnt; copying from there, leaving it mounted"
-		cp "$src_mnt/$REG_PATH_IN_PERSIST" "$REG_COPY.tmp" || { log "copy from $src_mnt failed"; return 1; }
+		cp "$src_mnt/$REG_PATH_IN_PERSIST" "$REG_TMP" || { log "copy from $src_mnt failed"; return 1; }
 	else
 		blockdev --setro "/dev/$persist" || { log "blockdev --setro /dev/$persist failed; not mounting"; return 1; }
 		ro=$(blockdev --getro "/dev/$persist" 2>/dev/null)
@@ -128,7 +137,7 @@ copy_registry() {
 			return 1
 		}
 		PERSIST_MOUNTED=1
-		cp "$PERSIST_MNT/$REG_PATH_IN_PERSIST" "$REG_COPY.tmp"
+		cp "$PERSIST_MNT/$REG_PATH_IN_PERSIST" "$REG_TMP"
 		rc=$?
 		umount "$PERSIST_MNT" && PERSIST_MOUNTED=0
 		if [ "$PERSIST_MOUNTED" -ne 0 ]; then
@@ -138,48 +147,54 @@ copy_registry() {
 		rmdir "$PERSIST_MNT" 2>/dev/null
 		[ "$rc" -eq 0 ] || { log "copy of $REG_PATH_IN_PERSIST from persist failed"; return 1; }
 	fi
-	got=$(file_size "$REG_COPY.tmp")
+	got=$(file_size "$REG_TMP")
 	if [ "$got" != "$want" ]; then
 		log "sns.reg is ${got:-?} bytes, the map expects $want; not starting sensord"
-		rm -f "$REG_COPY.tmp"
+		rm -f "$REG_TMP"
 		return 1
 	fi
 	rm -f "$REG_PRISTINE" "$REG_BOOT"
-	cp "$REG_COPY.tmp" "$REG_PRISTINE" && chmod 0400 "$REG_PRISTINE"
+	# 0444: chef-state's bias saves, run as sensord, compare against it
+	cp "$REG_TMP" "$REG_PRISTINE" && chmod 0444 "$REG_PRISTINE"
 	if [ "$SENSORS_FRESH" = 1 ]; then
 		log "SENSORS_FRESH=1: no saved magnetometer bias applied"
 	else
-		if ! chef_state mag-restore "$REG_COPY.tmp"; then
+		if ! chef_state mag-restore "$REG_TMP"; then
 			# never serve a half-written overlay: back to persist's bytes
 			log "saved magnetometer bias not applied"
-			cp "$REG_PRISTINE" "$REG_COPY.tmp" || { log "cannot restore the persist copy"; rm -f "$REG_COPY.tmp"; return 1; }
+			cp "$REG_PRISTINE" "$REG_TMP" || { log "cannot restore the persist copy"; rm -f "$REG_TMP"; return 1; }
 		fi
 	fi
-	chmod 0400 "$REG_COPY.tmp"
-	mv -f "$REG_COPY.tmp" "$REG_COPY"
+	if ! { chown sensord:sensord "$REG_TMP" && chmod 0600 "$REG_TMP" && mv -fT "$REG_TMP" "$REG_COPY"; }; then
+		log "cannot hand the registry copy to sensord ($REG_COPY)"
+		rm -f "$REG_TMP"
+		return 1
+	fi
 	cat "$BOOT_ID_FILE" > "$REG_BOOT" 2>/dev/null
 	log "registry copied to $REG_COPY ($got bytes; persist untouched)"
 }
 
-# Reuse the /run copy an earlier sensord of this boot left behind, with
+# Reuse the working copy an earlier sensord of this boot left behind, with
 # what the DSP wrote into it (sensord writes its RAM registry back there:
 # live, the magnetometer bias the DSP learned). Only when it was made in
-# this boot (boot id recorded beside it) and has the map's size; persist
-# is not touched at all then (no setro, no mount). SENSORS_FRESH=1 forces
-# a fresh copy. 1 = make a fresh copy.
+# this boot (boot id recorded in $RUN_DIR) and has the map's size; persist
+# is not touched at all then (no setro, no mount). The copy is sensord's:
+# looked at without following a link (lstat, busybox stat's default).
+# SENSORS_FRESH=1 removes it and forces a fresh copy. 1 = make a fresh copy.
 reuse_registry() {
 	if [ "$SENSORS_FRESH" = 1 ]; then
+		rm -f "$REG_COPY"
 		log "SENSORS_FRESH=1: fresh registry copy from persist"
 		return 1
 	fi
-	[ -f "$REG_COPY" ] || return 1
+	[ ! -h "$REG_COPY" ] && [ -f "$REG_COPY" ] || return 1
 	bid=$(cat "$BOOT_ID_FILE" 2>/dev/null)
 	if [ -z "$bid" ] || [ "$(cat "$REG_BOOT" 2>/dev/null)" != "$bid" ]; then
-		log "registry copy in $RUN_DIR is not from this boot; fresh copy from persist"
+		log "registry copy $REG_COPY is not from this boot; fresh copy from persist"
 		return 1
 	fi
 	want=$(map_size)
-	got=$(file_size "$REG_COPY")
+	got=$(stat -c %s "$REG_COPY" 2>/dev/null)
 	if [ -z "$want" ] || [ "$got" != "$want" ]; then
 		log "registry copy is ${got:-?} bytes, the map expects ${want:-?}; fresh copy from persist"
 		return 1
@@ -195,7 +210,7 @@ reuse_registry() {
 
 # chef-state on this script's registry paths (overridable for the tests).
 chef_state() {
-	CHEF_STATE_SENSORS_RUN="$RUN_DIR" CHEF_STATE_MAP="$REG_MAP" "$CHEF_STATE" "$@"
+	CHEF_STATE_SENSORS_PRISTINE="$REG_PRISTINE" CHEF_STATE_MAP="$REG_MAP" "$CHEF_STATE" "$@"
 }
 
 # syslog through the shared helper (kmsg while syslogd is not up), and
@@ -211,7 +226,7 @@ cleanup() {
 	trap - EXIT HUP INT TERM
 	# Only reachable between mount and umount if cp itself was killed.
 	[ "$PERSIST_MOUNTED" -eq 1 ] && umount "$PERSIST_MNT" 2>/dev/null
-	rm -f "$REG_COPY.tmp"
+	rm -f "$REG_TMP"
 	exit "$status"
 }
 

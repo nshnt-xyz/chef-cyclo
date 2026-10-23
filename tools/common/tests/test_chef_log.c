@@ -113,15 +113,15 @@ int main(void)
 
 	/* no socket: the kmsg line, exactly as before syslog */
 	truncate_file(kmsg);
-	chef_log("ready: %s, long %u ms", "/run/chef/buttond.sock", 1500u);
-	CHECK(slurp(kmsg, buf, sizeof(buf)) && !strcmp(buf, "buttond: ready: /run/chef/buttond.sock, long 1500 ms\n"));
+	chef_log("ready: %s, long %u ms", "/run/chef/buttond/buttond.sock", 1500u);
+	CHECK(slurp(kmsg, buf, sizeof(buf)) && !strcmp(buf, "buttond: ready: /run/chef/buttond/buttond.sock, long 1500 ms\n"));
 
 	/* the socket CHEF_LOG_SOCKET names: one datagram in the wire form,
 	 * nothing in kmsg */
 	srv = bind_dgram(missing);
 	truncate_file(kmsg);
-	chef_log("ready: %s", "/run/chef/buttond.sock");
-	snprintf(want, sizeof(want), "<30>buttond[%ld]: ready: /run/chef/buttond.sock", (long)getpid());
+	chef_log("ready: %s", "/run/chef/buttond/buttond.sock");
+	snprintf(want, sizeof(want), "<30>buttond[%ld]: ready: /run/chef/buttond/buttond.sock", (long)getpid());
 	CHECK(recv_one(srv, buf, sizeof(buf)) && !strcmp(buf, want));
 	CHECK(slurp(kmsg, buf, sizeof(buf)) == 0);
 	close(srv);

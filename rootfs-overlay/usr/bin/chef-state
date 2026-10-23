@@ -29,7 +29,9 @@
 #                            power log rows on exit; rows a stopped powerd
 #                            left are flushed here), sensord (it writes the
 #                            registry copy back on exit) and the timekeeper
-#                            through OpenRC, last bias save
+#                            through OpenRC, last bias save; the flush and
+#                            the bias save run as powerd and sensord (root
+#                            never writes into a daemon's directories)
 #   chef-state log-save      inittab after shutdown, and chef-reboot: this
 #                            boot's syslogd ring (logread) into
 #                            /data/v1/log/syslog-<seq>, the newest 8 kept
@@ -38,7 +40,11 @@
 # /data with the chef-layout marker); otherwise every consumer runs from
 # /run as before. Saved files are text with a trailing sha256 line, written
 # as a temp file in the same directory, fsynced, renamed, and the directory
-# fsynced, under a lock per kind in /run/chef/state. A torn or invalid file
+# fsynced, under a lock per kind in /run/chef/state: the kinds run for a
+# daemon (mag for sensord, gps for gps-manager, blesens for blesensd) have
+# their lock and RAM files in a directory of their own there, which the
+# daemon's service makes and owns; chef-state never creates those, and
+# without one that kind's saves fail with a log line. A torn or invalid file
 # is ignored with a log line, never trusted, never fatal. boots.log is
 # appended (one line per boot, fsynced) and its parser skips a torn line.
 # This script never changes directory into /data and never keeps a
@@ -54,7 +60,9 @@ BOOT_ID_FILE=${CHEF_STATE_BOOT_ID:-/proc/sys/kernel/random/boot_id}
 RTC=${CHEF_STATE_RTC:-/sys/class/rtc/rtc0}
 PSTORE=${CHEF_STATE_PSTORE:-/sys/fs/pstore}
 CHRONY_SOCK=${CHEF_STATE_CHRONY_SOCK:-/run/chrony/chronyd.sock}
-SNS_RUN=${CHEF_STATE_SENSORS_RUN:-$RUN/sensors}
+SNS_RUN=${CHEF_STATE_SENSORS_RUN:-$RUN/sensord}	# sensord's working copy sns.reg
+SNS_PRISTINE=${CHEF_STATE_SENSORS_PRISTINE:-$RUN/sensors/sns.reg.persist}	# as read from persist
+SU=${CHEF_STATE_SU:-su}		# busybox su: the shutdown runs a daemon's work as that daemon
 MAP=${CHEF_STATE_MAP:-/usr/share/sensord/sns_reg.map}
 PROC=${CHEF_STATE_PROC:-/proc}
 RC_OPTIONS=${CHEF_STATE_RC_OPTIONS:-/run/openrc/options}	# supervise-daemon's child_pid per service
@@ -64,9 +72,9 @@ CRASH=$DATA/v1/crash
 LOGDIR=$DATA/v1/log
 MAG_FILE=$DATA/v1/sensors/mag-group-2980
 GPS_FILE=$DATA/v1/gps/enabled
-GPS_RUN_FILE=$ST/gps-enabled	# when /data is not ours (lost at reboot)
+GPS_RUN_FILE=$ST/gps/enabled	# when /data is not ours (lost at reboot)
 BLESENS_FILE=$DATA/v1/blesens/sensors
-BLESENS_RUN_FILE=$ST/blesens	# when /data is not ours (lost at reboot)
+BLESENS_RUN_FILE=$ST/blesens/sensors	# when /data is not ours (lost at reboot)
 BLESENS_MAX=8
 MAG_GROUP=2980
 MAG_BIAS_ITEM=3903		# 3903..3905: x y z, int32 LE, Q16 gauss
@@ -162,13 +170,21 @@ put() {
 	return 1
 }
 
-# Run "$@" holding the lock for kind $1 (in $ST, never /data). Stale temp
-# files of that kind are only removed under the lock. With LOCK_TRIES set,
-# give up with 75 after that many 0.1 s retries instead of queueing behind
-# the holder (BusyBox flock has no -w). Commands that may outlive the
-# holder (BusyBox timeout's watchdog daemon) get 8>&- so they never pin it.
+# Run "$@" holding the lock for kind $1 (in $ST, never /data): $ST/KIND.lock,
+# or $ST/KIND/lock for a daemon's kind, whose directory must exist (1 and a
+# log line otherwise). Stale temp files of that kind are only removed under
+# the lock. With LOCK_TRIES set, give up with 75 after that many 0.1 s
+# retries instead of queueing behind the holder (BusyBox flock has no -w).
+# Commands that may outlive the holder (BusyBox timeout's watchdog daemon)
+# get 8>&- so they never pin it.
 locked() {
 	kind=$1; shift
+	case $kind in
+	mag|gps|blesens)
+		[ -d "$ST/$kind" ] || { log "$kind: no $ST/$kind (its service makes it); not saved"; return 1; }
+		lock=$ST/$kind/lock;;
+	*) lock=$ST/$kind.lock;;
+	esac
 	(
 		if [ -n "${LOCK_TRIES:-}" ]; then
 			tries=$LOCK_TRIES
@@ -181,7 +197,7 @@ locked() {
 			flock 8 || exit 1
 		fi
 		"$@"
-	) 8>"$ST/$kind.lock"
+	) 8>"$lock"
 }
 
 # ---------------------------------------------------------------- clock
@@ -190,8 +206,8 @@ locked() {
 # 0: valid, 2: missing, 1: invalid (logged unless $1 = quiet).
 time_load() {
 	quiet=${1:-}
-	body=$(unseal "$TIME_FILE" 2>"$ST/time.err"); rc=$?
-	why=$(cat "$ST/time.err" 2>/dev/null); rm -f "$ST/time.err"
+	body=$(unseal "$TIME_FILE" 2>/dev/null); rc=$?
+	[ "$rc" != 1 ] || why=$(unseal "$TIME_FILE" 2>&1 >/dev/null)
 	[ "$rc" = 2 ] && return 2
 	if [ "$rc" = 0 ]; then
 		# shellcheck disable=SC2086 # word split on purpose
@@ -485,8 +501,8 @@ mag_geometry() {
 # invalid (logged unless $1 = quiet). Needs mag_geometry.
 mag_load() {
 	quiet=${1:-}
-	body=$(unseal "$MAG_FILE" 2>"$ST/mag.err"); rc=$?
-	why=$(cat "$ST/mag.err" 2>/dev/null); rm -f "$ST/mag.err"
+	body=$(unseal "$MAG_FILE" 2>/dev/null); rc=$?
+	[ "$rc" != 1 ] || why=$(unseal "$MAG_FILE" 2>&1 >/dev/null)
 	[ "$rc" = 2 ] && return 2
 	if [ "$rc" = 0 ]; then
 		# shellcheck disable=SC2086
@@ -510,13 +526,13 @@ mag_load() {
 mag_save_locked() {
 	read -r mag_now _ < "$PROC/uptime"
 	mag_now=${mag_now%%.*}
-	mag_last=$(cat "$ST/mag-last" 2>/dev/null)
+	mag_last=$(cat "$ST/mag/last" 2>/dev/null)
 	if [ "${CHEF_STATE_MAG_FINAL:-0}" != 1 ] && isint "$mag_now" && isint "$mag_last" &&
 	   [ "$mag_now" -ge "$mag_last" ] && [ $((mag_now - mag_last)) -lt 60 ]; then
 		return 3	# deferred: caller must retain pending snapshot
 	fi
 	rm -f "$MAG_FILE".tmp.*
-	reg=$SNS_RUN/sns.reg pristine=$SNS_RUN/sns.reg.persist
+	reg=$SNS_RUN/sns.reg pristine=$SNS_PRISTINE
 	[ -f "$reg" ] && [ -f "$pristine" ] || return 0
 	mag_geometry || { log "mag: group $MAG_GROUP not in $MAP; bias not saved"; return 1; }
 	[ "$(wc -c < "$reg")" = "$MAG_SIZE" ] || { log "mag: $reg size differs from the map; bias not saved"; return 1; }
@@ -534,7 +550,7 @@ mag_save_locked() {
 	printf 'chef-mag-group 1\ngroup %s\nlength %s\npersist_sha256 %s\nmap_sha256 %s\nbytes %s\n' \
 		"$MAG_GROUP" "$MAG_LEN" "$psha" "$msha" "$hex" | seal | put "$MAG_FILE" ||
 		{ log "mag: writing $MAG_FILE failed"; return 1; }
-	printf '%s\n' "$mag_now" > "$ST/mag-last"
+	printf '%s\n' "$mag_now" > "$ST/mag/last"
 	log "mag: saved group $MAG_GROUP bias $(gauss $BIAS) gauss"
 }
 
@@ -556,7 +572,7 @@ mag_restore() {
 	mag_load; rc=$?
 	[ "$rc" = 2 ] && { log "mag: no saved bias"; return 0; }
 	[ "$rc" = 0 ] || return 0
-	[ "$M_PSHA" = "$(sha "$SNS_RUN/sns.reg.persist")" ] ||
+	[ "$M_PSHA" = "$(sha "$SNS_PRISTINE")" ] ||
 		{ log "mag: saved bias was learned against another persist registry; not applied"; return 0; }
 	[ "$M_MSHA" = "$(sha "$MAP")" ] || { log "mag: saved bias was saved with another map; not applied"; return 0; }
 	[ -f "$target" ] && [ "$(wc -c < "$target")" = "$MAG_SIZE" ] || { log "mag: $target size differs from the map; not applied"; return 0; }
@@ -586,8 +602,8 @@ gps_file() {
 
 gps_load() {
 	f=$(gps_file)
-	body=$(unseal "$f" 2>"$ST/gps.err"); rc=$?
-	why=$(cat "$ST/gps.err" 2>/dev/null); rm -f "$ST/gps.err"
+	body=$(unseal "$f" 2>/dev/null); rc=$?
+	[ "$rc" != 1 ] || why=$(unseal "$f" 2>&1 >/dev/null)
 	if [ "$rc" = 0 ]; then
 		# shellcheck disable=SC2086
 		set -- $body
@@ -639,8 +655,8 @@ blesens_valid() {
 
 blesens_load() {
 	f=$(blesens_file)
-	body=$(unseal "$f" 2>"$ST/blesens.err"); rc=$?
-	why=$(cat "$ST/blesens.err" 2>/dev/null); rm -f "$ST/blesens.err"
+	body=$(unseal "$f" 2>/dev/null); rc=$?
+	[ "$rc" != 1 ] || why=$(unseal "$f" 2>&1 >/dev/null)
 	if [ "$rc" = 0 ]; then
 		head=$(printf '%s\n' "$body" | head -n 1)
 		recs=$(printf '%s\n' "$body" | sed '1d')
@@ -816,7 +832,9 @@ live_powerd() {
 # Only when the powerd seen at entry ($@: its pid:start tokens) is
 # confirmed gone and no other is alive, never while one may still write.
 # `powerd ... flush` applies powerd's own rules (header, rotation, torn
-# tail) and fsyncs. 0: nothing pending or flushed, 1: rows left (logged).
+# tail) and fsyncs; it runs as powerd, whose files these are, and logs to
+# syslog (kmsg is root's). 0: nothing pending or flushed, 1: rows left
+# (logged).
 power_flush() {
 	pending=$RUN/power/log.pending
 	[ -s "$pending" ] || return 0
@@ -825,7 +843,8 @@ power_flush() {
 		log "power: powerd may still be running; $rows pending rows left in $pending"
 		return 1
 	fi
-	if timeout -k 1 2 powerd -d "$RUN/power" -l "$DATA/v1/power" -L "$POWER_LOG_MAX" flush </dev/null 8>&-; then
+	if timeout -k 1 2 "$SU" -s /bin/sh powerd -c \
+		"CHEF_LOG_KMSG_ONLY=0 exec powerd -d '$RUN/power' -l '$DATA/v1/power' -L $POWER_LOG_MAX flush" </dev/null 8>&-; then
 		log "power: appended $rows pending rows a stopped powerd left"
 		return 0
 	fi
@@ -868,7 +887,10 @@ do_shutdown() {
 	[ "$stop_rc" = 0 ] || log "shutdown: chronyd/sensord/powerd not confirmed stopped by 1.8 s deadline; final flush not confirmed"
 	# shellcheck disable=SC2086
 	power_flush $power_tokens; power_rc=$?
-	CHEF_STATE_MAG_FINAL=1 mag_save; mag_rc=$?
+	# as sensord, whose files these are; its lines go to syslog (kmsg is
+	# root's), and log-save keeps the ring right after
+	"$SU" -s /bin/sh sensord -c 'CHEF_LOG_KMSG_ONLY=0 CHEF_STATE_MAG_FINAL=1 exec /usr/bin/chef-state mag-save' </dev/null
+	mag_rc=$?
 	sync; sync_rc=$?
 	read -r t1 _ < "$PROC/uptime"
 	log "shutdown: time_save_rc=$time_rc (1=skipped/failed) power_flush_rc=$power_rc mag_save_rc=$mag_rc sync_rc=$sync_rc stop_rc=$stop_rc (uptime $t0 -> $t1)"
@@ -892,8 +914,9 @@ gps-load) cd / && gps_load;;
 gps-save) cd / && gps_save "${2:-}";;
 blesens-load) cd / && blesens_load;;
 blesens-save) cd / && blesens_save;;
-# kmsg only, for this and every child (powerd flush): a hang on the way
-# down is what pstore keeps, and only kmsg lines reach it.
+# kmsg only, for this and its own children: a hang on the way down is what
+# pstore keeps, and only kmsg lines reach it (the flush and the bias save,
+# run as their daemons, log to syslog).
 shutdown) export CHEF_LOG_KMSG_ONLY=1; do_shutdown; exit 0;;
 # the same for the ring's save at the very end; its lines would land in the
 # ring it is saving, after the copy

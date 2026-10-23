@@ -1,7 +1,7 @@
 # gps-manager: the GNSS demand manager (main.c's header,
-# docs/features/gps.md). Leases on /run/chef/gps-manager.sock drive the LOC
-# CID/session, gpsd and the follower | nmea-broker pipeline on top of
-# modem-up's shared modem, and stop them after the last release. Never
+# docs/features/gps.md). Leases on /run/chef/gps-manager/gps-manager.sock
+# drive the LOC CID/session, gpsd and the follower | nmea-broker pipeline on
+# top of modem-up's shared modem, and stop them after the last release. Never
 # touches modem-up. The supervised OpenRC service gps-manager. Plain libc.
 # Sources: core.c (state machine), server.c (lease server), owner.c
 # (owner check, state file), main.c (process shell), cli.c (command-line

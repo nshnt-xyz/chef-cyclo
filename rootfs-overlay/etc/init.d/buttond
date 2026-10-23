@@ -1,8 +1,8 @@
 #!/sbin/openrc-run
 # Side buttons: grabs the power/volume evdev nodes and publishes gestures on
-# /run/chef/buttond.sock; with nothing claiming them a short power press
-# toggles the screen-off flag /run/chef/screen-off, and power held 3 s (buzz
-# at 1.5 s, long buzz at 3 s) then released runs `poweroff`, the orderly
+# /run/chef/buttond/buttond.sock; with nothing claiming them a short power
+# press toggles the screen-off flag /run/chef/screen/off, and power held 3 s
+# (buzz at 1.5 s, long buzz at 3 s) then released runs `poweroff`, the orderly
 # way down through init (::shutdown, SIGTERM to all, RB_POWER_OFF). The
 # PMIC hard-resets on its own at ~8.7 s held. `buttond watch` to look
 # (docs/features/buttons-and-power-off.md).
@@ -13,4 +13,9 @@ command=/usr/bin/buttond
 
 depend() {
 	use logger
+}
+
+# Its socket's directory, its own every start.
+start_pre() {
+	checkpath -d -o buttond:buttond -m 0750 /run/chef/buttond
 }
