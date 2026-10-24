@@ -41,7 +41,8 @@ busybox's ring writer takes its semaphore without `SEM_UNDO`, so a `kill -9` tha
 
 | Program | Where |
 |---|---|
-| `buttond`, `gps-manager`, `sensord`, `blesensd`, `powerd`, `abslot`, `chef-settings`, `chefui-demo` | the ring, through `chef_log()` (`tools/common/chef_log.c`); `abslot` also to stdout and `/run/chef/log/abslot.log` |
+| `buttond`, `gps-manager`, `sensord`, `blesensd`, `powerd`, `sensor-proxy`, `abslot`, `chef-settings`, `chefui-demo` | the ring, through `chef_log()` (`tools/common/chef_log.c`); `abslot` also to stdout and `/run/chef/log/abslot.log` |
+| `upowerd` | the ring: its stderr (GLib warnings, the one "considered risky" line at every start) through `logger -t upowerd -p daemon.warning`, the `error_logger` line in `etc/init.d/upower` |
 | busybox `init` | the ring (`starting pid ...`, `process '...' exited`, `The system is going down NOW!`), when syslogd is up |
 | NetworkManager | the ring (`[logging] backend=syslog` in `etc/NetworkManager/conf.d/90-chef.conf`, default level) |
 | `wpa_supplicant` | the ring (`-s` in the D-Bus activation file the overlay ships, `usr/share/dbus-1/system-services/fi.w1.wpa_supplicant1.service`) |

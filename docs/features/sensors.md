@@ -128,6 +128,50 @@ Verified live (2026-09-26, guided run):
 
 Timestamps: SMGR stamps each sample with the DSP's 32768 Hz tick counter. For each indication `sensord` reads the same counter through `/dev/sensors` (`DSPS_IOCTL_READ_SLOW_TIMER`, QTimer × 16 / 9375) back to back with CLOCK_MONOTONIC and converts. Live, the last sample's `t` was within 16 ms of `/proc/uptime`.
 
+## D-Bus: `net.hadess.SensorProxy`
+
+Since standard interfaces step 9 (2026-10-24) `tools/sensor-proxy/` puts the sensors on the system bus with iio-sensor-proxy's interface (3.9, `net.hadess.SensorProxy.xml`), for `monitor-sensor` and anything written for iio-sensor-proxy. It is a client of `sensord`'s socket, like any other; `sensord` stays the one owner of the sensors and did not change. It runs as the supervised OpenRC service `sensor-proxy` ([services](services.md)), as user `sensorproxy` in group `sensord` (the socket) with no capabilities ([users and permissions](users-and-permissions.md)), host build against libsystemd's sd-bus, phone build against static basu. Not yet live-verified (the step 9 live check).
+
+| Object, interface | Properties | Methods (no arguments, empty replies) |
+|---|---|---|
+| `/net/hadess/SensorProxy`, `net.hadess.SensorProxy` | `HasAccelerometer` b, `AccelerometerOrientation` s, `AccelerometerTilt` s, `HasAmbientLight` b, `LightLevelUnit` s (always `lux`), `LightLevel` d, `HasProximity` b, `ProximityNear` b | `ClaimAccelerometer`, `ReleaseAccelerometer`, `ClaimLight`, `ReleaseLight`, `ClaimProximity`, `ReleaseProximity` |
+| `/net/hadess/SensorProxy/Compass`, `net.hadess.SensorProxy.Compass` | `HasCompass` b, `CompassHeading` d | `ClaimCompass`, `ReleaseCompass` |
+
+Both objects also answer `org.freedesktop.DBus.Properties`, `Introspectable` and `Peer`. Every property sends `PropertiesChanged`, and only when its value changes.
+
+**Claims.** A claim belongs to the caller's bus name: a second claim from the same name changes nothing and one release ends it, a release from a name without a claim is a no-op, and a name that leaves the bus (a closed connection, `kill -9`) loses its claims. Claiming works before the sensor exists. The first claimant of a kind sends `sensord` its claim and the last one gone the release: `claim accel 10`, `claim illuminance`, `claim proximity` and `claim heading` (the [compass](#compass) channel, at its default rate). There is no polkit: anyone the bus policy lets call may claim (`usr/share/dbus-1/system.d/net.hadess.SensorProxy.conf`: user `sensorproxy` owns the name, everyone may call it on the five interfaces iio-sensor-proxy's own file opens).
+
+**Values.**
+
+- `AccelerometerOrientation` and `AccelerometerTilt` from each accel sample, our own implementation of iio-sensor-proxy's rules (`tools/sensor-proxy/orient.c`) on (−x, −y, z), the [axes](#units-and-axes) above turned into its frame. Orientation: a 35° threshold for portrait and landscape, with the previous value kept in between and when both are beyond 35°. Tilt: within 20° of vertical `vertical`, below 70° `tilted-up` or `tilted-down`, beyond `face-up` or `face-down`, with no hysteresis. Both go back to `undefined` when the last accelerometer claim ends.
+
+  | Pose | Orientation | Tilt |
+  |---|---|---|
+  | upright portrait (top edge up) | `normal` | `vertical` |
+  | top edge down | `bottom-up` | `vertical` |
+  | left edge up | `left-up` | `vertical` |
+  | right edge up | `right-up` | `vertical` |
+  | flat, screen up | the last one | `face-up` |
+  | flat, screen down | the last one | `face-down` |
+
+- `LightLevel` is the `illuminance` sample in lux. The first sample after a claim is `sensord`'s cached reading with an old stamp; it is published as the last known level.
+- `ProximityNear` is `near`.
+- `CompassHeading` is `heading`: magnetic, degrees, 0 to 360; −1 before the first sample.
+- `LightLevel`, `ProximityNear` and `CompassHeading` keep their last value when the last claim ends.
+
+**Presence and sensord restarts.** After each connect the proxy sends `list`: `Has*` is each sensor's `present` (the compass: the `heading` entry, present when its inputs are). While a `list` reply says `smgr` is not `ready`, it lists again every 5 s until one is. While `sensord` is unreachable every `Has*` is false (one `PropertiesChanged` each) and the claims stay registered on the bus side; it reconnects with the shared client's backoff (1 s doubling to 30 s, back to 1 s on a ready `list`), lists, then sends the claims of every kind that has claimants. A `sensord` `error` line is logged and the property keeps its value. If the bus connection drops, `sensor-proxy` exits 1 and its supervisor restarts it. The log (`logread | grep sensor-proxy`) has the connects, losses, `sensord`'s errors and the claims and releases sent, never a sample.
+
+`sensor-proxy [-S SOCK] [-v]`: `-S` `sensord`'s socket (default `/run/chef/sensord/sensord.sock`), `-v` the log on stderr as well. The bus is the system bus (`DBUS_SYSTEM_BUS_ADDRESS` when set).
+
+The check client is `monitor-sensor`, the only file the image takes from Alpine's `iio-sensor-proxy` package (its daemon pulls libssc, python3, libqmi and protobuf-c); `scripts/mkrootfs.sh` fetches the apk and checks its signature before it extracts that binary:
+
+```sh
+monitor-sensor --all        # or -a (accelerometer), -l (light), -p (proximity), -c (compass); ^C releases
+sensord list                # each entry's "claims": the connections claiming it, sensor-proxy's one among them
+```
+
+Upstream `monitor-sensor` reads the initial compass heading from the wrong object and prints `heading: unset`; its `Compass heading changed: X` lines come from the right one.
+
 ## Flags
 
 `sensord [-r REG] [-m MAP] [-k CMD] [-S SOCK] [-T dsps|cntvct|rx] [-b HZ] [-s CH=ID:DT]... [-c CH=full|factory|raw]... [-i BASE] [-M MOUNT] [-D DEG] [-Q] [-V] [-P] [-t] [-R] [-F] [-v]`; `-k` names the command run as `CMD mag-save` after a registry write-back (default `chef-state`, `""` turns the bias save off). The service runs it with no options; for other flags stop the service and run it by hand (`rc-service sensord stop; setsid sensord -v &`). Client mode: `sensord [-S SOCK] [-n COUNT] list | status | get SENSOR [HZ] | watch SENSOR [HZ] | declination [DEG|off]`.
@@ -172,7 +216,9 @@ Sensors and audio share the ADSP. `sensors-up adsp` reuses `audio-up` unchanged 
 
 Protocol references: `logs/sns-idl-dump-2026-09-26.txt`, `logs/sns-idl-dump-2026-09-27-qmag.txt` (QMAG_CAL 0x140, MAG_CAL 0x110), `logs/sns-idl-dump-2026-09-27-rotvec.txt` (ROTATION_VECTOR 0x112, with the stock HAL's use of it; regenerate with `tools/sns-idl-dump.py` against the stock `libsensor1.so`), and `tools/sensord/sns_msgs.h`, which carries our reading of each message.
 
-Sources: `tools/sensord/` (`sensord.h` and `main.c`, `channel.c`, `server.c`, `heading.c`, `smgr.c`, `sam.c`, `regserv.c`, `cli.c`, `compass.{c,h}`, `sns_msgs.{c,h}`, `sns_reg.{c,h}`, `compass-replay.c`), `rootfs-overlay/usr/bin/sensors-up`, the services `rootfs-overlay/etc/init.d/sensord` and `sensors-up`, `rootfs-overlay/usr/bin/sensors-compass-run`, `tools/compass-check.py`, `tools/sns-idl-dump.py`, `tools/sns-reg-map.py`, the map step in `scripts/mkinitramfs.sh`.
+`make -C tools/sensor-proxy test` runs `tests/test_orient.c` (orientation and tilt against iio-sensor-proxy's test vectors in `sensord`'s frame, the six poses, the thresholds and band, the tilt edges) and `tests/test_sensor_proxy.py` (about 90 s: the real binary on a private `dbus-daemon`, never the system bus, against a fake `sensord`, with dbus-python clients: introspection and every property and method, each claim and release sent exactly once, two clients sharing a kind, `kill -9` of a client, the values and `PropertiesChanged` only on a change, `sensord` going away and coming back, the 5 s relist, error lines, the bus going away, a second instance). `scripts/tests/test_services.py` checks its service and, on a private bus, its policy.
+
+Sources: `tools/sensor-proxy/` (`main.c`, `bus.c`, `proxy.c`, `orient.c`, `sensor-proxy.h`), `tools/sensord/` (`sensord.h` and `main.c`, `channel.c`, `server.c`, `heading.c`, `smgr.c`, `sam.c`, `regserv.c`, `cli.c`, `compass.{c,h}`, `sns_msgs.{c,h}`, `sns_reg.{c,h}`, `compass-replay.c`), `rootfs-overlay/usr/bin/sensors-up`, the services `rootfs-overlay/etc/init.d/sensord`, `sensors-up` and `sensor-proxy`, the bus policy `rootfs-overlay/usr/share/dbus-1/system.d/net.hadess.SensorProxy.conf`, `rootfs-overlay/usr/bin/sensors-compass-run`, `tools/compass-check.py`, `tools/sns-idl-dump.py`, `tools/sns-reg-map.py`, the map step in `scripts/mkinitramfs.sh`.
 
 ## Magnetometer calibration check
 
@@ -275,7 +321,7 @@ On the host, `python3 tools/compass-check.py DIR --ref BEARING [--replay] [--cal
   - The handlebar-pose and lean (roll) invariance were never exercised: held poses were 29 to 48 deg pitch, against targets of 60 and 90.
   - In still, calibrated steps our heading and the ADSP rotation vector agree within about 0.5 to 2 deg; use the rotation vector (`-V`) as a second opinion if the heading looks wrong.
   Evidence: `logs/compass-live-test-2026-10-01-*`.
-- **No D-Bus facade yet.** There is no `net.hadess.SensorProxy` (iio-sensor-proxy) interface; it is planned in [standard interfaces](../next-steps/standard-interfaces.md#1-standard-interfaces-from-our-hardware-daemons).
+- **The D-Bus interface is iio-sensor-proxy's.** [`net.hadess.SensorProxy`](#d-bus-nethadesssensorproxy) has orientation, tilt, light, proximity and the heading, nothing of the gyroscope, the raw magnetometer or the heading's other fields; those stay on `sensord`'s socket.
 - The DSP's fusion and gesture algorithms (SAM: motion detect, tap, step counter) are not exposed; its rotation vector is, as a diagnostic (`-V`).
 - Registry writes from the DSP other than group 2980 are lost on reboot (the `/run` copy only, by design; persist is never written).
 

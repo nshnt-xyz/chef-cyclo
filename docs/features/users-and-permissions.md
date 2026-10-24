@@ -2,17 +2,19 @@
 
 [Feature index](README.md) · [Services](services.md) · [Runtime files](runtime-files.md) · [Persistent data](storage.md) · [Local socket protocol](local-sockets.md)
 
-Since standard interfaces step 8 (2026-10-23) the daemons that do not need root run under their own users, as on a desktop distribution: each gets exactly the device nodes, sockets, directories and capabilities its work needs, through groups, udev rules and the OpenRC service script. Nothing in the daemons' C code changed for the drop: OpenRC's `supervise-daemon` sets the user, the groups and the capabilities before it execs the program.
+Since standard interfaces step 8 (2026-10-23) the daemons that do not need root run under their own users (`upower` and `sensor-proxy` since step 9, 2026-10-24), as on a desktop distribution: each gets exactly the device nodes, sockets, directories and capabilities its work needs, through groups, udev rules and the OpenRC service script. Nothing in the daemons' C code changed for the drop: OpenRC's `supervise-daemon` sets the user, the groups and the capabilities before it execs the program.
 
 ## Who runs as whom
 
 | Service | User | Supplementary groups | Capabilities | Why |
 |---|---|---|---|---|
-| `buttond` | `buttond` | `input`, `screen`, `vibrator` | `cap_kill` | evdev grab, the screen-off flag, buzz, `poweroff` |
+| `buttond` | `buttond` | `input`, `screen`, `vibrator`, `uinput` | `cap_kill` | evdev grab, the screen-off flag, buzz, `poweroff`; `/dev/uinput` for its key passthrough and force-feedback devices |
 | `powerd` | `powerd` | `vibrator` | `cap_kill` | buzz, `poweroff`; `system_temp_level` through its own group (below) |
 | `sensord` | `sensord` | `net_raw` (3004) | `cap_net_bind_service` | the IPC router (below); `/dev/sensors` through its own group |
 | `blesensd` | `blesensd` | none | none | BlueZ over D-Bus, which BlueZ's D-Bus policy opens to every user |
 | `gps-manager` (and its gpsd, qmicli, nmea-broker) | `gps` | `qmux`, `chrony` | none | the QMUX bridge socket and modem-up's lock; NTP SHM unit 2 |
+| `upower` | `upower` | none | none | the power_supply attributes it reads are world-readable; its bus name through its policy, `/var/lib/upower` its own (below) |
+| `sensor-proxy` | `sensorproxy` | `sensord` | none | `sensord`'s socket; its bus name through its policy (below) |
 | `chef-settings` | `chefui` | `video`, `input`, `screen`, `vibrator`, `netdev`, `buttond`, `sensord`, `gps`, `blesensd` | none | panel, touch, backlight, the screen handover, buzz, NetworkManager through polkit, the four daemons' sockets |
 
 Each of these service scripts sets `command_user="<user>:<group>"`, `capabilities=` where the table has one, and `no_new_privs=yes`. supervise-daemon (`--user`) sets the uid, the gid and the supplementary groups from `/etc/group` (initgroups, so the user's own group is in the list too); `--capabilities "^cap_x"` puts the capability in the inheritable and ambient sets, so the non-root program keeps exactly that one in its effective set; `--no-new-privs` sets `PR_SET_NO_NEW_PRIVS`, so nothing it execs can gain privileges. gps-manager's children run as `gps` too. gpsd started as non-root changes no credentials, so it keeps the `PR_SET_PDEATHSIG` gps-manager gives it and dies with the manager.
@@ -37,30 +39,37 @@ Fixed IDs in `rootfs-overlay/etc/passwd` and `etc/group`. Files on `/data` keep 
 | `gps` | 204 |
 | `chefui` | 205 |
 | `polkitd` | 206 |
+| `upower` | 207 |
+| `sensorproxy` | 208 |
 
 | Group | gid | Members | Gives |
 |---|---|---|---|
 | `qmux` | 210 | `gps` | the QMUX bridge (`/run/chef/qmux_socket`, the modem's QMI) and modem-up's lock directory |
 | `screen` | 211 | `buttond`, `chefui` | the screen handover in `/run/chef/screen` |
 | `vibrator` | 212 | `buttond`, `powerd`, `chefui` | the vibrator's `enable` |
+| `uinput` | 213 | `buttond` | `/dev/uinput` |
 | `net_raw` | 3004 | `sensord` | the IPC router's default rule (AID_NET_RAW) |
 | `input` | 23 | `buttond`, `chefui` | `/dev/input/event*` |
 | `video` | 27 | `root`, `chefui` | `/dev/fb0`, the backlight's `brightness` |
 | `netdev` | 28 | `chefui` | NetworkManager through polkit |
 | `chrony` | 102 | `gps` | NTP SHM unit 2 |
-| `buttond`, `sensord`, `gps`, `blesensd` | their user's | `chefui` | the daemon's socket (0660 in its 0750 directory) |
+| `buttond`, `gps`, `blesensd` | their user's | `chefui` | the daemon's socket (0660 in its 0750 directory) |
+| `sensord` | 202 | `chefui`, `sensorproxy` | the same |
 
 `scripts/tests/test_users.py` checks the lines, the IDs and the members.
 
 ## Device nodes and sysfs attributes
 
-`/init` coldplugs `net`, `input`, `graphics`, `leds`, `timed_output` and `ssc` in one `udevadm trigger` (about 10 ms each). The stock `50-udev-default.rules` gives `event*` root:input 0660 and `fb0` root:video 0660. Ours, `rootfs-overlay/usr/lib/udev/rules.d/70-chef.rules`:
+`/init` coldplugs `net`, `input`, `graphics`, `leds`, `timed_output` and `ssc` in one `udevadm trigger` (about 10 ms each), and misc's `uinput` node alone with a trigger of its own (`--subsystem-match=misc --sysname-match=uinput`; in the combined command the name would filter every subsystem). The stock `50-udev-default.rules` gives `event*` root:input 0660 and `fb0` root:video 0660. Ours, `rootfs-overlay/usr/lib/udev/rules.d/70-chef.rules`:
 
 | Node or attribute | Owner and mode | Rule |
 |---|---|---|
 | `/dev/sensors` (class `ssc`) | root:sensord 0640 | `GROUP="sensord", MODE="0640"` |
 | `/sys/class/leds/lcd-backlight/brightness` | root:video 0664 | `RUN+="/bin/chgrp video ..."`, `RUN+="/bin/chmod 0664 ..."` |
 | `/sys/class/timed_output/vibrator/enable` | root:vibrator 0664 | the same with `vibrator` |
+| `/dev/uinput` (misc) | root:uinput 0660 | `GROUP="uinput", MODE="0660"` |
+
+buttond's uinput devices `chef-buttons` and `chef-vibrator` get their `event*` nodes root:input 0660 from the stock rule, like the real keys ([buttons](buttons-and-power-off.md)); `70-chef.rules` also gives `chef-vibrator` `FEEDBACKD_TYPE=vibra`, which feedbackd looks for (not a permission).
 
 `/sys/class/power_supply/battery/system_temp_level` gets root:powerd 0664 from powerd's `start_pre` (root), not from a rule: `power_supply` stays out of the coldplug, because reading its uevent costs 0.4 s for the battery alone (2.35 s for all eight supplies). If it fails, powerd's write fails too and it leaves the charge throttle disabled, as any failed write does. storage stays out of the coldplug too (that was the slow probe).
 
@@ -82,6 +91,8 @@ Each daemon's service makes its directories under `/run/chef` in `start_pre` wit
 
 `/run/chef`, `log/`, `lock/` and `state/` themselves stay root 0755.
 
+Outside `/run/chef`: `/var/lib/upower` (UPower's history files, on the volatile `/var`) is `upower:upower` 0755, from the `upower` service's `start_pre` (`checkpath`); the image's copy from the package is root's.
+
 ## /data
 
 `chef-storage boot` ([persistent data](storage.md)) sets `/data/chef-layout` 0644 and `/data/v1` 0711 on every boot (and `format` makes them so): the non-root consumers must read the marker, and reach their own directories without listing `v1`. Every boot, before any service starts, it makes `power` (powerd), `sensors` (sensord), `gps` (gps), `blesens` (blesensd) and `ui` (chefui), each 0700, and `chown -R -h`s each to its user, so files a root process wrote there (images before 2026-10-23, a shutdown flush) belong to the daemon again; `crash`, `time` and `ssh` stay root's, `chrony` chrony's. Then it syncs `/data/v1` once, so those directory entries are durable: the daemons cannot open `/data/v1` for a sync of their own. The chef-settings Storage page opens `/data/v1` with `O_PATH` (search, never list) for the same reason.
@@ -96,6 +107,13 @@ Each daemon's service makes its directories under `/run/chef` in `start_pre` wit
 - No lock file is pre-created by root in a daemon's directory: chef-state, running as the daemon, makes its lock on first use.
 - The screen files are opened with `O_NOFOLLOW` everywhere (`fbdev.h`'s lock, chefui's `fb0.lit` and `off`, buttond's `off`, fbtouch, fblog): root tools use them too, and the directory is group-writable.
 - The one exception: the hand-typed live-test commands that write chef-settings' `args`, `stop` and `prompt` as root into `/run/chef/chef-settings` ([live testing](../live-testing.md#gotchas)). Nothing automatic runs them; chef-settings reads `args` only when it is a root-owned regular file, and `prompt` only when it is also not group or other writable; it must be able to read both as `chefui`: 0644, never 0600.
+
+## D-Bus names: UPower and SensorProxy
+
+Both daemons own their system-bus name as their own user, through a policy file of ours in `rootfs-overlay/usr/share/dbus-1/system.d/` (where our overlay keeps D-Bus files):
+
+- **`chef-upower.conf`**: user `upower` may own `org.freedesktop.UPower`. It only adds the owner; the package's `org.freedesktop.UPower.conf` stays as shipped (root may own, everyone may call). The image has no activation file for UPower (`scripts/mkinitramfs.sh` removes it): dbus-daemon-launch-helper would start a root upowerd whenever the service is down. UPower's own polkit actions are not used here: its one write, `EnableChargeThreshold`, finds no threshold attributes on our battery ([battery](battery-and-charging.md#upower)).
+- **`net.hadess.SensorProxy.conf`**: user `sensorproxy` may own `net.hadess.SensorProxy`, and everyone may call it on `net.hadess.SensorProxy`, `net.hadess.SensorProxy.Compass`, `org.freedesktop.DBus.Properties`, `Introspectable` and `Peer` (iio-sensor-proxy's own list). No polkit: upstream gates claims with `claim-sensor` for an active logind session, which this image does not have; whoever may call may claim ([sensors](sensors.md#d-bus-nethadesssensorproxy)).
 
 ## The clock: chrony and gpsd
 
@@ -136,14 +154,15 @@ polkitd is new and drops to `polkitd` itself.
 |---|---|
 | Users and groups of the running daemons | `ps -o user,group,args` |
 | One process's groups, capabilities, no_new_privs | `grep -E '^(Groups\|Cap(Inh\|Prm\|Eff\|Amb)\|NoNewPrivs)' /proc/PID/status` (CapEff 0x20 is cap_kill, 0x400 cap_net_bind_service) |
-| The nodes and attributes | `ls -l /dev/input/event* /dev/fb0 /dev/sensors /sys/class/leds/lcd-backlight/brightness /sys/class/timed_output/vibrator/enable /sys/class/power_supply/battery/system_temp_level` |
+| The nodes and attributes | `ls -l /dev/uinput /dev/input/event* /dev/fb0 /dev/sensors /sys/class/leds/lcd-backlight/brightness /sys/class/timed_output/vibrator/enable /sys/class/power_supply/battery/system_temp_level` |
 | Runtime directories and sockets | `ls -la /run/chef /run/chef/*/ /run/chef/state/*/` |
 | /data | `ls -la /data /data/v1` |
 | The SHM segment | `ipcs -m`, then `ipcs -m -i <id>` for key `0x4e545032`: owner root, group chrony, mode 660 |
 | NetworkManager as chef-settings would see it | `su -s /bin/sh chefui -c 'nmcli general permissions'` (all `yes`) |
 | chrony as a non-root user | `su -s /bin/sh chefui -c 'chronyc -h 127.0.0.1 tracking'` |
+| Who owns the bus names | `dbus-send --system --print-reply --dest=org.freedesktop.DBus / org.freedesktop.DBus.GetConnectionUnixUser string:org.freedesktop.UPower` (207; `string:net.hadess.SensorProxy`: 208) |
 | Setuid and setgid files | `find / -xdev -perm /6000 -type f` (only `/usr/libexec/dbus-daemon-launch-helper`) |
 
 ## Tests
 
-`scripts/tests/test_users.py` (accounts, groups, the udev rules, NetworkManager's polkit setting and rule), `scripts/tests/test_services.py` (`test_daemon_users`: every service's supervise-daemon command line, `--user`, `--capabilities`, `--no-new-privs`; `test_runtime_directories`: each `checkpath`; chrony's command addresses), `scripts/tests/test_setuid.py`, `tools/tests/test_storage.py` (the `/data` modes, owners and the one sync), `tools/tests/test_chef_state.py` (the kind directories, the shutdown's `su` lines, no `/data/v1` sync from a save), `tools/tests/test_wifi_nm.py` (`/init`'s rules directory fixup), `tools/tests/test_modem-up.sh` (the qmux socket and lock modes), `scripts/tests/test_run_layout.py` (`/init`'s screen directory and link protection). Host tests run as the developer's uid and cannot chown: ownership is checked through stubs and command lines, and what only the phone can show is in the live check.
+`scripts/tests/test_users.py` (accounts, groups, the udev rules, NetworkManager's polkit setting and rule), `scripts/tests/test_services.py` (`test_daemon_users`: every service's supervise-daemon command line, `--user`, `--capabilities`, `--no-new-privs`; `test_runtime_directories`: each `checkpath`; chrony's command addresses; the UPower and SensorProxy bus policies on a private `dbus-daemon` that, like the system bus, lets nobody own a name by default: each file's user owns its name and no other), `scripts/tests/test_setuid.py`, `tools/tests/test_storage.py` (the `/data` modes, owners and the one sync), `tools/tests/test_chef_state.py` (the kind directories, the shutdown's `su` lines, no `/data/v1` sync from a save), `tools/tests/test_wifi_nm.py` (`/init`'s rules directory fixup), `tools/tests/test_modem-up.sh` (the qmux socket and lock modes), `scripts/tests/test_run_layout.py` (`/init`'s screen directory and link protection). Host tests run as the developer's uid and cannot chown: ownership is checked through stubs and command lines, and what only the phone can show is in the live check.
