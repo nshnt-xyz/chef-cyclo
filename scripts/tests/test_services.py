@@ -31,7 +31,8 @@ CACHE = REPO / "toolchain/apk/cache"
 # The default runlevel: every service the image starts.
 DEFAULT = {"syslog", "udhcpd", "dbus", "bluetooth", "root-session-bus", "modem-up", "networkmanager",
            "chronyd", "chef-timekeeper", "bt-up", "blesensd", "buttond", "chef-sshd", "gps-manager",
-           "powerd", "sensord", "sensors-up", "chef-settings", "upower"}
+           "powerd", "sensord", "sensors-up", "chef-settings", "upower",
+           "sensor-proxy"}
 # Alpine's scripts we run, adjusted by conf.d only, and the package each comes from.
 PACKAGED = {"syslog": "busybox-openrc", "udhcpd": "busybox-extras-openrc", "dbus": "dbus-openrc",
             "bluetooth": "bluez-openrc", "chronyd": "chrony-openrc", "networkmanager": "networkmanager-openrc"}
@@ -269,6 +270,8 @@ class Services(unittest.TestCase):
         self.assertIn("modem-up", self.depends("gps-manager").get("after"))
         self.assertEqual(self.depends("upower").get("need"), {"dbus"})
         self.assertIn("powerd", self.depends("upower").get("after"))
+        self.assertEqual(self.depends("sensor-proxy").get("need"), {"dbus"})
+        self.assertIn("sensord", self.depends("sensor-proxy").get("after"))
         # the screen first, then the modem, then the rest
         self.assertLessEqual({"dbus", "udhcpd", "modem-up", "chronyd", "bt-up"}, self.depends("chef-settings")["before"])
         self.assertLessEqual({"dbus", "udhcpd", "chronyd", "bt-up"}, self.depends("modem-up")["before"])
@@ -313,6 +316,7 @@ class Services(unittest.TestCase):
              "sensord": ("sensord:sensord", "^cap_net_bind_service", True),
              "blesensd": ("blesensd:blesensd", None, True), "gps-manager": ("gps:gps", None, True),
              "chef-settings": ("chefui:chefui", None, True), "upower": ("upower:upower", None, True),
+             "sensor-proxy": ("sensorproxy:sensorproxy", None, True),
              "chronyd": ("root:chrony", None, False)}
 
     def test_daemon_users(self):
@@ -728,22 +732,22 @@ class Services(unittest.TestCase):
             "AllowRiskyCriticalPowerAction=true", "CriticalPowerAction=Ignore"])
         self.assertFalse((OVERLAY / "etc/UPower/UPower.conf.d").exists())
 
-    @unittest.skipUnless(shutil.which("dbus-daemon"), "needs dbus-daemon")
-    def test_upower_bus_policy(self):
-        # chef-upower.conf on a private bus that, like the system bus, lets
-        # nobody own a name by default, with its user replaced by ours: the
-        # daemon parses it, and that user may own org.freedesktop.UPower and
-        # nothing else.
+    def bus_policy(self, name, user, other):
+        """The policy file OVERLAY/usr/share/dbus-1/system.d/NAME on a private
+        bus that, like the system bus, lets nobody own a name by default,
+        with its user replaced by ours: the daemon parses it, that user may
+        own the file's one name, and OTHER is AccessDenied."""
         try:
             import dbus
         except ImportError:
             self.skipTest("needs python3 dbus")
-        policy = (OVERLAY / "usr/share/dbus-1/system.d/chef-upower.conf").read_text()
-        self.assertEqual(policy.count('<policy user="upower">'), 1)
-        self.assertEqual(re.findall(r"<(allow|deny)\b[^>]*>", policy), ["allow"])
+        policy = (OVERLAY / "usr/share/dbus-1/system.d" / name).read_text()
+        self.assertEqual(policy.count(f'<policy user="{user}">'), 1)
+        own = re.findall(r'<allow own="([^"]+)"/>', policy)
+        self.assertEqual(len(own), 1)
         with tempfile.TemporaryDirectory() as tmp:
             me = __import__("pwd").getpwuid(os.getuid()).pw_name
-            (Path(tmp) / "chef-upower.conf").write_text(policy.replace('user="upower"', f'user="{me}"'))
+            (Path(tmp) / name).write_text(policy.replace(f'user="{user}"', f'user="{me}"'))
             conf = Path(tmp) / "bus.conf"
             conf.write_text(
                 '<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"\n'
@@ -751,7 +755,7 @@ class Services(unittest.TestCase):
                 f'<busconfig><type>session</type><listen>unix:path={tmp}/bus</listen><auth>EXTERNAL</auth>'
                 '<policy context="default"><allow send_destination="*" eavesdrop="true"/>'
                 '<allow eavesdrop="true"/><deny own="*"/></policy>'
-                f'<include>{tmp}/chef-upower.conf</include></busconfig>\n')
+                f'<include>{tmp}/{name}</include></busconfig>\n')
             bus = subprocess.Popen(["dbus-daemon", "--nofork", "--nosyslog", "--config-file", str(conf),
                                     "--print-address"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             self.addCleanup(lambda: (bus.kill(), bus.wait(), bus.stdout.close(), bus.stderr.close()))
@@ -759,11 +763,47 @@ class Services(unittest.TestCase):
             self.assertTrue(address, bus.stderr.read() if bus.poll() is not None else "no address")
             conn = dbus.bus.BusConnection(address)
             self.addCleanup(conn.close)
-            self.assertEqual(conn.request_name("org.freedesktop.UPower"), dbus.bus.REQUEST_NAME_REPLY_PRIMARY_OWNER)
+            self.assertEqual(conn.request_name(own[0]), dbus.bus.REQUEST_NAME_REPLY_PRIMARY_OWNER)
             with self.assertRaises(dbus.exceptions.DBusException) as e:
-                conn.request_name("net.hadess.SensorProxy")
+                conn.request_name(other)
             self.assertEqual(e.exception.get_dbus_name(), "org.freedesktop.DBus.Error.AccessDenied")
+        return policy
 
+    @unittest.skipUnless(shutil.which("dbus-daemon"), "needs dbus-daemon")
+    def test_upower_bus_policy(self):
+        # upower may own org.freedesktop.UPower and nothing else; calls are
+        # the package's own policy file's business
+        policy = self.bus_policy("chef-upower.conf", "upower", "net.hadess.SensorProxy")
+        self.assertEqual(re.findall(r"<(allow|deny)\b[^>]*>", policy), ["allow"])
+        self.assertIn('<allow own="org.freedesktop.UPower"/>', policy)
+
+    def test_monitor_sensor_and_evtest(self):
+        # evtest from the package list; of iio-sensor-proxy only monitor-sensor,
+        # its signature verified with the PKGS keys before it is extracted
+        rootfs = (REPO / "scripts/mkrootfs.sh").read_text()
+        pkgs = rootfs.split('PKGS="', 1)[1].split('"', 1)[0].split()
+        self.assertIn("evtest", pkgs)
+        self.assertNotIn("iio-sensor-proxy", pkgs)
+        fetch = rootfs.index('"$APK" fetch --root "$ROOT" --arch aarch64 --keys-dir "$PWD/toolchain/apk/keys"')
+        verify = rootfs.index('"$APK" verify --keys-dir "$PWD/toolchain/apk/keys" "$1"\n')
+        extract = rootfs.index('tar -xzf "$1" -C "$ROOT" --warning=no-unknown-keyword usr/bin/monitor-sensor\n')
+        self.assertLess(fetch, verify)
+        self.assertLess(verify, extract)
+        self.assertEqual(rootfs.count("tar -xzf"), 1)
+        self.assertIn('"$ROOT/usr/bin/monitor-sensor" "$ROOT/usr/bin/evtest"', rootfs)
+
+    @unittest.skipUnless(shutil.which("dbus-daemon"), "needs dbus-daemon")
+    def test_sensor_proxy_bus_policy(self):
+        # sensorproxy may own net.hadess.SensorProxy; everyone may call it on
+        # the interfaces iio-sensor-proxy's own file opens, nothing else
+        policy = self.bus_policy("net.hadess.SensorProxy.conf", "sensorproxy", "org.freedesktop.UPower")
+        self.assertIn('<allow own="net.hadess.SensorProxy"/>', policy)
+        sends = re.findall(r'<allow send_destination="([^"]+)" send_interface="([^"]+)"/>', policy)
+        self.assertEqual(sorted(sends), sorted(("net.hadess.SensorProxy", i) for i in (
+            "net.hadess.SensorProxy", "net.hadess.SensorProxy.Compass", "org.freedesktop.DBus.Properties",
+            "org.freedesktop.DBus.Introspectable", "org.freedesktop.DBus.Peer")))
+        self.assertEqual(len(re.findall(r"<(allow|deny)\b", policy)), 6)
+        self.assertEqual(policy.count('<policy context="default">'), 1)
 
 @unittest.skipUnless(shutil.which("busybox"), "needs busybox")
 class AshServices(Services):

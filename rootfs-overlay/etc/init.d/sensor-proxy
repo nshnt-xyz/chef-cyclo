@@ -1,0 +1,20 @@
+#!/sbin/openrc-run
+# net.hadess.SensorProxy on the system bus (monitor-sensor, anything
+# written for iio-sensor-proxy): orientation and tilt, light, proximity and
+# the compass heading from sensord, claimed there only while a bus client
+# claims them (docs/features/sensors.md).
+
+description="Sensor D-Bus proxy"
+supervisor=supervise-daemon
+command=/usr/bin/sensor-proxy
+# Its own user (docs/features/users-and-permissions.md): sensord's socket
+# through the sensord group, the bus name through its policy
+# (net.hadess.SensorProxy.conf).
+command_user="sensorproxy:sensorproxy"
+no_new_privs=yes
+
+depend() {
+	need dbus
+	use logger
+	after sensord
+}

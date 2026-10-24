@@ -37,12 +37,13 @@ messagebus:x:101:
 chrony:x:102:gps
 buttond:x:200:chefui
 powerd:x:201:
-sensord:x:202:chefui
+sensord:x:202:chefui,sensorproxy
 blesensd:x:203:chefui
 gps:x:204:chefui
 chefui:x:205:
 polkitd:x:206:
 upower:x:207:
+sensorproxy:x:208:
 qmux:x:210:gps
 screen:x:211:buttond,chefui
 vibrator:x:212:buttond,powerd,chefui

@@ -63,13 +63,15 @@ CACHE=$PWD/toolchain/apk/cache
 # OpenRC service upower runs upowerd as user upower; mkinitramfs.sh removes
 # the package's D-Bus activation file, which would start a root upowerd
 # whenever the service is down.
+# evtest 1.36 (13 KB): reads an input device, for the buttons' passthrough
+# device chef-buttons (docs/features/buttons-and-power-off.md).
 PKGS="alpine-baselayout musl busybox busybox-extras
       dbus bluez bluez-btmgmt bluez-btmon bluez-deprecated
       qmi-utils gpsd tinyalsa wpa_supplicant iw
       iproute2 util-linux-misc curl ca-certificates-bundle jq tcpdump iperf3
       networkmanager networkmanager-wifi networkmanager-cli networkmanager-tui
       eudev glib apk-tools iptables iptables-legacy chrony e2fsprogs e2fsprogs-extra
-      dropbear openssh-sftp-server tzdata polkit upower
+      dropbear openssh-sftp-server tzdata polkit upower evtest
       openrc busybox-openrc busybox-extras-openrc dbus-openrc bluez-openrc
       chrony-openrc networkmanager-openrc
       !bluez-deprecated-openrc !dropbear-openrc !eudev-openrc !gpsd-openrc
@@ -83,6 +85,20 @@ mkdir -p "$ROOT" "$CACHE"
        --repository "$ALPINE/main" --repository "$ALPINE/community" \
        --cache-dir "$CACHE" --no-scripts --no-interactive --usermode \
        add $PKGS
+# monitor-sensor (iio-sensor-proxy's client, the check of sensor-proxy's
+# net.hadess.SensorProxy, docs/features/sensors.md): only that binary of
+# the iio-sensor-proxy apk, whose daemon pulls libssc (python3, libqmi,
+# protobuf-c). The same static apk, keys and cache fetch it, `apk verify`
+# checks its signature against the same keys before anything is
+# extracted, and its libraries (gio, glib) are in the root already.
+FETCH=$(mktemp -d)
+"$APK" fetch --root "$ROOT" --arch aarch64 --keys-dir "$PWD/toolchain/apk/keys" \
+       --repository "$ALPINE/main" --repository "$ALPINE/community" \
+       --cache-dir "$CACHE" --no-interactive -o "$FETCH" iio-sensor-proxy
+set -- "$FETCH"/iio-sensor-proxy-*.apk
+"$APK" verify --keys-dir "$PWD/toolchain/apk/keys" "$1"
+tar -xzf "$1" -C "$ROOT" --warning=no-unknown-keyword usr/bin/monitor-sensor
+rm -rf "$FETCH"
 # Keep runtime apk, repositories and public signing keys so standard Wi-Fi
 # tools can be installed normally. Downloads/caches remain volatile in RAM.
 rm -rf "$ROOT/var/cache/apk"
@@ -101,4 +117,5 @@ ls "$ROOT/usr/lib/bluetooth/bluetoothd" "$ROOT/usr/bin/btattach" "$ROOT/usr/bin/
    "$ROOT/etc/init.d/udhcpd" "$ROOT/etc/init.d/dbus" "$ROOT/etc/init.d/bluetooth" \
    "$ROOT/etc/init.d/chronyd" "$ROOT/etc/init.d/networkmanager" \
    "$ROOT/usr/lib/polkit-1/polkitd" "$ROOT/usr/libexec/upowerd" \
+   "$ROOT/usr/bin/monitor-sensor" "$ROOT/usr/bin/evtest" \
    "$ROOT/usr/share/dbus-1/system-services/org.freedesktop.PolicyKit1.service"

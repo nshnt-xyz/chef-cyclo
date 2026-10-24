@@ -29,6 +29,7 @@ tools/blesensd/build/
 tools/buttond/build/
 tools/gps-manager/build/
 tools/powerd/build/
+tools/sensor-proxy/build/
 tools/common/build/
 tools/chefui/build/
 __pycache__/

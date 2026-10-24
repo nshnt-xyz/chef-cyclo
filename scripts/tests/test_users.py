@@ -14,17 +14,18 @@ import unittest
 OVERLAY = Path(__file__).resolve().parents[2] / "rootfs-overlay"
 
 USERS = {"buttond": 200, "powerd": 201, "sensord": 202, "blesensd": 203, "gps": 204, "chefui": 205,
-         "polkitd": 206, "upower": 207}
+         "polkitd": 206, "upower": 207, "sensorproxy": 208}
 # group: (gid, members)
 GROUPS = {
     "buttond": (200, {"chefui"}),
     "powerd": (201, set()),
-    "sensord": (202, {"chefui"}),
+    "sensord": (202, {"chefui", "sensorproxy"}),
     "blesensd": (203, {"chefui"}),
     "gps": (204, {"chefui"}),
     "chefui": (205, set()),
     "polkitd": (206, set()),
     "upower": (207, set()),
+    "sensorproxy": (208, set()),
     "qmux": (210, {"gps"}),
     "screen": (211, {"buttond", "chefui"}),
     "vibrator": (212, {"buttond", "powerd", "chefui"}),
