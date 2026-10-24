@@ -117,3 +117,42 @@ attached to the host, screen off, the user not at the phone)
     reading; key events on chef-buttons with evtest (and none for a
     claimed button); a buttond buzz ending a running effect; the unplugged
     idle A/B.
+
+Install (coordinator, 2026-10-24 about 14:30 to 14:40 IST)
+  Built at a clean 7a13e59 (the record commit; image-info dirty 0) with
+  SKIP_KERNEL=1 scripts/mkinstall.sh on kernel #24 (Image.gz-dtb
+  e903c016...). Code identical to the live-checked c973fe0 tree (only docs
+  and this log changed since).
+    system_a  out/system_a-e4bcd986.img
+              sha256 e4bcd9862014e1dd3a9171f3a002eaa8e75919e18b1f80f1b28d1fbfcf1c35df
+    boot_a    out/boot-stage1-eac67a74.img
+              sha256 eac67a74d7e6ea4a6671acf43264b61ae9c97e748342c83c81a52808d644b149
+    RAM image of the same tree: out/boot-ram-741865f0.img
+  Hashes of the settings, gps/enabled and NetworkManager.state recorded
+  first. chef-reboot bootloader from RAM image 2; current-slot a; fastboot
+  flash system_a OKAY (write 20.8 s); fastboot boot of the stage-1 image:
+  "system_a build stamp matches; switch_root", commit 7a13e59 dirty 0, /
+  ro norecovery, /data rw; chef-reboot bootloader again; fastboot flash
+  boot_a OKAY; fastboot reboot.
+  Installed regression: #24, image-info 7a13e59 dirty 0, abslot marked
+  boot_a successful, 20 services started, upowerd 207, sensor-proxy 208,
+  buttond 200 with "uinput":{"keys":true,"ff":true}, settings, gps/enabled
+  and NetworkManager.state byte-identical to before, battery/current_now =
+  -bms/current_now, monitor-sensor --light as nobody claims and reads;
+  kmsg: no Call trace, WARNING or BT hardware error; no denial in the log.
+  Boot times (telnetd / chef-settings, /proc starttime): first boot after
+  the flash 5.99 / 6.20 s; ordinary reboot 5.99 / 6.20 s; second ordinary
+  reboot 8.88 / 9.09 s. Step 8's installed pair: 5.45 / 5.66 s.
+  - The 0.54 s over step 8 lies before /init's first kmsg line: stage-1's
+    switch_root to "cyclo-init: root: read-only system_a" took 1.08 s on
+    both reboots (3.75 -> 4.83 s); everything after it is as before
+    (usb0 up to udevd 0.34 s, udevd to chef-storage 0.23 s, exec init to
+    chef-settings 0.21 s). Step 9 changed nothing in that stretch of
+    /init; not explained.
+  - The 9.09 s boot: 2.9 s between udevd's start (5.24 s) and chef-storage's
+    e2fsck line (8.22 s), the same gap as step 8's first boot after its
+    flash (3 s), which predates the uinput trigger. Intermittent (1 of 3
+    boots here); whether it is the coldplug settle or chef-storage before
+    e2fsck is not logged. Open.
+  Fallbacks in out/: 7fb63760 + 6d7adb8d (49f98a1, kernel #23, first),
+  then 96e8c87f + 2915db3c, 9a28e590 + 981d4f03.
