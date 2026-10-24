@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# DRM experiment E1: build a boot image whose kernel has the SDE KMS driver
-# probing MDSS (no DSI, no panel). Output only under out/kernel-drm-sde/ and
-# out/boot-drm-sde-e1.img; the baseline build is hashed before and after.
+# DRM experiment: build a boot image whose kernel has the SDE KMS driver
+# (DRM_SDE_STAGE selects the image name, e2 by default) and the static
+# tools/drmtest client. Output only under out/kernel-drm-sde/ and
+# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1 image
+# are hashed before and after.
 # Never boots anything. --rebuild reuses an existing out/kernel-drm-sde.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -13,11 +15,14 @@ baseline_files=(
     "$CHEF_ROOT/out/boot-stage1.img"
     "$CHEF_ROOT/out/stage1.cpio.gz"
     "$CHEF_ROOT/out/system_a.img"
+    "$CHEF_ROOT/out/boot-drm-sde-e1.img"
 )
 export KERNEL_OUT="$CHEF_ROOT/out/kernel-drm-sde"
-BOOT_OUT=out/boot-drm-sde-e1.img
+STAGE=${DRM_SDE_STAGE:-e2}
+BOOT_OUT=out/boot-drm-sde-$STAGE.img
 dtb_name=sdm636-chef-evt-drm
 rebuild=no
+[[ "$STAGE" != e1 ]] || { echo "Refusing to write the E1 image out/boot-drm-sde-e1.img" >&2; exit 1; }
 case "${1:-}" in
     '') ;;
     --rebuild) rebuild=yes ;;
@@ -97,6 +102,13 @@ if blob != Path(sys.argv[2]).read_bytes():
     sys.exit("appended DTB differs from " + sys.argv[2])
 print(f"Appended DTB check: 1 FDT, {sizes[0]} bytes, identical to {sys.argv[2]}")
 EOF
+
+# drmtest: host syntax check, then the static musl build with the shared
+# tools/device.mk flag set (not part of tools/Makefile, the image or tests).
+gcc -std=gnu11 -Wall -Wextra -Werror -fsyntax-only tools/drmtest.c
+"$CHEF_ROOT/toolchain/aarch64-musl/bin/aarch64-buildroot-linux-musl-gcc" \
+    -std=gnu11 -Wall -Wextra -Werror -O2 -static -o "$KERNEL_OUT/drmtest" tools/drmtest.c
+sha256sum "$KERNEL_OUT/drmtest"
 
 KERNEL="$image" RAMDISK=out/stage1.cpio.gz OUT="$BOOT_OUT" scripts/mkboot.sh
 sha256sum "$BOOT_OUT"
