@@ -12,7 +12,9 @@
 
 Toggle, gesture delivery/claims, shutdown cancellation, and shutdown were live-verified on 2026-09-19.
 
-Since standard interfaces step 9 (2026-10-24) buttond also makes two uinput devices through `/dev/uinput` (root:uinput 0660, below), so standard programs see the buttons and the vibrator the usual Linux way. Both live as long as buttond. `-u PATH` names the uinput node (default `/dev/uinput`; `-u ''` makes neither); a device that cannot be made is logged once and buttond carries on without it, the buttons and the power-off unaffected. Not yet live-verified (the step 9 live check).
+Since standard interfaces step 9 (2026-10-24) buttond also makes two uinput devices through `/dev/uinput` (root:uinput 0660, below), so standard programs see the buttons and the vibrator the usual Linux way. Both live as long as buttond. `-u PATH` names the uinput node (default `/dev/uinput`; `-u ''` makes neither); a device that cannot be made is logged once and buttond carries on without it, the buttons and the power-off unaffected.
+
+Live 2026-10-24: `chef-buttons` and `chef-vibrator` existed (event nodes root:input 0660, `/dev/uinput` root:uinput 0660 after the coldplug, `ID_INPUT_KEY=1` and `FEEDBACKD_TYPE=vibra`), `status` said `"uinput":{"keys":true,"ff":true}`; an FF rumble upload, play and erase from a client buzzed the motor, with `"ff":"playing"` during it and `"idle"` after; a user outside group `input` cannot open `chef-vibrator` (as designed); `rc-service buttond restart` grabbed only the real key devices, never `chef-buttons`. Not yet seen live (they need button presses): key events on `chef-buttons` with `evtest`, and a buttond buzz ending a running effect.
 
 ### Key passthrough: `chef-buttons`
 

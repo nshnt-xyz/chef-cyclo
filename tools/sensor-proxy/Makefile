@@ -12,7 +12,8 @@
 #   make install-device DESTDIR=DIR   it into DIR/usr/bin
 #
 # test-orient: orient.c against iio-sensor-proxy's test vectors in
-# sensord's frame. tests/test_sensor_proxy.py: the daemon binary on a
+# sensord's frame. test-bus-vtable: every method in bus.c's vtables
+# callable by other uids (SD_BUS_VTABLE_UNPRIVILEGED). tests/test_sensor_proxy.py: the daemon binary on a
 # private dbus-daemon (never the system bus) against a fake sensord, with
 # dbus-python clients; needs libsystemd, dbus-daemon and python3 dbus + gi.
 
@@ -66,8 +67,13 @@ $(H)/tests/test-orient: tests/test_orient.c orient.c sensor-proxy.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -I. -o $@ tests/test_orient.c orient.c $(LDFLAGS) -lm
 
-test: $(H)/tests/test-orient $(H)/sensor-proxy
+$(H)/tests/test-bus-vtable: tests/test_bus_vtable.c bus.c proxy.c orient.c sensor-proxy.h ../common/json.c ../common/json.h
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(INC) -o $@ tests/test_bus_vtable.c proxy.c orient.c ../common/json.c $(LDFLAGS) $(SDBUS_LIBS) -lm
+
+test: $(H)/tests/test-orient $(H)/tests/test-bus-vtable $(H)/sensor-proxy
 	$(H)/tests/test-orient
+	$(H)/tests/test-bus-vtable
 	python3 tests/test_sensor_proxy.py
 
 clean:

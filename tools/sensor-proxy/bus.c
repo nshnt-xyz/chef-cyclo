@@ -128,6 +128,9 @@ static int method_claim(sd_bus_message *m, void *u, sd_bus_error *e)
 
 #define PROP(name, sig, get) SD_BUS_PROPERTY(name, sig, get, 0, SD_BUS_VTABLE_PROPERTY_EMITS_CHANGE)
 
+/* The methods are SD_BUS_VTABLE_UNPRIVILEGED: without it sd-bus lets only
+ * our own uid or CAP_SYS_ADMIN call them, whatever the bus policy allows.
+ * Property reads are not checked. */
 static const sd_bus_vtable vtable[] = {
 	SD_BUS_VTABLE_START(0),
 	PROP("HasAccelerometer", "b", get_bool),
@@ -138,12 +141,12 @@ static const sd_bus_vtable vtable[] = {
 	PROP("LightLevel", "d", get_double),
 	PROP("HasProximity", "b", get_bool),
 	PROP("ProximityNear", "b", get_bool),
-	SD_BUS_METHOD("ClaimAccelerometer", "", "", method_claim, 0),
-	SD_BUS_METHOD("ReleaseAccelerometer", "", "", method_claim, 0),
-	SD_BUS_METHOD("ClaimLight", "", "", method_claim, 0),
-	SD_BUS_METHOD("ReleaseLight", "", "", method_claim, 0),
-	SD_BUS_METHOD("ClaimProximity", "", "", method_claim, 0),
-	SD_BUS_METHOD("ReleaseProximity", "", "", method_claim, 0),
+	SD_BUS_METHOD("ClaimAccelerometer", "", "", method_claim, SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("ReleaseAccelerometer", "", "", method_claim, SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("ClaimLight", "", "", method_claim, SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("ReleaseLight", "", "", method_claim, SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("ClaimProximity", "", "", method_claim, SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("ReleaseProximity", "", "", method_claim, SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_VTABLE_END
 };
 
@@ -151,8 +154,8 @@ static const sd_bus_vtable compass_vtable[] = {
 	SD_BUS_VTABLE_START(0),
 	PROP("HasCompass", "b", get_bool),
 	PROP("CompassHeading", "d", get_double),
-	SD_BUS_METHOD("ClaimCompass", "", "", method_claim, 0),
-	SD_BUS_METHOD("ReleaseCompass", "", "", method_claim, 0),
+	SD_BUS_METHOD("ClaimCompass", "", "", method_claim, SD_BUS_VTABLE_UNPRIVILEGED),
+	SD_BUS_METHOD("ReleaseCompass", "", "", method_claim, SD_BUS_VTABLE_UNPRIVILEGED),
 	SD_BUS_VTABLE_END
 };
 

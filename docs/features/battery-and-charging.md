@@ -28,13 +28,17 @@ Since kernel build #24 (2026-10-24, `qpnp-smb2.c`) the two supplies report the b
 
 Before #24 `battery/current_now` had the Qualcomm sign too. The `battery` supply also gained, from `bms`: `charge_full`, `charge_full_design` and `cycle_count` as `bms` has them, and `charge_now`, which is `bms/charge_counter` (µAh; `bms/charge_now` itself reads 0). With them UPower has an energy and a time estimate. Nothing else in the kernel changed.
 
+On the host PC's USB port the input current collapses to about 145 mA ([AICL](#live-verification-2026-09-26-qpts-kernel-cbd2b3acf-bootimg-066279cc), "host ports are weak sources"), less than the idle load, so the battery slowly discharges while `status` stays `Charging` (live 2026-10-24, screen off: `bms/current_now` +31 to +42 mA, `battery/current_now` the same, negative). powerd then shows Charging and UPower discharging, and both are right: UPower follows the current.
+
 ## UPower
 
 `upowerd` (Alpine's `upower` 1.91.0, with `upower-udev`) puts the battery and the power supplies on the system bus as `org.freedesktop.UPower`, for `upower -d` and any client written for it. It runs as the supervised OpenRC service `upower` ([services](services.md)), as user `upower` with no capabilities ([users and permissions](users-and-permissions.md)); its GLib warnings go to syslog (`logread | grep upowerd`) and its history files to `/var/lib/upower` (the volatile `/var`, every 600 s). It reads the `battery` supply (the percentage from `capacity`, the state from `status` and the sign of `current_now`, the energy from the charge attributes above) and the line-power supplies `usb`, `pc_port`, `dc`, `usbeb` and `wireless` (`bms` and `main` have types it does not know and are skipped), on the kernel's uevents and every 30 s.
 
-It only reports. `rootfs-overlay/etc/UPower/UPower.conf` (the whole file; `UPower.conf.d` stays empty) gives it powerd's levels (by percentage: low 15 %, critical 5 %, action 2 %), the critical action `Ignore` with `AllowRiskyCriticalPowerAction=true`, `IgnoreLid=true` and no Watts Up Pro. upowerd logs one "considered risky" warning at every start because of `Ignore`: expected. powerd stays the one owner of the low-battery and shutdown policy; without logind upowerd could not power off anyway. It writes sysfs only on an `EnableChargeThreshold` call, which our battery cannot take (no `charge_control_*` attributes).
+It only reports. `rootfs-overlay/etc/UPower/UPower.conf` (the whole file; `UPower.conf.d` stays empty) gives it powerd's levels (by percentage: low 15 %, critical 5 %, action 2 %), the critical action `Ignore` with `AllowRiskyCriticalPowerAction=true`, `IgnoreLid=true` and no Watts Up Pro. upowerd logs the same lines at every start, all expected and none an error: the "considered risky" warning (because of `Ignore`); "Could not acquire inhibitor lock" (no logind); once per supply type it does not know, "did not recognize type ..., please report" for `Wipower`, `Main`, `USB_PD`, `USB_DCP`, `Wireless` and `BMS`; and "USB power supply ... pc_port without usb_type property". powerd stays the one owner of the low-battery and shutdown policy; without logind upowerd could not power off anyway. It writes sysfs only on an `EnableChargeThreshold` call, which our battery cannot take (no `charge_control_*` attributes).
 
 There is no D-Bus activation: the image build removes the package's `org.freedesktop.UPower.service`, which would start a root upowerd whenever the service is down, so while the `upower` service is stopped no client finds the name. Our bus policy `usr/share/dbus-1/system.d/chef-upower.conf` lets user `upower` own `org.freedesktop.UPower`; the package's policy (everyone may call it) stays as shipped.
+
+Live 2026-10-24 (RAM image, kernel #24): upowerd ran as `upower` (207) with no capabilities; `upower -d` showed 82 %, energy 16.4 of 20.5 Wh, the voltage, charge-cycles 1, the temperature, a time-to-empty estimate and the five line-power supplies with `usb` online; `battery/current_now` was minus `bms/current_now` in every sample; its history files in `/var/lib/upower` were owned by `upower`, and it wrote nothing else. Not yet seen live: `charging` on the wall charger and `discharging` unplugged.
 
 ## Inspect
 
@@ -78,7 +82,7 @@ See the [build-log entry](../build-log.md) and `logs/powerd-live-test-2026-09-26
 
 - Current state and shutdown markers live in `/run` (RAM). The power log survives a clean shutdown on the owned writable `/data` layout; RAM-only boots still lose it.
 - With the installed standalone layout, poweroff with USB attached returns to our image in charger mode; unplugging before poweroff is needed to stay off. Our image never writes persist.
-- UPower and the #24 current signs are host-tested only until the step 9 live check ([standard interfaces](../next-steps/standard-interfaces.md)).
+- UPower's `charging` on the wall charger and `discharging` unplugged are not yet seen live (they need the user at the phone).
 - Cycle count and battery age are not persisted by a consumer yet. The fuel gauge keeps the cycle count while the battery stays connected.
 
 Remaining validation and persistence work is owned by [power and reliability](../next-steps/power-and-reliability.md#battery-and-charging).

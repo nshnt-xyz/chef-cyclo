@@ -35,8 +35,9 @@
  * Files: orient.c orientation and tilt, proxy.c the claim bookkeeping and
  * sensord's lines (pure, with injected hooks), bus.c the bus side, this
  * file the loop; sensor-proxy.h is their internal header.
- * tests/test_orient.c covers orient.c; tests/test_sensor_proxy.py runs
- * the binary on a private dbus-daemon against a fake sensord.
+ * tests/test_orient.c covers orient.c, tests/test_bus_vtable.c bus.c's
+ * method flags; tests/test_sensor_proxy.py runs the binary on a private
+ * dbus-daemon against a fake sensord.
  */
 #define _GNU_SOURCE
 #include <errno.h>
