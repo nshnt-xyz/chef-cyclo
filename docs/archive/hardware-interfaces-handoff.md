@@ -475,7 +475,6 @@ host-port AICL note and the live results in the guides).
 The first pair stopped at the M5 review on usage limits; a fresh pair
 finished the M5 review, M6 and M7. RAM images `f1ea7631` (through M6)
 and `9015aead` (with M7) live verified on 2026-10-24 without the user at
-the phone; the guided parts (wall charger and unplugged states, the six
-poses and proximity near, key events on `chef-buttons`, a buttond buzz
-ending an effect, an unplugged idle A/B) are still open. Details in
+the phone; the guided parts ran the same day on the installed pair and
+passed (only a buttond buzz ending an effect stays host-tested). Details in
 [the log](../../logs/hardware-interfaces-2026-10-24.txt).

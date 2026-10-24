@@ -38,7 +38,7 @@ It only reports. `rootfs-overlay/etc/UPower/UPower.conf` (the whole file; `UPowe
 
 There is no D-Bus activation: the image build removes the package's `org.freedesktop.UPower.service`, which would start a root upowerd whenever the service is down, so while the `upower` service is stopped no client finds the name. Our bus policy `usr/share/dbus-1/system.d/chef-upower.conf` lets user `upower` own `org.freedesktop.UPower`; the package's policy (everyone may call it) stays as shipped.
 
-Live 2026-10-24 (RAM image, kernel #24): upowerd ran as `upower` (207) with no capabilities; `upower -d` showed 82 %, energy 16.4 of 20.5 Wh, the voltage, charge-cycles 1, the temperature, a time-to-empty estimate and the five line-power supplies with `usb` online; `battery/current_now` was minus `bms/current_now` in every sample; its history files in `/var/lib/upower` were owned by `upower`, and it wrote nothing else. Not yet seen live: `charging` on the wall charger and `discharging` unplugged.
+Live 2026-10-24 (RAM image, kernel #24): upowerd ran as `upower` (207) with no capabilities; `upower -d` showed 82 %, energy 16.4 of 20.5 Wh, the voltage, charge-cycles 1, the temperature, a time-to-empty estimate and the five line-power supplies with `usb` online; `battery/current_now` was minus `bms/current_now` in every sample; its history files in `/var/lib/upower` were owned by `upower`, and it wrote nothing else. Guided on the installed pair the same day: unplugged `discharging` (battery -155 mA, about 9 h to empty), on the wall charger (`USB_DCP`) `charging` (+627 mA, 1.6 h to full), with `battery/current_now` the opposite of `bms/current_now` in both. An unplugged A/B with the screen off (60 s blocks, both services stopped against running: 112.0, 118.6, 113.0, 111.6 mA) showed no cost beyond its spread; both had 0 CPU ticks in 60 s idle.
 
 ## Inspect
 
@@ -82,7 +82,6 @@ See the [build-log entry](../build-log.md) and `logs/powerd-live-test-2026-09-26
 
 - Current state and shutdown markers live in `/run` (RAM). The power log survives a clean shutdown on the owned writable `/data` layout; RAM-only boots still lose it.
 - With the installed standalone layout, poweroff with USB attached returns to our image in charger mode; unplugging before poweroff is needed to stay off. Our image never writes persist.
-- UPower's `charging` on the wall charger and `discharging` unplugged are not yet seen live (they need the user at the phone).
 - Cycle count and battery age are not persisted by a consumer yet. The fuel gauge keeps the cycle count while the battery stays connected.
 
 Remaining validation and persistence work is owned by [power and reliability](../next-steps/power-and-reliability.md#battery-and-charging).

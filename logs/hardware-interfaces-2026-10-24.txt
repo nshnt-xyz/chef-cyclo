@@ -156,3 +156,36 @@ Install (coordinator, 2026-10-24 about 14:30 to 14:40 IST)
     e2fsck is not logged. Open.
   Fallbacks in out/: 7fb63760 + 6d7adb8d (49f98a1, kernel #23, first),
   then 96e8c87f + 2915db3c, 9a28e590 + 981d4f03.
+
+Guided checks (coordinator with the user at the phone, installed pair,
+2026-10-24 about 15:00 to 15:40 IST; cards on chef-settings run with
+--sleep 0 through its args file; live/guided.sh, compass.sh; transcripts
+c10, c11, c12)
+  Run 1: steps 1 to 4 (keys), evtest on chef-buttons per step:
+    Volume Up 115 value 1 and 0, Volume Down 114 value 1 and 0 passed;
+    Power with chef-settings claiming power.short: screen off and on, no
+    key event; chef-settings stopped: KEY_POWER 1 and 0 passed and
+    buttond set the screen-off flag. The pose steps of run 1 ended at once:
+    a script bug (the pose check overwrote the wait loop's deadline
+    variable), not a sensor fault; run stopped and fixed.
+  Run 2 (FROM=5, monitor-sensor -a as nobody holding the claims):
+    poses normal, bottom-up, left-up, right-up (all vertical), face-up,
+    face-down: PASS; proximity near under a palm (light 5 -> 0 lux), light
+    0 -> 355 lux at a lamp: PASS; claims 0 after the client exited.
+    Compass: 163 -> 253 deg during the turn, then back to 179 deg with the
+    phone still flat; the user thinks the phone was moved. Rerun below.
+    Unplugged: UPower discharging, battery -154785 uA, bms +154785,
+    status Discharging, energy-rate 1.75 W, about 9 h to empty.
+    Idle A/B unplugged, screen off, 60 s blocks (upowerd + sensor-proxy
+    stopped / running): STOP1 112.0, RUN1 118.6, STOP2 113.0, RUN2 111.6 mA
+    (temp 35 to 36 C): no cost beyond the spread. The base (about 112 mA
+    with both stopped) is above 2026-10-17's 100.4 mA; not step 9, left
+    for the idle power work.
+    Wall charger: real_type USB_DCP, UPower charging, battery +626952 uA,
+    bms -626952, input 953 mA, 1.6 h to full: PASS. USB back on the host:
+    CDP, PASS. chef-settings restarted without args (auto-sleep restored).
+  Compass rerun (two flat quarter turns clockwise through SensorProxy as
+    nobody, still holds before and after): 99 -> 190 deg, steady 188 to
+    190 for 20 s; 188 -> 278 deg (started late), steady 277 to 278.
+  Not done live: a buttond buzz ending a running effect (its only trigger
+    is the power-off hold); host-tested.
