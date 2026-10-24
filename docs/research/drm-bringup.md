@@ -2,9 +2,9 @@
 
 [Display research](display-modernization.md) · [Roadmap](../next-steps/ui-and-ride-app.md)
 
-**Historical:** on 2026-10-03 the DRM/Wayland route was shelved in favour of LVGL on the existing fbdev; see the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack) and [prototype](lvgl-fbdev-prototype.md).
+**Historical:** on 2026-10-03 the DRM/Wayland route was shelved in favour of LVGL on the existing fbdev; see the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack) and [prototype](lvgl-fbdev-prototype.md). It was reopened for research on 2026-10-24 and paused again the same day; see [October 24: in-tree SDE driver](#october-24-in-tree-sde-driver-e1-to-e2d). LVGL on fbdev stays the production stack.
 
-Latest October 3 result: both DRM-core and full built-in DRM configurations now boot with unchanged userspace reencoded to smaller LZMA ramdisks. DRM initialization is observed, but no DRM card or native scanout exists. The [actual loader budget investigation](chef-loader-kernel-budget.md) records the binary research, failed minimal control calibration, successful full-userspace tests and remaining limits. Earlier failures below are historical evidence, not the current runtime status.
+October 3 result: both DRM-core and full built-in DRM configurations now boot with unchanged userspace reencoded to smaller LZMA ramdisks. DRM initialization is observed, but no DRM card or native scanout exists. The [actual loader budget investigation](chef-loader-kernel-budget.md) records the binary research, failed minimal control calibration, successful full-userspace tests and remaining limits. Earlier failures below are historical evidence, not the current runtime status.
 
 Started 2026-10-02 after committing initial standard touch work as `173ab54`. Coordinator owns research and device tests; fresh Herdr implementation/review sessions own the isolated compile experiment and independent review. This record distinguishes source support, compilation, module initialization and physical scanout.
 
@@ -111,3 +111,33 @@ The final core-only header diagnostic added `nokaslr` and logging arguments, lea
 No additional kernel source patch resulted from this round. Verified control boots and failed DRM-core boots narrow the configuration scope, but no successful DRM core startup or new crash trace is established. Before binding display hardware, establish an observable pre-userspace capture mechanism or a controlled way to distinguish loader rejection from kernel execution. Do not apply speculative hardware, initcall or load-offset changes as a fix. The final [baseline restoration transcript](../../logs/drm-bringup-2026-10-03-final-recovery.txt) confirms kernel #20, readiness markers, WLED1542, NVT discovery and available WLAN through NetworkManager. Nothing was flashed.
 
 The [diagnostic artifact manifest](../../logs/drm-bringup-2026-10-03-diagnostic-hashes.txt) includes prepared files, not just booted images. Runtime outcomes are established only by the linked poll/live records. Control [CRC comparison](../../logs/drm-bringup-2026-10-03-control-comparison.json) and [hashes](../../logs/drm-bringup-2026-10-03-control-artifact-hashes.txt), plus core [resolved delta](../../logs/drm-bringup-2026-10-03-core-config.diff), [CRC comparison](../../logs/drm-bringup-2026-10-03-core-comparison.json) and [hashes](../../logs/drm-bringup-2026-10-03-core-artifact-hashes.txt), retain build evidence outside the ignored output directories.
+
+## October 24: in-tree SDE driver (E1 to E2d)
+
+Reopened on 2026-10-24 and paused the same day. All boots were `fastboot boot` RAM images (DRM kernel plus the installed stage-1 ramdisk, booting the installed `system_a`); nothing was flashed. Code is on the local, unpushed branches `experiment/drm-sde` in the superproject (`03ef457`, `scripts/build-drm-sde.sh`, `tools/drmtest.c`) and in the kernel submodule (`13edcb616`, on top of kernel #24 `1f0d322b6`). Specs, reviews and live logs are in `~/chef-cyclo-evidence/drm-sde-20261024/` (`HANDOFF*.md`, `live/*-RESULT.md`).
+
+The loader budget is no longer a constraint: with the roughly 1 MB stage-1 ramdisk the full DRM/MSM kernel (`image_size` 41,373,696) has 45,162,496 bytes of margin.
+
+### What the source showed
+
+The October 2/3 conclusions above overstated the porting work:
+
+- dsi-staging's `qcom,dsi-phy-v4.0` (`dsi_phy_hw_v4_0.c`) is the msm8996 14 nm PHY. Chef's PHY block has the same size (0x588 at controller + 0x400) and identical strength/regulator/lane tables, and mainline drives sdm660 and msm8996 with the same 14 nm PHY code. The PHY timing dsi-staging computes for the Tianma panel equals Motorola's `qcom,mdss-dsi-panel-timings-phy-v2` byte for byte.
+- dsi-staging parses the same `qcom,mdss-dsi-*` panel properties as fbdev, so the existing Tianma panel node is used unchanged (plus `qcom,platform-reset-gpio`).
+- SDE 3.2 needs only `SDE_HW_VER_320` next to the 3.0 cases; the catalog comes from DT (offsets from the MDSS base, mainline `dpu_3_2_sdm660.h` + 0x1000). Mixers are numbered by position and index 3 is treated as a rotator mixer, so only LM0 to LM2 are listed.
+- The controller is 6G v2.1 (`DSI_HW_VERSION` 0x20010000). dsi-staging implements only v1.4 ops; mainline's v2.1 ops equal v1.4 plus a `byte_intf` clock at byte/2.
+
+Gaps that needed patches: `SDE_HW_VER_320`; a component master with no `connectors` (KGSL plus no connectors is a NULL `add_components` oops); `lp11_init` declared but never parsed (the Tianma panel needs LP11 init with the LCDB supplies after LP11); the `byte_intf` clock; `sde_backlight_setup()` never called. The bootloader splash is detected (`intf_sel` 0x100, splash on **vig0** at 0x9d400000), the SMMU early map was already handled, and the DSI side only treats displays labelled `dsi_adv_7533_1/2` as "splash on", so chef's display does a full panel init on the first modeset. `CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES` must name the DRM DTB, or `Image.gz-dtb` appends every built DTB.
+
+### Live results
+
+- **E1** (SDE only, fbdev MDSS nodes disabled): SDE reads 0x30020000, `msm_drm` initialises, `/dev/dri/card0`, no SMMU faults.
+- **E2** (DSI ctrl + 14 nm PHY + panel): connector DSI-1, mode 1080x2246@60, pixel clock 160.7 MHz. The user saw the `drmtest` pattern on the first modeset after boot.
+- **E2b**: `sde-backlight` works; page flips are perfect (1,800 of 1,800 events, intervals 16,641 / 16,666 / 16,699 us, no misses, `msm_drm` IRQ delivered). Link clocks exact (esc 19.2 MHz, byte 120.53 MHz, pixel 160.70 MHz, byte_intf 60.26 MHz).
+- **Blocker:** the panel lights only on the first enable after boot, when the bootloader has already initialised it. After any DRM disable (reset low, LCDB and vddio off) later enables stay dark, because the DSI command DMA almost never completes: `DSI_STATUS` 0x0b (command engine, DMA and video engine busy), `DSI_HS_TX_TIMEOUT`, the first command of a boot also overflows the HS FIFO on all four lanes, and no `CMD_DMA_DONE` within 110 ms.
+- **E2c**: sending commands by memory DMA (as fbdev does, buffer in the SDE SMMU address space) fails exactly like the TPG FIFO, so the transport is not the cause. The 0x000 to 0x0fc controller snapshot matches fbdev's lit snapshot (`/sys/kernel/debug/mdp/dsi0_ctrl_reg`) except `DMA_FIFO_CTRL` (fbdev 0x30, staging 0), `TRIG_CTRL` bit 31 (TE select), `MISR_VIDEO_CTRL` and the command-mode MDP registers.
+- **E2d**: dsi-staging's v4.0 PHY `disable()` clears `DSIPHY_CMN_CTRL_0` and `enable()` never restores it (fbdev writes 0x7f), but the 14 nm PLL driver's `pll_db_commit_14nm()` restores it (0xff after the link clocks come on), so that was not the cause. On one re-enable every command succeeded; on four others they hung again and the panel stayed dark. One E2d boot panicked at 3.56 s in `msm_bus_debugfs_init()` (`strlen` on a client name pointer holding ASCII text), most likely a stale msm_bus client name from the DSI controller across the display bind deferral; the next boot was fine.
+
+### Where to resume
+
+Native DRM works up to and including scanout, page flips and backlight; panel re-initialisation after power-off does not. Next steps if resumed: dump the full controller state at every enable (the one good re-enable against the bad ones), align dsi-staging's enable/disable sequence with fbdev's (`mdss_dsi_host_init()`, soft reset with clocks forced on, waiting for command DMA idle before disable, `DMA_FIFO_CTRL`), fix the msm_bus client-name lifetime, then the touch notifier (the NT36525 still depends on fb blank events) and blank/unblank power.
