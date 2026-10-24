@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # DRM experiment: build a boot image whose kernel has the SDE KMS driver
-# (DRM_SDE_STAGE selects the image name, e2 by default) and the static
+# (DRM_SDE_STAGE selects the image name, e2b by default) and the static
 # tools/drmtest client. Output only under out/kernel-drm-sde/ and
-# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1 image
-# are hashed before and after.
+# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1 and E2
+# images are hashed before and after.
 # Never boots anything. --rebuild reuses an existing out/kernel-drm-sde.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -16,13 +16,14 @@ baseline_files=(
     "$CHEF_ROOT/out/stage1.cpio.gz"
     "$CHEF_ROOT/out/system_a.img"
     "$CHEF_ROOT/out/boot-drm-sde-e1.img"
+    "$CHEF_ROOT/out/boot-drm-sde-e2.img"
 )
 export KERNEL_OUT="$CHEF_ROOT/out/kernel-drm-sde"
-STAGE=${DRM_SDE_STAGE:-e2}
+STAGE=${DRM_SDE_STAGE:-e2b}
 BOOT_OUT=out/boot-drm-sde-$STAGE.img
 dtb_name=sdm636-chef-evt-drm
 rebuild=no
-[[ "$STAGE" != e1 ]] || { echo "Refusing to write the E1 image out/boot-drm-sde-e1.img" >&2; exit 1; }
+[[ "$STAGE" != e1 && "$STAGE" != e2 ]] || { echo "Refusing to write the earlier image out/boot-drm-sde-$STAGE.img" >&2; exit 1; }
 case "${1:-}" in
     '') ;;
     --rebuild) rebuild=yes ;;

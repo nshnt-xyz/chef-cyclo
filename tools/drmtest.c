@@ -8,6 +8,8 @@
  *   drmtest show [-t SECS] [-c CYCLES]
  *                             draw a test pattern into one dumb buffer and
  *                             SETCRTC it on the first connected connector
+ *   drmtest flip [-n FRAMES]  page flip two dumb buffers with a moving bar
+ *                             and report the flip event timing
  *
  * show picks the preferred mode (else the first), the connector's encoder's
  * CRTC (else the first CRTC in the encoder's possible_crtcs), holds the
@@ -22,9 +24,18 @@
  * half; a black-to-white gradient in the lower half; 120 px squares in the
  * corners inside the border (red top left, green top right, blue bottom
  * left, white bottom right).
+ *
+ * flip uses the same target as show. Each of FRAMES frames (default 600)
+ * draws a black frame with the white border and a 120 px white bar that
+ * moves 8 px per frame (wrapping) into the back buffer, queues a page flip
+ * with an event and waits up to 100 ms for the event, so a panel refreshing
+ * at 60 Hz shows smooth motion if the flips complete on every vblank. The
+ * summary has the event counts, the interval between consecutive event
+ * timestamps and the draw time per frame.
  */
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -44,6 +55,10 @@
 #define BORDER		24
 #define CORNER		120
 #define OFF_SECS	3
+#define BAR_WIDTH	120
+#define BAR_STEP	8
+#define FLIP_WAIT_MS	100
+#define LATE_US		25000
 #define CONNECTED	1	/* drm_connector_status, libdrm only */
 
 static volatile sig_atomic_t stop;
@@ -325,7 +340,13 @@ static int pick_target(int fd, struct target *t)
 	return -1;
 }
 
-static int make_fb(int fd, struct target *t)
+struct buf {
+	uint32_t fb, pitch;
+	uint32_t *map;
+};
+
+/* A dumb buffer of the mode size, mapped and registered as XRGB8888. */
+static int new_buf(int fd, const struct target *t, struct buf *b)
 {
 	struct drm_mode_create_dumb cd = {
 		.width = t->mode.hdisplay,
@@ -347,7 +368,6 @@ static int make_fb(int fd, struct target *t)
 		fprintf(stderr, "drmtest: mmap: %s\n", strerror(errno));
 		return -1;
 	}
-	draw_pattern(map, cd.pitch, cd.width, cd.height);
 	fb.width = cd.width;
 	fb.height = cd.height;
 	fb.pixel_format = DRM_FORMAT_XRGB8888;
@@ -355,7 +375,20 @@ static int make_fb(int fd, struct target *t)
 	fb.pitches[0] = cd.pitch;
 	if (ioc(fd, DRM_IOCTL_MODE_ADDFB2, &fb, "ADDFB2"))
 		return -1;
-	t->fb = fb.fb_id;
+	b->fb = fb.fb_id;
+	b->pitch = cd.pitch;
+	b->map = map;
+	return 0;
+}
+
+static int make_fb(int fd, struct target *t)
+{
+	struct buf b;
+
+	if (new_buf(fd, t, &b))
+		return -1;
+	draw_pattern(b.map, b.pitch, t->mode.hdisplay, t->mode.vdisplay);
+	t->fb = b.fb;
 	return 0;
 }
 
@@ -411,16 +444,202 @@ static int cmd_show(int fd, int secs, int cycles)
 	return 0;
 }
 
+/* ---- flip ---- */
+
+struct flip_stats {
+	unsigned long events, timeouts, ebusy, late, intervals;
+	int64_t min_us, max_us, sum_us, last_us;
+	int64_t draw_max_us, draw_sum_us;
+	uint32_t shown;
+};
+
+static int64_t now_us(void)
+{
+	struct timespec ts;
+
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+}
+
+/* Black frame, white border, and the white bar at BAR_STEP px per frame. */
+static void draw_frame(const struct buf *b, uint32_t w, uint32_t h,
+		       unsigned long frame)
+{
+	uint32_t x0 = frame * BAR_STEP % w, x, y;
+
+	for (y = 0; y < h; y++) {
+		uint32_t *row = b->map + y * (b->pitch / 4);
+
+		if (y < BORDER || y >= h - BORDER) {
+			for (x = 0; x < w; x++)
+				row[x] = 0xffffff;
+			continue;
+		}
+		memset(row, 0, w * 4);
+		for (x = 0; x < BORDER; x++)
+			row[x] = row[w - 1 - x] = 0xffffff;
+		for (x = 0; x < BAR_WIDTH; x++)
+			row[(x0 + x) % w] = 0xffffff;
+	}
+}
+
+static void note_event(struct flip_stats *fs, const struct drm_event_vblank *ev)
+{
+	int64_t us = (int64_t)ev->tv_sec * 1000000 + ev->tv_usec, d;
+
+	fs->events++;
+	fs->shown = ev->user_data;
+	if (fs->events > 1) {
+		d = us - fs->last_us;
+		if (!fs->intervals || d < fs->min_us)
+			fs->min_us = d;
+		if (!fs->intervals || d > fs->max_us)
+			fs->max_us = d;
+		fs->sum_us += d;
+		fs->intervals++;
+		if (d > LATE_US)
+			fs->late++;
+	}
+	fs->last_us = us;
+}
+
+/* Wait for a flip event; 1 if at least one was read, 0 on timeout. */
+static int wait_event(int fd, struct flip_stats *fs)
+{
+	struct pollfd pfd = { .fd = fd, .events = POLLIN };
+	uint64_t storage[128];
+	char *buf = (char *)storage;
+	ssize_t n, off;
+	int got = 0;
+
+	if (poll(&pfd, 1, FLIP_WAIT_MS) <= 0)
+		return 0;
+	n = read(fd, buf, sizeof(storage));
+	for (off = 0; n > 0 && off + (ssize_t)sizeof(struct drm_event) <= n;) {
+		struct drm_event *e = (struct drm_event *)(buf + off);
+
+		if (e->length < sizeof(*e) || off + (ssize_t)e->length > n)
+			break;
+		if (e->type == DRM_EVENT_FLIP_COMPLETE &&
+		    e->length >= sizeof(struct drm_event_vblank)) {
+			note_event(fs, (struct drm_event_vblank *)e);
+			got = 1;
+		}
+		off += e->length;
+	}
+	return got;
+}
+
+/* Queue a flip to buffer INDEX; 1 queued, 0 skipped after EBUSY, -1 error. */
+static int queue_flip(int fd, const struct target *t, const struct buf *bufs,
+		      uint32_t index, struct flip_stats *fs)
+{
+	struct drm_mode_crtc_page_flip pf = {
+		.crtc_id = t->crtc,
+		.fb_id = bufs[index].fb,
+		.flags = DRM_MODE_PAGE_FLIP_EVENT,
+		.user_data = index,
+	};
+	bool retried = false;
+
+	for (;;) {
+		if (!ioctl(fd, DRM_IOCTL_MODE_PAGE_FLIP, &pf))
+			return 1;
+		if (errno != EBUSY) {
+			fprintf(stderr, "drmtest: PAGE_FLIP: %s\n",
+				strerror(errno));
+			return -1;
+		}
+		fs->ebusy++;
+		if (retried)
+			return 0;
+		if (!wait_event(fd, fs)) {
+			if (!stop)
+				fs->timeouts++;
+			return 0;
+		}
+		retried = true;
+	}
+}
+
+static void print_flip_summary(const struct flip_stats *fs, unsigned long want,
+			       unsigned long issued, int64_t wall_us)
+{
+	printf("flip: frames requested %lu issued %lu events %lu timeouts %lu ebusy %lu\n",
+	       want, issued, fs->events, fs->timeouts, fs->ebusy);
+	if (fs->intervals)
+		printf("flip: event interval us min %lld avg %lld max %lld, over %d ms: %lu of %lu\n",
+		       (long long)fs->min_us,
+		       (long long)(fs->sum_us / (int64_t)fs->intervals),
+		       (long long)fs->max_us, LATE_US / 1000, fs->late,
+		       fs->intervals);
+	else
+		printf("flip: fewer than two events, no intervals\n");
+	if (issued)
+		printf("flip: draw us avg %lld max %lld\n",
+		       (long long)(fs->draw_sum_us / (int64_t)issued),
+		       (long long)fs->draw_max_us);
+	printf("flip: wall time %lld ms\n", (long long)(wall_us / 1000));
+}
+
+static int cmd_flip(int fd, unsigned long frames)
+{
+	struct sigaction sa = { .sa_handler = on_signal };
+	struct flip_stats fs = { 0 };
+	struct target t = { 0 };
+	struct buf bufs[2];
+	unsigned long i, issued = 0;
+	int64_t start, d;
+	int rc = 0, q;
+
+	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
+	if (pick_target(fd, &t))
+		return 1;
+	printf("target: connector %u crtc %u mode %s %ux%u@%u\n", t.conn,
+	       t.crtc, t.mode.name, t.mode.hdisplay, t.mode.vdisplay,
+	       t.mode.vrefresh);
+	if (new_buf(fd, &t, &bufs[0]) || new_buf(fd, &t, &bufs[1]))
+		return 1;
+	draw_frame(&bufs[0], t.mode.hdisplay, t.mode.vdisplay, 0);
+	t.fb = bufs[0].fb;
+	if (set_crtc(fd, &t, true))
+		return 1;
+
+	start = now_us();
+	for (i = 0; i < frames && !stop; i++) {
+		uint32_t back = 1 - fs.shown;
+
+		d = now_us();
+		draw_frame(&bufs[back], t.mode.hdisplay, t.mode.vdisplay, i + 1);
+		d = now_us() - d;
+		fs.draw_sum_us += d;
+		if (d > fs.draw_max_us)
+			fs.draw_max_us = d;
+		q = queue_flip(fd, &t, bufs, back, &fs);
+		if (q < 0) {
+			rc = 1;
+			break;
+		}
+		issued++;
+		if (q && !wait_event(fd, &fs) && !stop)
+			fs.timeouts++;
+	}
+	print_flip_summary(&fs, frames, issued, now_us() - start);
+	return rc;
+}
+
 static void usage(void)
 {
 	fprintf(stderr,
 		"usage: drmtest info\n"
-		"       drmtest show [-t secs] [-c cycles]\n");
+		"       drmtest show [-t secs] [-c cycles]\n"
+		"       drmtest flip [-n frames]\n");
 }
 
 int main(int argc, char **argv)
 {
-	int secs = 20, cycles = 0, opt, fd, rc;
+	int secs = 20, cycles = 0, frames = 600, opt, fd, rc;
 	const char *cmd;
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
@@ -430,16 +649,17 @@ int main(int argc, char **argv)
 	}
 	cmd = argv[1];
 	optind = 2;
-	while ((opt = getopt(argc, argv, "t:c:")) != -1) {
+	while ((opt = getopt(argc, argv, "t:c:n:")) != -1) {
 		switch (opt) {
 		case 't': secs = atoi(optarg); break;
 		case 'c': cycles = atoi(optarg); break;
+		case 'n': frames = atoi(optarg); break;
 		default:
 			usage();
 			return 64;
 		}
 	}
-	if (optind != argc) {
+	if (optind != argc || frames < 1) {
 		usage();
 		return 64;
 	}
@@ -452,6 +672,8 @@ int main(int argc, char **argv)
 		rc = cmd_info(fd);
 	else if (!strcmp(cmd, "show"))
 		rc = cmd_show(fd, secs, cycles);
+	else if (!strcmp(cmd, "flip"))
+		rc = cmd_flip(fd, frames);
 	else {
 		usage();
 		rc = 64;
