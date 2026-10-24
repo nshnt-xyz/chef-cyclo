@@ -1,0 +1,119 @@
+Standard hardware interfaces (standard interfaces step 9), 2026-10-24
+=====================================================================
+
+Plan: docs/archive/hardware-interfaces-handoff.md (step 9: section 1 of
+docs/next-steps/standard-interfaces.md, UPower, net.hadess.SensorProxy,
+key passthrough, vibrator as force feedback, plus the powerd.c split).
+Pair: hwif_impl and hwif_review (Claude Opus 5.5), coordinator
+hwif_coord. The first pair stopped on usage limits during the M5 review
+(M1 to M4 committed, M5 staged); a fresh pair, briefed by
+resume-20261024.md in the evidence dir, finished the M5 review, M6 and
+M7. Evidence: ~/chef-cyclo-evidence/hwif-20261024/ (research/ with
+FINDINGS.md, review/ diffs, notes and reviews, live/ c0..c9 transcripts,
+the check scripts and build logs).
+
+Commits on main (each approved by hwif_review and checked against the
+reviewed snapshot):
+  a4e6ff7  M1 powerd split into tools/powerd/ (pure refactor)
+  39fce6d  M2 kernel #24 (chef-cyclo-qpts30.61-18-10 1f0d322b6):
+           qpnp-smb2 battery current_now in the power_supply ABI sign
+           (positive while charging) and charge_full, charge_full_design,
+           cycle_count and charge_now (= bms charge_counter) on the
+           battery supply; powerd reads bms/current_now (same meaning)
+  9b0b818  M3 UPower 1.91.0 as user upower 207 (supervise-daemon, no
+           capabilities, no D-Bus activation file, chef-upower.conf,
+           UPower.conf with powerd's levels and the Ignore action)
+  e73d893  M4 buttond: unclaimed keys passed on raw through the uinput
+           device chef-buttons, the vibrator as the FF device
+           chef-vibrator (FF_RUMBLE, FF_PERIODIC sine, FF_GAIN, 16
+           effects), BUS_VIRTUAL devices never grabbed, group uinput 213,
+           FEEDBACKD_TYPE=vibra, /init coldplugs the uinput node
+  af22920  M5 sensor-proxy (user sensorproxy 208): net.hadess.SensorProxy
+           and .Compass over basu, claims held per bus name and mapped
+           onto sensord claims, orientation and tilt from sensord's
+           accel in iio-sensor-proxy's rules; monitor-sensor (extracted
+           from the verified iio-sensor-proxy apk) and evtest in the
+           image (snapshot 6dcfd395)
+  ac2f933  M6 guides: battery, buttons, sensors, users and permissions,
+           services, logging, repository layout, index (snapshot
+           b37f1746, two rounds)
+  c973fe0  M7 from the live check: L1 SD_BUS_VTABLE_UNPRIVILEGED on the
+           eight sensor-proxy methods plus tests/test_bus_vtable.c; L2
+           to L4 docs (upowerd's full set of start warnings, polkitd now
+           activated at upowerd's start, the host-port AICL note, live
+           results) (snapshot 75b63bd8)
+
+Build: kernel #24 Image.gz-dtb e903c016886b7aa201e0d45077bbf52ad97ba187
+193488f6567c993a09c3e86f (built in M2); out/rootfs rebuilt with
+scripts/mkrootfs.sh at ac2f933; SKIP_KERNEL=1 scripts/mkinstall.sh, the
+tree dirty only in the untracked handoff.
+  RAM image 1 (ac2f933): out/boot-ram-f1ea7631.img
+    sha256 f1ea76310471a307c5f26ed1f90292867f9412477fe3f4ac100fe1ce0248cc2d
+  RAM image 2 (c973fe0): out/boot-ram-9015aead.img
+    sha256 9015aeadb8bfe30c7edde793392af9fb4b3dfda68f2b9b209d9b9da306061106
+
+Live check (coordinator, 2026-10-24 about 14:00 to 14:30 IST, USB
+attached to the host, screen off, the user not at the phone)
+  Before: installed pair 7fb63760 + 6d7adb8d (#23, 49f98a1); hashes of
+  /data/v1/ui/settings, gps/enabled and networkmanager/NetworkManager.state
+  recorded (c0-before.txt). phone-boot.sh RAM image 1.
+  Kernel #24, 20 services started, none crashed.
+  Users: upowerd 207 groups 207 CapEff 0; sensor-proxy 208 groups 202 208
+    CapEff 0; buttond 200 groups 23 200 211 212 213 CapEff 0x20.
+  Battery: battery/current_now = -bms/current_now in every sample (-30 to
+    -42 mA vs +30 to +42 mA). On the host's CDP port the input sits at
+    about 145 mA (AICL) with the screen off, below the load, so the
+    battery net-discharges while status says Charging: powerd Charging
+    (current_ma 36, + = discharging), UPower "discharging" (it follows
+    the current), both right.
+  upower -d: 82 %, energy 16.379 of 20.4936 Wh, energy-rate, voltage,
+    charge-cycles 1, temperature 34 C, time to empty, capacity 100 %;
+    line-power dc, pc_port, usb (online), usbeb, wireless. /var/lib/upower
+    upower 0755 with its four history files; nothing else written.
+    Start log: the "considered risky" warning, "Could not acquire
+    inhibitor lock" (no logind), "did not recognize type" for Wipower,
+    Main, USB_PD, USB_DCP, Wireless and BMS, "pc_port without usb_type";
+    upowerd's start D-Bus activates polkitd.
+  buttond: chef-buttons event7 and chef-vibrator event8 root:input 0660,
+    /dev/uinput root:uinput 0660, ID_INPUT_KEY=1 and FEEDBACKD_TYPE=vibra,
+    status "uinput":{"keys":true,"ff":true}. FF (research uinput-proto):
+    rumble 300 ms uploaded in 0.1 ms, status "ff":"playing" 150 ms in
+    (timed_output enable read 146587, microseconds left), "idle" after
+    the erase; as nobody (not in group input) the device cannot be opened,
+    as designed. rc-service buttond restart grabbed qpnp_pon, gpio-keys
+    and the headset jack device, never chef-buttons.
+  sensor-proxy: Has* true, LightLevelUnit lux, orientation and tilt
+    undefined while unclaimed. monitor-sensor -a as root: light 19 to
+    20 lux, tilt face-up, proximity far, compass 122 to 130 deg (the phone
+    still; magnetometer settling); sensord list claims accel, illuminance,
+    proximity and heading 1 each while it ran, all 0 after it exited.
+    L1: as nobody, "AccessDenied: Access to
+    net.hadess.SensorProxy.ClaimAccelerometer() not permitted": basu's
+    vtable check (methods without SD_BUS_VTABLE_UNPRIVILEGED only for the
+    daemon's uid or CAP_SYS_ADMIN), not the bus policy; the host tests run
+    client and daemon as one uid. Fixed in M7.
+    rc-service sensord restart under a running client: "sensord
+    connection lost; every sensor absent until it is back", reconnected
+    and both claims re-sent within 1 s, headings continued.
+  Start order: the supervise-daemon start lines run syslog,
+    chef-settings, (modem-up), udhcpd, dbus, bluetooth, blesensd, bt-up,
+    buttond, chef-sshd, chronyd, chef-timekeeper, gps-manager, powerd,
+    root-session-bus, sensord, sensor-proxy, sensors-up, upower,
+    networkmanager: the services table's order. rc-depend is in
+    /usr/libexec/rc/bin (not in PATH).
+  Idle (screen off, USB): upowerd and sensor-proxy 0 CPU ticks in 60 s;
+    CPU busy 0.1 % with both running and with both stopped. The bms
+    current over four 60 s blocks (run, stop, run, stop) drifted more than
+    any effect (36.1, 31.9, 31.3, -3.5 mA), so no current A/B on USB; an
+    unplugged A/B is open.
+  Logs: no denial, segfault, Call trace or WARNING; the known bluetoothd
+    "Failed to reset Adv Monitors" and NetworkManager's ModemManager poke.
+  RAM image 2 (M7): monitor-sensor --light --accel --compass --proximity
+    as nobody (uid 65534) claims all four (sensord list 1 each), tilt
+    face-up, light 3 lux, headings; kill -9 -> all 0 within 1 s; no
+    denial in the log.
+  Open (need the user at the phone): charging on the wall charger and
+    discharging unplugged in UPower; the six poses and a proximity near
+    reading; key events on chef-buttons with evtest (and none for a
+    claimed button); a buttond buzz ending a running effect; the unplugged
+    idle A/B.
