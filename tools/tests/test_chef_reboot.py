@@ -40,6 +40,7 @@ echo "$name $*" >> "$TRACE"
 hang() { echo $$ >> "$TRACE.pids"; exec /bin/sleep 30 </dev/null >/dev/null 2>&1; }
 case "$name" in
 chef-state) echo "chef-state env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> "$TRACE"
+	[ "$1 $2" != "shutdown reboot" ] || echo reboot > "$CHEF_REBOOT_RUN/shutting-down"
 	[ "$1" != log-save ] || STATE=${LOGSAVE:-ok}
 	[ "${STATE:-ok}" != hang ] || hang; [ "${STATE:-ok}" = ok ] || exit 1;;
 chef-storage) echo "chef-storage env CHEF_LOG_KMSG_ONLY=${CHEF_LOG_KMSG_ONLY:-}" >> "$TRACE"
@@ -189,6 +190,9 @@ class ChefReboot(unittest.TestCase):
         self.assertEqual(t.count("kill -TSTP 1"), 1)
         # every step's own lines stay on kmsg too
         self.assertIn("chef-state env CHEF_LOG_KMSG_ONLY=1", t)
+        # the shutdown screen's reason, and the marker stays when it reboots
+        self.assertIn("chef-state shutdown reboot", t)
+        self.assertEqual((self.p / "run/shutting-down").read_text(), "reboot\n")
         self.assertIn("chef-storage env CHEF_LOG_KMSG_ONLY=1", t)
         self.assertIn("openrc env CHEF_LOG_KMSG_ONLY=1", t)
         for line in ["init paused", "chef-state shutdown done", "chef-state log-save done", "openrc shutdown done",
@@ -233,6 +237,8 @@ class ChefReboot(unittest.TestCase):
         self.assertIn("btprobe returned (exit 1)", self.log())
         self.assertIn("bootloader not reached; init resumed (exit 1)", self.log())
         self.assert_watchdog_killed(t)
+        # init resumed without a reboot: the shutdown screen's marker goes
+        self.assertFalse((self.p / "run/shutting-down").exists())
 
     def assert_watchdog_killed(self, t):
         kills = [l.split() for l in t if l.startswith("kill ") and " watchdog=" in l]
@@ -245,7 +251,7 @@ class ChefReboot(unittest.TestCase):
         rc, err, t = self.call("bootloader", INIT_KILL_RC="1")
         self.assert_rebooted(rc, t)
         self.assertIn("could not pause init; going on", self.log())
-        self.assertIn("chef-state shutdown", t)
+        self.assertIn("chef-state shutdown reboot", t)
 
     def test_term_and_int_resume_init(self):
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -261,6 +267,7 @@ class ChefReboot(unittest.TestCase):
                 time.sleep(0.2)
                 self.assertEqual(proc.returncode, 1, err)
                 self.assertIn("kill -CONT 1", t)
+                self.assertFalse((self.p / "run/shutting-down").exists())
                 self.assertNotIn("btprobe restart bootloader", t)
                 self.assertNotIn("chef-storage shutdown", t)
                 self.assert_watchdog_killed(t)

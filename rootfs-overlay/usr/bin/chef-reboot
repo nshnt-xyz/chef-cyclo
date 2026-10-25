@@ -6,8 +6,9 @@
 #
 #   1. pause init (SIGTSTP; busybox init then reaps but respawns nothing)
 #      so its inittab lines (telnetd) stay as they are while the rest stops
-#   2. chef-state shutdown, bounded as in inittab (timeout -k 1 5): last RTC
-#      offset save, chronyd's drift write, powerd's pending power log rows
+#   2. chef-state shutdown reboot, bounded as in inittab (timeout -k 1 5):
+#      first the shutdown screen's marker (/run/chef/shutting-down, reason
+#      reboot), then the last RTC offset save, chronyd's drift write, powerd's pending power log rows
 #      (it stops chronyd, powerd, sensord and the timekeeper through
 #      OpenRC)
 #   3. chef-state log-save, bounded as in inittab (timeout -k 1 3): the
@@ -39,7 +40,9 @@
 #
 # Init is resumed (SIGCONT) on every path that does not reboot: the exit
 # trap, INT/TERM, and a detached RAM-only watchdog for a killed helper,
-# sized above the whole bounded chain. Started in the background of a
+# sized above the whole bounded chain. The exit trap and INT/TERM also
+# remove the shutdown screen's marker, so a system that stays up leaves the
+# screen (the watchdog's bare SIGCONT cannot: accepted). Started in the background of a
 # non-interactive shell it inherits INT ignored, which no trap can undo:
 # Ctrl-C then does nothing and it goes on to the bootloader (TERM still
 # works). SIGHUP is ignored, so a closing telnet session does not stop it
@@ -92,6 +95,7 @@ resume() {
 	rc=$?
 	kill "$watchdog" 2>/dev/null
 	kill -CONT 1 2>/dev/null
+	rm -f "$RUN/shutting-down" 2>/dev/null
 	log "bootloader not reached; init resumed (exit $rc)"
 	exit "$rc"
 }
@@ -122,7 +126,7 @@ if command -v chef-state >/dev/null 2>&1 || command -v chef-storage >/dev/null 2
 fi
 
 if command -v chef-state >/dev/null 2>&1; then
-	bounded "$STATE_SECS" "chef-state shutdown" timeout -k 1 5 chef-state shutdown
+	bounded "$STATE_SECS" "chef-state shutdown" timeout -k 1 5 chef-state shutdown reboot
 	rc=$?
 	if [ "$rc" = 0 ]; then log "chef-state shutdown done"
 	else log "chef-state shutdown failed (exit $rc); offset, drift or power rows may be lost"; fi

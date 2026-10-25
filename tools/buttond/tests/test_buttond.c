@@ -67,9 +67,17 @@ static const char *last_log(void)
 
 static int g_poweroffs;
 
+/* What the hint file looked like when the power-off ran: 1 = an empty
+ * 0644 regular file, 0 = absent. */
+static int g_hint_at_poweroff = -1;
+
 static void test_poweroff(struct server *s)
 {
-	(void)s;
+	struct stat st;
+
+	g_hint_at_poweroff = (s->hint_path && s->hint_path[0] &&
+			      stat(s->hint_path, &st) == 0 && S_ISREG(st.st_mode) &&
+			      st.st_size == 0 && (st.st_mode & 07777) == 0644);
 	g_poweroffs++;
 }
 
@@ -671,6 +679,7 @@ static void test_server_poweroff(void)
 	CHECK(server_init(&s, 1500, 300, test_log) == 0);
 	s.poweroff = test_poweroff;
 	s.vib_path = vib;
+	s.hint_path = "";		/* never the real /run/chef */
 	CHECK(s.poweroff_hold_ms == 1500);
 	CHECK(s.po_state == PO_IDLE);
 	CHECK(server_deadline_ms(&s, 0) == -1);
@@ -802,6 +811,74 @@ static void test_server_poweroff(void)
 	rmdir(dir);
 }
 
+/* The hint file: made before the injected power-off runs; a failure to make
+ * it is logged and the power-off still runs. */
+static void power_off_once(struct server *s, int64_t t)
+{
+	recog_key(&s->recog, BTN_POWER, 1, t);
+	recog_tick(&s->recog, t + 1500);
+	server_drain(s, t + 1500);
+	server_tick(s, t + 3000);
+	CHECK(s->po_state == PO_READY);
+	recog_key(&s->recog, BTN_POWER, 0, t + 3100);
+	server_drain(s, t + 3100);
+	server_tick(s, t + 3100);
+}
+
+static void test_server_poweroff_hint(void)
+{
+	struct server s;
+	struct stat st;
+	char dir[] = "/tmp/buttond-test-XXXXXX";
+	char vib[128], hint[128], bad[128];
+	int before = g_poweroffs;
+
+	CHECK(mkdtemp(dir) != NULL);
+	snprintf(vib, sizeof(vib), "%s/vibrator", dir);
+	snprintf(hint, sizeof(hint), "%s/poweroff", dir);
+	snprintf(bad, sizeof(bad), "%s/nodir/poweroff", dir);
+	CHECK(vib_read(vib) == -1);
+	CHECK(server_init(&s, 1500, 300, test_log) == 0);
+	CHECK(strcmp(s.hint_path, "/run/chef/buttond/poweroff") == 0);
+	s.poweroff = test_poweroff;
+	s.vib_path = vib;
+	s.hint_path = hint;
+
+	/* a cancelled hold leaves no hint */
+	recog_key(&s.recog, BTN_POWER, 1, 0);
+	recog_tick(&s.recog, 1500);
+	server_drain(&s, 1500);
+	recog_key(&s.recog, BTN_POWER, 0, 1600);
+	server_drain(&s, 1600);
+	server_tick(&s, 1600);
+	CHECK(stat(hint, &st) != 0 && g_poweroffs == before);
+
+	/* a full hold: the hint exists, empty and 0644, when the power-off runs */
+	g_hint_at_poweroff = -1;
+	power_off_once(&s, 10000);
+	CHECK(g_poweroffs == before + 1);
+	CHECK(g_hint_at_poweroff == 1);
+	CHECK(stat(hint, &st) == 0 && st.st_size == 0 && (st.st_mode & 07777) == 0644);
+
+	/* an existing hint is fine (a second power-off) */
+	power_off_once(&s, 20000);
+	CHECK(g_poweroffs == before + 2 && g_hint_at_poweroff == 1);
+	unlink(hint);
+
+	/* a hint that cannot be made: logged, the power-off still runs */
+	s.hint_path = bad;
+	g_hint_at_poweroff = -1;
+	power_off_once(&s, 30000);
+	CHECK(g_poweroffs == before + 3);
+	CHECK(g_hint_at_poweroff == 0);
+	CHECK(strstr(last_log(), "power-off hint") != NULL);
+	CHECK(stat(bad, &st) != 0);
+
+	unlink(vib);
+	server_fini(&s);
+	rmdir(dir);
+}
+
 /* ---- server: key lines (down, held, up) ---- */
 
 #define KEY(b, st) "{\"type\":\"key\",\"button\":\"" b "\",\"state\":\"" st "\"}\n"
@@ -848,6 +925,7 @@ static void keys_env_init(struct keys_env *e)
 	CHECK(server_init(&e->s, 1500, 300, test_log) == 0);
 	e->s.off_path = e->off;
 	e->s.vib_path = e->vib;
+	e->s.hint_path = "";		/* never the real /run/chef */
 	e->s.poweroff = test_poweroff;
 }
 
@@ -1560,6 +1638,7 @@ static void test_ff_server(void)
 	CHECK(vib_read(vib) == -1);
 	CHECK(server_init(&s, 1500, 300, test_log) == 0);
 	s.poweroff = test_poweroff;
+	s.hint_path = "";		/* never the real /run/chef */
 	s.vib_path = vib;
 	s.keys_dev = true;
 	s.ff_dev = true;
@@ -1608,6 +1687,7 @@ int main(void)
 	test_server_slow_claimant();
 	test_server_dispatch();
 	test_server_poweroff();
+	test_server_poweroff_hint();
 	test_keys_ordering();
 	test_keys_audience();
 	test_keys_edges();

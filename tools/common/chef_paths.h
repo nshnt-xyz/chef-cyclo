@@ -21,6 +21,7 @@
 /* Local sockets (docs/features/local-sockets.md). libqmi finds the QMUX
  * bridge by the "qmux_socket" in its path, so that name stays. */
 #define CHEF_BUTTOND_SOCK	"/run/chef/buttond/buttond.sock"
+#define CHEF_BUTTOND_POWEROFF	"/run/chef/buttond/poweroff"	/* power-off hint for chef-state */
 #define CHEF_GPS_MANAGER_SOCK	"/run/chef/gps-manager/gps-manager.sock"
 #define CHEF_SENSORD_SOCK	"/run/chef/sensord/sensord.sock"
 #define CHEF_BLESENSD_SOCK	"/run/chef/blesensd/blesensd.sock"

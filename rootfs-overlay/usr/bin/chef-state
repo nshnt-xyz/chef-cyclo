@@ -23,7 +23,12 @@
 #   chef-state blesens-load  blesensd: print the saved BLE sensor records
 #                            (nothing when none or invalid)
 #   chef-state blesens-save  blesensd: save the records on stdin
-#   chef-state shutdown      inittab, before chef-storage shutdown: last
+#   chef-state shutdown [poweroff|reboot]
+#                            inittab, before chef-storage shutdown. First
+#                            of all it writes /run/chef/shutting-down (the
+#                            reason, one line; the first writer wins), which
+#                            puts up chef-settings' shutdown screen. Then:
+#                            last
 #                            offset save, stop chronyd (it writes its drift
 #                            file on exit), powerd (it flushes its pending
 #                            power log rows on exit; rows a stopped powerd
@@ -31,7 +36,10 @@
 #                            registry copy back on exit) and the timekeeper
 #                            through OpenRC, last bias save; the flush and
 #                            the bias save run as powerd and sensord (root
-#                            never writes into a daemon's directories)
+#                            never writes into a daemon's directories).
+#                            Without an argument the reason is poweroff
+#                            when powerd's shutdown-pending or buttond's
+#                            poweroff hint exists, else unknown
 #   chef-state log-save      inittab after shutdown, and chef-reboot: this
 #                            boot's syslogd ring (logread) into
 #                            /data/v1/log/syslog-<seq>, the newest 8 kept
@@ -64,6 +72,9 @@ SNS_RUN=${CHEF_STATE_SENSORS_RUN:-$RUN/sensord}	# sensord's working copy sns.reg
 SNS_PRISTINE=${CHEF_STATE_SENSORS_PRISTINE:-$RUN/sensors/sns.reg.persist}	# as read from persist
 SU=${CHEF_STATE_SU:-su}		# busybox su: the shutdown runs a daemon's work as that daemon
 MAP=${CHEF_STATE_MAP:-/usr/share/sensord/sns_reg.map}
+SHUTTING_DOWN=${CHEF_STATE_SHUTTING_DOWN:-$RUN/shutting-down}	# public: the shutdown screen's trigger and reason
+POWER_PENDING=${CHEF_STATE_POWER_PENDING:-$RUN/power/shutdown-pending}	# powerd, just before its power-off
+BUTTOND_HINT=${CHEF_STATE_BUTTOND_HINT:-$RUN/buttond/poweroff}	# buttond, just before its power-off
 PROC=${CHEF_STATE_PROC:-/proc}
 RC_OPTIONS=${CHEF_STATE_RC_OPTIONS:-/run/openrc/options}	# supervise-daemon's child_pid per service
 MARKER=chef-cyclo-data-v1
@@ -848,6 +859,26 @@ power_flush() {
 	return 1
 }
 
+# The shutdown screen's marker, written before anything that can block (and
+# on a RAM-only boot too). Once present it stays as it is.
+shutdown_marker() {
+	reason=$1
+	[ ! -e "$SHUTTING_DOWN" ] || return 0
+	case "$reason" in
+	poweroff|reboot) ;;
+	'')
+		if [ -e "$POWER_PENDING" ] || [ -e "$BUTTOND_HINT" ]; then reason=poweroff; else reason=unknown; fi;;
+	*) log "shutdown: unknown reason '$reason'"; reason=unknown;;
+	esac
+	tmp=$SHUTTING_DOWN.$$
+	if echo "$reason" > "$tmp" 2>/dev/null && chmod 0644 "$tmp" 2>/dev/null &&
+	   mv -f "$tmp" "$SHUTTING_DOWN" 2>/dev/null; then
+		return 0
+	fi
+	rm -f "$tmp" 2>/dev/null
+	log "shutdown: cannot write $SHUTTING_DOWN"
+}
+
 do_shutdown() {
 	cd / || return 1
 	ours || return 0
@@ -913,7 +944,7 @@ blesens-save) cd / && blesens_save;;
 # kmsg only, for this and its own children: a hang on the way down is what
 # pstore keeps, and only kmsg lines reach it (the flush and the bias save,
 # run as their daemons, log to syslog).
-shutdown) export CHEF_LOG_KMSG_ONLY=1; do_shutdown; exit 0;;
+shutdown) export CHEF_LOG_KMSG_ONLY=1; shutdown_marker "${2:-}"; do_shutdown; exit 0;;
 # the same for the ring's save at the very end; its lines would land in the
 # ring it is saving, after the copy
 log-save)
@@ -921,5 +952,5 @@ log-save)
 	! chef_log_syslogd_up || up=up
 	export CHEF_LOG_KMSG_ONLY=1
 	log_save "$up";;
-*) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|gps-load|gps-save 0|1|blesens-load|blesens-save|shutdown|log-save}"; exit 1;;
+*) log "usage: chef-state {ours|boot|timekeeper|time-save|mag-save|mag-restore FILE|gps-load|gps-save 0|1|blesens-load|blesens-save|shutdown [poweroff|reboot]|log-save}"; exit 1;;
 esac

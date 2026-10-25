@@ -49,6 +49,7 @@ name=${0##*/}
 echo "$name $*" >> "$TRACE"
 case "$name" in
 mountpoint)
+    echo "mountpoint-sees-marker $([ -e "$CHEF_STATE_RUN/shutting-down" ] && echo yes || echo no)" >> "$TRACE.marker"
     for a; do p=$a; done
     case "$p" in
     "$CHEF_STATE_DATA") exit "${MP_DATA:-0}";;
@@ -1411,6 +1412,71 @@ class ChefState(unittest.TestCase):
         time.sleep(0.05)
         self.assertIsNone(proc.poll())
         (self.p / "syslogd.pid").write_text(f"{proc.pid}\n")
+
+    # ------------------------------------------------------------ shutdown marker
+
+    def marker(self):
+        return self.p / "run/shutting-down"
+
+    def test_shutdown_marker_reasons(self):
+        power = self.p / "run/power"
+        hint = self.p / "run/buttond"
+        power.mkdir()
+        hint.mkdir()
+        cases = [((), None, "unknown"), (("poweroff",), None, "poweroff"), (("reboot",), None, "reboot"),
+                 ((), power / "shutdown-pending", "poweroff"), ((), hint / "poweroff", "poweroff"),
+                 (("reboot",), hint / "poweroff", "reboot")]
+        for args, source, want in cases:
+            with self.subTest(args=args, source=source):
+                if source:
+                    source.write_text("battery empty\n")
+                r = self.call("shutdown", *args)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(self.marker().read_text(), want + "\n")
+                self.assertEqual(self.marker().stat().st_mode & 0o7777, 0o644)
+                # no temp file left beside it
+                self.assertEqual(sorted(x.name for x in (self.p / "run").iterdir() if x.name.startswith("shutting-down")),
+                                 ["shutting-down"])
+                self.marker().unlink()
+                if source:
+                    source.unlink()
+
+    def test_shutdown_marker_unknown_argument(self):
+        r = self.call("shutdown", "halt")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.marker().read_text(), "unknown\n")
+        self.assertIn("shutdown: unknown reason 'halt'", self.kmsg)
+
+    def test_shutdown_marker_first_writer_wins(self):
+        self.marker().write_text("reboot\n")
+        before = self.marker().stat().st_ino
+        r = self.call("shutdown", "poweroff")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.marker().read_text(), "reboot\n")
+        self.assertEqual(self.marker().stat().st_ino, before)
+        # and the rest of the shutdown still ran
+        self.assertIn("shutdown: time_save_rc=", self.kmsg)
+
+    def test_shutdown_marker_is_first_and_works_ram_only(self):
+        for env in self.ram_only_cases():
+            with self.subTest(env=env):
+                self.marker().unlink(missing_ok=True)
+                (self.p / "trace.marker").unlink(missing_ok=True)
+                r = self.call("shutdown", "poweroff", **env)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(self.marker().read_text(), "poweroff\n")
+                # present before the first command the script runs (the ours gate)
+                self.assertEqual((self.p / "trace.marker").read_text().splitlines()[:1], ["mountpoint-sees-marker yes"])
+
+    def test_shutdown_marker_is_a_temp_file_renamed(self):
+        self.assertIn('tmp=$SHUTTING_DOWN.$$', SCRIPT.read_text())
+        self.assertIn('mv -f "$tmp" "$SHUTTING_DOWN"', SCRIPT.read_text())
+
+    def test_shutdown_marker_write_failure_does_not_stop_the_shutdown(self):
+        r = self.call("shutdown", "poweroff", CHEF_STATE_SHUTTING_DOWN=str(self.p / "nodir/shutting-down"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("shutdown: cannot write", self.kmsg)
+        self.assertIn("shutdown: time_save_rc=", self.kmsg)
 
     def test_log_lines_follow_syslogd(self):
         # running modes log through the helper to syslogd (logger), boot and

@@ -19,6 +19,7 @@ The mode column gives the owner and group where they are not root.
 | Path under `/run/chef/` | Owner (creates it) | Mode | What |
 |---|---|---|---|
 | `buttond/` | the `buttond` service (`checkpath`) | `buttond:buttond` 0750 | `buttond.sock` (0660), the [buttons](buttons-and-power-off.md#socket-contract) socket |
+| `buttond/poweroff` | `buttond` (just before its power-off action; failing to make it is logged and never stops the power-off) | `buttond:buttond` 0644, empty | the power-off hint: it tells `chef-state shutdown` the reason is a power-off ([buttons](buttons-and-power-off.md)) |
 | `sensord/` | the `sensord` service (`checkpath`) | `sensord:sensord` 0750 | `sensord.sock` (0660), the [sensors](sensors.md#socket-contract) socket; the working registry copy `sns.reg` (`sensord:sensord` 0600), which `sensors-up registry` builds in `sensors/` and moves in (`mv -fT`), and into which `sensord` writes the DSP's writes back |
 | `sensors/` | `sensors-up registry` | 0755 | the registry copy as read from persist `sns.reg.persist` (0444, so the bias saves run as `sensord` can compare against it), the boot it was made in `sns.reg.boot_id`, the staging copy `sns.reg.tmp`, and `persist-ro/` while persist is mounted |
 | `blesensd/` | the `blesensd` service (`checkpath`) | `blesensd:blesensd` 0750 | `blesensd.sock` (0660), the [BLE sensors](bluetooth.md#socket-contract) socket |
@@ -57,6 +58,7 @@ The mode column gives the owner and group where they are not root.
 | `chef-settings/` | the `chef-settings` service (`checkpath`) | `chefui:chefui` 0755 | `stop`, the one-shot `args`, `prompt`, `snapshot.ppm` and `splash-done` |
 | `chef-settings/splash-done` | `chef-settings` | 0644, empty | the [boot splash](system-ui.md#boot-splash) has ended this boot; with it present a restarted `chef-settings` goes straight to the hub |
 | `modem-ready` | `modem-up` (right after its lock's `ready`; removed in its cleanup) | `root` 0644, empty | the modem is up, for readers outside the `qmux` group (the boot splash). Information only, never ownership: that stays with `lock/modem-up.lock/` |
+| `shutting-down` | `chef-state shutdown [poweroff\|reboot]` as its very first act (`chef-reboot` passes `reboot`; temp file in `/run/chef`, then `mv -f`; the first writer wins, an existing one is never rewritten); `chef-reboot` removes it when it resumes init without rebooting | `root` 0644, one line | the system is going down, and why: `poweroff`, `reboot` or `unknown`. Without an argument the reason is `poweroff` when `power/shutdown-pending` or `buttond/poweroff` exists, else `unknown`. It puts up the shutdown screen of `chef-settings` |
 | `state/` | `/init` | 0755 | `chef-state`'s files ([persistent data](storage.md#persistent-state)): `time` (boot clock provenance, read by the Time and date page), `time.lock` and `log.lock`, and the directories below |
 | `state/mag/` | the `sensord` service (`checkpath`) | `sensord:sensord` 0700 | `lock` (the bias saves), `last` (when the last one was written) |
 | `state/gps/` | the `gps-manager` service (`checkpath`) | `gps:gps` 0700 | `lock`, and `enabled` (the GPS switch) while `/data` is not ours |

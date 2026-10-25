@@ -126,7 +126,7 @@
  * held into the bootloader; the software power-menu chord is power+volup.
  *
  * Usage: buttond [-i DEV]... [-l LONG_MS] [-d DOUBLE_MS] [-p HOLD_MS]
- *                [-S SOCK] [-o OFF_FILE] [-V VIB] [-u UINPUT] [-G] [-v]
+ *                [-S SOCK] [-o OFF_FILE] [-P HINT] [-V VIB] [-u UINPUT] [-G] [-v]
  *   -i  evdev device to use (repeatable; taken as given, a virtual one
  *       too; default: every /dev/input/event*, in numeric order, that
  *       reports KEY_POWER/KEY_VOLUMEUP/KEY_VOLUMEDOWN, no ABS axes and is
@@ -137,6 +137,8 @@
  *       (default 1500; 0 = never power off, only log)
  *   -S  socket path (default /run/chef/buttond/buttond.sock)
  *   -o  screen-off flag (default /run/chef/screen/off)
+ *   -P  power-off hint file, created empty just before the power-off
+ *       runs (default /run/chef/buttond/poweroff; '' = none)
  *   -V  vibrator (default /sys/class/timed_output/vibrator/enable, ms)
  *   -u  uinput node for chef-buttons and chef-vibrator (default
  *       /dev/uinput; '' = neither); a device that cannot be made is
@@ -652,6 +654,7 @@ struct server {
 	struct client clients[BUTTOND_MAX_CLIENTS];
 	const char *off_path;
 	const char *vib_path;
+	const char *hint_path;		/* created just before the power-off (see poweroff_go) */
 	unsigned poweroff_hold_ms;	/* 0 = the power.long default only logs */
 	enum poweroff_state po_state;
 	int64_t po_armed_at;		/* when power.long fired */
@@ -693,6 +696,7 @@ static int server_init(struct server *s, unsigned long_ms, unsigned double_ms,
 	recog_init(&s->recog, long_ms, double_ms);
 	s->off_path = CHEF_SCREEN_OFF;
 	s->vib_path = BUTTOND_VIB_PATH;
+	s->hint_path = CHEF_BUTTOND_POWEROFF;
 	s->poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;
 	s->log = cfg.log;
 	s->poweroff = system_poweroff;
@@ -904,6 +908,27 @@ static void poweroff_arm(struct server *s, int64_t now)
 	       s->poweroff_hold_ms);
 }
 
+/*
+ * Tells the rest of the system why it is going down: chef-state shutdown
+ * reads this file for the shutdown screen's reason. Never stops the
+ * power-off.
+ */
+static void poweroff_go(struct server *s)
+{
+	if (s->hint_path && s->hint_path[0]) {
+		int fd = open(s->hint_path, O_WRONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0644);
+
+		if (fd < 0)
+			s->log("power-off hint %s: %s", s->hint_path, strerror(errno));
+		else {
+			if (fchmod(fd, 0644))
+				s->log("power-off hint %s: chmod: %s", s->hint_path, strerror(errno));
+			close(fd);
+		}
+	}
+	s->poweroff(s);
+}
+
 /* Steps 2 and 3: READY once held long enough, act on the release. */
 static void server_tick(struct server *s, int64_t now)
 {
@@ -920,7 +945,7 @@ static void server_tick(struct server *s, int64_t now)
 			s->log("power off: released after %lld ms, shutting down now",
 			       (long long)(now - s->po_armed_at) + s->recog.long_ms);
 			buzz(s, BUTTOND_BUZZ_READY_MS);
-			s->poweroff(s);
+			poweroff_go(s);
 		} else {
 			s->log("power off cancelled: released after %lld ms",
 			       (long long)(now - s->po_armed_at) + s->recog.long_ms);
@@ -1364,7 +1389,7 @@ static void on_signal(int sig)
 static void usage(void)
 {
 	fprintf(stderr,
-		"usage: buttond [-i DEV]... [-l LONG_MS] [-d DOUBLE_MS] [-p HOLD_MS] [-S SOCK] [-o OFF_FILE] [-V VIB] [-u UINPUT] [-G] [-v]\n"
+		"usage: buttond [-i DEV]... [-l LONG_MS] [-d DOUBLE_MS] [-p HOLD_MS] [-S SOCK] [-o OFF_FILE] [-P HINT] [-V VIB] [-u UINPUT] [-G] [-v]\n"
 		"       buttond [-S SOCK] status | watch | claim GESTURE...\n");
 }
 
@@ -1456,13 +1481,14 @@ int main(int argc, char **argv)
 	struct keydev kds[BUTTOND_MAX_DEVS];
 	const char *explicit[BUTTOND_MAX_DEVS];
 	const char *sock_path = CHEF_BUTTOND_SOCK, *off_path = CHEF_SCREEN_OFF;
+	const char *hint_path = CHEF_BUTTOND_POWEROFF;
 	const char *vib_path = BUTTOND_VIB_PATH, *uinput_path = BUTTOND_UINPUT_PATH;
 	unsigned long_ms = BUTTOND_LONG_MS, double_ms = BUTTOND_DOUBLE_MS;
 	unsigned poweroff_hold_ms = BUTTOND_POWEROFF_HOLD_MS;
 	bool grab = true;
 	int nexplicit = 0, ndev = 0, nsrv, nff, keys_fd = -1, ff_fd = -1, rc, opt, i;
 
-	while ((opt = getopt(argc, argv, "i:l:d:p:S:o:V:u:Gv")) != -1) {
+	while ((opt = getopt(argc, argv, "i:l:d:p:S:o:P:V:u:Gv")) != -1) {
 		switch (opt) {
 		case 'i':
 			if (nexplicit == BUTTOND_MAX_DEVS) {
@@ -1476,6 +1502,7 @@ int main(int argc, char **argv)
 		case 'p': poweroff_hold_ms = (unsigned)atoi(optarg); break;
 		case 'S': sock_path = optarg; break;
 		case 'o': off_path = optarg; break;
+		case 'P': hint_path = optarg; break;
 		case 'V': vib_path = optarg; break;
 		case 'u': uinput_path = optarg; break;
 		case 'G': grab = false; break;
@@ -1501,6 +1528,7 @@ int main(int argc, char **argv)
 		return 1;
 	}
 	s.off_path = off_path;
+	s.hint_path = hint_path;
 	s.vib_path = vib_path;
 	s.poweroff_hold_ms = poweroff_hold_ms;
 
