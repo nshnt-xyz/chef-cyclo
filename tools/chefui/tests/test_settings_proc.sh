@@ -22,18 +22,17 @@ done
 
 SDL_VIDEODRIVER=offscreen "$BIN" --fake-state "$STATE" --data "$d/data" --run "$d/run" 2>"$d/log" &
 pid=$!
-i=0
-until grep -q "settings:" "$d/log" 2>/dev/null; do
-	i=$((i + 1)); [ $i -lt 100 ] || fail "no settings line"; sleep 0.05
-done
-
 # the worker is alive and blocks signals 1..31 (all but KILL and STOP,
 # which cannot be blocked; the C library keeps a few realtime ones)
 w=
-for t in /proc/$pid/task/*; do
-	[ "$(cat "$t/comm")" = ui-store ] && w=$t
+i=0
+while [ -z "$w" ]; do
+	for t in /proc/$pid/task/*; do
+		[ "$(cat "$t/comm" 2>/dev/null)" = ui-store ] && w=$t
+	done
+	[ -n "$w" ] && break
+	i=$((i + 1)); [ $i -lt 100 ] || fail "no ui-store thread"; sleep 0.05
 done
-[ -n "$w" ] || fail "no ui-store thread"
 m=$(awk '/^SigBlk/ {print $2}' "$w/status")
 [ $(( 0x$m & 0x7ffbfeff )) -eq $(( 0x7ffbfeff )) ] || fail "worker does not block all signals: SigBlk $m"
 # every thread blocks SIGUSR1 (bit 9 = 0x200)
