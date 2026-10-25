@@ -223,5 +223,5 @@ test socket: every line, order and audience as in the table above (watcher,
 physical buttons (VolUp tap, Power hold to the first buzz, the VolUp and
 Power chord, two Power taps toggling the screen): all lines as specified,
 the power-off cancelled on the early release, `chef-settings` still
-toggling the screen. Not installed. Record:
+toggling the screen. Installed the same day as `d965e201` + `d0109716`. Record:
 [log](../../logs/buttond-keys-2026-10-25.txt).

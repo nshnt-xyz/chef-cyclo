@@ -114,3 +114,13 @@ Guided check with the user (2026-10-25 about 21:51 IST, same boot)
   power.short "-> 1 claimant" with chef-settings "screen off (307 ms)" and
   "screen on (234 ms)": chef-settings ignores the key lines it now gets.
   Phone left on this RAM image; not installed.
+
+Installed 2026-10-25 about 21:58 IST (user: "push and install pls"):
+main pushed through 394fa8b first; clean build of 394fa8b (dirty 0),
+kernel #24 unchanged. system_a out/system_a-d965e201.img (sha256
+d965e201cf6c...8ff4), boot_a out/boot-stage1-d0109716.img (sha256
+d0109716910b...f9f1); flashed from fastboot (slot a), rebooted. Boot:
+every service started, abslot boot_a successful=1, buttond status as
+before (claims power.short 1, uinput keys and ff true); splash from
+7.14 s to 17.84 s (GPS modem 13.17 s, Wi-Fi 17.34 s). Fallback: the
+previous pair 0e57a39d + 89af1e83.
