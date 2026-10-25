@@ -72,6 +72,7 @@
 #include "pages.h"
 #include "prompt.h"
 #include "settings.h"
+#include "shutdown.h"
 #include "splash.h"
 #include "feedback.h"
 #include "sys.h"
@@ -541,7 +542,7 @@ int main(int argc, char **argv)
 
 	/* the boot splash: live on the phone's real state, frozen by a fake
 	 * state's `boot K`; never in a capture of the real state */
-	if (O.n_fake ? sys_state.fake_boot > 0 : !O.snapshot) {
+	if (O.n_fake ? sys_state.fake_boot > 0 && !sys_state.fake_shutdown : !O.snapshot) {
 		char sdir[300];
 		struct splash_config sc = { .parent = chefui_root(), .frozen = O.n_fake ? sys_state.fake_boot - 1 : -1,
 					    .now = now_ms, .ended = app_splash_ended };
@@ -550,6 +551,19 @@ int main(int argc, char **argv)
 		sc.done_dir = sdir;
 		sc.run = O.run;
 		splash_start(&sc);
+	}
+
+	/* the shutdown screen: live it watches for the marker for the whole
+	 * life of the app; frozen by a fake state's `shutdown K REASON`, which
+	 * wins over `boot`; never in a capture of the real state */
+	if (O.n_fake ? sys_state.fake_shutdown > 0 : !O.snapshot) {
+		struct shutdown_config hc = { .parent = lv_layer_sys(), .run = O.run ? O.run : CHEF_RUN_DIR,
+					      .frozen = O.n_fake ? sys_state.fake_shutdown - 1 : -1,
+					      .frozen_reason = (enum shutsteps_reason)sys_state.fake_shutdown_reason,
+					      .now = now_ms, .screen_is_on = chefui_screen_is_on,
+					      .screen_set = chefui_screen_set, .changed = app_splash_ended };
+
+		shutdown_start(&hc);
 	}
 
 	chefui_on_button(on_button, NULL);
@@ -567,6 +581,7 @@ int main(int argc, char **argv)
 	}
 
 	r = chefui_run();
+	shutdown_stop();
 	if (app.persist)
 		ui_store_flush();
 	return r;

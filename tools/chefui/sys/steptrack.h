@@ -11,10 +11,10 @@
  * has finished (done or failed) stays finished: the bar never goes back
  * and each step is logged once.
  *
- * Watching: one inotify fd on the table's directories (create, delete,
- * move, plus the directory itself going away), for the caller's loop
- * (steptrack_fd()); any event rescans every rule. A directory that is
- * missing is tried again every STEPTRACK_RETRY_MS (steptrack_deadline()).
+ * Watching: one inotify fd on the table's directories (dirwatch.h), for
+ * the caller's loop (steptrack_fd()); any event rescans every rule. A
+ * directory that is missing is tried again every STEPTRACK_RETRY_MS
+ * (steptrack_deadline()).
  * Nothing is watched or rescanned once all steps have finished, or after
  * the cap (spec cap_ms after init, 0 = none) has logged every step still
  * waiting and set `capped`.
@@ -23,20 +23,15 @@
 #define CHEF_STEPTRACK_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <sys/inotify.h>
+
+#include "dirwatch.h"
 
 #define STEPTRACK_MAX 8			/* tracked steps and watches, at most */
-#define STEPTRACK_RETRY_MS 1000
-/* The event bits a watch usually wants; the directory going away is added. */
-#define STEPTRACK_DIR_EVENTS (IN_MOVED_FROM | IN_MOVED_TO | IN_CREATE | IN_DELETE)
+#define STEPTRACK_RETRY_MS DIRWATCH_RETRY_MS
 
 enum steptrack_state { STEPTRACK_PENDING, STEPTRACK_DONE, STEPTRACK_FAILED };
-
-struct steptrack_watch {
-	const char *path;		/* a directory; must outlive the tracker */
-	uint32_t events;		/* inotify bits */
-};
 
 struct steptrack_spec {
 	int n;				/* tracked steps */
@@ -63,19 +58,17 @@ struct steptrack {
 	const struct steptrack_spec *spec;
 	void *ctx;			/* handed to the spec's callbacks */
 	struct steptrack_config cfg;
-	struct steptrack_watch watch[STEPTRACK_MAX];
-	int nwatch;
-	int fd;				/* read: inotify, -1 none */
-	int wd[STEPTRACK_MAX];		/* read */
+	struct dirwatch_dir dir[DIRWATCH_MAX];
+	struct dirwatch dw;		/* read: the watches, the fd, the retry */
 	enum steptrack_state state[STEPTRACK_MAX];	/* read */
 	bool capped;			/* read: the cap has passed with steps waiting */
-	int64_t start_ms, retry_at;
+	int64_t start_ms;
 };
 
 /* Watches first, then reads every rule once. A table or watch list over
  * STEPTRACK_MAX aborts. */
 void steptrack_init(struct steptrack *t, const struct steptrack_spec *spec, void *ctx,
-		    const struct steptrack_config *cfg, const struct steptrack_watch *watches, int nwatch);
+		    const struct steptrack_config *cfg, const struct dirwatch_dir *watches, int nwatch);
 /* The inotify fd closed. */
 void steptrack_fini(struct steptrack *t);
 
@@ -98,6 +91,13 @@ void steptrack_tick(struct steptrack *t);
  * step follows them). */
 int steptrack_finished(const struct steptrack *t);
 bool steptrack_all_finished(const struct steptrack *t);
+
+/* The clocks the trackers and the screens built on them default to:
+ * CLOCK_MONOTONIC and CLOCK_BOOTTIME, in ms. */
+int64_t steptrack_mono_ms(void);
+int64_t steptrack_boot_ms(void);
+/* MS as the log writes a time since boot: "123.45" (seconds, hundredths). */
+void steptrack_stamp(char *out, size_t n, int64_t ms);
 
 /* lstat of DIR/NAME: it exists. A link is never followed or read. */
 bool steptrack_exists(const char *dir, const char *name);

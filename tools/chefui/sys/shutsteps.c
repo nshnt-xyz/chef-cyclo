@@ -99,15 +99,15 @@ void shutsteps_init(struct shutsteps *s, const struct shutsteps_config *cfg)
 {
 	const char *openrc = cfg->openrc ? cfg->openrc : SHUTSTEPS_OPENRC_DEFAULT;
 	struct steptrack_config tcfg = { .now = cfg->now, .boot_ms = cfg->boot_ms, .log = cfg->log };
-	struct steptrack_watch watches[5];
+	struct dirwatch_dir watches[5];
 	int i;
 
 	snprintf(s->openrc_dir, sizeof(s->openrc_dir), "%s", openrc);
 	/* softlevel is written in place or by rename */
-	watches[0] = (struct steptrack_watch){ s->openrc_dir, IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE };
+	watches[0] = (struct dirwatch_dir){ s->openrc_dir, IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE };
 	for (i = 0; i < 4; i++) {
 		snprintf(s->state_dir[i], sizeof(s->state_dir[i]), "%s/%s", openrc, state_names[i]);
-		watches[1 + i] = (struct steptrack_watch){ s->state_dir[i], STEPTRACK_DIR_EVENTS };
+		watches[1 + i] = (struct dirwatch_dir){ s->state_dir[i], DIRWATCH_DIR_EVENTS };
 	}
 	steptrack_init(&s->t, &spec, s, &tcfg, watches, 5);
 }

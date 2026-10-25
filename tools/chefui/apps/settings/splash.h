@@ -38,6 +38,10 @@ struct splash_config {
  * shown. Registers its fd and timer with the chefui loop. */
 bool splash_start(const struct splash_config *cfg);
 bool splash_active(void);
+/* The shutdown screen has taken over: a live splash ends at once, with no
+ * Ready hold, its ended hook and the splash-done marker as on any end
+ * (logged as "ended by shutdown"). A frozen one is left alone. */
+void splash_end_for_shutdown(void);
 /* The splash removed without the marker or the end hook (tests, quit). */
 void splash_stop(void);
 

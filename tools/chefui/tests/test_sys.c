@@ -1392,6 +1392,43 @@ static void test_feedback_worker(void)
 
 /* ------------------------------------------------------ storage, fake */
 
+/* The splash and shutdown screen keys: K 0..6 (and for the shutdown screen
+ * a reason), bad lines rejected as a whole; the shutdown key does not touch
+ * the boot one (the app lets it win). */
+static void test_fake_cover_keys(void)
+{
+	static const char *const bad[] = {
+		"boot 7\n", "boot -1\n", "boot x\n", "boot\n", "shutdown 3\n", "shutdown 7 poweroff\n",
+		"shutdown x poweroff\n", "shutdown 3 halt\n", "shutdown poweroff 3\n", "shutdown\n",
+	};
+	char st[400];
+	FILE *f;
+
+	snprintf(st, sizeof(st), "%s/cover.state", tmp);
+	f = fopen(st, "w");
+	fputs("boot 2\nshutdown 4 reboot\n", f);
+	fclose(f);
+	CHECK(sys_fake_load(st) == 0);
+	CHECK(sys_state.fake_boot == 3 && sys_state.fake_shutdown == 5 && sys_state.fake_shutdown_reason == 2);
+	f = fopen(st, "w");
+	fputs("shutdown 0 unknown\n", f);
+	fclose(f);
+	CHECK(sys_fake_load(st) == 0 && sys_state.fake_shutdown == 1 && sys_state.fake_shutdown_reason == 0);
+	f = fopen(st, "w");
+	fputs("shutdown 6 poweroff\n", f);
+	fclose(f);
+	CHECK(sys_fake_load(st) == 0 && sys_state.fake_shutdown == 7 && sys_state.fake_shutdown_reason == 1);
+	for (unsigned i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+		struct sys_state before = sys_state;
+
+		f = fopen(st, "w");
+		fputs(bad[i], f);
+		fclose(f);
+		CHECK(sys_fake_load(st) == -EINVAL);
+		CHECK(before.fake_boot == sys_state.fake_boot && before.fake_shutdown == sys_state.fake_shutdown);
+	}
+}
+
 static void test_fake(void)
 {
 	char st[400];
@@ -1787,6 +1824,7 @@ int main(void)
 	test_feedback_worker();
 	test_feedback_restart_isolation();
 	test_fake();
+	test_fake_cover_keys();
 	test_wifi_model();
 	test_ble_parser();
 	test_ble_connection();

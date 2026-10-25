@@ -1,0 +1,7 @@
+# B02 shutdown screen frozen with 4 steps finished, reason poweroff (docs/next-steps/shutdown-screen-handoff.md)
+shutdown 4 poweroff
+about name chef-cyclo
+about version v0.9
+about commit 96e8c87f00000000000000000000000000000000
+about builddate 8 Oct 2026
+about dirty 0

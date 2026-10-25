@@ -18,6 +18,7 @@
 #include "fonts.h"
 #include "icons.h"
 #include "pages.h"
+#include "shutdown.h"
 #include "splash.h"
 #include "sys.h"
 #include "feedback.h"
@@ -40,7 +41,7 @@ static void sleep_rearm(void)
 	int64_t now = app.pf.now_ms(), next;
 	bool on = app.pf.screen_is_on();
 
-	if (splash_active()) {		/* its timer starts when the splash ends */
+	if (splash_active() || shutdown_active()) {	/* its timer starts when the cover goes */
 		lv_timer_pause(app.sleep_timer);
 		return;
 	}
@@ -74,7 +75,7 @@ void app_on_touch(void)
 void app_on_touch_frame(const struct chefui_contact *contacts, int n)
 {
 	(void)contacts;
-	if (splash_active())		/* swallowed: no activity, no pulse */
+	if (splash_active() || shutdown_active())	/* swallowed: no activity, no pulse */
 		return;
 	app_on_touch();
 	if (n > 0 && touch_count == 0 && app.set.haptics)
@@ -110,6 +111,8 @@ bool app_on_button(const char *gesture)
 {
 	if (strcmp(gesture, "power.short"))
 		return false;		/* nothing else is claimed in menus */
+	if (shutdown_active())
+		return true;		/* ignored: the screen stays lit */
 	if (splash_active())
 		return false;		/* the default: screen off (and on again) */
 	if (policy_power_short(app.pf.screen_is_on(), app.depth) == POWER_BACK) {

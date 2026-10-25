@@ -83,15 +83,15 @@ void bootsteps_init(struct bootsteps *b, const struct bootsteps_config *cfg)
 	const char *openrc = cfg->openrc ? cfg->openrc : BOOTSTEPS_OPENRC_DEFAULT;
 	const char *run = cfg->run ? cfg->run : BOOTSTEPS_RUN_DEFAULT;
 	struct steptrack_config tcfg = { .now = cfg->now, .boot_ms = cfg->boot_ms, .log = cfg->log };
-	struct steptrack_watch watches[3];
+	struct dirwatch_dir watches[3];
 
 	b->cfg = *cfg;
 	snprintf(b->started_dir, sizeof(b->started_dir), "%s/started", openrc);
 	snprintf(b->failed_dir, sizeof(b->failed_dir), "%s/failed", openrc);
 	snprintf(b->run_dir, sizeof(b->run_dir), "%s", run);
-	watches[0] = (struct steptrack_watch){ b->started_dir, STEPTRACK_DIR_EVENTS };
-	watches[1] = (struct steptrack_watch){ b->failed_dir, STEPTRACK_DIR_EVENTS };
-	watches[2] = (struct steptrack_watch){ b->run_dir, STEPTRACK_DIR_EVENTS };
+	watches[0] = (struct dirwatch_dir){ b->started_dir, DIRWATCH_DIR_EVENTS };
+	watches[1] = (struct dirwatch_dir){ b->failed_dir, DIRWATCH_DIR_EVENTS };
+	watches[2] = (struct dirwatch_dir){ b->run_dir, DIRWATCH_DIR_EVENTS };
 	steptrack_init(&b->t, &spec, b, &tcfg, watches, 3);
 }
 

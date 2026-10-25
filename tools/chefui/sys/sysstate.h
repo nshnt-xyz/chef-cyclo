@@ -95,6 +95,8 @@ struct sys_state {
 		double reference_epoch;
 	} timeview;
 	struct sys_device_info device;
+	int fake_shutdown;	/* fake state only: 0 none, else the shutdown screen is frozen with fake_shutdown - 1 steps finished (it wins over fake_boot) */
+	int fake_shutdown_reason;	/* with it: SHUTSTEPS_UNKNOWN, _POWEROFF or _REBOOT */
 	int fake_boot;		/* fake state only: 0 none, else the boot splash is frozen with fake_boot - 1 steps done */
 	struct {
 		bool available;		/* samples are arriving */

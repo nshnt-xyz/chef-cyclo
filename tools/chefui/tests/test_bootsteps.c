@@ -200,7 +200,7 @@ static void test_missing_dirs(void)
 	g_now = 2000;
 	bootsteps_tick(&b);
 	CHECK(b.t.state[4] == BOOTSTEP_DONE);
-	CHECK(b.t.retry_at == -1 && bootsteps_deadline(&b) == 1000 + BOOTSTEPS_CAP_MS);
+	CHECK(b.t.dw.retry_at == -1 && bootsteps_deadline(&b) == 1000 + BOOTSTEPS_CAP_MS);
 	/* and now watched: a marker is seen by its event */
 	sh("touch %s/modem-ready", run);
 	changed(&b);
@@ -217,7 +217,7 @@ static void test_dir_replaced(void)
 	init(&b);
 	sh("rm -rf %s/started && mkdir %s/started", openrc, openrc);
 	changed(&b);	/* IN_DELETE_SELF/IN_IGNORED: watched again at once */
-	CHECK(b.t.wd[0] >= 0 && b.t.retry_at == -1);
+	CHECK(b.t.dw.wd[0] >= 0 && b.t.dw.retry_at == -1);
 	svc("started", "networkmanager");
 	changed(&b);
 	CHECK(b.t.state[4] == BOOTSTEP_DONE);
@@ -239,7 +239,7 @@ static void test_no_inotify(void)
 	lim.rlim_cur = fd + 1;
 	CHECK(setrlimit(RLIMIT_NOFILE, &lim) == 0);
 	init(&b);
-	CHECK(bootsteps_fd(&b) == -1 && b.t.state[4] == BOOTSTEP_DONE && b.t.retry_at == 2000);
+	CHECK(bootsteps_fd(&b) == -1 && b.t.state[4] == BOOTSTEP_DONE && b.t.dw.retry_at == 2000);
 	CHECK(bootsteps_deadline(&b) == 2000);
 	/* system() needs descriptors: lift the limit around it */
 	CHECK(setrlimit(RLIMIT_NOFILE, &old) == 0);
@@ -247,11 +247,11 @@ static void test_no_inotify(void)
 	CHECK(setrlimit(RLIMIT_NOFILE, &lim) == 0);
 	g_now = 2000;
 	bootsteps_tick(&b);	/* still no descriptor: the rescan alone finds it */
-	CHECK(b.t.state[1] == BOOTSTEP_DONE && bootsteps_fd(&b) == -1 && b.t.retry_at == 3000);
+	CHECK(b.t.state[1] == BOOTSTEP_DONE && bootsteps_fd(&b) == -1 && b.t.dw.retry_at == 3000);
 	CHECK(setrlimit(RLIMIT_NOFILE, &old) == 0);
 	g_now = 3000;
 	bootsteps_tick(&b);
-	CHECK(bootsteps_fd(&b) >= 0 && b.t.retry_at == -1);
+	CHECK(bootsteps_fd(&b) >= 0 && b.t.dw.retry_at == -1);
 	svc("started", "sensord");
 	svc("started", "sensors-up");
 	changed(&b);

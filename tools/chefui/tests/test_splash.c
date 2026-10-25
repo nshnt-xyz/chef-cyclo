@@ -6,93 +6,12 @@
  * the version line, the marker, a screen-off start, touch, Power and
  * auto-sleep during the splash, and every fd and timer released at the end.
  */
-#define _GNU_SOURCE
-#include <fcntl.h>
-#include <signal.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#include "app.h"
 #include "bootsteps.h"
-#include "check.h"
-#include "chefui.h"
-#include "fakeloop.h"
+#include "covertest.h"
 #include "splash.h"
-#include "sys.h"
-#include "sysstate.h"
-#include "theme.h"
-#include "widgets.h"
 
-static int64_t t_now = 100000;
-static bool screen_on = true;
-static int screen_sets, ended_calls;
-static char root[64], openrc[96], run[96], done_dir[128], info[128];
-static char logs[32][160];
-static int nlogs;
-
-static int64_t pf_now(void) { return t_now; }
-static bool pf_on(void) { return screen_on; }
-
-static int pf_set(bool on)
-{
-	screen_sets++;
-	if (on != screen_on) {
-		screen_on = on;
-		app_on_screen(on);
-	}
-	return 0;
-}
-
-static int pf_bright(int level)
-{
-	(void)level;
-	return 0;
-}
-
-static void advance(int ms)
-{
-	while (ms > 0) {
-		int step = ms > 10 ? 10 : ms;
-
-		t_now += step;
-		fakeloop_advance((uint32_t)step);
-		ms -= step;
-	}
-}
-
-static void log_fn(const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	if (nlogs < 32)
-		vsnprintf(logs[nlogs++], sizeof(logs[0]), fmt, ap);
-	va_end(ap);
-}
-
-static bool logged(const char *sub)
-{
-	for (int i = 0; i < nlogs; i++)
-		if (strstr(logs[i], sub))
-			return true;
-	return false;
-}
-
-static void sh(const char *fmt, ...)
-{
-	char cmd[512];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(cmd, sizeof(cmd), fmt, ap);
-	va_end(ap);
-	if (system(cmd))
-		abort();
-}
+static int ended_calls;
+static char done_dir[256], info[256];
 
 static int64_t ended_at;
 
@@ -105,26 +24,16 @@ static void ended(void)
 
 static void tree_new(void)
 {
-	snprintf(root, sizeof(root), "/tmp/splash-test-XXXXXX");
-	if (!mkdtemp(root))
-		abort();
-	snprintf(openrc, sizeof(openrc), "%s/openrc", root);
-	snprintf(run, sizeof(run), "%s/chef", root);
+	covertest_tree("splash");
 	snprintf(done_dir, sizeof(done_dir), "%s/chef/chef-settings", root);
 	snprintf(info, sizeof(info), "%s/image-info", root);
 	sh("mkdir -p %s/started %s/failed %s", openrc, openrc, run);
-	nlogs = 0;
 	ended_calls = 0;
 }
 
 static void tree_drop(void)
 {
 	sh("rm -rf %s", root);
-}
-
-static void svc(const char *dir, const char *name)
-{
-	sh("ln -s /nonexistent %s/%s/%s", openrc, dir, name);
 }
 
 static void all_started(void)
@@ -153,32 +62,19 @@ static lv_obj_t *cover(void)
 	return lv_obj_get_child(scr, lv_obj_get_child_count(scr) - 1);
 }
 
-/* the labels by their text: the step text and the count are the last two kit_text boxes */
 static const char *text_of(int i)
 {
-	lv_obj_t *c = cover();
-	/* children: title, version, step text, count, track */
-	return lv_label_get_text(lv_obj_get_child(lv_obj_get_child(c, i), 0));
-}
-
-static int fill_w(void)
-{
-	lv_obj_t *track, *fill;
-
-	lv_obj_update_layout(cover());
-	track = lv_obj_get_child(cover(), 4);
-	fill = lv_obj_get_child(track, 0);
-	return lv_obj_is_hidden(fill) ? 0 : lv_obj_get_width(fill);
+	return cover_text(cover(), i);
 }
 
 static bool shows(const char *step, const char *count, int fill)
 {
-	return !strcmp(text_of(2), step) && !strcmp(text_of(3), count) && fill_w() == fill;
+	return cover_shows(cover(), step, count, fill);
 }
 
 static bool marker(void)
 {
-	char p[200];
+	char p[300];
 	struct stat st;
 
 	snprintf(p, sizeof(p), "%s/splash-done", done_dir);
@@ -285,7 +181,7 @@ static void test_walk(void)
 	CHECK(logged("boot splash: ended at") && !logged("(cap)"));
 	CHECK(fakeloop_watched() == 0);
 	{
-		char p[200];
+		char p[300];
 		struct stat st;
 
 		snprintf(p, sizeof(p), "%s/splash-done", done_dir);
@@ -427,24 +323,7 @@ static void test_screen_off_start(void)
 
 int main(void)
 {
-	lv_obj_t *scr, *content;
-	struct ui_settings set;
-	struct app_platform pf = { .now_ms = pf_now, .screen_is_on = pf_on, .screen_set = pf_set,
-				   .brightness_set = pf_bright };
-
-	signal(SIGPIPE, SIG_IGN);
-	fakeloop_init(true);
-	fakeloop_display(1080, 2246);
-	scr = lv_screen_active();
-	kit_theme_init(KIT_THEME_DARK);
-	ui_settings_defaults(&set);
-	set.sleep_s = 30;
-	content = kit_box(scr);
-	lv_obj_set_size(content, 1080, 2246 - 96);
-	lv_obj_set_y(content, 96);
-	memset(&sys_state, 0, sizeof(sys_state));
-	app.fake_state = true;
-	app_init(&pf, &set, scr, content);
+	covertest_app();
 	test_frozen();
 	test_walk();
 	test_failed_holds();

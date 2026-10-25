@@ -22,6 +22,9 @@
  *   als LUX|none            the light sensor: available with this reading, or
  *                           not available (host fakes never connect to sensord)
  *   boot K                  the boot splash frozen with K (0..6) steps done
+ *   shutdown K REASON       the shutdown screen frozen with K (0..6) steps
+ *                           finished (6: step 6), REASON poweroff, reboot or
+ *                           unknown; it wins over boot
  *   about KEY VALUE         the About page: name version commit builddate
  *                           dirty lvgl kernel resolution serial bluetooth wifi
  *                           uptime (seconds); VALUE is the rest of the line
@@ -64,6 +67,7 @@
 #include "sysstate.h"
 #include "blesens.h"
 #include "gpsview.h"
+#include "shutsteps.h"
 #include "wifi.h"
 
 static int sec_from(const char *s)
@@ -458,16 +462,25 @@ int sys_fake_load(const char *path)
 			}
 			continue;
 		}
-		if (!strcmp(key, "boot")) {
-			char *k = strtok_r(NULL, " \t", &save), *end;
+		if (!strcmp(key, "boot") || !strcmp(key, "shutdown")) {
+			bool shut = key[0] == 's';
+			char *k = strtok_r(NULL, " \t", &save), *end, *why = shut ? strtok_r(NULL, " \t", &save) : NULL;
 			long v = k ? strtol(k, &end, 10) : -1;
+			int reason = !why ? -1 : !strcmp(why, "poweroff") ? SHUTSTEPS_POWEROFF :
+				     !strcmp(why, "reboot") ? SHUTSTEPS_REBOOT : !strcmp(why, "unknown") ? SHUTSTEPS_UNKNOWN : -1;
 
-			if (!k || *end || v < 0 || v > 6) {
+			/* steps done (0..6), and for the shutdown screen its reason */
+			if (!k || *end || v < 0 || v > 6 || (shut && reason < 0)) {
 				chefui_log("fake state %s:%d: bad line", path, n);
 				fclose(f);
 				return -EINVAL;
 			}
-			s.fake_boot = (int)v + 1;
+			if (shut) {
+				s.fake_shutdown = (int)v + 1;
+				s.fake_shutdown_reason = reason;
+			} else {
+				s.fake_boot = (int)v + 1;
+			}
 			continue;
 		}
 		if (!strcmp(key, "about")) {

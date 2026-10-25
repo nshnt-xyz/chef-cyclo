@@ -71,17 +71,17 @@ common_objs = $(patsubst %.c,$(B)/$(1)/common/%.o,$(COMMON_SRCS))
 # System UI kit + state sources (libchefkit) and the chef-settings app.
 FONT_SRCS := $(sort $(wildcard kit/fonts/chefkit_*.c))
 KIT_SRCS := kit/theme.c kit/widgets.c kit/blocks.c kit/keyboard.c $(FONT_SRCS)
-SYS_SRCS := sys/sysstate.c sys/settings.c sys/settings_file.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c sys/gpsclient.c sys/lcwatch.c sys/steptrack.c sys/bootsteps.c sys/shutsteps.c \
+SYS_SRCS := sys/sysstate.c sys/settings.c sys/settings_file.c sys/sha256.c sys/battery.c sys/clock.c sys/gps.c sys/gpsclient.c sys/lcwatch.c sys/dirwatch.c sys/steptrack.c sys/bootsteps.c sys/shutsteps.c \
 	 sys/storage.c sys/storage_usage.c sys/fake.c sys/wifi_model.c sys/gpsview.c sys/blesens.c sys/blesclient.c sys/timeview.c sys/deviceinfo.c sys/feedback.c sys/als.c sys/alsclient.c
 # the system bus clients (sd-bus): basu on the phone, libsystemd on a PC
 NETBUS_SRCS := sys/netbus.c sys/wifi.c
 APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_wifi.c \
 	apps/settings/page_gps.c apps/settings/page_bt.c apps/settings/page_sound.c apps/settings/page_time.c \
 	apps/settings/page_storage.c apps/settings/page_about.c \
-	apps/settings/policy.c apps/settings/text.c apps/settings/prompt.c apps/settings/splash.c
+	apps/settings/policy.c apps/settings/text.c apps/settings/prompt.c apps/settings/cover.c apps/settings/splash.c apps/settings/shutdown.c
 KIT_HDRS := kit/theme.h kit/widgets.h kit/fonts.h kit/icons.h sys/sysstate.h sys/sys.h \
-	sys/settings.h sys/settings_file.h sys/storage_usage.h sys/sha256.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/gpsclient.h sys/lcwatch.h sys/steptrack.h sys/bootsteps.h sys/shutsteps.h sys/blesens.h sys/blesclient.h sys/timeview.h sys/deviceinfo.h sys/feedback.h sys/als.h apps/settings/app.h \
-	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h apps/settings/prompt.h apps/settings/splash.h
+	sys/settings.h sys/settings_file.h sys/storage_usage.h sys/sha256.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/gpsclient.h sys/lcwatch.h sys/dirwatch.h sys/steptrack.h sys/bootsteps.h sys/shutsteps.h sys/blesens.h sys/blesclient.h sys/timeview.h sys/deviceinfo.h sys/feedback.h sys/als.h apps/settings/app.h \
+	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h apps/settings/prompt.h apps/settings/cover.h apps/settings/splash.h apps/settings/shutdown.h
 HDRS += $(KIT_HDRS)
 ifneq ($(SDBUS_LIBS),)
 HOST_NETBUS := $(NETBUS_SRCS)
@@ -212,13 +212,13 @@ $(T)/test-gpsclient: tests/test_gpsclient.c $(GPSCLIENT_SRCS) sys/gpsclient.h sy
 	@mkdir -p $(T)
 	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_gpsclient.c $(GPSCLIENT_SRCS) -lm
 
-$(T)/test-bootsteps: tests/test_bootsteps.c tests/steptest.h sys/bootsteps.c sys/bootsteps.h sys/steptrack.c sys/steptrack.h tests/check.h
+$(T)/test-bootsteps: tests/test_bootsteps.c tests/steptest.h sys/bootsteps.c sys/bootsteps.h sys/steptrack.c sys/steptrack.h sys/dirwatch.c sys/dirwatch.h tests/check.h
 	@mkdir -p $(T)
-	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_bootsteps.c sys/bootsteps.c sys/steptrack.c
+	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_bootsteps.c sys/bootsteps.c sys/steptrack.c sys/dirwatch.c
 
-$(T)/test-shutsteps: tests/test_shutsteps.c tests/steptest.h sys/shutsteps.c sys/shutsteps.h sys/steptrack.c sys/steptrack.h tests/check.h
+$(T)/test-shutsteps: tests/test_shutsteps.c tests/steptest.h sys/shutsteps.c sys/shutsteps.h sys/steptrack.c sys/steptrack.h sys/dirwatch.c sys/dirwatch.h tests/check.h
 	@mkdir -p $(T)
-	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_shutsteps.c sys/shutsteps.c sys/steptrack.c -Wl,--wrap=lstat
+	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_shutsteps.c sys/shutsteps.c sys/steptrack.c sys/dirwatch.c -Wl,--wrap=lstat
 
 BLESCLIENT_SRCS := sys/blesclient.c ../common/lineclient.c ../common/json.c
 
@@ -296,8 +296,12 @@ $(T)/test-alsclient: tests/test_alsclient.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJ
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_alsclient.c tests/fakeloop.c tests/wifi_stub.c \
 		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
 
-$(T)/test-splash: tests/test_splash.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
+$(T)/test-splash: tests/test_splash.c tests/covertest.h $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_splash.c tests/fakeloop.c tests/wifi_stub.c \
+		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
+
+$(T)/test-shutdown: tests/test_shutdown.c tests/covertest.h $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
+	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_shutdown.c tests/fakeloop.c tests/wifi_stub.c \
 		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
 
 $(T)/test-prompt: tests/test_prompt.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
@@ -324,7 +328,7 @@ $(T)/test-wifi: tests/test_wifi.c $(FAKELOOP) $(SYSUI_OBJS) $(NETBUS_OBJS) $(T)/
 		-Wl,--wrap=getrandom
 
 TESTS := $(T)/test-gpsclient $(T)/test-bootsteps $(T)/test-shutsteps $(T)/test-blesclient $(T)/test-settings-file $(T)/test-copy $(T)/test-plan $(T)/test-touch $(T)/test-buttons $(T)/test-fbscreen $(T)/test-chefui \
-	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app $(T)/test-als $(T)/test-alsclient $(T)/test-prompt $(T)/test-splash
+	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app $(T)/test-als $(T)/test-alsclient $(T)/test-prompt $(T)/test-splash $(T)/test-shutdown
 ifneq ($(SDBUS_LIBS),)
 TESTS += $(T)/test-netbus $(T)/test-wifi
 endif
@@ -349,6 +353,7 @@ test: check-lvgl $(TESTS)
 	$(T)/test-alsclient
 	$(T)/test-prompt
 	$(T)/test-splash
+	$(T)/test-shutdown
 	@if [ -x $(T)/test-netbus ] && command -v dbus-daemon >/dev/null; then $(T)/test-netbus; \
 	else echo "test-netbus: skipped (needs libsystemd and dbus-daemon)"; fi
 	@if [ -x $(T)/test-wifi ] && command -v dbus-daemon >/dev/null && \
@@ -456,6 +461,16 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 			--run $(B)/host/captures/run 2>/dev/null || \
 			{ echo "chef-settings capture boot-k$$k $$t failed" >&2; exit 1; }; \
 	done; done
+	@# B02, the shutdown screen frozen with 0 and 4 steps finished (poweroff)
+	@# and with step 6 shown (reboot); compared against the boot captures of
+	@# the same fill (compare-ref.py, step text row masked)
+	@for t in dark light; do for k in k0 k4 k6-reboot; do \
+		SDL_VIDEODRIVER=offscreen $(B)/host/chef-settings --fake-state apps/settings/design.state \
+			--fake-state apps/settings/shutdown-$$k.state --theme $$t --brightness 70 \
+			--snapshot $(B)/host/captures/shutdown-$$k-$$t.ppm --data $(B)/host/captures/nodata \
+			--run $(B)/host/captures/run 2>/dev/null || \
+			{ echo "chef-settings capture shutdown-$$k $$t failed" >&2; exit 1; }; \
+	done; done
 	@# the guided-test prompt card over P02 (no countdown, which depends on the clock)
 	@mkdir -p $(B)/host/captures/run/chef-settings
 	@for t in dark light; do \
@@ -467,5 +482,5 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 			--run $(B)/host/captures/run 2>/dev/null || \
 			{ echo "chef-settings capture display-prompt $$t failed" >&2; exit 1; }; \
 	done; rm -f $(B)/host/captures/run/chef-settings/prompt
-	@echo "chef-settings: 67 captures in $(B)/host/captures"
+	@echo "chef-settings: 73 captures in $(B)/host/captures"
 	@tests/test_settings_proc.sh $(B)/host/chef-settings apps/settings/design.state
