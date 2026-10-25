@@ -9,9 +9,7 @@
  */
 #define _GNU_SOURCE
 #include <errno.h>
-#include <poll.h>
 #include <sys/resource.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,60 +17,13 @@
 
 #include "check.h"
 #include "bootsteps.h"
-
-static char root[128], openrc[160], run[160];
-static int64_t g_now, g_boot;
-static char g_log[32][160];
-static int g_nlog;
-
-static int64_t clk(void) { return g_now; }
-static int64_t boot_clk(void) { return g_boot; }
-
-static void log_fn(const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	if (g_nlog < 32)
-		vsnprintf(g_log[g_nlog++], sizeof(g_log[0]), fmt, ap);
-	va_end(ap);
-}
-
-static void sh(const char *fmt, ...)
-{
-	char cmd[512];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(cmd, sizeof(cmd), fmt, ap);
-	va_end(ap);
-	if (system(cmd))
-		abort();
-}
+#include "steptest.h"
 
 static void tree_new(bool with_dirs)
 {
-	snprintf(root, sizeof(root), "/tmp/bootsteps-test-XXXXXX");
-	if (!mkdtemp(root))
-		abort();
-	snprintf(openrc, sizeof(openrc), "%s/openrc", root);
-	snprintf(run, sizeof(run), "%s/chef", root);
-	sh("mkdir -p %s", root);
-	if (with_dirs)
-		sh("mkdir -p %s/started %s/failed %s", openrc, openrc, run);
-	g_now = 1000;
-	g_boot = 5000;
-	g_nlog = 0;
-}
+	static const char *const dirs[] = { "started", "failed", NULL };
 
-static void svc(const char *dir, const char *name)
-{
-	sh("ln -s /nonexistent %s/%s/%s", openrc, dir, name);
-}
-
-static void unsvc(const char *dir, const char *name)
-{
-	sh("rm -f %s/%s/%s", openrc, dir, name);
+	steptest_tree(with_dirs ? dirs : NULL, 5000);
 }
 
 static void init(struct bootsteps *b)
@@ -85,20 +36,8 @@ static void init(struct bootsteps *b)
 
 static void changed(struct bootsteps *b)
 {
-	struct pollfd p = { .fd = bootsteps_fd(b), .events = POLLIN };
-
-	CHECK(poll(&p, 1, 1000) == 1);
+	CHECK(steptest_readable(bootsteps_fd(b)));
 	bootsteps_handle(b);
-}
-
-static bool logged(const char *s)
-{
-	int i;
-
-	for (i = 0; i < g_nlog; i++)
-		if (!strcmp(g_log[i], s))
-			return true;
-	return false;
 }
 
 static void test_initial(void)

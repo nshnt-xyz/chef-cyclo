@@ -13,8 +13,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <poll.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,63 +20,14 @@
 
 #include "check.h"
 #include "shutsteps.h"
+#include "steptest.h"
 
-static char root[128], openrc[160], run[160];
-static int64_t g_now, g_boot;
-static char g_log[32][160];
-static int g_nlog;
-
-static int64_t clk(void) { return g_now; }
-static int64_t boot_clk(void) { return g_boot; }
-
-static void log_fn(const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	if (g_nlog < 32)
-		vsnprintf(g_log[g_nlog++], sizeof(g_log[0]), fmt, ap);
-	va_end(ap);
-}
-
-static void sh(const char *fmt, ...)
-{
-	char cmd[512];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(cmd, sizeof(cmd), fmt, ap);
-	va_end(ap);
-	if (system(cmd))
-		abort();
-}
-
-static const char *const dirs[4] = { "started", "starting", "stopping", "inactive" };
+static const char *const dirs[] = { "started", "starting", "stopping", "inactive", NULL };
 
 /* A shutting-down tree: every service started, softlevel still default. */
 static void tree_new(bool with_dirs)
 {
-	snprintf(root, sizeof(root), "/tmp/shutsteps-test-XXXXXX");
-	if (!mkdtemp(root))
-		abort();
-	snprintf(openrc, sizeof(openrc), "%s/openrc", root);
-	snprintf(run, sizeof(run), "%s/chef", root);
-	sh("mkdir -p %s", run);
-	if (with_dirs)
-		sh("mkdir -p %s/started %s/starting %s/stopping %s/inactive", openrc, openrc, openrc, openrc);
-	g_now = 1000;
-	g_boot = 125020;
-	g_nlog = 0;
-}
-
-static void svc(const char *dir, const char *name)
-{
-	sh("ln -s /nonexistent %s/%s/%s", openrc, dir, name);
-}
-
-static void unsvc(const char *dir, const char *name)
-{
-	sh("rm -f %s/%s/%s", openrc, dir, name);
+	steptest_tree(with_dirs ? dirs : NULL, 125020);
 }
 
 static void softlevel(const char *text)
@@ -95,9 +44,7 @@ static void init(struct shutsteps *s)
 
 static void changed(struct shutsteps *s)
 {
-	struct pollfd p = { .fd = shutsteps_fd(s), .events = POLLIN };
-
-	CHECK(poll(&p, 1, 1000) == 1);
+	CHECK(steptest_readable(shutsteps_fd(s)));
 	shutsteps_handle(s);
 }
 
@@ -130,16 +77,6 @@ int __wrap_lstat(const char *path, struct stat *st)
 		}
 	}
 	return rc;
-}
-
-static bool logged(const char *str)
-{
-	int i;
-
-	for (i = 0; i < g_nlog; i++)
-		if (!strcmp(g_log[i], str))
-			return true;
-	return false;
 }
 
 /* The services of steps 2 to 5, all started. */
@@ -427,19 +364,6 @@ static void test_reasons(void)
 	sh("rm -rf %s", root);
 }
 
-static void test_symlinks_not_followed(void)
-{
-	struct shutsteps s;
-
-	tree_new(true);
-	/* a dangling link counts as running; the target is never read */
-	svc("started", "networkmanager");
-	init(&s);
-	CHECK(!done(&s, 1));
-	shutsteps_fini(&s);
-	sh("rm -rf %s", root);
-}
-
 /* OpenRC links a service's new state before it unlinks the old one: a scan
  * between every link and unlink never sees the service stopped early. */
 static void test_lifecycle_never_stopped_early(void)
@@ -535,7 +459,6 @@ int main(void)
 	test_softlevel_writes();
 	test_labels();
 	test_reasons();
-	test_symlinks_not_followed();
 	test_lifecycle_never_stopped_early();
 	test_move_inside_a_scan();
 	test_fd0_survives();

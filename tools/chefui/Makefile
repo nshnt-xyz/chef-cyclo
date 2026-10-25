@@ -212,11 +212,11 @@ $(T)/test-gpsclient: tests/test_gpsclient.c $(GPSCLIENT_SRCS) sys/gpsclient.h sy
 	@mkdir -p $(T)
 	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_gpsclient.c $(GPSCLIENT_SRCS) -lm
 
-$(T)/test-bootsteps: tests/test_bootsteps.c sys/bootsteps.c sys/bootsteps.h sys/steptrack.c sys/steptrack.h tests/check.h
+$(T)/test-bootsteps: tests/test_bootsteps.c tests/steptest.h sys/bootsteps.c sys/bootsteps.h sys/steptrack.c sys/steptrack.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_bootsteps.c sys/bootsteps.c sys/steptrack.c
 
-$(T)/test-shutsteps: tests/test_shutsteps.c sys/shutsteps.c sys/shutsteps.h sys/steptrack.c sys/steptrack.h tests/check.h
+$(T)/test-shutsteps: tests/test_shutsteps.c tests/steptest.h sys/shutsteps.c sys/shutsteps.h sys/steptrack.c sys/steptrack.h tests/check.h
 	@mkdir -p $(T)
 	$(HOST_CC) $(NOLVGL_CFLAGS) -o $@ tests/test_shutsteps.c sys/shutsteps.c sys/steptrack.c -Wl,--wrap=lstat
 
