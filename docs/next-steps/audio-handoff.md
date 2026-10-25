@@ -13,9 +13,11 @@ they differ), the [ADSP lifecycle](power-and-reliability.md#adsp-lifecycle-and-p
 the research results, the proposed decisions, the questions only the phone
 can answer, and the milestones.
 
-The decisions below are **proposed**. The ones marked *(needs the user)* are
-not the implementers' to make: the coordinator gets the user's answer before
-the milestone that depends on it starts.
+The decisions below are final: D1 by the user, the rest chosen on the
+user's behalf on 2026-10-25 ("Make the choice for me"). D2 has one
+condition, settled by L0 step 5; the fallback is already decided, so no one
+needs to go back to the user. Anything else still to settle (period sizes,
+UCM file name) is the coordinator's call.
 
 No em dashes anywhere (code, comments, docs, commit messages, messages).
 
@@ -203,11 +205,14 @@ libcanberra's `canberra-gtk-play`, which needs GTK; Alpine has no
 
 ### D1. ALSA only: dmix, UCM2, no sound server in the image (user, 2026-10-25)
 
-Decided by the user on 2026-10-25 ("ok straight ALSA it is"), after the PipeWire and PulseAudio costs in F4. Still open: whether `alsa-utils` goes in the image (below).
+Decided by the user on 2026-10-25 ("ok straight ALSA it is"), after the
+PipeWire and PulseAudio costs in F4.
 
-`alsa-lib` + `alsa-ucm-conf` + `alsa-utils` in `PKGS` (+6.3 MiB; or
-+2.0 MiB with `alsa-utils` added only for tests, but then `alsaucm` and
-`aplay` are missing at runtime). One `/etc/asound.conf`:
+`alsa-lib` + `alsa-ucm-conf` + `alsa-utils` in `PKGS` (+6.3 MiB). Not
+2.0 MiB without `alsa-utils`: the `audio` service needs `alsaucm`, `chef-sound`
+needs `aplay`, and the acceptance tests use `aplay` and `speaker-test`.
+Writing our own replacements would cost more than the 4.3 MiB saved.
+`tinyalsa` stays for diagnostics. One `/etc/asound.conf`:
 
 - `pcm.!default` = `plug` → `dmix` on `hw:sdm660sndcard,0` (MultiMedia1;
   confirm the device number in L0), 48000 Hz, S16_LE, 2 ch, `ipc_key`
@@ -231,10 +236,17 @@ kernel ceiling (D2), because a client can always open `hw:` directly.
 Revisit only with our own build without the GStreamer and libcamera
 modules.
 
-### D2. The ceiling in the kernel *(needs the user: (a) or (b))*
+### D2. The ceiling in the kernel: DAC maximum 9, else ASM cap and route lock
 
-Recommended: **(a)**, the DAC maximum at 9, if L0 and the datasheet confirm
-linear gain to full scale. Otherwise (b). Either way the kernel also gets the
+**(a)**, the `DAC Playback Volume` maximum lowered to 9 in
+`tas2560-codec.c`, with 9 as the production DAC value. The condition: L0
+step 5 hears no clipping or distortion from a 0 dBFS file at DAC 9 that is
+absent from a -6 dBFS file at DAC 15, and the TAS2560 datasheet shows no
+limiter or gain change between them. If either fails, the coordinator
+switches to **(b)** without going back to the user: the ASM gain capped at
+0x1000 and only MultiMedia1 routable to TERT_MI2S_RX, with the DAC fixed at
+10. That needs L0 step 5's ASM check to show that the ASM volume works. The
+audio guide's limits section is rewritten to match whichever applies. Either way the kernel also gets the
 F1 copy-path fix, in the same build (one kernel number). `wavtone` keeps
 refusing levels above -6 dBFS (defence in depth, and its tests stay valid).
 `speaker-test-tone` keeps working, but its `-v` range follows the new
@@ -247,8 +259,8 @@ exact directory and file name come from `alsaucm listcards` in L0), with
 verb `HiFi` and device `Speaker`:
 
 - `EnableSequence`: `TERT_MI2S_RX Audio Mixer MultiMedia1` 1, and `DAC
-  Playback Volume` at the fixed production value (D2 decides 9, or 10
-  today).
+  Playback Volume` at the fixed production value (9 under D2 (a), 10 under
+  (b)).
 - `DisableSequence`: the route 0.
 - `PlaybackPCM "hw:${CardId},0"`.
 - No `PlaybackVolume`/`PlaybackMixerElem`: the DAC is fixed, not a user
@@ -274,8 +286,8 @@ stream instead, through a small wrapper. Ask before choosing that.
   `restart_level`, writes `boot_adsp`, and then waits, bounded, in
   `start_post` for the card. It is one-shot, with nothing resident. The
   `sensors-up` service `need`s `adsp` and keeps only its own work.
-  `audio-up` remains as a thin by-hand wrapper or is removed (the
-  implementer asks which; the tests follow).
+  `audio-up` is removed; `rc-service adsp start` replaces it by hand, and
+  the guide's telnet section follows.
 - **`audio`**: `need adsp`. Start: wait for `/dev/snd/pcmC*D*p` of the card,
   apply the UCM verb and device. Stop: disable the route. One-shot (dmix
   needs no daemon).
@@ -294,11 +306,18 @@ Readiness stays bounded `start_post` waits, as in step 7 (no `notify=`).
   It only attenuates, so it can never raise anything above the kernel
   ceiling. The `audio` service applies the stored value at start, and
   chef-settings (as `chefui`, now in `audio`) sets it with `amixer` or
-  alsa-lib when the slider moves. The mapping from 0 to 100 % onto dB is the
-  implementer's question to the coordinator. The theme files are generated
-  at one fixed level: D2's default level, the equivalent of today's
-  -20 dBFS at DAC 10. *(Needs the user: whether system sounds follow
-  `alert_volume`, or bypass the softvol at one fixed level.)*
+  alsa-lib when the slider moves. Mapping: 1 to 100 % is linear in dB from
+  -30 dB to 0 dB (softvol `min_dB -30.0`, `max_dB 0.0`, `resolution 101`).
+  At 0 %, players play nothing: no softvol is truly silent at its lowest
+  step.
+- System sounds follow the same settings as alerts: `alert_sounds` off or
+  `alert_volume` 0 silences them. There is no new settings key and no
+  version bump. One sounds switch is what section 6 of the plan describes,
+  and a rider who turns sounds off means every sound. `quiet_paused` does
+  not apply to them (no ride is running at boot or shutdown).
+- Theme files peak at -10 dBFS. At the default 60 % (-12 dB), they reach
+  -22 dBFS at DAC 9, about today's verified -20 dBFS at DAC 10. Under D2 (b),
+  the same files at DAC 10 are 1 dB louder, still under the ceiling.
 
 ### D6. Sound theme `chef-cyclo`, boot and shutdown tones
 
@@ -312,18 +331,22 @@ Readiness stays bounded `start_post` waits, as in step 7 (no `notify=`).
 - `chef-sound <name>`: resolves the name per the spec and plays it with
   `aplay -q` on `default`. It does nothing (exit 0, one log line) when the
   sound switch is off or the card is missing.
-- Boot tone: an OpenRC service `boot-sound` (`need audio`, `after` the
-  status bar is lit, if the user wants it tied to the screen). It is
-  skipped on a charger-mode boot (`androidboot.mode=charger`, if that is
-  what the cmdline shows on this device: an L0 question).
-- Shutdown tone: a bounded `::shutdown` line (`timeout -k 1 2 chef-sound
-  system-shutdown`) before `openrc shutdown`. Keep it at 0.5 s or less of
-  audio: the 2 s shutdown target counts it. *(Needs the user: before or
-  after `chef-state shutdown`.)*
-- Which switch silences them is decided under D5: `alert_sounds`, or a new
-  `system_sounds` key (settings version 4).
+- Boot tone: an OpenRC service `boot-sound` (`need audio`). It waits,
+  bounded to 30 s, for `/run/chef/fb0.lit` (the status bar is lit), then
+  plays `system-bootup` once. The tone means "ready", not "the card is up".
+  If the screen never lights, it plays nothing and logs it. It is skipped
+  on a charger-mode boot (`androidboot.mode=charger`, or whatever L0 step 6
+  shows; with no charger-mode boot into our image, the check is still
+  there and documented as untested).
+- Shutdown tone: the first `::shutdown` line, before `chef-state shutdown`,
+  as `timeout -k 1 2 chef-sound system-shutdown`. It goes first so it plays
+  at once, while the `audio` service and settings are still in place. The
+  audio is 0.4 s or less. The live check measures the added shutdown time;
+  if open-to-sound latency makes it more than 1 s, it is reported, not
+  hidden.
+- The switch and volume are D5's.
 
-### D7. The alert player: no `alertd` now *(needs the user)*
+### D7. The alert player: no `alertd`
 
 With dmix, alerts can overlap without fighting over the PCM, and the route
 belongs to the `audio` service. What is left of `alertd` (semantic events,
@@ -362,9 +385,10 @@ command and its output in the evidence log.
 5. For D2: at DAC 9 with a 0 dBFS file, against DAC 15 with a -6 dBFS file
    (the same nominal acoustic level), listen for audible clipping or
    distortion at full scale. Measure peak SPL with a phone meter app at a
-   fixed distance if one is available. **This plays a full-scale file**, so
-   do it only after the user has agreed to D2 (a), keep each tone at 0.5 s
-   or less, and play nothing above that level. If (b): write
+   fixed distance if one is available. **This plays a full-scale file**
+   (allowed here, since D2 (a) is decided): keep each tone at 0.5 s or less,
+   use a 1 kHz sine and a sweep, and play nothing above that level. Then,
+   so the fallback is ready either way, the ASM check: write
    `Playback 0 Volume` (the MultiMedia1 ASM volume; find the exact name with
    `amixer contents`) to 0x1000 during a -6 dBFS stream and confirm that the
    level drops audibly. That tests whether the ASM volume module is in the
@@ -421,14 +445,14 @@ On the installed pair:
   the A/B method.
 - Boot to a lit status bar no slower than the current image.
 
-## Open questions for the user (summary)
+## Decisions (summary, 2026-10-25)
 
-1. D1 (ALSA only: decided): include
-   `alsa-utils` (+6.3 MiB) in the image?
-2. D2: the ceiling as DAC maximum 9 (one line, reinterprets "-6 dBFS"), or
-   an ASM gain cap with a route lock (keeps the wording, two patches)?
-3. D5/D6: do the boot and shutdown tones follow `alert_sounds` and
-   `alert_volume`, or get their own switch at a fixed level?
-4. D6: the shutdown tone before or after `chef-state shutdown`; the boot
-   tone tied to the lit status bar or just to the card?
-5. D7: drop `alertd` in favour of theme names and the ride app's queue?
+1. D1: ALSA only (user), with `alsa-utils` in the image.
+2. D2: DAC maximum 9, if L0 step 5 passes; otherwise ASM cap and route
+   lock at DAC 10.
+3. D4: `audio-up` removed in favour of the `adsp` service.
+4. D5: system sounds follow `alert_sounds` and `alert_volume`; 1 to 100 %
+   maps to -30 to 0 dB; 0 % plays nothing; files at -10 dBFS.
+5. D6: the boot tone after the status bar is lit, silent in charger mode;
+   the shutdown tone first in `::shutdown`, 0.4 s or less, bounded at 2 s.
+6. D7: no `alertd`; the ride app's queue plays theme names.
