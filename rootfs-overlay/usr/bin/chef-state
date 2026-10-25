@@ -171,10 +171,13 @@ unseal() {
 	printf '%s\n' "$body"
 }
 
-# stdin -> FILE atomically. The caller holds the kind's lock.
+# stdin -> FILE atomically, with MODE (chmod on the temp file, so FILE never
+# appears with another one) when given. The caller holds the kind's lock
+# where the file has one (the shutdown marker has a single writer and needs
+# none).
 put() {
 	tmp="$1.tmp.$$"
-	if cat > "$tmp" && sync "$tmp" && mv -f "$tmp" "$1" && sync "${1%/*}"; then
+	if cat > "$tmp" && { [ -z "${2:-}" ] || chmod "$2" "$tmp"; } && sync "$tmp" && mv -f "$tmp" "$1" && sync "${1%/*}"; then
 		return 0
 	fi
 	rm -f "$tmp"
@@ -870,13 +873,7 @@ shutdown_marker() {
 		if [ -e "$POWER_PENDING" ] || [ -e "$BUTTOND_HINT" ]; then reason=poweroff; else reason=unknown; fi;;
 	*) log "shutdown: unknown reason '$reason'"; reason=unknown;;
 	esac
-	tmp=$SHUTTING_DOWN.$$
-	if echo "$reason" > "$tmp" 2>/dev/null && chmod 0644 "$tmp" 2>/dev/null &&
-	   mv -f "$tmp" "$SHUTTING_DOWN" 2>/dev/null; then
-		return 0
-	fi
-	rm -f "$tmp" 2>/dev/null
-	log "shutdown: cannot write $SHUTTING_DOWN"
+	echo "$reason" | put "$SHUTTING_DOWN" 0644 2>/dev/null || log "shutdown: cannot write $SHUTTING_DOWN"
 }
 
 do_shutdown() {

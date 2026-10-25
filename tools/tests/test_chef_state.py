@@ -1392,7 +1392,9 @@ class ChefState(unittest.TestCase):
         self.assertEqual((self.p / "run/power/log.pending").read_text(), "1.0,x,poll,a\n")
         self.assertEqual(r.returncode, 0)
         self.assertEqual((r.stderr, self.kmsg), ("", ""))
-        self.assertEqual(self.trace.splitlines(), [f"mountpoint -q {self.data}"])
+        # nothing but the gate (the marker's own syncs are on /run)
+        self.assertEqual([l for l in self.trace.splitlines() if not l.startswith(f"sync {self.p}/run")],
+                         [f"mountpoint -q {self.data}"])
 
     def test_shutdown_unsynced_still_stops_chronyd(self):
         chronyd = self.spawn()
@@ -1468,9 +1470,12 @@ class ChefState(unittest.TestCase):
                 # present before the first command the script runs (the ours gate)
                 self.assertEqual((self.p / "trace.marker").read_text().splitlines()[:1], ["mountpoint-sees-marker yes"])
 
-    def test_shutdown_marker_is_a_temp_file_renamed(self):
-        self.assertIn('tmp=$SHUTTING_DOWN.$$', SCRIPT.read_text())
-        self.assertIn('mv -f "$tmp" "$SHUTTING_DOWN"', SCRIPT.read_text())
+    def test_shutdown_marker_is_0644_under_umask_077(self):
+        old = os.umask(0o077)
+        self.addCleanup(os.umask, old)
+        r = self.call("shutdown", "poweroff")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.marker().stat().st_mode & 0o7777, 0o644)
 
     def test_shutdown_marker_write_failure_does_not_stop_the_shutdown(self):
         r = self.call("shutdown", "poweroff", CHEF_STATE_SHUTTING_DOWN=str(self.p / "nodir/shutting-down"))
