@@ -174,6 +174,12 @@ else
 fi
 grep -q '^chmod 700 "$LOCK"' "$MODEM_UP" && bad "lock directory still 0700"
 
+# --- the public readiness marker (static): touched right after the lock's
+# ready, removed in cleanup() next to it ---
+if [ "$(line_of 'touch "$READY_MARKER"')" = "$(( $(line_of 'touch "$LOCK/ready"') + 1 ))" ] &&
+   grep -qxF 'READY_MARKER=/run/chef/modem-ready' "$MODEM_UP"; then ok; else bad "modem-ready marker not touched right after the lock's ready"; fi
+if [ -n "$(line_of 'rm -f "$LOCK/ready" "$READY_MARKER"')" ]; then ok; else bad "cleanup() does not remove the modem-ready marker next to the lock's ready"; fi
+
 # A failing run must SAY so rather than print "PASS:" regardless and leave
 # the exit status as the only signal -- the last line of a suite's output is
 # what a reader (and `make test`'s log) actually sees. Exit behaviour is

@@ -22,9 +22,13 @@
 # shutdown). Never respawned: failure leaves GPS/WLAN unavailable until
 # recovery.
 # Owner PID/starttime and readiness are published in the private lock directory.
+# /run/chef/modem-ready (root 0644, empty) is a public copy of the readiness
+# for readers outside the qmux group (the boot splash): information only,
+# never ownership, which stays with the lock directory.
 set -u
 
 LOCK=/run/chef/lock/modem-up.lock
+READY_MARKER=/run/chef/modem-ready
 RMTFS_PID=
 SERVREG_PID=
 TFTP_PID=
@@ -137,7 +141,7 @@ log() {
 cleanup() {
 	status=$?
 	trap - EXIT HUP INT TERM
-	rm -f "$LOCK/ready"
+	rm -f "$LOCK/ready" "$READY_MARKER"
 	[ -n "$QMUX_PID" ] && kill "$QMUX_PID" 2>/dev/null
 	[ -n "$TFTP_PID" ] && kill "$TFTP_PID" 2>/dev/null
 	[ -n "$SERVREG_PID" ] && kill "$SERVREG_PID" 2>/dev/null
@@ -359,6 +363,7 @@ fi
 chgrp qmux /run/chef/qmux_socket && chmod 0660 /run/chef/qmux_socket ||
 	{ log "qmux socket group or mode not set"; exit 1; }
 touch "$LOCK/ready"
+touch "$READY_MARKER"
 log "modem up, qmux bridge on /run/chef/qmux_socket"
 
 # Keep the /dev/subsys_modem fd held while all supporting services are
