@@ -34,7 +34,7 @@ LV_FONT_DECLARE(chefkit_b500_64)	/* ASCII */
 LV_FONT_DECLARE(chefkit_bc600_32)	/* digits and '-' only */
 LV_FONT_DECLARE(chefkit_bc600_40)
 LV_FONT_DECLARE(chefkit_bc600_44)	/* digits, ':' and '-' only */
-LV_FONT_DECLARE(chefkit_bc600_48)	/* digits and '/' only */
+LV_FONT_DECLARE(chefkit_bc600_48)	/* digits, space and '/' only */
 LV_FONT_DECLARE(chefkit_bc600_52)	/* "Pair" only */
 LV_FONT_DECLARE(chefkit_bc600_60)	/* ASCII */
 LV_FONT_DECLARE(chefkit_bc600_64)	/* digits, " -.BG~" (storage values) */
@@ -44,7 +44,7 @@ LV_FONT_DECLARE(chefkit_bc600_72)	/* digits, '%' and '-' only */
 LV_FONT_DECLARE(chefkit_bc600_80)	/* ASCII */
 LV_FONT_DECLARE(chefkit_bc600_88)	/* digits, "-.", en dash */
 LV_FONT_DECLARE(chefkit_bc600_96)	/* ASCII titles */
-LV_FONT_DECLARE(chefkit_bc600_150)	/* GPS status figures (gen-fonts.sh) */
+LV_FONT_DECLARE(chefkit_bc600_150)	/* GPS status figures, "chef-cyclo" (gen-fonts.sh) */
 LV_FONT_DECLARE(chefkit_bc600_160)	/* ASCII firmware title */
 LV_FONT_DECLARE(chefkit_bc600_200)	/* capacity */
 LV_FONT_DECLARE(chefkit_bc600_280)	/* clock */

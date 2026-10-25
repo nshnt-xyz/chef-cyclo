@@ -18,6 +18,7 @@
 #include "fonts.h"
 #include "icons.h"
 #include "pages.h"
+#include "splash.h"
 #include "sys.h"
 #include "feedback.h"
 #include "sysstate.h"
@@ -39,6 +40,10 @@ static void sleep_rearm(void)
 	int64_t now = app.pf.now_ms(), next;
 	bool on = app.pf.screen_is_on();
 
+	if (splash_active()) {		/* its timer starts when the splash ends */
+		lv_timer_pause(app.sleep_timer);
+		return;
+	}
 	if (policy_should_sleep(&app.sleep, on, now)) {
 		/* the screen callback pauses the timer */
 		app.pf.screen_set(false);
@@ -69,6 +74,8 @@ void app_on_touch(void)
 void app_on_touch_frame(const struct chefui_contact *contacts, int n)
 {
 	(void)contacts;
+	if (splash_active())		/* swallowed: no activity, no pulse */
+		return;
 	app_on_touch();
 	if (n > 0 && touch_count == 0 && app.set.haptics)
 		sys_feedback_request();
@@ -93,10 +100,18 @@ void app_on_screen(bool on)
 		sys_feedback_request();
 }
 
+void app_splash_ended(void)
+{
+	policy_activity(&app.sleep, app.pf.now_ms());
+	sleep_rearm();
+}
+
 bool app_on_button(const char *gesture)
 {
 	if (strcmp(gesture, "power.short"))
 		return false;		/* nothing else is claimed in menus */
+	if (splash_active())
+		return false;		/* the default: screen off (and on again) */
 	if (policy_power_short(app.pf.screen_is_on(), app.depth) == POWER_BACK) {
 		/* the pulse belongs to the key: closes driven by state (a join
 		 * finishing, a forgotten sensor) and the header target (whose touch

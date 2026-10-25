@@ -72,6 +72,7 @@
 #include "pages.h"
 #include "prompt.h"
 #include "settings.h"
+#include "splash.h"
 #include "feedback.h"
 #include "sys.h"
 #include "wifi.h"
@@ -537,6 +538,19 @@ int main(int argc, char **argv)
 	 * from the command line or the args file */
 	if (O.keys && (!O.n_fake || !page_wifi_type(O.keys)))
 		chefui_log("--keys ignored (needs --fake-state and an entry page)");
+
+	/* the boot splash: live on the phone's real state, frozen by a fake
+	 * state's `boot K`; never in a capture of the real state */
+	if (O.n_fake ? sys_state.fake_boot > 0 : !O.snapshot) {
+		char sdir[300];
+		struct splash_config sc = { .parent = chefui_root(), .frozen = O.n_fake ? sys_state.fake_boot - 1 : -1,
+					    .now = now_ms, .ended = app_splash_ended };
+
+		snprintf(sdir, sizeof(sdir), "%s/chef-settings", O.run ? O.run : CHEF_RUN_DIR);
+		sc.done_dir = sdir;
+		sc.run = O.run;
+		splash_start(&sc);
+	}
 
 	chefui_on_button(on_button, NULL);
 	chefui_on_touch(on_touch, NULL);

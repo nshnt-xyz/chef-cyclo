@@ -48,7 +48,7 @@ static void shapes(void)
 		&s->bar_off, &s->swatch_on, &s->swatch_off, &s->pill, &s->scrim, &s->modal,
 		&s->progress, &s->progress_fill, &s->usage_bar, &s->usage_seg[0], &s->usage_seg[1],
 		&s->usage_seg[2], &s->usage_seg[3], &s->usage_seg_edge, &s->usage_swatch,
-		&s->usage_swatch_free, &s->storage_neutral,
+		&s->usage_swatch_free, &s->storage_neutral, &s->splash_track, &s->splash_fill,
 	};
 
 	for (unsigned i = 0; i < sizeof(all) / sizeof(all[0]); i++)
@@ -160,6 +160,10 @@ static void shapes(void)
 	lv_style_set_radius(&s->progress, 12);
 	lv_style_set_clip_corner(&s->progress, true);
 	lv_style_set_bg_opa(&s->progress_fill, LV_OPA_COVER);
+	lv_style_set_bg_opa(&s->splash_track, LV_OPA_COVER);
+	lv_style_set_radius(&s->splash_track, 12);
+	lv_style_set_bg_opa(&s->splash_fill, LV_OPA_COVER);
+	lv_style_set_radius(&s->splash_fill, 12);
 }
 
 /* Colours: rewritten on every theme change. */
@@ -242,6 +246,8 @@ static void colours(const struct kit_palette *p)
 	lv_style_set_border_color(&s->modal, lv_color_hex(p->line2));
 	lv_style_set_border_color(&s->progress, lv_color_hex(p->line2));
 	lv_style_set_bg_color(&s->progress_fill, lv_color_hex(p->acc));
+	lv_style_set_bg_color(&s->splash_track, lv_color_hex(p->line));
+	lv_style_set_bg_color(&s->splash_fill, lv_color_hex(p->acc));
 }
 
 void kit_theme_init(enum kit_theme theme)

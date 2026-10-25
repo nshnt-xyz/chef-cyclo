@@ -78,10 +78,10 @@ NETBUS_SRCS := sys/netbus.c sys/wifi.c
 APP_SRCS := apps/settings/app.c apps/settings/page_display.c apps/settings/page_wifi.c \
 	apps/settings/page_gps.c apps/settings/page_bt.c apps/settings/page_sound.c apps/settings/page_time.c \
 	apps/settings/page_storage.c apps/settings/page_about.c \
-	apps/settings/policy.c apps/settings/text.c apps/settings/prompt.c
+	apps/settings/policy.c apps/settings/text.c apps/settings/prompt.c apps/settings/splash.c
 KIT_HDRS := kit/theme.h kit/widgets.h kit/fonts.h kit/icons.h sys/sysstate.h sys/sys.h \
 	sys/settings.h sys/settings_file.h sys/storage_usage.h sys/sha256.h sys/wifi.h sys/netbus_int.h sys/gpsview.h sys/gpsclient.h sys/lcwatch.h sys/bootsteps.h sys/blesens.h sys/blesclient.h sys/timeview.h sys/deviceinfo.h sys/feedback.h sys/als.h apps/settings/app.h \
-	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h apps/settings/prompt.h
+	apps/settings/pages.h apps/settings/policy.h apps/settings/text.h apps/settings/prompt.h apps/settings/splash.h
 HDRS += $(KIT_HDRS)
 ifneq ($(SDBUS_LIBS),)
 HOST_NETBUS := $(NETBUS_SRCS)
@@ -292,6 +292,10 @@ $(T)/test-alsclient: tests/test_alsclient.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJ
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_alsclient.c tests/fakeloop.c tests/wifi_stub.c \
 		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
 
+$(T)/test-splash: tests/test_splash.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
+	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_splash.c tests/fakeloop.c tests/wifi_stub.c \
+		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
+
 $(T)/test-prompt: tests/test_prompt.c $(FAKELOOP) $(WIFI_STUB) $(SYSUI_OBJS) $(T)/liblvgl.a
 	$(HOST_CC) $(TEST_CFLAGS) $(LV_DEFS) -Itests -o $@ tests/test_prompt.c tests/fakeloop.c tests/wifi_stub.c \
 		$(SYSUI_OBJS) $(T)/liblvgl.a -lm -pthread
@@ -316,7 +320,7 @@ $(T)/test-wifi: tests/test_wifi.c $(FAKELOOP) $(SYSUI_OBJS) $(NETBUS_OBJS) $(T)/
 		-Wl,--wrap=getrandom
 
 TESTS := $(T)/test-gpsclient $(T)/test-bootsteps $(T)/test-blesclient $(T)/test-settings-file $(T)/test-copy $(T)/test-plan $(T)/test-touch $(T)/test-buttons $(T)/test-fbscreen $(T)/test-chefui \
-	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app $(T)/test-als $(T)/test-alsclient $(T)/test-prompt
+	$(T)/test-settings $(T)/test-sys $(T)/test-timeview $(T)/test-app $(T)/test-als $(T)/test-alsclient $(T)/test-prompt $(T)/test-splash
 ifneq ($(SDBUS_LIBS),)
 TESTS += $(T)/test-netbus $(T)/test-wifi
 endif
@@ -339,6 +343,7 @@ test: check-lvgl $(TESTS)
 	$(T)/test-als
 	$(T)/test-alsclient
 	$(T)/test-prompt
+	$(T)/test-splash
 	@if [ -x $(T)/test-netbus ] && command -v dbus-daemon >/dev/null; then $(T)/test-netbus; \
 	else echo "test-netbus: skipped (needs libsystemd and dbus-daemon)"; fi
 	@if [ -x $(T)/test-wifi ] && command -v dbus-daemon >/dev/null && \
@@ -437,6 +442,15 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 		--run $(B)/host/captures/run "$$@" 2>/dev/null || \
 		{ echo "chef-settings capture $$n failed" >&2; return 1; }; }; \
 		cap display-theme-auto --theme auto --page display || exit 1
+	@# B01, the boot splash frozen with 0, 1 and 6 steps done (compare-ref.py
+	@# against the design's B01-<theme>-k<K>.png, notch masked)
+	@for t in dark light; do for k in 0 1 6; do \
+		SDL_VIDEODRIVER=offscreen $(B)/host/chef-settings --fake-state apps/settings/design.state \
+			--fake-state apps/settings/boot-k$$k.state --theme $$t --brightness 70 \
+			--snapshot $(B)/host/captures/boot-k$$k-$$t.ppm --data $(B)/host/captures/nodata \
+			--run $(B)/host/captures/run 2>/dev/null || \
+			{ echo "chef-settings capture boot-k$$k $$t failed" >&2; exit 1; }; \
+	done; done
 	@# the guided-test prompt card over P02 (no countdown, which depends on the clock)
 	@mkdir -p $(B)/host/captures/run/chef-settings
 	@for t in dark light; do \
@@ -448,5 +462,5 @@ host-test: $(B)/host/test-demo $(B)/host/chef-settings
 			--run $(B)/host/captures/run 2>/dev/null || \
 			{ echo "chef-settings capture display-prompt $$t failed" >&2; exit 1; }; \
 	done; rm -f $(B)/host/captures/run/chef-settings/prompt
-	@echo "chef-settings: 61 captures in $(B)/host/captures"
+	@echo "chef-settings: 67 captures in $(B)/host/captures"
 	@tests/test_settings_proc.sh $(B)/host/chef-settings apps/settings/design.state

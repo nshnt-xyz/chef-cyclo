@@ -21,6 +21,7 @@
  *                           the Time page's source (a model, no subprocess)
  *   als LUX|none            the light sensor: available with this reading, or
  *                           not available (host fakes never connect to sensord)
+ *   boot K                  the boot splash frozen with K (0..6) steps done
  *   about KEY VALUE         the About page: name version commit builddate
  *                           dirty lvgl kernel resolution serial bluetooth wifi
  *                           uptime (seconds); VALUE is the rest of the line
@@ -455,6 +456,18 @@ int sys_fake_load(const char *path)
 				fclose(f);
 				return -EINVAL;
 			}
+			continue;
+		}
+		if (!strcmp(key, "boot")) {
+			char *k = strtok_r(NULL, " \t", &save), *end;
+			long v = k ? strtol(k, &end, 10) : -1;
+
+			if (!k || *end || v < 0 || v > 6) {
+				chefui_log("fake state %s:%d: bad line", path, n);
+				fclose(f);
+				return -EINVAL;
+			}
+			s.fake_boot = (int)v + 1;
 			continue;
 		}
 		if (!strcmp(key, "about")) {

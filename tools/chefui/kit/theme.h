@@ -87,6 +87,8 @@ struct kit_styles {
 	 * and the legend swatches (radius 14; Free is an outline) */
 	lv_style_t usage_bar, usage_seg[4], usage_seg_edge, usage_swatch, usage_swatch_free;
 	lv_style_t storage_neutral;	/* the single used segment when no category split is known */
+	/* boot splash: the progress track (line) and fill (acc), both radius 12 */
+	lv_style_t splash_track, splash_fill;
 };
 extern struct kit_styles kit_st;
 

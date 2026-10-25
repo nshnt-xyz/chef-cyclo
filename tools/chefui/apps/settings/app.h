@@ -83,6 +83,8 @@ bool app_on_button(const char *gesture);	/* true: handled */
 void app_on_touch(void);			/* any touch frame: activity */
 void app_on_touch_frame(const struct chefui_contact *contacts, int n);
 void app_on_screen(bool on);
+/* The boot splash is gone: auto-sleep counts from now. */
+void app_splash_ended(void);
 void app_on_state(unsigned what);		/* sysstate.h SYS_* bits */
 
 /* Navigation (also used by taps). arg is the page's own (copied by it). */

@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 48 px
  * Bpp: 4
- * Opts: --no-compress --no-prefilter --bpp 4 --format lvgl --lv-include lvgl.h --font .tnum/BarlowCondensed-SemiBold.ttf --size 48 -r 0x2F,0x30-0x39 --lv-font-name chefkit_bc600_48 -o chefkit_bc600_48.c
+ * Opts: --no-compress --no-prefilter --bpp 4 --format lvgl --lv-include lvgl.h --font .tnum/BarlowCondensed-SemiBold.ttf --size 48 -r 0x20,0x2F,0x30-0x39 --lv-font-name chefkit_bc600_48 -o chefkit_bc600_48.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -22,6 +22,8 @@
 
 /*Store the image of the glyphs*/
 static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
+    /* U+0020 " " */
+
     /* U+002F "/" */
     0x0, 0x0, 0x0, 0x0, 0x0, 0x2f, 0xff, 0xff,
     0x40, 0x0, 0x0, 0x0, 0x0, 0x7, 0xff, 0xff,
@@ -494,6 +496,7 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
 
 static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */,
+    {.bitmap_index = 0, .adv_w = 154, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 0, .adv_w = 296, .box_w = 17, .box_h = 34, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 289, .adv_w = 365, .box_w = 19, .box_h = 34, .ofs_x = 2, .ofs_y = 0},
     {.bitmap_index = 612, .adv_w = 365, .box_w = 14, .box_h = 34, .ofs_x = 3, .ofs_y = 0},
@@ -517,7 +520,11 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
 static const lv_font_fmt_txt_cmap_t cmaps[] =
 {
     {
-        .range_start = 47, .range_length = 11, .glyph_id_start = 1,
+        .range_start = 32, .range_length = 1, .glyph_id_start = 1,
+        .unicode_list = NULL, .glyph_id_ofs_list = NULL, .list_length = 0, .type = LV_FONT_FMT_TXT_CMAP_FORMAT0_TINY
+    },
+    {
+        .range_start = 47, .range_length = 11, .glyph_id_start = 2,
         .unicode_list = NULL, .glyph_id_ofs_list = NULL, .list_length = 0, .type = LV_FONT_FMT_TXT_CMAP_FORMAT0_TINY
     }
 };
@@ -543,7 +550,7 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
     .cmaps = cmaps,
     .kern_dsc = NULL,
     .kern_scale = 0,
-    .cmap_num = 1,
+    .cmap_num = 2,
     .bpp = 4,
     .kern_classes = 0,
     .bitmap_format = 0,
