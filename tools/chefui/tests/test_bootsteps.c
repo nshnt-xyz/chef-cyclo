@@ -107,7 +107,7 @@ static void test_initial(void)
 
 	tree_new(true);
 	init(&b);
-	CHECK(b.state[0] == BOOTSTEP_DONE);
+	CHECK(b.t.state[0] == BOOTSTEP_DONE);
 	CHECK(bootsteps_finished(&b) == 1 && bootsteps_current(&b) == 1 && !bootsteps_all_finished(&b));
 	CHECK(logged("boot splash: storage ready at 5.00 s"));
 	CHECK(bootsteps_fd(&b) >= 0);
@@ -126,31 +126,31 @@ static void test_each_row(void)
 	/* step 2: the marker, an empty file */
 	sh("touch %s/modem-ready", run);
 	changed(&b);
-	CHECK(b.state[1] == BOOTSTEP_DONE && bootsteps_current(&b) == 2);
+	CHECK(b.t.state[1] == BOOTSTEP_DONE && bootsteps_current(&b) == 2);
 	/* step 3 needs both */
 	svc("started", "sensord");
 	changed(&b);
-	CHECK(b.state[2] == BOOTSTEP_PENDING && bootsteps_current(&b) == 2);
+	CHECK(b.t.state[2] == BOOTSTEP_PENDING && bootsteps_current(&b) == 2);
 	svc("started", "sensors-up");
 	changed(&b);
-	CHECK(b.state[2] == BOOTSTEP_DONE && bootsteps_current(&b) == 3);
+	CHECK(b.t.state[2] == BOOTSTEP_DONE && bootsteps_current(&b) == 3);
 	/* step 4 needs both */
 	svc("started", "bluetooth");
 	changed(&b);
-	CHECK(b.state[3] == BOOTSTEP_PENDING);
+	CHECK(b.t.state[3] == BOOTSTEP_PENDING);
 	g_boot = 12310;
 	svc("started", "bt-up");
 	changed(&b);
-	CHECK(b.state[3] == BOOTSTEP_DONE && bootsteps_current(&b) == 4);
+	CHECK(b.t.state[3] == BOOTSTEP_DONE && bootsteps_current(&b) == 4);
 	CHECK(logged("boot splash: Bluetooth ready at 12.31 s"));
 	/* step 5, then step 6 follows at once */
 	svc("started", "networkmanager");
 	changed(&b);
-	CHECK(b.state[4] == BOOTSTEP_DONE);
+	CHECK(b.t.state[4] == BOOTSTEP_DONE);
 	CHECK(bootsteps_finished(&b) == BOOTSTEPS_N && bootsteps_current(&b) == BOOTSTEPS_N &&
 	      bootsteps_all_finished(&b));
 	CHECK(bootsteps_fd(&b) == -1 && bootsteps_deadline(&b) == -1);
-	CHECK(!b.capped);
+	CHECK(!b.t.capped);
 	bootsteps_fini(&b);
 	sh("rm -rf %s", root);
 }
@@ -164,7 +164,7 @@ static void test_out_of_order(void)
 	svc("started", "sensord");
 	svc("started", "sensors-up");
 	init(&b);	/* already there at the start */
-	CHECK(b.state[2] == BOOTSTEP_DONE && b.state[4] == BOOTSTEP_DONE && b.state[1] == BOOTSTEP_PENDING);
+	CHECK(b.t.state[2] == BOOTSTEP_DONE && b.t.state[4] == BOOTSTEP_DONE && b.t.state[1] == BOOTSTEP_PENDING);
 	CHECK(bootsteps_finished(&b) == 1 && bootsteps_current(&b) == 1);
 	svc("started", "bluetooth");
 	svc("started", "bt-up");
@@ -199,7 +199,7 @@ static void test_failures(void)
 		init(&b);
 		svc("failed", rows[i].svcs[0]);
 		changed(&b);
-		CHECK(b.state[rows[i].step] == BOOTSTEP_FAILED);
+		CHECK(b.t.state[rows[i].step] == BOOTSTEP_FAILED);
 		CHECK(!strcmp(bootsteps_failed_label(rows[i].step), rows[i].label));
 		snprintf(want, sizeof(want), "boot splash: %.*s failed at 5.00 s", (int)(strlen(rows[i].label) - 7),
 			 rows[i].label);
@@ -226,20 +226,20 @@ static void test_sticky(void)
 	/* done, then the marker removed: still done, not logged again */
 	sh("rm -f %s/modem-ready", run);
 	changed(&b);
-	CHECK(b.state[1] == BOOTSTEP_DONE && bootsteps_finished(&b) == 2 && g_nlog == n);
+	CHECK(b.t.state[1] == BOOTSTEP_DONE && bootsteps_finished(&b) == 2 && g_nlog == n);
 	/* done, then a failed entry: still done */
 	svc("failed", "modem-up");
 	changed(&b);
-	CHECK(b.state[1] == BOOTSTEP_DONE && g_nlog == n);
+	CHECK(b.t.state[1] == BOOTSTEP_DONE && g_nlog == n);
 	/* failed, then started: still failed */
 	svc("failed", "networkmanager");
 	changed(&b);
-	CHECK(b.state[4] == BOOTSTEP_FAILED);
+	CHECK(b.t.state[4] == BOOTSTEP_FAILED);
 	n = g_nlog;
 	svc("started", "networkmanager");
 	unsvc("failed", "networkmanager");
 	changed(&b);
-	CHECK(b.state[4] == BOOTSTEP_FAILED && g_nlog == n);
+	CHECK(b.t.state[4] == BOOTSTEP_FAILED && g_nlog == n);
 	bootsteps_fini(&b);
 	sh("rm -rf %s", root);
 }
@@ -250,7 +250,7 @@ static void test_missing_dirs(void)
 
 	tree_new(false);
 	init(&b);
-	CHECK(b.state[0] == BOOTSTEP_DONE && bootsteps_fd(&b) >= 0);
+	CHECK(b.t.state[0] == BOOTSTEP_DONE && bootsteps_fd(&b) >= 0);
 	CHECK(bootsteps_deadline(&b) == 2000);	/* the retry, before the cap */
 	g_now = 1500;
 	bootsteps_tick(&b);	/* not yet due */
@@ -260,12 +260,12 @@ static void test_missing_dirs(void)
 	svc("started", "networkmanager");
 	g_now = 2000;
 	bootsteps_tick(&b);
-	CHECK(b.state[4] == BOOTSTEP_DONE);
-	CHECK(b.retry_at == -1 && bootsteps_deadline(&b) == 1000 + BOOTSTEPS_CAP_MS);
+	CHECK(b.t.state[4] == BOOTSTEP_DONE);
+	CHECK(b.t.retry_at == -1 && bootsteps_deadline(&b) == 1000 + BOOTSTEPS_CAP_MS);
 	/* and now watched: a marker is seen by its event */
 	sh("touch %s/modem-ready", run);
 	changed(&b);
-	CHECK(b.state[1] == BOOTSTEP_DONE);
+	CHECK(b.t.state[1] == BOOTSTEP_DONE);
 	bootsteps_fini(&b);
 	sh("rm -rf %s", root);
 }
@@ -278,10 +278,10 @@ static void test_dir_replaced(void)
 	init(&b);
 	sh("rm -rf %s/started && mkdir %s/started", openrc, openrc);
 	changed(&b);	/* IN_DELETE_SELF/IN_IGNORED: watched again at once */
-	CHECK(b.wd[0] >= 0 && b.retry_at == -1);
+	CHECK(b.t.wd[0] >= 0 && b.t.retry_at == -1);
 	svc("started", "networkmanager");
 	changed(&b);
-	CHECK(b.state[4] == BOOTSTEP_DONE);
+	CHECK(b.t.state[4] == BOOTSTEP_DONE);
 	bootsteps_fini(&b);
 	sh("rm -rf %s", root);
 }
@@ -300,7 +300,7 @@ static void test_no_inotify(void)
 	lim.rlim_cur = fd + 1;
 	CHECK(setrlimit(RLIMIT_NOFILE, &lim) == 0);
 	init(&b);
-	CHECK(bootsteps_fd(&b) == -1 && b.state[4] == BOOTSTEP_DONE && b.retry_at == 2000);
+	CHECK(bootsteps_fd(&b) == -1 && b.t.state[4] == BOOTSTEP_DONE && b.t.retry_at == 2000);
 	CHECK(bootsteps_deadline(&b) == 2000);
 	/* system() needs descriptors: lift the limit around it */
 	CHECK(setrlimit(RLIMIT_NOFILE, &old) == 0);
@@ -308,15 +308,15 @@ static void test_no_inotify(void)
 	CHECK(setrlimit(RLIMIT_NOFILE, &lim) == 0);
 	g_now = 2000;
 	bootsteps_tick(&b);	/* still no descriptor: the rescan alone finds it */
-	CHECK(b.state[1] == BOOTSTEP_DONE && bootsteps_fd(&b) == -1 && b.retry_at == 3000);
+	CHECK(b.t.state[1] == BOOTSTEP_DONE && bootsteps_fd(&b) == -1 && b.t.retry_at == 3000);
 	CHECK(setrlimit(RLIMIT_NOFILE, &old) == 0);
 	g_now = 3000;
 	bootsteps_tick(&b);
-	CHECK(bootsteps_fd(&b) >= 0 && b.retry_at == -1);
+	CHECK(bootsteps_fd(&b) >= 0 && b.t.retry_at == -1);
 	svc("started", "sensord");
 	svc("started", "sensors-up");
 	changed(&b);
-	CHECK(b.state[2] == BOOTSTEP_DONE);
+	CHECK(b.t.state[2] == BOOTSTEP_DONE);
 	bootsteps_fini(&b);
 	close(fd);
 	sh("rm -rf %s", root);
@@ -332,10 +332,10 @@ static void test_cap(void)
 	changed(&b);
 	g_now = 1000 + BOOTSTEPS_CAP_MS - 1;
 	bootsteps_tick(&b);
-	CHECK(!b.capped);
+	CHECK(!b.t.capped);
 	g_now = 1000 + BOOTSTEPS_CAP_MS;
 	bootsteps_tick(&b);
-	CHECK(b.capped && bootsteps_fd(&b) == -1 && bootsteps_deadline(&b) == -1);
+	CHECK(b.t.capped && bootsteps_fd(&b) == -1 && bootsteps_deadline(&b) == -1);
 	CHECK(logged("boot splash: Starting GPS modem not finished after 30 s"));
 	CHECK(logged("boot splash: Starting sensors not finished after 30 s"));
 	CHECK(logged("boot splash: Starting Bluetooth not finished after 30 s"));
@@ -356,7 +356,7 @@ static void test_cap(void)
 	sh("touch %s/modem-ready", run);
 	g_now = 1000 + BOOTSTEPS_CAP_MS;
 	bootsteps_tick(&b);
-	CHECK(b.state[1] == BOOTSTEP_DONE && b.capped && !logged("boot splash: Starting GPS modem not finished after 30 s"));
+	CHECK(b.t.state[1] == BOOTSTEP_DONE && b.t.capped && !logged("boot splash: Starting GPS modem not finished after 30 s"));
 	bootsteps_fini(&b);
 	sh("rm -rf %s", root);
 
@@ -372,7 +372,7 @@ static void test_cap(void)
 	bootsteps_rescan(&b);
 	g_now += BOOTSTEPS_CAP_MS * 2;
 	bootsteps_tick(&b);
-	CHECK(!b.capped && bootsteps_all_finished(&b));
+	CHECK(!b.t.capped && bootsteps_all_finished(&b));
 	bootsteps_fini(&b);
 	sh("rm -rf %s", root);
 }
@@ -385,7 +385,7 @@ static void test_symlinks_not_followed(void)
 	/* a dangling link counts; the target is never read */
 	svc("started", "networkmanager");
 	init(&b);
-	CHECK(b.state[4] == BOOTSTEP_DONE);
+	CHECK(b.t.state[4] == BOOTSTEP_DONE);
 	bootsteps_fini(&b);
 	sh("rm -rf %s", root);
 }

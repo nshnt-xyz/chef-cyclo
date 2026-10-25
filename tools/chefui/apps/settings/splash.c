@@ -331,13 +331,13 @@ static void update(void)
 
 	if (!S.active)
 		return;
-	if (S.b.capped) {
+	if (S.b.t.capped) {
 		end(true);
 		return;
 	}
 	/* steps shown through: done ones at once, a failed one after its hold */
 	while (S.acked < BOOTSTEPS_N - 1) {
-		enum bootstep_state st = S.b.state[S.acked];
+		enum bootstep_state st = S.b.t.state[S.acked];
 
 		if (st == BOOTSTEP_DONE) {
 			S.acked++;
@@ -364,7 +364,7 @@ static void update(void)
 		show("Ready", BOOTSTEPS_N, BOOTSTEPS_N);
 	} else {
 		/* the bar is the walk's position, never ahead of the text */
-		bool failed = S.b.state[S.acked] == BOOTSTEP_FAILED;
+		bool failed = S.b.t.state[S.acked] == BOOTSTEP_FAILED;
 
 		show_step(S.acked, failed, S.acked + (failed ? 1 : 0));
 	}

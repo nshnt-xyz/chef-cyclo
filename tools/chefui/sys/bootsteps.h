@@ -8,7 +8,8 @@
  * for existence (lstat, a link is never followed or read). A step that
  * has finished stays finished (done or failed, once): the bar never goes
  * back and each step is logged once. Step 6 (Loading home) is the
- * splash's own and finishes as soon as steps 1 to 5 have.
+ * splash's own and finishes as soon as steps 1 to 5 have. The watching,
+ * retry, cap and counting are sys/steptrack.h's; this is the boot table.
  *
  * Watching: an inotify fd on <openrc>/started, <openrc>/failed and
  * <run> (create, delete, move), for the caller's loop (bootsteps_fd());
@@ -24,14 +25,20 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "steptrack.h"
+
 #define BOOTSTEPS_N 6
 #define BOOTSTEPS_CAP_MS 30000
-#define BOOTSTEPS_RETRY_MS 1000
+#define BOOTSTEPS_RETRY_MS STEPTRACK_RETRY_MS
 
 #define BOOTSTEPS_OPENRC_DEFAULT "/run/openrc"
 #define BOOTSTEPS_RUN_DEFAULT "/run/chef"
 
-enum bootstep_state { BOOTSTEP_PENDING, BOOTSTEP_DONE, BOOTSTEP_FAILED };
+/* The step states are the tracker's. */
+#define bootstep_state steptrack_state
+#define BOOTSTEP_PENDING STEPTRACK_PENDING
+#define BOOTSTEP_DONE STEPTRACK_DONE
+#define BOOTSTEP_FAILED STEPTRACK_FAILED
 
 struct bootsteps_config {
 	const char *openrc;		/* NULL: BOOTSTEPS_OPENRC_DEFAULT */
@@ -41,15 +48,13 @@ struct bootsteps_config {
 	void (*log)(const char *fmt, ...) __attribute__((format(printf, 1, 2)));	/* NULL: none */
 };
 
-/* Private to bootsteps.c except where noted. */
+/* Private to bootsteps.c except where noted: the tracker (steptrack.h)
+ * holds the step states (t.state), the watches (t.wd), the retry (t.retry_at)
+ * and the cap (t.capped). */
 struct bootsteps {
 	struct bootsteps_config cfg;
 	char started_dir[256], failed_dir[256], run_dir[256];
-	int fd;				/* read: inotify, -1 none */
-	int wd[3];
-	enum bootstep_state state[BOOTSTEPS_N];	/* read */
-	bool capped;			/* read: the cap has passed with steps waiting */
-	int64_t start_ms, retry_at;
+	struct steptrack t;
 };
 
 /* Reads the sources once (step 1 is done at once) and starts watching. */
