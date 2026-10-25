@@ -70,7 +70,7 @@ static void marker_fd_cb(int fd, short revents, void *user)
 	(void)fd;
 	(void)revents;
 	(void)user;
-	dirwatch_drain(&S.mw);
+	dirwatch_drain(&S.mw, NULL);
 	marker_watch();
 	rearm();
 }

@@ -8,11 +8,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/inotify.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "chefui.h"
+#include "dirwatch.h"
 #include "fonts.h"
 #include "prompt.h"
 #include "theme.h"
@@ -20,14 +20,15 @@
 
 static struct {
 	char dir[256], path[300];
-	int ifd;
+	struct dirwatch_dir wdir;	/* the prompt directory */
+	struct dirwatch dw;
 	int64_t (*now_ms)(void);
 	uid_t uid;
 	lv_obj_t *box, *title, *count, *text;
 	lv_timer_t *timer;
 	bool shown, has_until;
 	int64_t until;
-} P = { .ifd = -1 };
+} P = { .dw = { .fd = -1 } };
 
 /* ------------------------------------------------------------- parsing */
 
@@ -214,52 +215,39 @@ void prompt_reload(void)
 
 static void inotify_io(int fd, short revents, void *user)
 {
-	char buf[4096] __attribute__((aligned(8)));
-	bool ours = false;
-	ssize_t n;
-
+	(void)fd;
 	(void)revents;
 	(void)user;
-	while ((n = read(fd, buf, sizeof(buf))) > 0) {
-		for (char *p = buf; p < buf + n;) {
-			const struct inotify_event *e = (const struct inotify_event *)p;
-
-			if ((e->mask & IN_Q_OVERFLOW) || (e->len && !strcmp(e->name, "prompt")))
-				ours = true;
-			p += sizeof(*e) + e->len;
-		}
-	}
-	if (ours)
+	/* the prompt file itself, or events lost */
+	if (dirwatch_drain(&P.dw, "prompt"))
 		prompt_reload();
 }
 
 int prompt_start(const char *dir, int64_t (*now_ms)(void))
 {
+	int r;
+
 	prompt_stop();
 	snprintf(P.dir, sizeof(P.dir), "%s", dir);
 	snprintf(P.path, sizeof(P.path), "%s/prompt", dir);
 	P.now_ms = now_ms;
-	P.ifd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
-	if (P.ifd < 0)
-		return -errno;
-	if (inotify_add_watch(P.ifd, dir, IN_CLOSE_WRITE | IN_MOVED_TO | IN_DELETE | IN_MOVED_FROM) < 0) {
-		int e = errno;
-
-		close(P.ifd);
-		P.ifd = -1;
-		return -e;
+	P.wdir = (struct dirwatch_dir){ P.dir, IN_CLOSE_WRITE | IN_MOVED_TO | IN_DELETE | IN_MOVED_FROM };
+	dirwatch_init(&P.dw, &P.wdir, 1);
+	r = dirwatch_arm(&P.dw, 0);
+	if (r) {
+		dirwatch_close(&P.dw);
+		return r;
 	}
-	chefui_watch_fd(P.ifd, POLLIN, inotify_io, NULL);
+	chefui_watch_fd(P.dw.fd, POLLIN, inotify_io, NULL);
 	prompt_reload();	/* one already there */
 	return 0;
 }
 
 void prompt_stop(void)
 {
-	if (P.ifd >= 0) {
-		chefui_unwatch_fd(P.ifd);
-		close(P.ifd);
-		P.ifd = -1;
+	if (P.dw.fd >= 0) {
+		chefui_unwatch_fd(P.dw.fd);
+		dirwatch_close(&P.dw);
 	}
 	hide();
 }

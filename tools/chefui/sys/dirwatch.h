@@ -39,11 +39,13 @@ struct dirwatch {
  * DIRWATCH_MAX aborts (a programming error). */
 void dirwatch_init(struct dirwatch *d, const struct dirwatch_dir *dir, int n);
 /* Makes the fd when there is none and watches every directory not watched
- * now; sets retry_at from NOW (ms) if one could not be. */
-void dirwatch_arm(struct dirwatch *d, int64_t now);
+ * now; sets retry_at from NOW (ms) if one could not be. 0, or the first
+ * failure's -errno (callers that retry later ignore it). */
+int dirwatch_arm(struct dirwatch *d, int64_t now);
 /* The fd readable: drained, and a watch whose directory went away
- * forgotten. */
-void dirwatch_drain(struct dirwatch *d);
+ * forgotten. True if an event for the entry NAME (any event when NAME is
+ * NULL) was read, or the queue overflowed. */
+bool dirwatch_drain(struct dirwatch *d, const char *name);
 /* The fd closed, nothing watched, no retry. */
 void dirwatch_close(struct dirwatch *d);
 

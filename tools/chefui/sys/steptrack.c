@@ -109,7 +109,7 @@ int steptrack_fd(const struct steptrack *t)
 
 void steptrack_handle(struct steptrack *t)
 {
-	dirwatch_drain(&t->dw);
+	dirwatch_drain(&t->dw, NULL);
 	steptrack_rescan(t);
 }
 
