@@ -1,8 +1,8 @@
 /* Host tests for buttons.c over a real AF_UNIX listener standing in for
  * buttond: claims sent on connect, JSON line parsing across partial reads
- * (gestures, errors, the hello's proto, unknown types and members, bad
- * lines), reconnect and re-claim after the server closes, the default
- * power.short toggle versus an application override. */
+ * (gestures, key lines, errors, the hello's proto, unknown types and
+ * members, bad lines), reconnect and re-claim after the server closes,
+ * the default power.short toggle versus an application override. */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <stdarg.h>
@@ -72,6 +72,15 @@ static bool app_cb(const char *g, void *user)
 	return g_handle;
 }
 
+static char g_keys[256];
+
+static void key_cb(const char *button, enum cu_btn_key_state st, void *user)
+{
+	(void)user;
+	snprintf(g_keys + strlen(g_keys), sizeof(g_keys) - strlen(g_keys), "%s:%s;", button,
+		 st == CU_BTN_KEY_DOWN ? "down" : st == CU_BTN_KEY_HELD ? "held" : "up");
+}
+
 static void default_cb(const char *g, void *user)
 {
 	(void)user;
@@ -95,6 +104,7 @@ static void logf_(const char *fmt, ...)
 static void reset(void)
 {
 	g_events[0] = '\0';
+	g_keys[0] = '\0';
 	g_defaults = 0;
 	g_handle = false;
 	g_log[0] = '\0';
@@ -159,6 +169,43 @@ static void test_partial_lines(void)
 	feed(&b, "\"}\n" EV("power.double"));
 	CHECK(strcmp(g_events, "power.short;volup.short;voldown.long;power.double;") == 0);
 	CHECK(b.inlen == 0);
+}
+
+#define KEY(b, st) "{\"type\":\"key\",\"button\":\"" b "\",\"state\":\"" st "\"}\n"
+
+static void test_key_lines(void)
+{
+	struct cu_buttons b;
+	const char *m = KEY("voldown", "held");
+	size_t i;
+
+	reset();
+	cu_buttons_init(&b, g_sock, NULL, logf_);
+	b.app_cb = app_cb;
+	b.key_cb = key_cb;
+	feed(&b, KEY("power", "down") KEY("power", "held") KEY("power", "up"));
+	CHECK(strcmp(g_keys, "power:down;power:held;power:up;") == 0);
+	CHECK(g_events[0] == '\0' && g_defaults == 0);	/* no gesture, no default */
+	/* unknown state, missing or empty button, missing state: ignored, no log */
+	g_keys[0] = '\0';
+	feed(&b, KEY("power", "wobble")
+		 "{\"type\":\"key\",\"state\":\"down\"}\n"
+		 "{\"type\":\"key\",\"button\":\"\",\"state\":\"down\"}\n"
+		 "{\"type\":\"key\",\"button\":\"power\"}\n");
+	CHECK(g_keys[0] == '\0' && g_log[0] == '\0');
+	/* split across reads, byte by byte, and interleaved with gestures */
+	for (i = 0; m[i]; i++)
+		cu_buttons_feed(&b, m + i, 1);
+	CHECK(strcmp(g_keys, "voldown:held;") == 0);
+	feed(&b, KEY("power", "down") EV("power.short") KEY("power", "up") EV("volup.long"));
+	CHECK(strcmp(g_keys, "voldown:held;power:down;power:up;") == 0);
+	CHECK(strcmp(g_events, "power.short;volup.long;") == 0);
+	/* no callback: dropped, gestures unaffected */
+	b.key_cb = NULL;
+	g_keys[0] = '\0';
+	feed(&b, KEY("power", "down") EV("power.double"));
+	CHECK(g_keys[0] == '\0' && g_log[0] == '\0');
+	CHECK(strcmp(g_events, "power.short;volup.long;power.double;") == 0);
 }
 
 static void test_json_lines(void)
@@ -329,6 +376,7 @@ int main(void)
 	snprintf(g_sock, sizeof(g_sock), "%s/buttond.sock", g_dir);
 	test_claims_on_connect();
 	test_partial_lines();
+	test_key_lines();
 	test_json_lines();
 	test_reconnect();
 	test_default_toggle();

@@ -104,13 +104,13 @@ bool cu_buttons_dispatch(struct cu_buttons *b, const char *gesture)
 	return false;
 }
 
-/* One JSON line from buttond: gestures are dispatched, errors logged, a
- * hello's proto checked; "ok", "status" and any type this client does
- * not know need nothing. */
+/* One JSON line from buttond: gestures are dispatched, key lines go to the
+ * key callback, errors logged, a hello's proto checked; "ok", "status" and
+ * any type this client does not know need nothing. */
 static void handle_line(struct cu_buttons *b, char *line)
 {
 	struct json_obj o;
-	char type[16], gesture[CU_BTN_NAME_MAX];
+	char type[16], gesture[CU_BTN_NAME_MAX], button[CU_BTN_NAME_MAX], state[8];
 	long proto;
 
 	if (json_parse(&o, line, strlen(line))) {
@@ -122,6 +122,21 @@ static void handle_line(struct cu_buttons *b, char *line)
 	if (strcmp(type, "gesture") == 0) {
 		if (json_get_string(&o, "gesture", gesture, sizeof(gesture)) && gesture[0])
 			cu_buttons_dispatch(b, gesture);
+	} else if (strcmp(type, "key") == 0) {
+		enum cu_btn_key_state st;
+
+		if (!b->key_cb || !json_get_string(&o, "button", button, sizeof(button)) || !button[0] ||
+		    !json_get_string(&o, "state", state, sizeof(state)))
+			return;
+		if (strcmp(state, "down") == 0)
+			st = CU_BTN_KEY_DOWN;
+		else if (strcmp(state, "held") == 0)
+			st = CU_BTN_KEY_HELD;
+		else if (strcmp(state, "up") == 0)
+			st = CU_BTN_KEY_UP;
+		else
+			return;
+		b->key_cb(button, st, b->key_user);
 	} else if (strcmp(type, "error") == 0) {
 		b->log("buttond: %s", line);
 	} else if (strcmp(type, "hello") == 0) {

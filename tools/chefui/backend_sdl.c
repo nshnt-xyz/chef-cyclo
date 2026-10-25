@@ -9,7 +9,8 @@
  *   buttons  P / Shift+P / Ctrl+P = power.short / .long / .double,
  *            Up / Down = volup.short / voldown.short, Shift+Up/Down =
  *            .long; delivered through the same dispatch as buttond's
- *            (application first, then the power.short screen toggle)
+ *            (application first, then the power.short screen toggle);
+ *            no key lines (chefui_on_key never fires here)
  *   screen   off blanks the window and pauses rendering like the phone
  *   handoff  plain execv
  *

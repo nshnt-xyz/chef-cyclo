@@ -117,6 +117,16 @@ void chefui_refresh_period_set(uint32_t ms);
 typedef bool (*chefui_button_cb)(const char *gesture, void *user);
 void chefui_on_button(chefui_button_cb cb, void *user);
 
+/* Raw key lines from buttond for a button ("power", "volup", "voldown"):
+ * pressed, held to the long threshold (the moment its .long gesture
+ * fires), released. Only buttons whose gestures the application claims
+ * (power always, through power.short) are reported; a line may arrive
+ * without its DOWN if a claim was made mid-hold. No default action. The
+ * SDL backend sends none. */
+enum chefui_key_state { CHEFUI_KEY_DOWN, CHEFUI_KEY_HELD, CHEFUI_KEY_UP };
+typedef void (*chefui_key_cb)(const char *button, enum chefui_key_state state, void *user);
+void chefui_on_key(chefui_key_cb cb, void *user);
+
 /* Active contacts after each touch frame (logical coordinates). On the
  * host the mouse is the only contact. */
 struct chefui_contact {

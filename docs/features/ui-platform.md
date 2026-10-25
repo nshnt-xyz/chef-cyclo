@@ -155,7 +155,13 @@ threshold, avoiding v9.6's uninitialized zero default stealing pinch/swipe.
 `power.short` is always claimed from buttond. The application button callback
 returns true when handled; otherwise the default toggles the screen.
 `power.long` stays with buttond unless explicitly claimed; Power+VolDown is
-reserved. Reconnection retries once per second and reclaims configured gestures.
+reserved. `chefui_on_key(cb, user)` reports buttond's raw key lines
+(`down`, `held` at the moment the button's `.long` fires, `up`; see the
+[socket contract](buttons-and-power-off.md#socket-contract)) as
+`CHEFUI_KEY_DOWN/HELD/UP` with the button name, for the buttons whose
+gestures the application claims; it has no default action, the SDL backend
+sends none, and a mid-hold claim can yield `held` or `up` without the `down`.
+Reconnection retries once per second and reclaims configured gestures.
 Host keys are P/Shift+P/Ctrl+P for power short/long/double, Up/Down for volume
 short, and Shift+Up/Down for volume long. Host mouse supplies a single contact.
 

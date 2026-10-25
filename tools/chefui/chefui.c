@@ -61,6 +61,8 @@ static struct {
 
 	chefui_button_cb button_cb;
 	void *button_user;
+	chefui_key_cb key_cb;
+	void *key_user;
 	chefui_screen_cb screen_cb;
 	void *screen_user;
 	chefui_touch_cb touch_cb;
@@ -139,6 +141,19 @@ static bool app_button(const char *g, void *user)
 {
 	(void)user;
 	return G.button_cb ? G.button_cb(g, G.button_user) : false;
+}
+
+static void app_key(const char *button, enum cu_btn_key_state state, void *user)
+{
+	static const enum chefui_key_state map[] = {
+		[CU_BTN_KEY_DOWN] = CHEFUI_KEY_DOWN,
+		[CU_BTN_KEY_HELD] = CHEFUI_KEY_HELD,
+		[CU_BTN_KEY_UP] = CHEFUI_KEY_UP,
+	};
+
+	(void)user;
+	if (G.key_cb)
+		G.key_cb(button, map[state], G.key_user);
 }
 
 static void default_power_short(const char *g, void *user)
@@ -262,6 +277,7 @@ lv_display_t *chefui_init(const struct chefui_config *cfg)
 
 	cu_buttons_init(&G.buttons, cu_paths.buttond_sock, cfg->claims, chefui_log);
 	G.buttons.app_cb = app_button;
+	G.buttons.key_cb = app_key;
 	G.buttons.default_cb = default_power_short;
 
 	r = G.be->init(&G.cfg, &G.disp, &G.pointer);
@@ -465,6 +481,12 @@ void chefui_on_button(chefui_button_cb cb, void *user)
 {
 	G.button_cb = cb;
 	G.button_user = user;
+}
+
+void chefui_on_key(chefui_key_cb cb, void *user)
+{
+	G.key_cb = cb;
+	G.key_user = user;
 }
 
 void chefui_on_touch(chefui_touch_cb cb, void *user)

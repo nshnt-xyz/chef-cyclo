@@ -9,10 +9,12 @@
  * Power+VolDown chord is never claimed. buttond's lines are JSON objects
  * (proto 1, docs/features/buttons-and-power-off.md), read across partial
  * reads with ../common/json.h: {"type":"gesture","gesture":"G"} is
- * dispatched, "error" lines are logged, a hello with another proto is
- * logged once, and "ok", "status" and unknown types or members are
- * ignored. When buttond goes away the client reconnects with a 1 s
- * backoff and claims again.
+ * dispatched, {"type":"key","button":"power","state":"down|held|up"}
+ * goes to the key callback (no default; dropped when none is set, and an
+ * unknown state or a missing button is ignored without a log), "error"
+ * lines are logged, a hello with another proto is logged once, and "ok",
+ * "status" and unknown types or members are ignored. When buttond goes
+ * away the client reconnects with a 1 s backoff and claims again.
  *
  * Dispatch: the application's callback sees every gesture first; when it
  * does not report the gesture handled, power.short falls back to the
@@ -30,6 +32,8 @@
 #define CU_BTN_RETRY_MS    1000
 
 typedef bool (*cu_btn_app_cb)(const char *gesture, void *user);
+enum cu_btn_key_state { CU_BTN_KEY_DOWN, CU_BTN_KEY_HELD, CU_BTN_KEY_UP };
+typedef void (*cu_btn_key_cb)(const char *button, enum cu_btn_key_state state, void *user);
 typedef void (*cu_btn_default_cb)(const char *gesture, void *user);
 typedef void (*cu_btn_log_fn)(const char *fmt, ...);
 
@@ -48,6 +52,8 @@ struct cu_buttons {
 
 	cu_btn_app_cb app_cb;
 	void *app_user;
+	cu_btn_key_cb key_cb;
+	void *key_user;
 	cu_btn_default_cb default_cb;
 	void *default_user;
 	cu_btn_log_fn log;
