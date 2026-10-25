@@ -153,6 +153,7 @@ Two ways to make the ceiling hold for any client (decision D2):
 | `alsa-utils` (aplay, speaker-test, alsaucm, amixer, alsactl; pulls `alsa-ucm-conf`, fftw, dialog, ncurses form/menu/panel) | 8 | +6.3 MiB |
 | `pipewire wireplumber` | 45 | **+245.5 MiB** (llvm22-libs 168 MiB, mesa 36 MiB, libcamera 2.9 MiB, X11 libraries) |
 | the above + `pipewire-alsa pipewire-pulse pipewire-spa-bluez` | 69 | +255.6 MiB |
+| `pulseaudio` 17.0 (alone, or with `-alsa`, `-bluez`, `alsa-plugins-pulse`) | 60 to 63 | **+252 to 254 MiB** (the same Mesa and LLVM, through `gst-plugins-base` → `mesa-egl`; `libpulse` itself also links libX11 and libxcb) |
 | `sound-theme-freedesktop` | 1 | +0.4 MiB |
 
 `pipewire-libs` 1.6.8 depends on `so:libcamera.so.0.7`, which pulls in Mesa
@@ -219,7 +220,14 @@ the ALSA `default` device. Not in this step.
 
 Rejected: PipeWire/WirePlumber as the system server (F4: +245 MiB, it cannot
 go in the RAM image, and it adds idle cost on a device whose only output is
-alert beeps).
+alert beeps). PulseAudio, for the same reasons (F4: +252 MiB, through its
+GStreamer module's link to `libgstapp`). It is also in maintenance mode, and
+Alpine's desktop default is now PipeWire. Its timer-based scheduling
+(`tsched`) would want a finer pointer than this driver's one update per
+period, so `tsched=0` would be needed. Either server would still need the
+kernel ceiling (D2), because a client can always open `hw:` directly.
+Revisit only with our own build without the GStreamer and libcamera
+modules.
 
 ### D2. The ceiling in the kernel *(needs the user: (a) or (b))*
 
