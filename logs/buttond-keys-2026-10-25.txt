@@ -1,0 +1,87 @@
+buttond key lines, 2026-10-25
+=============================
+
+Plan: docs/archive/buttond-keys-handoff.md (press, hold and release lines
+from buttond for the ride's Hold Power to finish, decision 1 of
+2026-10-25). Pair: keys_impl (Claude Sonnet 5.5) and keys_review (Claude
+Opus 5.5), coordinator keys_coord. Evidence:
+~/chef-cyclo-evidence/buttond-keys-20261025/ (review/ diffs, notes and
+reviews; live/ the test image, keyinject.c, keycheck.sh and the outputs).
+
+Commits on main (each approved by keys_review and checked against the
+reviewed snapshot; not pushed):
+  3f91edd  M1 buttond: {"type":"key","button":B,"state":"down|held|up"}
+           to every connection claiming a gesture of that button and to
+           watchers; server_key (tick and drain, feed, key line, drain) so
+           lines follow the events; held right before a .long gesture
+           line, claimed or not; proto 1; buttons guide socket contract
+  aff3570  M2 chefui: key lines parsed in buttons.c, chefui_on_key with
+           enum chefui_key_state; no application uses it yet; SDL sends
+           no key lines; UI platform guide
+
+Decisions (coordinator, 2026-10-25): the held state (the UI completes the
+finish ring without claiming power.long); all three buttons; audience =
+the passthrough's button_gestures mask plus watchers. During the work:
+tick-first changes two edges within tick latency (a press after an expired
+double window starts a new sequence; a chord partner pressed after the
+first key passed long_ms is a plain press after that key's .long), both
+matching an on-time tick, accepted and tested (M1 review L1); an empty
+button is ignored like a missing one.
+
+Host checks: make test at the root passes; buttond 673/673 plain and
+sanitized, fblog 2205/2205, chefui test-buttons 68/68, test-chefui 325/325.
+
+Live check (coordinator, 2026-10-25 about 21:43 to 21:46 IST)
+  RAM image of the tree at aff3570 (dirty: the coordinator's handoff),
+  kernel #24 unchanged, out/boot-ram.img sha256
+  cd882f4d533ad476729f15949070a4b131c23a61a657e7ee759fe98bf604c047,
+  booted with phone-boot.sh from the installed pair (nothing flashed).
+  Every service started; installed buttond status: claims power.short 1
+  (chef-settings), uinput keys and ff true.
+  Keys injected without the user: a throwaway uinput device (keyinject,
+  BUS_VIRTUAL) read by a second buttond on /run/kt/b.sock (-G -p 0 -u ''),
+  with a watcher, a power.short claimant and a volup.long claimant.
+  Script: Power tap; Power held 2 s; VolUp tap; VolUp held then Power
+  (chord).
+  Watcher:
+    {"type":"ok","cmd":"watch"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"gesture","gesture":"power.short"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"key","button":"power","state":"held"}
+    {"type":"gesture","gesture":"power.long"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"key","button":"volup","state":"down"}
+    {"type":"key","button":"volup","state":"up"}
+    {"type":"gesture","gesture":"volup.short"}
+    {"type":"key","button":"volup","state":"down"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"gesture","gesture":"power+volup"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"key","button":"volup","state":"up"}
+  power.short claimant (power lines only, its gesture only):
+    {"type":"ok","cmd":"claim","gesture":"power.short"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"gesture","gesture":"power.short"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"key","button":"power","state":"held"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"key","button":"power","state":"up"}
+  volup.long claimant (volup lines only, no gesture fired):
+    {"type":"ok","cmd":"claim","gesture":"volup.long"}
+    {"type":"key","button":"volup","state":"down"}
+    {"type":"key","button":"volup","state":"up"}
+    {"type":"key","button":"volup","state":"down"}
+    {"type":"key","button":"volup","state":"up"}
+  The test buttond exited on the device's removal as designed ("read: No
+  such device; exiting for a respawn"), so its second status call found
+  no socket. Afterwards the installed buttond's status was unchanged and
+  chef-settings logged one connect at boot, no unreadable line and no
+  protocol warning.
+  Not checked live: physical presses (the evdev read path is unchanged;
+  everything after it ran above), chefui_on_key on the phone (no
+  application uses it yet).
+  Phone left on this RAM image; not installed.
