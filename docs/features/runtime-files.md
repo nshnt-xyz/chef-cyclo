@@ -54,7 +54,9 @@ The mode column gives the owner and group where they are not root.
 | `wifi/` | `wifi-up` | 0755 | a manual Wi-Fi session (never with NetworkManager) |
 | `ssh/` | `chef-sshd` | 0700 | the host key dropbear serves, `host-key-source` |
 | `ui/` | the `chef-settings` service (`checkpath`) | `chefui:chefui` 0700 | `settings` while `/data` is not ours ([system UI](system-ui.md#settings)) |
-| `chef-settings/` | the `chef-settings` service (`checkpath`) | `chefui:chefui` 0755 | `stop`, the one-shot `args`, `prompt` and `snapshot.ppm` |
+| `chef-settings/` | the `chef-settings` service (`checkpath`) | `chefui:chefui` 0755 | `stop`, the one-shot `args`, `prompt`, `snapshot.ppm` and `splash-done` |
+| `chef-settings/splash-done` | `chef-settings` | 0644, empty | the [boot splash](system-ui.md#boot-splash) has ended this boot; with it present a restarted `chef-settings` goes straight to the hub |
+| `modem-ready` | `modem-up` (right after its lock's `ready`; removed in its cleanup) | `root` 0644, empty | the modem is up, for readers outside the `qmux` group (the boot splash). Information only, never ownership: that stays with `lock/modem-up.lock/` |
 | `state/` | `/init` | 0755 | `chef-state`'s files ([persistent data](storage.md#persistent-state)): `time` (boot clock provenance, read by the Time and date page), `time.lock` and `log.lock`, and the directories below |
 | `state/mag/` | the `sensord` service (`checkpath`) | `sensord:sensord` 0700 | `lock` (the bias saves), `last` (when the last one was written) |
 | `state/gps/` | the `gps-manager` service (`checkpath`) | `gps:gps` 0700 | `lock`, and `enabled` (the GPS switch) while `/data` is not ours |

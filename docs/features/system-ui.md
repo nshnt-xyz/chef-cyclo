@@ -471,6 +471,7 @@ reconnect re-sends the page's hold and scan wants. See the
 | Input | Action |
 |---|---|
 | Power short, screen off | wake (the platform default), on the page that was open |
+| Power short during the [boot splash](#boot-splash) | screen off (the platform default) |
 | Power short on the hub | screen off |
 | Power short on any other page | Back |
 | Power held | power-off as always (buttond, not claimed) |
@@ -595,6 +596,73 @@ second reader such as the ride recorder links it alone. The contract:
 - The fields a second reader uses: the ride recorder takes `alert_volume`,
   `alert_sounds`, `haptics` and `quiet_paused`. The inotify reader itself
   lands with ride slice 1, its first consumer, built on `settings_file.c`.
+
+## Boot splash
+
+B01 in the design: a full-panel view above the status bar and the hub, in the
+theme's background, with `chef-cyclo` (Barlow Condensed 600, 150 px, centred in
+the panel minus 200 px at the bottom), the build line under it (muted, 40 px)
+and, 360 px above the bottom, the current step with its count (`2 / 6`) over a
+24 px progress bar (`apps/settings/splash.c`, steps in `sys/bootsteps.c`).
+
+| # | Shown while waiting | Done when | Failed when (label) |
+|---|---|---|---|
+| 1 | Mounting storage | always (`/init` ran `chef-storage boot` before OpenRC) | never |
+| 2 | Starting GPS modem | `/run/chef/modem-ready` exists | `/run/openrc/failed/modem-up` (GPS modem failed) |
+| 3 | Starting sensors | `started/sensord` and `started/sensors-up` | either in `failed/` (Sensors failed) |
+| 4 | Starting Bluetooth | `started/bt-up` and `started/bluetooth` | either in `failed/` (Bluetooth failed) |
+| 5 | Starting Wi-Fi | `started/networkmanager` | `failed/networkmanager` (Wi-Fi failed) |
+| 6 | Loading home | steps 1 to 5 done or failed | never |
+
+The sources are tested for existence only (`lstat`, a link is never followed or
+read; `faccessat` with `AT_SYMLINK_NOFOLLOW` fails on musl with the 4.4 kernel).
+The openrc directories are `/run/openrc/started` and `failed`. `modem-ready` is
+`modem-up`'s public copy of its lock's `ready`, information only (the lock
+directory stays the ownership contract, and `chefui` must not join the `qmux`
+group). An inotify watch on the two directories and `/run/chef` rescans on any
+change; a directory that is missing is tried again every second. A step that
+finishes stays finished.
+
+The display walks the steps in order: the text is the first step not yet shown
+through, with an ellipsis (`Ready` after the last), the count is its number and
+the bar fills one sixth per step shown through. A step that completed out of
+order is passed at once. A failed step shows its failed label for 1.5 s (several
+failures one after the other), counting as done for the bar. After step 6 the
+splash shows `Ready`, `6 / 6`, bar full, for 500 ms, then goes and the hub is
+there (the hub is built before the splash, so `Loading home` is never seen).
+
+The 30 s cap counts from the splash's start, just after the app's start, not from
+boot. When it passes, each step still waiting is logged and the splash goes at once
+(no `Ready`). That also covers a service that never reaches `started` or `failed`.
+
+**Once per boot.** The splash shows only if `/run/chef/chef-settings/splash-done`
+does not exist, and the app creates that file (0644) when the splash ends, whatever
+the reason. `/run` is fresh at every boot, so `rc-service chef-settings restart` or
+a `kill -9` goes straight to the hub, while a crash during the splash shows it again.
+
+**Input.** Touch is swallowed (no activity, no pulse, nothing reaches the hub). A
+short Power press is the platform default, screen off and on again. Auto-sleep does
+not run while it shows and counts from its end. A boot with `/run/chef/screen/off`
+stays dark with the splash logic running unseen; a wake shows its current state.
+
+**Build line.** `<version> · <commit, 8 hex>`, `+dirty` appended for a dirty build
+(`dev · 7a13e594`), from `/etc/chef/image-info`; empty when it is unreadable.
+
+**Log.** Syslog, in this order (wording is stable, the first boot timeline lines):
+`boot splash: storage ready at 5.02 s`, `boot splash: GPS modem ready at 12.31 s`
+(`failed at` for a failed step; the names are storage, GPS modem, Sensors,
+Bluetooth, Wi-Fi; times are `CLOCK_BOOTTIME`), `boot splash: <label> not finished
+after 30 s` for each step waiting at the cap, and `boot splash: ended at 14.52 s`
+(`(cap)` appended when the cap ended it).
+
+**Captures.** `--fake-state apps/settings/boot-k0.state` (also `boot-k1`, `boot-k6`)
+with `design.state` freezes the splash with K steps done (fake-state key `boot K`),
+no sources, timers, marker or log. A live splash never shows with `--fake-state`
+without `boot K`, nor with `--snapshot`. `host-test` writes the six captures
+(`boot-k{0,1,6}-{dark,light}.ppm`); against the design's
+`B01-<theme>-k<K>.png` (`compare-ref.py`, notch `0-80:262-818` masked) the mean
+difference is 0.14 to 0.18 of 255, no band shifted, band residuals 0.1 to 3.0.
+Tests: `test-bootsteps`, `test-splash`.
 
 ## Boot and crash recovery
 
@@ -765,7 +833,7 @@ lines, usage scan on a 128 KB stack, sysfs address read), `test-timeview` (the
 chronyc client incl. an adversarial held-open pipe), `test-settings` (v1 to v3), `test-als`, `test-alsclient`, `test-prompt`,
 `scripts/tests/test_chef_image_info.py`.
 
-**Reference comparison.** `host-test` writes 61 captures (M5 adds display-auto, display-auto-nosensor and hub-auto in both themes plus display-theme-auto, and the prompt card over P02 in both themes, 9 files): the 52 earlier ones are the 30 below plus sound, time,
+**Reference comparison.** `host-test` writes 67 captures (the six boot splash ones are described in [Boot splash](#boot-splash); the rest are 61: M5 adds display-auto, display-auto-nosensor and hub-auto in both themes plus display-theme-auto, and the prompt card over P02 in both themes, 9 files): the 52 earlier ones are the 30 below plus sound, time,
 time-12h, time-unverified, storage, storage-estimate, storage-ram, storage-calc, about,
 about-unknown and hub-12h (the first 30 are hub, display,
 wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden,

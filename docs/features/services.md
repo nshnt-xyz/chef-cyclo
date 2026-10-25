@@ -126,6 +126,8 @@ Every service but `modem-up` and the one-shot `sensors-up` runs its program in t
 
 ## Boot time
 
+`chef-settings` follows the boot on screen: its [boot splash](system-ui.md#boot-splash) watches the OpenRC `started` and `failed` links, plus `/run/chef/modem-ready` from `modem-up`, and logs when each step finished (`logread | grep 'boot splash'`).
+
 The first `openrc` run of a boot scans every script in `/etc/init.d` into its dependency tree (about 0.35 s for 82 scripts on the phone; the image keeps only its 20), then each service costs about 25 ms to start serially. The order above puts chef-settings, modem-up and udhcpd right after syslog. The baseline before OpenRC (installed pair 9a28e590 + 981d4f03): every inittab child started 6.70 to 6.73 s after boot, chef-settings at 6.73 s, "modem up" about 6 s after init, NetworkManager about 10 s after init. The live check measures the same points.
 
 ## Tests
