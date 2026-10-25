@@ -75,3 +75,11 @@ Live check (coordinator, 2026-10-25 about 16:59 to 17:01 IST)
 
 Open: whether chefui's host-test target (67 captures and the process
 test) should join the root make test.
+
+Installed 2026-10-25 about 17:27 IST (user: "Install it"): clean build of
+bcc5d71 (dirty 0), kernel #24 unchanged. system_a
+out/system_a-0e57a39d.img (sha256 0e57a39d2bb9...1ef7), boot_a
+out/boot-stage1-89af1e83.img (sha256 89af1e83317a...6c20); flashed from
+fastboot (slot a), rebooted. Boot: every service started; splash from
+7.19 s to 18.25 s (GPS modem 13.17 s, Wi-Fi 17.75 s). Fallback: the
+previous pair e4bcd986 + eac67a74.

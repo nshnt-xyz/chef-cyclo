@@ -237,4 +237,4 @@ Live check on a RAM image of the tree (2026-10-25, nothing flashed): the
 splash showed from `chef-settings`' start at 10.9 s to 20.9 s since boot,
 waiting on the modem (ready at 16.45 s) and NetworkManager (20.37 s);
 captures matched the design states; a restart and a `kill -9` went straight
-to the hub. Not installed. Record: [log](../../logs/boot-splash-2026-10-25.txt).
+to the hub. Installed the same day as `0e57a39d` + `89af1e83`. Record: [log](../../logs/boot-splash-2026-10-25.txt).
