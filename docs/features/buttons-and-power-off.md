@@ -63,7 +63,7 @@ Gestures are `<button>.short`, `.double`, `.long` for `power`, `volup`, and `vol
 | (connect) | `{"type":"hello","daemon":"buttond","proto":1}` |
 | `claim G` | `{"type":"ok","cmd":"claim","gesture":"G"}` |
 | `release G` | `{"type":"ok","cmd":"release","gesture":"G"}`, also when G was not claimed |
-| `watch` | `{"type":"ok","cmd":"watch"}`; from then on every gesture, without suppressing any default |
+| `watch` | `{"type":"ok","cmd":"watch"}`; from then on every gesture and every key line, without suppressing any default |
 | `status` | `{"type":"status","buttons":{"power":"up","volup":"up","voldown":"down"},"long_ms":1500,"double_ms":300,"poweroff_hold_ms":1500,"poweroff":"idle","claims":{"power.short":1},"watchers":0,"uinput":{"keys":true,"ff":true},"ff":"idle"}` |
 
 In `status`, `buttons` holds each key's state (`up` or `down`), `poweroff` the shutdown state machine (`idle`, `armed` after the first buzz, `ready` after the second), `claims` the number of connections claiming each claimed gesture (`{}` when none), `watchers` the number of watching connections, `uinput` which of the two uinput devices exist (`keys`: `chef-buttons`, `ff`: `chef-vibrator`) and `ff` whether an effect plays (`idle` or `playing`). `uinput` and `ff` are new since 2026-10-24 and kept proto 1.
@@ -74,7 +74,30 @@ Event, to every claimant of the gesture and every watcher, when it fires:
 {"type":"gesture","gesture":"power.short"}
 ```
 
-`long` fires at the hold threshold while the key is still down; its release emits nothing. A chord fires on its second press and swallows both releases.
+`long` fires at the hold threshold while the key is still down; its release fires no gesture. A chord fires on its second press and swallows both releases (no gesture; each still sends its `up`).
+
+Key event (2026-10-25), for a client that draws a ring on the press, fills it while the key is held and cancels it on an early release:
+
+```json
+{"type":"key","button":"power","state":"down"}
+```
+
+`button` is `power`, `volup` or `voldown`; `state` is `down` (the recognizer accepted a press), `held` (the hold reached `long_ms`, at the moment `<button>.long` fires, whether or not anyone claims it; not sent when a chord consumed the press) or `up` (the recognizer accepted a release). A release of a key held since before buttond started, a duplicate press and autorepeats send nothing.
+
+Audience, at the moment a line is sent: every watcher and every connection claiming any gesture that uses the button (its short, double and long, and each chord it is part of). A connection claiming only `volup.*` gets no `power` key lines. Claims can change mid-hold, so a client may see `held` or `up` without the `down`; clients ignore that. Like every line, a key line a full queue will not take drops the client, claims and all.
+
+Order, per connection: a key line comes after every gesture fired before its event and before every gesture its own event fires; `held` comes right before its `.long` gesture line. Every deadline that passed before an event fires before the event is fed, so a late `.long` goes out (with its `held`) before the release's `up`.
+
+| Input | Lines to a watcher |
+|---|---|
+| Power tap, `.double` not armed | `down`, `up`, gesture `power.short` |
+| Power tap, `.double` armed | `down`, `up`, then gesture `power.short` `double_ms` later |
+| Power double tap (armed) | `down`, `up`, `down`, `up`, gesture `power.double` |
+| Power held 2 s | `down`, `held`, gesture `power.long`, then `up` at the release |
+| Power held past `long_ms`, release read before the loop's tick ran | `down`, `held`, gesture `power.long`, `up` |
+| VolUp held, then Power pressed (chord) | `volup` `down`, `power` `down`, gesture `power+volup`, then each `up` |
+
+A press arriving after an armed double window expired, before the loop's own tick ran, fires the pending `power.short` first and starts a new sequence. Likewise a press of the other button after a held key passed `long_ms`, before the tick ran, fires that key's `.long` first and is no chord. Both edges match what an on-time tick would have done. The type is new and keeps proto 1. `buttond watch` and `buttond claim` print key lines like any other line.
 
 Errors:
 
@@ -98,6 +121,6 @@ Unplug USB if the phone should stay off: the cable powers it back on after shutd
 
 ## Modify and verify
 
-Run `make -C tools/buttond test`; `tools/buttond/tests/test_buttond.c` covers gestures, every reply, error and event of the socket contract, claims, a slow claimant being dropped, dispatch, screen toggling, shutdown arm/cancel/release using injected actions, the passthrough decision (each gesture claimed alone against each button, claims between press and release, repeats, a claimant dying mid-press) and the force-feedback playback (uploads, play counts, delay, stops, erase while playing, gain and magnitude 0, the length 0 re-arm, the replacing play's 0, a buttond buzz ending an effect) with an injected clock and motor, also under ASan/UBSan. No host test opens `/dev/uinput`: making the devices, writing the passed keys and the uinput upload/erase round trip, and the `BUS_VIRTUAL` skip are for the live check. The socket code itself is `tools/common/` ([local socket protocol](local-sockets.md#shared-code-toolscommon)). These tests do not power off the host. Rebuild the baseline initramfs and boot image.
+Run `make -C tools/buttond test`; `tools/buttond/tests/test_buttond.c` covers gestures, every reply, error and event of the socket contract, the key lines (ordering table, audience, edges, queue overflow, the double-window edge, the power-off default unchanged), claims, a slow claimant being dropped, dispatch, screen toggling, shutdown arm/cancel/release using injected actions, the passthrough decision (each gesture claimed alone against each button, claims between press and release, repeats, a claimant dying mid-press) and the force-feedback playback (uploads, play counts, delay, stops, erase while playing, gain and magnitude 0, the length 0 re-arm, the replacing play's 0, a buttond buzz ending an effect) with an injected clock and motor, also under ASan/UBSan. No host test opens `/dev/uinput`: making the devices, writing the passed keys and the uinput upload/erase round trip, and the `BUS_VIRTUAL` skip are for the live check. The socket code itself is `tools/common/` ([local socket protocol](local-sockets.md#shared-code-toolscommon)). These tests do not power off the host. Rebuild the baseline initramfs and boot image.
 
 Live checks require a person at the phone: toggle both ways, watch volume/chord events, claim/release a gesture, cancel an armed shutdown, then verify shutdown on release after the second buzz. Stream evidence to the host before shutdown because phone RAM will be lost. See the [2026-09-19 build-log entries](../build-log.md) for results and [UI/recorder integration](../next-steps/ui-and-ride-app.md) for remaining work.

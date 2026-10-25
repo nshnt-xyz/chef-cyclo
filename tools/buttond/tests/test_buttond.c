@@ -16,7 +16,10 @@
  * erase while playing, gain and magnitude 0, length 0 re-armed every 15 s,
  * a replacing play writing 0 first, updates and gain changes while playing,
  * buttond's own buzz ending an effect, the status members) with a
- * recording vibrator hook. buttond.c is
+ * recording vibrator hook, and the key lines (the ordering table as a
+ * watcher sees it, the audience per button, releases and repeats the
+ * recognizer ignores, a mid-hold claim, a full queue dropping the client,
+ * the double-window and chord edges, the power-off default unchanged). buttond.c is
  * included with BUTTOND_NO_MAIN; no evdev device, socket path or process
  * is touched and nothing powers off. Build/run: see tools/buttond/Makefile
  * ("make test").
@@ -630,7 +633,8 @@ static void test_server_dispatch(void)
 	CHECK(linesrv_fd(a.c) == -1);
 	CHECK(strcmp(last_log(), "volup.long unclaimed: no default") == 0);
 	recv_line(w.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"volup.long\"}\n") == 0);	/* the watcher saw it */
+	CHECK(strcmp(buf, "{\"type\":\"key\",\"button\":\"volup\",\"state\":\"held\"}\n"
+			  "{\"type\":\"gesture\",\"gesture\":\"volup.long\"}\n") == 0);	/* the watcher saw it */
 
 	/* end to end through the recognizer: two events in one drain */
 	recog_key(&s.recog, BTN_POWER, 1, 0);
@@ -757,7 +761,8 @@ static void test_server_poweroff(void)
 	server_tick(&s, 51500);
 	CHECK(s.po_state == PO_IDLE);
 	recv_line(a.fd, buf, sizeof(buf));
-	CHECK(strcmp(buf, "{\"type\":\"gesture\",\"gesture\":\"power.long\"}\n") == 0);
+	CHECK(strcmp(buf, "{\"type\":\"key\",\"button\":\"power\",\"state\":\"held\"}\n"
+			  "{\"type\":\"gesture\",\"gesture\":\"power.long\"}\n") == 0);
 	CHECK(vib_read(vib) == -1);
 	recog_key(&s.recog, BTN_POWER, 0, 55000);
 	server_drain(&s, 55000);
@@ -795,6 +800,382 @@ static void test_server_poweroff(void)
 	unlink(vib);
 	server_fini(&s);
 	rmdir(dir);
+}
+
+/* ---- server: key lines (down, held, up) ---- */
+
+#define KEY(b, st) "{\"type\":\"key\",\"button\":\"" b "\",\"state\":\"" st "\"}\n"
+#define GES(g) "{\"type\":\"gesture\",\"gesture\":\"" g "\"}\n"
+
+/* Everything the peer has been sent so far must be exactly WANT. */
+static void expect_lines(struct peer *p, const char *want, int line)
+{
+	char buf[2048];
+
+	recv_line(p->fd, buf, sizeof(buf));
+	CHECK(strcmp(buf, want) == 0);
+	if (strcmp(buf, want))
+		fprintf(stderr, "  line %d: wanted\n%sgot\n%s", line, want, buf);
+}
+#define EXPECT(p, want) expect_lines(&(p), want, __LINE__)
+
+/* One main-loop pass after the reads. */
+static void loop_tick(struct server *s, int64_t now)
+{
+	recog_tick(&s->recog, now);
+	server_drain(s, now);
+	server_tick(s, now);
+}
+
+struct keys_env {
+	struct server s;
+	char dir[32];
+	char off[64];
+	char vib[64];
+};
+
+static void keys_env_init(struct keys_env *e)
+{
+	FILE *f;
+
+	snprintf(e->dir, sizeof(e->dir), "/tmp/buttond-test-XXXXXX");
+	CHECK(mkdtemp(e->dir) != NULL);
+	snprintf(e->off, sizeof(e->off), "%s/screen-off", e->dir);
+	snprintf(e->vib, sizeof(e->vib), "%s/vibrator", e->dir);
+	f = fopen(e->vib, "w");
+	if (f)
+		fclose(f);
+	CHECK(server_init(&e->s, 1500, 300, test_log) == 0);
+	e->s.off_path = e->off;
+	e->s.vib_path = e->vib;
+	e->s.poweroff = test_poweroff;
+}
+
+static void keys_env_fini(struct keys_env *e)
+{
+	server_fini(&e->s);
+	unlink(e->off);
+	unlink(e->vib);
+	rmdir(e->dir);
+}
+
+static struct peer keys_peer(struct keys_env *e, const char *cmd)
+{
+	struct peer p = connect_peer(&e->s);
+	char buf[256];
+
+	if (cmd) {
+		say(&e->s, &p, cmd);
+		recv_line(p.fd, buf, sizeof(buf));
+	}
+	return p;
+}
+
+/* The ordering table of docs/features/buttons-and-power-off.md, as a watcher
+ * sees it. */
+static void test_keys_ordering(void)
+{
+	struct keys_env e;
+	struct server *s = &e.s;
+	struct peer w, d;
+
+	keys_env_init(&e);
+	g_poweroffs = 0;
+	w = keys_peer(&e, "watch\n");
+
+	/* tap, .double not armed */
+	server_key(s, BTN_POWER, 1, 1000);
+	EXPECT(w, KEY("power", "down"));
+	server_key(s, BTN_POWER, 0, 1050);
+	EXPECT(w, KEY("power", "up") GES("power.short"));
+	unlink(e.off);
+
+	/* tap, .double armed: the short comes double_ms later */
+	d = keys_peer(&e, "claim power.double\n");
+	server_key(s, BTN_POWER, 1, 2000);
+	server_key(s, BTN_POWER, 0, 2050);
+	EXPECT(w, KEY("power", "down") KEY("power", "up"));
+	loop_tick(s, 2349);
+	EXPECT(w, "");
+	loop_tick(s, 2350);
+	EXPECT(w, GES("power.short"));
+	unlink(e.off);
+
+	/* double tap (d also saw the armed tap above) */
+	EXPECT(d, KEY("power", "down") KEY("power", "up"));
+	server_key(s, BTN_POWER, 1, 3000);
+	server_key(s, BTN_POWER, 0, 3050);
+	server_key(s, BTN_POWER, 1, 3100);
+	server_key(s, BTN_POWER, 0, 3150);
+	EXPECT(w, KEY("power", "down") KEY("power", "up") KEY("power", "down") KEY("power", "up")
+		  GES("power.double"));
+	EXPECT(d, KEY("power", "down") KEY("power", "up") KEY("power", "down") KEY("power", "up")
+		  GES("power.double"));
+	EXPECT(d, "");
+
+	/* held 2 s: held right before power.long, up at the release */
+	server_key(s, BTN_POWER, 1, 4000);
+	EXPECT(w, KEY("power", "down"));
+	loop_tick(s, 5499);
+	EXPECT(w, "");
+	loop_tick(s, 5500);
+	EXPECT(w, KEY("power", "held") GES("power.long"));
+	server_key(s, BTN_POWER, 0, 6000);
+	EXPECT(w, KEY("power", "up"));
+	loop_tick(s, 6000);
+	CHECK(s->po_state == PO_IDLE && g_poweroffs == 0);
+	EXPECT(w, "");
+
+	/* held past long_ms, release read before the loop's tick ran */
+	server_key(s, BTN_POWER, 1, 10000);
+	server_key(s, BTN_POWER, 0, 12000);
+	EXPECT(w, KEY("power", "down") KEY("power", "held") GES("power.long") KEY("power", "up"));
+
+	/* chord: VolUp held, then Power */
+	server_key(s, BTN_VOLUP, 1, 20000);
+	server_key(s, BTN_POWER, 1, 20100);
+	server_key(s, BTN_VOLUP, 0, 20200);
+	server_key(s, BTN_POWER, 0, 20250);
+	EXPECT(w, KEY("volup", "down") KEY("power", "down") GES("power+volup")
+		  KEY("volup", "up") KEY("power", "up"));
+	loop_tick(s, 20300);
+	CHECK(g_poweroffs == 0);
+	EXPECT(w, "");
+
+	close(w.fd);
+	linesrv_drop(w.c);
+	close(d.fd);
+	linesrv_drop(d.c);
+	keys_env_fini(&e);
+}
+
+/* Who gets which button's lines. */
+static void test_keys_audience(void)
+{
+	struct keys_env e;
+	struct server *s = &e.s;
+	struct peer w, c1, c2, c3;
+
+	keys_env_init(&e);
+	w = keys_peer(&e, "watch\n");
+	c1 = keys_peer(&e, "claim power.short\n");
+	c2 = keys_peer(&e, "claim volup.long\n");
+	c3 = keys_peer(&e, "claim power+volup\n");
+
+	server_key(s, BTN_POWER, 1, 1000);
+	server_key(s, BTN_POWER, 0, 1050);
+	EXPECT(w, KEY("power", "down") KEY("power", "up") GES("power.short"));
+	EXPECT(c1, KEY("power", "down") KEY("power", "up") GES("power.short"));
+	EXPECT(c2, "");		/* volup.long only: no power lines */
+	EXPECT(c3, KEY("power", "down") KEY("power", "up"));
+	CHECK(access(e.off, F_OK) != 0);	/* claimed: no toggle */
+
+	server_key(s, BTN_VOLUP, 1, 2000);
+	server_key(s, BTN_VOLUP, 0, 2050);
+	EXPECT(w, KEY("volup", "down") KEY("volup", "up") GES("volup.short"));
+	EXPECT(c1, "");
+	EXPECT(c2, KEY("volup", "down") KEY("volup", "up"));
+	EXPECT(c3, KEY("volup", "down") KEY("volup", "up"));
+
+	server_key(s, BTN_VOLDOWN, 1, 3000);
+	server_key(s, BTN_VOLDOWN, 0, 3050);
+	EXPECT(w, KEY("voldown", "down") KEY("voldown", "up") GES("voldown.short"));
+	EXPECT(c1, "");
+	EXPECT(c2, "");
+	EXPECT(c3, "");
+
+	/* the chord goes to its claimant with both buttons' lines */
+	server_key(s, BTN_VOLUP, 1, 4000);
+	server_key(s, BTN_POWER, 1, 4100);
+	EXPECT(c3, KEY("volup", "down") KEY("power", "down") GES("power+volup"));
+	EXPECT(c1, KEY("power", "down"));
+	EXPECT(c2, KEY("volup", "down"));
+	server_key(s, BTN_POWER, 0, 4200);
+	server_key(s, BTN_VOLUP, 0, 4250);
+	EXPECT(c3, KEY("power", "up") KEY("volup", "up"));
+	EXPECT(w, KEY("volup", "down") KEY("power", "down") GES("power+volup")
+		  KEY("power", "up") KEY("volup", "up"));
+
+	close(w.fd);
+	linesrv_drop(w.c);
+	close(c1.fd);
+	linesrv_drop(c1.c);
+	close(c2.fd);
+	linesrv_drop(c2.c);
+	close(c3.fd);
+	linesrv_drop(c3.c);
+	keys_env_fini(&e);
+}
+
+/* Releases and repeats the recognizer ignores send nothing; a claim made
+ * mid-hold sees held and up only. */
+static void test_keys_edges(void)
+{
+	struct keys_env e;
+	struct server *s = &e.s;
+	struct peer w, x;
+
+	keys_env_init(&e);
+	w = keys_peer(&e, "watch\n");
+
+	/* released key that was held at startup */
+	server_key(s, BTN_POWER, 0, 100);
+	EXPECT(w, "");
+	/* repeats and a duplicate press */
+	server_key(s, BTN_VOLUP, 1, 1000);
+	server_key(s, BTN_VOLUP, 2, 1500);
+	server_key(s, BTN_VOLUP, 2, 1600);
+	server_key(s, BTN_VOLUP, 1, 1700);
+	EXPECT(w, KEY("volup", "down"));
+	server_key(s, BTN_VOLUP, 0, 1800);
+	server_key(s, BTN_VOLUP, 0, 1850);
+	EXPECT(w, KEY("volup", "up") GES("volup.short"));
+
+	/* a claim made mid-hold */
+	server_key(s, BTN_POWER, 1, 5000);
+	EXPECT(w, KEY("power", "down"));
+	x = keys_peer(&e, "claim power.long\n");
+	loop_tick(s, 6500);
+	EXPECT(x, KEY("power", "held") GES("power.long"));
+	EXPECT(w, KEY("power", "held") GES("power.long"));
+	CHECK(s->po_state == PO_IDLE);		/* claimed: no power-off arming */
+	server_key(s, BTN_POWER, 0, 7000);
+	EXPECT(x, KEY("power", "up"));
+	EXPECT(w, KEY("power", "up"));
+
+	close(w.fd);
+	linesrv_drop(w.c);
+	close(x.fd);
+	linesrv_drop(x.c);
+	keys_env_fini(&e);
+}
+
+/* A queue that does not take a key line drops the client, claims and all. */
+static void test_keys_overflow(void)
+{
+	struct keys_env e;
+	struct server *s = &e.s;
+	struct peer a;
+	int i, sz = 1;
+
+	keys_env_init(&e);
+	a = keys_peer(&e, "claim volup.long\n");
+	setsockopt(linesrv_fd(a.c), SOL_SOCKET, SO_SNDBUF, &sz, sizeof(sz));
+	for (i = 0; i < 100000 && linesrv_fd(a.c) >= 0; i++) {
+		/* volup.short is not claimed: only key lines go to a */
+		server_key(s, BTN_VOLUP, 1, 1000 + 10 * i);
+		server_key(s, BTN_VOLUP, 0, 1005 + 10 * i);
+	}
+	CHECK(linesrv_fd(a.c) == -1);
+	CHECK(i > BUTTOND_OUTQ / 120);		/* the queue took its share first */
+	CHECK(server_claim_count(s, GES_VOLUP_LONG) == 0);
+	close(a.fd);
+	keys_env_fini(&e);
+}
+
+/* A press after an armed double window expired, before the loop's own tick
+ * ran: the pending short fires first and the press starts a new sequence. */
+static void test_keys_double_window_edge(void)
+{
+	struct keys_env e;
+	struct server *s = &e.s;
+	struct peer w, d;
+
+	keys_env_init(&e);
+	w = keys_peer(&e, "watch\n");
+	d = keys_peer(&e, "claim power.double\n");
+	server_key(s, BTN_POWER, 1, 0);
+	server_key(s, BTN_POWER, 0, 50);
+	EXPECT(w, KEY("power", "down") KEY("power", "up"));
+	server_key(s, BTN_POWER, 1, 400);		/* window ended at 350 */
+	EXPECT(w, GES("power.short") KEY("power", "down"));
+	server_key(s, BTN_POWER, 0, 450);
+	EXPECT(w, KEY("power", "up"));
+	loop_tick(s, 750);
+	EXPECT(w, GES("power.short"));		/* a lone tap again, never a double */
+	EXPECT(d, KEY("power", "down") KEY("power", "up") KEY("power", "down") KEY("power", "up"));
+
+	close(w.fd);
+	linesrv_drop(w.c);
+	close(d.fd);
+	linesrv_drop(d.c);
+	keys_env_fini(&e);
+}
+
+/* A press of the other button after a held key passed long_ms, before the
+ * loop's own tick ran: the key's .long fires first (as an on-time tick
+ * would have), so the press is no chord. */
+static void test_keys_chord_edge(void)
+{
+	struct keys_env e;
+	struct server *s = &e.s;
+	struct peer w;
+
+	keys_env_init(&e);
+	g_poweroffs = 0;
+	w = keys_peer(&e, "watch\n");
+
+	/* VolUp held past long_ms, then Power */
+	server_key(s, BTN_VOLUP, 1, 0);
+	server_key(s, BTN_POWER, 1, 1600);
+	EXPECT(w, KEY("volup", "down") KEY("volup", "held") GES("volup.long") KEY("power", "down"));
+	server_key(s, BTN_POWER, 0, 1700);
+	EXPECT(w, KEY("power", "up") GES("power.short"));
+	server_key(s, BTN_VOLUP, 0, 1800);
+	EXPECT(w, KEY("volup", "up"));
+	unlink(e.off);
+
+	/* Power held past long_ms, then VolUp: the unclaimed power.long arms */
+	server_key(s, BTN_POWER, 1, 5000);
+	server_key(s, BTN_VOLUP, 1, 6600);
+	CHECK(s->po_state == PO_ARMED);
+	EXPECT(w, KEY("power", "down") KEY("power", "held") GES("power.long") KEY("volup", "down"));
+	server_key(s, BTN_VOLUP, 0, 6700);
+	EXPECT(w, KEY("volup", "up") GES("volup.short"));
+	server_key(s, BTN_POWER, 0, 7000);
+	loop_tick(s, 7000);
+	CHECK(s->po_state == PO_IDLE && g_poweroffs == 0);
+	EXPECT(w, KEY("power", "up"));
+
+	close(w.fd);
+	linesrv_drop(w.c);
+	keys_env_fini(&e);
+}
+
+/* The power-off default behaves the same with key lines on. */
+static void test_keys_poweroff_unchanged(void)
+{
+	struct keys_env e;
+	struct server *s = &e.s;
+	struct peer w;
+
+	keys_env_init(&e);
+	g_poweroffs = 0;
+	w = keys_peer(&e, "watch\n");
+
+	/* arm, then cancel by an early release */
+	server_key(s, BTN_POWER, 1, 0);
+	loop_tick(s, 1500);
+	CHECK(s->po_state == PO_ARMED && vib_read(e.vib) == 100);
+	server_key(s, BTN_POWER, 0, 1600);
+	loop_tick(s, 1600);
+	CHECK(s->po_state == PO_IDLE && g_poweroffs == 0);
+	EXPECT(w, KEY("power", "down") KEY("power", "held") GES("power.long") KEY("power", "up"));
+
+	/* arm, ready, power off on the release */
+	server_key(s, BTN_POWER, 1, 3000);
+	loop_tick(s, 4500);
+	CHECK(s->po_state == PO_ARMED);
+	loop_tick(s, 6000);
+	CHECK(s->po_state == PO_READY && vib_read(e.vib) == 300);
+	server_key(s, BTN_POWER, 0, 6100);
+	loop_tick(s, 6100);
+	CHECK(s->po_state == PO_IDLE && g_poweroffs == 1);
+	EXPECT(w, KEY("power", "down") KEY("power", "held") GES("power.long") KEY("power", "up"));
+
+	close(w.fd);
+	linesrv_drop(w.c);
+	keys_env_fini(&e);
 }
 
 /* ---- key passthrough ---- */
@@ -1227,6 +1608,13 @@ int main(void)
 	test_server_slow_claimant();
 	test_server_dispatch();
 	test_server_poweroff();
+	test_keys_ordering();
+	test_keys_audience();
+	test_keys_edges();
+	test_keys_overflow();
+	test_keys_double_window_edge();
+	test_keys_chord_edge();
+	test_keys_poweroff_unchanged();
 	test_passthrough();
 	test_ff_upload();
 	test_ff_play();

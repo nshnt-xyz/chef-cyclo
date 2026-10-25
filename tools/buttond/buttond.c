@@ -18,8 +18,8 @@
  *   claim G            {"type":"ok","cmd":"claim","gesture":"G"}
  *   release G          {"type":"ok","cmd":"release","gesture":"G"}
  *                      (also when G was not claimed)
- *   watch              {"type":"ok","cmd":"watch"}  (every gesture from now
- *                      on; suppresses no default)
+ *   watch              {"type":"ok","cmd":"watch"}  (every gesture and key
+ *                      line from now on; suppresses no default)
  *   status             {"type":"status","buttons":{"power":"up",...},
  *                      "long_ms":1500,"double_ms":300,"poweroff_hold_ms":1500,
  *                      "poweroff":"idle|armed|ready","claims":{"G":N,...},
@@ -28,6 +28,11 @@
  *                      devices below exist; ff: an effect plays)
  *   event              {"type":"gesture","gesture":"power.long"} to every
  *                      claimant of G and every watcher
+ *   key event          {"type":"key","button":"power","state":"down"} (also
+ *                      "held" and "up"; buttons power, volup, voldown) to
+ *                      every watcher and every connection claiming any
+ *                      gesture that uses the button (its short, double,
+ *                      long and each chord it is part of)
  *   errors             {"type":"error","cmd":"claim","reason":"unknown
  *                      gesture","gesture":"x"}, {...,"reason":"bad
  *                      arguments"}, {"type":"error","cmd":"x","reason":
@@ -35,6 +40,18 @@
  *                      bytes, JSON-escaped), and from the library "line too
  *                      long" (over 127 bytes) and "too many clients" (the
  *                      17th connection, then closed)
+ *
+ * Key lines: `down` when the recognizer accepted a press, `up` when it
+ * accepted a release (a release of a key held since before buttond started
+ * is ignored, and autorepeats send nothing), `held` at the very moment the
+ * hold reaches the long threshold and the recognizer fires <button>.long,
+ * whether or not anyone claims it (not sent when a chord consumed the
+ * press). Per connection the lines follow the events: a key line comes
+ * after every gesture fired before its event and before every gesture its
+ * own event fires, and `held` comes right before its .long gesture line.
+ * Claims can change mid-hold, so a client may see `held` or `up` without
+ * the `down`. Like every line, a key line the queue will not take drops the
+ * client.
  *
  * Empty lines are ignored and a CR before the newline is stripped. A
  * client that lets its 4096-byte output queue overflow is dropped. A
@@ -45,9 +62,9 @@
  *
  * Gestures: <button>.short, <button>.double, <button>.long for power,
  * volup, voldown; chords power+volup and power+voldown (fire on the second
- * press; both releases are then swallowed). `long` fires at the hold
+ * press; both releases are then swallowed, no gesture). `long` fires at the hold
  * threshold while the key is still down (so a consumer can buzz before the
- * release), and that release emits nothing. Double detection costs a
+ * release), and that release fires no gesture. Double detection costs a
  * `double_ms` wait after the first release before a lone tap can be called
  * `short`, so it is armed for a button only while some client claims that
  * button's `.double`; otherwise `short` fires on release immediately and
@@ -955,12 +972,54 @@ static void server_default_action(struct server *s, enum gesture g, int64_t now)
 	}
 }
 
+/* Every gesture that uses button b: its short, double and long, and each
+ * chord it is part of. */
+static uint32_t button_gestures(enum button b)
+{
+	uint32_t m = 1u << gesture_of(b, KIND_SHORT) | 1u << gesture_of(b, KIND_DOUBLE) |
+		     1u << gesture_of(b, KIND_LONG);
+
+	if (b != BTN_VOLDOWN)
+		m |= 1u << GES_POWER_VOLUP;
+	if (b != BTN_VOLUP)
+		m |= 1u << GES_POWER_VOLDOWN;
+	return m;
+}
+
+/* Does this connection take lines about button b: a claim of a gesture that
+ * uses it, or a watch. Slot i must be a live connection. */
+static bool server_audience(const struct server *s, int i, enum button b)
+{
+	return s->clients[i].watch || (s->clients[i].claims & button_gestures(b));
+}
+
+/* One key line to the audience of b. A client that does not take it is
+ * dropped by the library, claims and all. */
+static void server_send_key(struct server *s, enum button b, const char *state)
+{
+	char line[80];
+	int i, n;
+
+	n = snprintf(line, sizeof(line), "{\"type\":\"key\",\"button\":\"%s\",\"state\":\"%s\"}\n",
+		     button_names[b], state);
+	for (i = 0; i < BUTTOND_MAX_CLIENTS; i++) {
+		struct linesrv_client *c = linesrv_client_at(s->srv, i);
+
+		if (c && server_audience(s, i, b))
+			linesrv_send(c, line, (size_t)n);
+	}
+}
+
 /* Deliver one fired gesture: claimants and watchers, else the default. */
 static void server_dispatch(struct server *s, enum gesture g, int64_t now)
 {
 	char line[64];
 	int i, n, claimed = 0;
 
+	/* the hold reached long_ms: tell the button's audience before the
+	 * gesture itself, whether or not anyone claims .long */
+	if (g == GES_POWER_LONG || g == GES_VOLUP_LONG || g == GES_VOLDOWN_LONG)
+		server_send_key(s, (enum button)(g / 3), "held");
 	n = snprintf(line, sizeof(line), "{\"type\":\"gesture\",\"gesture\":\"%s\"}\n", gesture_names[g]);
 	for (i = 0; i < BUTTOND_MAX_CLIENTS; i++) {
 		struct linesrv_client *c = linesrv_client_at(s->srv, i);
@@ -988,21 +1047,30 @@ static void server_drain(struct server *s, int64_t now)
 		server_dispatch(s, (enum gesture)g, now);
 }
 
-/* ---------------------------------------------------- key passthrough */
-
-/* Every gesture that uses button b: its short, double and long, and each
- * chord it is part of. */
-static uint32_t button_gestures(enum button b)
+/*
+ * One evdev key event (value 1 press, 0 release, 2 repeat) into the
+ * recognizer, with the key lines around it: first every deadline that
+ * passed before this event fires (a late .long goes out with its `held`
+ * before the release is fed), then the event, then the gestures it fired.
+ * `down` and `up` go out only when the recognizer accepted the press or
+ * release.
+ */
+static void server_key(struct server *s, enum button b, int value, int64_t now)
 {
-	uint32_t m = 1u << gesture_of(b, KIND_SHORT) | 1u << gesture_of(b, KIND_DOUBLE) |
-		     1u << gesture_of(b, KIND_LONG);
+	bool was;
 
-	if (b != BTN_VOLDOWN)
-		m |= 1u << GES_POWER_VOLUP;
-	if (b != BTN_VOLUP)
-		m |= 1u << GES_POWER_VOLDOWN;
-	return m;
+	recog_tick(&s->recog, now);
+	server_drain(s, now);
+	was = s->recog.b[b].down;
+	recog_key(&s->recog, b, value, now);
+	if (!was && s->recog.b[b].down)
+		server_send_key(s, b, "down");
+	else if (was && !s->recog.b[b].down)
+		server_send_key(s, b, "up");
+	server_drain(s, now);
 }
+
+/* ---------------------------------------------------- key passthrough */
 
 /*
  * Does this source key event (value 1 press, 0 release, 2 repeat) go on to
@@ -1538,7 +1606,7 @@ int main(int argc, char **argv)
 						ev[k].value == 1 ? "press" : ev[k].value == 0 ? "release" : "repeat");
 				if (keys_fd >= 0 && server_pass_key(&s, (enum button)b, ev[k].value))
 					uinput_key(keys_fd, ev[k].code, ev[k].value);
-				recog_key(&s.recog, (enum button)b, ev[k].value, now_ms());
+				server_key(&s, (enum button)b, ev[k].value, now_ms());
 			}
 		}
 		if (g_stop)
