@@ -8,7 +8,7 @@ round-1 system design ([design contract](../next-steps/ui-and-ride-app.md#system
 Slice 2 ([spec](../next-steps/system-ui-2-handoff.md)) adds the remaining
 pages milestone by milestone: Wi-Fi, GPS and Bluetooth sensors, and (M4) the four
 device pages below.
-It starts at boot and owns the panel (there is no log screen; read the log
+It starts at boot and owns the panel, showing the [boot splash](#boot-splash) first (there is no log screen; read the log
 with `logread` over USB telnet or SSH). Portrait only. Live-verified on a RAM image on 2026-10-11
 ([evidence](../../logs/system-ui-slice1-2026-10-11.txt)); not installed yet. Source: `tools/chefui/apps/settings/`
 (the app), `tools/chefui/kit/` (tokens, fonts, icons, widgets) and
@@ -674,6 +674,8 @@ backoff or follows D-Bus name changes). A boot that starts with
 `/run/chef/screen/off` stays dark. If `chefui_init()` fails the app sleeps 5 s
 before exiting so respawn does not spin. When it dies (`kill -9` included),
 the lock is released and respawn takes the panel back.
+The first start of a boot shows the [boot splash](#boot-splash); a respawn after
+the splash has ended goes straight to the hub (one during it shows it again).
 
 While the panel is lit the screen layer keeps a marker
 `/run/chef/screen/fb0.lit` (created before every UNBLANK, removed after every
