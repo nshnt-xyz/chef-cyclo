@@ -1,5 +1,5 @@
 /*
- * splash.h - the boot splash (B01, docs/next-steps/boot-splash-handoff.md):
+ * splash.h - the boot splash (B01, docs/archive/boot-splash-handoff.md):
  * a full-panel view above the status bar and the hub with the title, the
  * build line and a six-step progress bar, fed by sys/bootsteps. Shown once
  * per boot (the splash-done marker in the app's run directory), left when

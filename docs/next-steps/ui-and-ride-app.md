@@ -20,7 +20,7 @@ The shared platform layer is implemented and live accepted: display backend, own
 
 The menus' screen policy is implemented in the [system UI](../features/system-ui.md) (it owns screen power and brightness, auto-sleeps). Still open for the ride application: its own policy on ride pages, and a UI restart must not interrupt recording.
 
-Provide a **sunlight and gloves** mode: maximum backlight on request, a high-contrast, big-digit layout, and every riding action reachable from the side buttons because touch through gloves or rain is unreliable. Define always-on versus button-wake policy and the manual brightness override against Auto brightness (a drag while Auto is on is an offset today). Verify sleep/wake, process death, fallback, and clean shutdown before adding the full ride application.
+Make every riding action reachable from the side buttons, because touch through gloves or rain is unreliable. A separate sunlight and gloves layout was dropped on 2026-10-25; bright sun is handled by Light under ALS Auto. Define always-on versus button-wake policy and the manual brightness override against Auto brightness (a drag while Auto is on is an offset today). Verify sleep/wake, process death, fallback, and clean shutdown before adding the full ride application.
 
 ## System UI design
 
@@ -59,7 +59,7 @@ Decided 2026-10-11 (implemented in slice 1 unless noted):
 
 ## Ride application design
 
-Rounds 1 and 2 of the ride app were designed in the same Claude Design project (synced 2026-10-17): `Ride Pre-ride.dc.html` (built from `PreRide.dc.html`) and `Ride In-ride.dc.html` (built from `RideScreen.dc.html`). They reuse the system UI contract above: 1080×2246 portrait, the 96 px status bar, Barlow, the Industry palette, Lucide icons and the glove target sizes. Each screen is drawn in dark, light and a new **sunlight and gloves** palette. As with the system screens, nothing is generated; every screen is rebuilt by hand on chefui.
+Rounds 1 and 2 of the ride app were designed in the same Claude Design project (synced 2026-10-17): `Ride Pre-ride.dc.html` (built from `PreRide.dc.html`) and `Ride In-ride.dc.html` (built from `RideScreen.dc.html`). They reuse the system UI contract above: 1080×2246 portrait, the 96 px status bar, Barlow, the Industry palette, Lucide icons and the glove target sizes. Each screen is drawn in dark and light (the sunlight and gloves variants were dropped on 2026-10-25). As with the system screens, nothing is generated; every screen is rebuilt by hand on chefui.
 
 Pre-ride (R01 to R03, S01 to S03):
 
@@ -78,17 +78,27 @@ Riding (round 2):
 - **Finish**: hold Power. A 540 px ring fills over the overlay ("Keep holding Power / Let go to keep riding"), and releasing cancels.
 - **Summary**: "Ride saved" with a "Waiting to upload" tag (the Wi-Fi Sync count), a track thumbnail, distance, ride time, average speed, time in each HR zone (Z1 to Z5 bars) and a Done button.
 
-Sunlight and gloves (S01 to S03, S10 to S13): the same states with no header or subtitles, 96 px labels, 280 px values, 6 px lines, a 640 px ring, no accent, and Lap and Pause 224 px tall. Only the Stacked overview is offered, with speed, heart rate and time. Banners are 240 px and inverted (fg fill), with short caps text such as PAUSED, LAP 4 or BATT 14%. The palette is near black on white: bg `#fbfbfc`, surface `#e7e7ea`, fg and accent `#000000`, muted `#2b2b2d`, lines `#d4d4d7`/`#1d1f20`, on-accent `#fbfbfc`, warn `oklch(0.45 0.14 45)`.
+Additions to the kit: Barlow Condensed 600 at 32 px; Lucide `heart-pulse`, `bike`, `check`, `play`, `pause`, `square`, `flag`, `mountain`, `navigation`, `navigation-2`, `battery-low` and `plus` (registration marks).
 
-Additions to the kit: Barlow Condensed 600 at 32 and 120 px; Lucide `heart-pulse`, `bike`, `check`, `play`, `pause`, `square`, `flag`, `mountain`, `navigation`, `navigation-2`, `battery-low` and `plus` (registration marks); a sunlight token set beside dark and light.
+Ride slice 1 follows the whole [standard interfaces plan](standard-interfaces.md#order) (user decision 2026-10-18). Its buttond part, the press and release events below, is added to buttond's JSON protocol in slice 1 itself.
 
-Ride slice 1 follows the whole [standard interfaces plan](standard-interfaces.md#order) (user decision 2026-10-18). Its buttond part, the hold-progress events, is added to buttond's JSON protocol in slice 1 itself. Decisions needed before implementation:
+Decided 2026-10-25 (the user accepted the coordinator's proposals):
 
-1. **Hold Power to finish needs press and release from buttond.** Today buttond only reports completed gestures, so a client cannot draw a ring that cancels on release. Options are a new hold-progress stream for a claimed `power.long`, or raw `power.down`/`power.up` events. While the recorder claims `power.long` the 3 s software power-off is suppressed. The finish hold must complete well before the PM660 S1 timer (6.7 s, hard reset at about 8.7 s).
-2. **Gloves versus touch-only controls.** The design makes start, Lap and Pause touch only, but the gloves requirement above wants every riding action on the side buttons. The earlier proposal (`power.double` for pause) is not in the design. Choose button paths for start, Lap and Pause, and decide what a short Power press does on ride pages (menus use it for Back or screen off).
-3. **Sunlight mode versus the Light theme.** The system UI decided that Light doubles as the sunlight theme under ALS Auto. The ride design adds a separate sunlight and gloves palette and layout. Decide whether it is a manual ride mode, an ALS step beyond Light, or both, and whether it also applies to the system pages.
-4. **Climb before the DEM ships.** Hide the Climb page and the climb field until map terrain data exists, or show smoothed GPS altitude labelled as such.
-5. **HR zones** need a max HR or zone table setting (for the zone label, the zone alert and the summary bars). It is not designed yet, and neither is ride settings (preset choice, auto-pause, alerts).
+1. **Hold Power to finish: press and release events from buttond.** Today a claimant only gets completed gestures (`power.long` fires at the 1.5 s threshold and its release emits nothing), and the step 9 passthrough on `chef-buttons` passes no Power press while any Power gesture is claimed, so neither path lets a client draw a ring that cancels on release. buttond adds `{"type":"key","button":"power","state":"down"}` and `"up"` lines, sent to every connection that claims a gesture of that button and to watchers. It is a new type, so it stays proto 1. The ring starts on `down`, completes on buttond's `power.long` (the same `long_ms`, 1.5 s) and cancels on an `up` before it. The recorder claims `power.long`, which suppresses the 3 s software power-off, and finishes the ride on it, so a finish works with the UI dead too; the UI already claims `power.short` and so gets the key lines. The finish completes far from the PM660 S1 timer (6.7 s, hard reset at about 8.7 s). A finish hold other than `long_ms` would need a per-claim hold time (not planned).
+2. **Gloves.** On ride pages the volume rocker steps the pages (as designed), `power.double` is Pause and Resume, `volup.long` is Lap, and a short Power press turns the screen off and on. Start stays a touch hold (the rider is stopped). The touch Lap and Pause buttons stay as designed.
+3. **Sunlight and gloves: dropped** (user, 2026-10-25, after the new design round left it out of the design pages). Bright sun is handled by Light under ALS Auto, as on the system pages; gloves by the button paths of item 2 and the 192 px targets. The `sun` variants still inside `PreRide.dc.html` and `RideScreen.dc.html` are not built.
+4. **Climb** (the page and the climb field) is hidden until the map's terrain data (DEM) exists.
+5. **HR zones** come from one max-HR setting with the standard five zone percentages. Ride settings stays minimal in slice 1: overview preset, auto-pause on or off, max HR.
+
+Design round of 2026-10-25 (synced into `~/chef-cyclo-evidence/design-sync-20261025/`, notes in its `NOTES.md`): a boot splash (B01) and **Home** (H01 to H06) as the boot target, with a map, a time, date and weather pill, Last ride, This week, Routes and History tiles and a pinned Start ride; the settings hub page (P01) replaced by two pull-down panes from the status bar's ears, Readiness (left) and Settings (right), on Home, Pre-ride and every ride screen. The user chose to build the pieces under these screens before the screens themselves, starting with the boot splash: **done 2026-10-25** ([handoff and result](../archive/boot-splash-handoff.md)). Proposed order for the rest (not yet confirmed): buttond's key lines, the ride recorder, the riding-time-left estimator, weather on Wi-Fi sync, offline maps beside them; then the UI slices.
+
+Still open before the slice 1 handoff:
+
+- **The design sources.** `Ride Pre-ride.dc.html` and `Ride In-ride.dc.html` have no local copy yet (round 1's are in `~/chef-cyclo-evidence/system-ui-r1-20261011/design/`); pull them with the new round and render 1:1 references.
+- **Home and navigation.** How the rider gets between Pre-ride and the settings hub, and which screen boot lands on. Proposed: the ride is home, inside the one panel app (`chef-settings` grows the ride pages), so there is no fb0 handover between processes.
+- **Ride file format.** Proposed: FIT (laps, sessions, HR and cadence native; Strava takes it), written at finish from a crash-safe journal in `/data/v1/rides`, and rebuilt from the journal after a crash. GPX is the alternative.
+- **Slice 1 scope.** Proposed: the recorder daemon (the `ride` lease, the `power.long` claim, the journal and the ride file), Pre-ride (R01 to R03, S01 to S03), Overview (the presets), Pause, Lap, auto-pause, Hold Power to finish, Summary, the minimal ride settings and buttond's key lines. Later: the Laps page, Map, Climb, the riding-time-left estimator and Wi-Fi upload.
+- **Designs still missing**: the ride settings page and the max-HR setting; where (if anywhere) the button shortcuts for Lap and Pause are shown.
 
 ## Bike-computer application
 
@@ -125,9 +135,9 @@ Still to design: the Settings **Maps page** (browse states, sizes, download prog
 
 ## Sensor integration
 
-Ambient light values are starting points to tune on real use: the curve (about 30 % at 250 to 320 lux), Light at 2500 lux held 5 s and Dark at 800 lux held 20 s, the smoothing (tau 1 s brightening, 5 s dimming) and the 5 s wake grace that protects the theme from a hand over the sensor right after a wake. Needs: outdoor and riding data (sun, shade, tunnels, a sleeved hand on the bars) and the thresholds' runtime options (`--als-*`) for trials; blocked on getting that data on a bike. Also open: sunlight mode against Auto brightness (above), and the system UI test hygiene item that `test-wifi`'s check count varies between runs (212 or 213, timing dependent): make it deterministic.
+Ambient light values are starting points to tune on real use: the curve (about 30 % at 250 to 320 lux), Light at 2500 lux held 5 s and Dark at 800 lux held 20 s, the smoothing (tau 1 s brightening, 5 s dimming) and the 5 s wake grace that protects the theme from a hand over the sensor right after a wake. Needs: outdoor and riding data (sun, shade, tunnels, a sleeved hand on the bars) and the thresholds' runtime options (`--als-*`) for trials; blocked on getting that data on a bike. Also open: the system UI test hygiene item that `test-wifi`'s check count varies between runs (212 or 213, timing dependent): make it deterministic.
 
-Use the [sensord contract](../features/sensors.md) for raw sensors and magnetic heading. The UI owns ALS-driven brightness, including manual override and sunlight mode; the display owner applies backlight changes through the chosen display backend, preserving the framebuffer commit contract while the fbdev path remains in use.
+Use the [sensord contract](../features/sensors.md) for raw sensors and magnetic heading. The UI owns ALS-driven brightness, including manual override; the display owner applies backlight changes through the chosen display backend, preserving the framebuffer commit contract while the fbdev path remains in use.
 
 For maps, show calibration/disturbance state and use the accepted compass behavior when stopped. Blend with GPS course over ground when moving, and compute declination from GPS/WMM on the consumer side before setting true heading. Validate switching at low speeds, disturbed or uncalibrated input, and missing GPS. Daemon accuracy refinements remain in the [sensor roadmap](sensors.md#optional-compass-refinements).
 

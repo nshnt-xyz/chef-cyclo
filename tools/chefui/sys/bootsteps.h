@@ -4,7 +4,7 @@
  * marker, driven by the caller's loop and clock like gpsclient.h.
  *
  * The steps, their sources and their labels are the table in
- * docs/next-steps/boot-splash-handoff.md; a source is only ever tested
+ * docs/archive/boot-splash-handoff.md; a source is only ever tested
  * for existence (lstat, a link is never followed or read). A step that
  * has finished stays finished (done or failed, once): the bar never goes
  * back and each step is logged once. Step 6 (Loading home) is the

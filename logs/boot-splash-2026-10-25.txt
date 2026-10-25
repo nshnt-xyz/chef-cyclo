@@ -1,0 +1,77 @@
+Boot splash (B01), 2026-10-25
+=============================
+
+Plan: docs/archive/boot-splash-handoff.md (the B01 splash from the
+2026-10-25 design round: chef-cyclo, the build line and six steps that
+follow OpenRC). Pair: splash_impl (Claude Sonnet 5.5) and splash_review
+(Claude Opus 5.5), coordinator splash_coord. Evidence:
+~/chef-cyclo-evidence/boot-splash-20261025/ (design/ with the component
+copies, render-splash.sh and ref-png/; review/ diffs, notes and reviews;
+live/ the test image, captures and r1-small.png).
+
+Commits on main (each approved by splash_review and checked against the
+reviewed snapshot; not pushed):
+  e43c37a  M1 modem-up publishes /run/chef/modem-ready (root 0644) next to
+           its lock's ready; tools/chefui/sys/bootsteps.{c,h} (no LVGL):
+           the six steps from /run/openrc/{started,failed} and the
+           marker, sticky first finish, 30 s cap, inotify with a 1 s
+           rescan while a directory or the inotify fd is missing;
+           test_bootsteps 100 checks
+  bbb8388  M2 apps/settings/splash.{c,h}: the B01 cover on the full panel,
+           once per boot (/run/chef/chef-settings/splash-done), failed
+           labels 1.5 s in step order, the bar following the shown step,
+           Ready 500 ms, touch swallowed, Power short as on the hub,
+           auto-sleep paused; build line from /etc/chef/image-info; fake
+           state `boot K` and fixtures boot-k{0,1,6}; font subsets
+           extended; test_splash 75 checks
+  70c2d88  T1 tests/test_settings_proc.sh waits for the ui-store thread
+           (its 'settings:' grep matched 'chef-settings: start' and it
+           failed on every run since chef_log; chefui's host-test target
+           is not part of the root make test, so nobody saw it)
+  1070033  M3 docs: system-ui.md "Boot splash", runtime-files.md,
+           services.md
+  bb20b16  M3b system-ui.md intro and "Boot and crash recovery"
+
+Decisions (user 2026-10-25 unless noted): steps and sources as in the
+handoff table; splash ends when all steps finish, 30 s cap; then the hub
+(Home later); build line "<version> · <commit 8>[+dirty]"; once per
+boot; touch ignored, Power short screen off. Coordinator during the
+work: sticky steps; cap log for steps 1 to 5 only; fstatat/lstat, not
+faccessat with AT_SYMLINK_NOFOLLOW (EINVAL on musl 1.2.6 and 4.4,
+found by splash_review); failed labels in step order with the bar
+following the shown step; "Loading home" never shown.
+
+Host checks: make test at the root passes (13 suites); captures of
+boot-k0/k1/k6 in both themes against the design renders: mean difference
+0.14 to 0.18 / 255, every band at 0 px shift, residuals up to 3.0
+(antialiasing).
+
+Live check (coordinator, 2026-10-25 about 16:59 to 17:01 IST)
+  RAM image of the tree at 70c2d88 (dirty: the coordinator's docs),
+  kernel #24, out/boot-ram.img sha256
+  19246330f630975c0b9ea1cb4c5e0e063e35e9105edd98deae18cba130a95f7a,
+  booted with phone-boot.sh from the installed pair (nothing flashed).
+  logread, times since boot:
+    boot splash: storage ready at 10.90 s     (chef-settings' start)
+    boot splash: Bluetooth ready at 11.09 s
+    boot splash: Sensors ready at 11.76 s
+    boot splash: GPS modem ready at 16.45 s   (modem-up "modem up" same second)
+    boot splash: Wi-Fi ready at 20.37 s
+    boot splash: ended at 20.87 s
+  So the splash shows for about 10 s on a RAM image boot, most of it the
+  modem (about 5.5 s) and NetworkManager's wait for it (about 4 s).
+  /run/chef/modem-ready root 0644; splash-done chefui 0644; no failed
+  services.
+  Captures every 0.5 s from 15.9 s (SIGUSR1): "Starting GPS modem... 2 / 6"
+  bar 1/6; "Starting Wi-Fi... 5 / 6" bar 4/6 from 18.1 s; "Ready 6 / 6"
+  full at 20.7 s; the hub at 21.3 s. Build line "dev · 70c2d88a+dirty".
+  rc-service chef-settings restart: straight to the hub (capture), no
+  new splash line; kill -9: respawned (new pid), no new splash line (the
+  panel stayed dark: the hub had auto-slept, so the screen-off flag was
+  set, as designed).
+  Not checked live: a failed step and the 30 s cap (host tests), a
+  screen-off boot (host tests), touch during the splash.
+  Phone left on this RAM image; not installed.
+
+Open: whether chefui's host-test target (67 captures and the process
+test) should join the root make test.
