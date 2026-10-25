@@ -201,7 +201,9 @@ libcanberra's `canberra-gtk-play`, which needs GTK; Alpine has no
 
 ## Proposed decisions
 
-### D1. ALSA only: dmix, UCM2, no sound server in the image *(needs the user)*
+### D1. ALSA only: dmix, UCM2, no sound server in the image (user, 2026-10-25)
+
+Decided by the user on 2026-10-25 ("ok straight ALSA it is"), after the PipeWire and PulseAudio costs in F4. Still open: whether `alsa-utils` goes in the image (below).
 
 `alsa-lib` + `alsa-ucm-conf` + `alsa-utils` in `PKGS` (+6.3 MiB; or
 +2.0 MiB with `alsa-utils` added only for tests, but then `alsaucm` and
@@ -421,7 +423,7 @@ On the installed pair:
 
 ## Open questions for the user (summary)
 
-1. D1: ALSA only, with PipeWire left as an optional A2DP add-on. Include
+1. D1 (ALSA only: decided): include
    `alsa-utils` (+6.3 MiB) in the image?
 2. D2: the ceiling as DAC maximum 9 (one line, reinterprets "-6 dBFS"), or
    an ASM gain cap with a route lock (keeps the wording, two patches)?
