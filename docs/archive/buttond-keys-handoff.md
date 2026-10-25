@@ -219,6 +219,9 @@ Live check on a RAM image of the tree (2026-10-25, nothing flashed), with
 keys injected through a throwaway uinput device into a second buttond on a
 test socket: every line, order and audience as in the table above (watcher,
 `power.short` claimant, `volup.long` claimant); the installed buttond and
-`chef-settings` unaffected. Physical presses not checked live (host tests
-cover the same code path past the evdev read). Not installed. Record:
+`chef-settings` unaffected. Then a guided check with the user on the
+physical buttons (VolUp tap, Power hold to the first buzz, the VolUp and
+Power chord, two Power taps toggling the screen): all lines as specified,
+the power-off cancelled on the early release, `chef-settings` still
+toggling the screen. Not installed. Record:
 [log](../../logs/buttond-keys-2026-10-25.txt).

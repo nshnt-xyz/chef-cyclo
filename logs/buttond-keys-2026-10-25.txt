@@ -81,7 +81,36 @@ Live check (coordinator, 2026-10-25 about 21:43 to 21:46 IST)
   no socket. Afterwards the installed buttond's status was unchanged and
   chef-settings logged one connect at boot, no unreadable line and no
   protocol warning.
-  Not checked live: physical presses (the evdev read path is unchanged;
-  everything after it ran above), chefui_on_key on the phone (no
-  application uses it yet).
+  Not checked live: chefui_on_key on the phone (no application uses it
+  yet).
+
+Guided check with the user (2026-10-25 about 21:51 IST, same boot)
+  Physical buttons, steps on the chef-settings prompt card, advanced by a
+  host stream of the installed buttond's watch output (driver and cards
+  in the evidence dir, guided/). Steps: VolUp tap; Power held to the
+  first buzz and released; VolUp and Power together; Power tap twice
+  (screen off, then on). All passed. Watcher lines:
+    {"type":"ok","cmd":"watch"}
+    {"type":"key","button":"volup","state":"down"}
+    {"type":"key","button":"volup","state":"up"}
+    {"type":"gesture","gesture":"volup.short"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"key","button":"power","state":"held"}
+    {"type":"gesture","gesture":"power.long"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"key","button":"volup","state":"down"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"gesture","gesture":"power+volup"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"key","button":"volup","state":"up"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"gesture","gesture":"power.short"}
+    {"type":"key","button":"power","state":"down"}
+    {"type":"key","button":"power","state":"up"}
+    {"type":"gesture","gesture":"power.short"}
+  logread: "power.long: keep holding 1500 ms more ..." then "power off
+  cancelled: released after 1734 ms"; "power+volup unclaimed"; each
+  power.short "-> 1 claimant" with chef-settings "screen off (307 ms)" and
+  "screen on (234 ms)": chef-settings ignores the key lines it now gets.
   Phone left on this RAM image; not installed.
