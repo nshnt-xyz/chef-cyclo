@@ -85,3 +85,12 @@ Found
      so it is the reader; whether later lines reach the ring is not
      known (the ring is lost at power-off and log-save ran earlier).
      Recorded in docs/next-steps/power-and-reliability.md.
+
+Installed 2026-10-30 about 20:43 IST (user: "Install when u r ready"):
+clean build of b185179 (dirty 0), kernel #24 unchanged. system_a
+out/system_a-8bfc74f1.img (sha256 8bfc74f17c52...ade3d), boot_a
+out/boot-stage1-3dacd310.img (sha256 3dacd3101412...99b5); flashed from
+fastboot (slot a), rebooted. Boot: 20 services started, none crashed or
+failed; splash ended at 17.15 s (GPS modem 12.43 s, Wi-Fi 16.65 s);
+abslot boot_a successful=1. Fallback: the previous pair d965e201 +
+d0109716.

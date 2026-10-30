@@ -294,4 +294,4 @@ Found: step 6 is never seen (chef-settings is stopped within 0.3 s of the
 modem's stop, so the panel goes from "Stopping GPS modem" to black), and
 `logread -f` dies on a power-off while syslogd stays up
 ([next steps](../next-steps/power-and-reliability.md#crash-recovery)).
-Record: [log](../../logs/shutdown-screen-2026-10-30.txt).
+Installed the same day as `8bfc74f1` + `3dacd310`. Record: [log](../../logs/shutdown-screen-2026-10-30.txt).
