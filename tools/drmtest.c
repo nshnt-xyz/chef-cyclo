@@ -5,7 +5,7 @@
  *
  *   drmtest info              resources, connectors with their modes,
  *                             encoders, CRTCs and planes
- *   drmtest show [-t SECS] [-c CYCLES]
+ *   drmtest show [-t SECS] [-c CYCLES] [-o SECS]
  *                             draw a test pattern into one dumb buffer and
  *                             SETCRTC it on the first connected connector
  *   drmtest flip [-n FRAMES]  page flip two dumb buffers with a moving bar
@@ -14,7 +14,11 @@
  * show picks the preferred mode (else the first), the connector's encoder's
  * CRTC (else the first CRTC in the encoder's possible_crtcs), holds the
  * pattern for -t seconds (default 20), then -c times (default 0) disables
- * the CRTC, waits 3 s and sets the same mode again. Every SETCRTC is
+ * the CRTC, waits -o seconds (default 3) and sets the same mode again. Every
+ * enable redraws the pattern with the enable number (1, 2, ...) in white
+ * seven-segment digits on a black box in the middle, so the user can say
+ * which enables lit up; "enable N" is printed with a timestamp right before
+ * each SETCRTC on. Every SETCRTC is
  * bracketed by CLOCK_MONOTONIC timestamps so the run can be lined up with
  * dmesg. The mode stays set until the process exits (SIGINT/SIGTERM exit
  * cleanly); closing the fd lets the kernel drop the framebuffer.
@@ -262,9 +266,78 @@ static void draw_pattern(uint32_t *map, uint32_t pitch, uint32_t w, uint32_t h)
 			map[y * (pitch / 4) + x] = pattern_pixel(x, y, w, h);
 }
 
+/* ---- enable number ---- */
+
+#define DIGIT_W		240
+#define DIGIT_H		420
+#define SEG_T		50
+#define DIGIT_GAP	60
+#define NUM_MARGIN	60
+
+/* Segment masks, bit 0 to 6: top, upper right, lower right, bottom, lower
+ * left, upper left, middle.
+ */
+static const uint8_t seg_mask[10] = {
+	0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07, 0x7f, 0x6f,
+};
+
+static void fill_rect(uint32_t *map, uint32_t pitch, uint32_t x, uint32_t y,
+		      uint32_t w, uint32_t h, uint32_t colour)
+{
+	uint32_t i, j;
+
+	for (j = y; j < y + h; j++)
+		for (i = x; i < x + w; i++)
+			map[j * (pitch / 4) + i] = colour;
+}
+
+static void draw_digit(uint32_t *map, uint32_t pitch, uint32_t x, uint32_t y,
+		       int d)
+{
+	uint8_t m = seg_mask[d];
+	uint32_t half = (DIGIT_H - SEG_T) / 2;
+
+	if (m & 0x01)
+		fill_rect(map, pitch, x, y, DIGIT_W, SEG_T, 0xffffff);
+	if (m & 0x02)
+		fill_rect(map, pitch, x + DIGIT_W - SEG_T, y, SEG_T,
+			  half + SEG_T, 0xffffff);
+	if (m & 0x04)
+		fill_rect(map, pitch, x + DIGIT_W - SEG_T, y + half, SEG_T,
+			  DIGIT_H - half, 0xffffff);
+	if (m & 0x08)
+		fill_rect(map, pitch, x, y + DIGIT_H - SEG_T, DIGIT_W, SEG_T,
+			  0xffffff);
+	if (m & 0x10)
+		fill_rect(map, pitch, x, y + half, SEG_T, DIGIT_H - half,
+			  0xffffff);
+	if (m & 0x20)
+		fill_rect(map, pitch, x, y, SEG_T, half + SEG_T, 0xffffff);
+	if (m & 0x40)
+		fill_rect(map, pitch, x, y + half, DIGIT_W, SEG_T, 0xffffff);
+}
+
+/* n (1 to 99) as white digits on a black box, centred in the frame. */
+static void draw_number(uint32_t *map, uint32_t pitch, uint32_t w, uint32_t h,
+			int n)
+{
+	int digits = n > 9 ? 2 : 1;
+	uint32_t dw = digits * DIGIT_W + (digits - 1) * DIGIT_GAP;
+	uint32_t bw = dw + 2 * NUM_MARGIN, bh = DIGIT_H + 2 * NUM_MARGIN;
+	uint32_t bx = (w - bw) / 2, by = (h - bh) / 2;
+
+	fill_rect(map, pitch, bx, by, bw, bh, 0x000000);
+	if (digits == 2)
+		draw_digit(map, pitch, bx + NUM_MARGIN, by + NUM_MARGIN, n / 10);
+	draw_digit(map, pitch,
+		   bx + NUM_MARGIN + (digits - 1) * (DIGIT_W + DIGIT_GAP),
+		   by + NUM_MARGIN, n % 10);
+}
+
 struct target {
 	uint32_t conn, crtc, fb;
 	struct drm_mode_modeinfo mode;
+	uint32_t *map, pitch;
 };
 
 /* First connected connector, its preferred (else first) mode and its CRTC. */
@@ -389,6 +462,8 @@ static int make_fb(int fd, struct target *t)
 		return -1;
 	draw_pattern(b.map, b.pitch, t->mode.hdisplay, t->mode.vdisplay);
 	t->fb = b.fb;
+	t->map = b.map;
+	t->pitch = b.pitch;
 	return 0;
 }
 
@@ -413,7 +488,21 @@ static int set_crtc(int fd, const struct target *t, bool on)
 	return rc;
 }
 
-static int cmd_show(int fd, int secs, int cycles)
+/* Redraw the pattern and the enable number while the CRTC is off, then
+ * enable.
+ */
+static int show_enable(int fd, const struct target *t, int n)
+{
+	char what[32];
+
+	draw_pattern(t->map, t->pitch, t->mode.hdisplay, t->mode.vdisplay);
+	draw_number(t->map, t->pitch, t->mode.hdisplay, t->mode.vdisplay, n);
+	snprintf(what, sizeof(what), "enable %d", n);
+	stamp(what);
+	return set_crtc(fd, t, true);
+}
+
+static int cmd_show(int fd, int secs, int cycles, int off_secs)
 {
 	struct sigaction sa = { .sa_handler = on_signal };
 	struct target t = { 0 };
@@ -428,16 +517,16 @@ static int cmd_show(int fd, int secs, int cycles)
 	       t.mode.vrefresh);
 	if (make_fb(fd, &t))
 		return 1;
-	if (set_crtc(fd, &t, true))
+	if (show_enable(fd, &t, 1))
 		return 1;
 	nap(secs);
 	for (i = 0; i < cycles && !stop; i++) {
 		if (set_crtc(fd, &t, false))
 			return 1;
-		nap(OFF_SECS);
+		nap(off_secs);
 		if (stop)
 			break;
-		if (set_crtc(fd, &t, true))
+		if (show_enable(fd, &t, i + 2))
 			return 1;
 		nap(secs);
 	}
@@ -633,13 +722,13 @@ static void usage(void)
 {
 	fprintf(stderr,
 		"usage: drmtest info\n"
-		"       drmtest show [-t secs] [-c cycles]\n"
+		"       drmtest show [-t secs] [-c cycles] [-o secs]\n"
 		"       drmtest flip [-n frames]\n");
 }
 
 int main(int argc, char **argv)
 {
-	int secs = 20, cycles = 0, frames = 600, opt, fd, rc;
+	int secs = 20, cycles = 0, frames = 600, off_secs = OFF_SECS, opt, fd, rc;
 	const char *cmd;
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
@@ -649,11 +738,12 @@ int main(int argc, char **argv)
 	}
 	cmd = argv[1];
 	optind = 2;
-	while ((opt = getopt(argc, argv, "t:c:n:")) != -1) {
+	while ((opt = getopt(argc, argv, "t:c:n:o:")) != -1) {
 		switch (opt) {
 		case 't': secs = atoi(optarg); break;
 		case 'c': cycles = atoi(optarg); break;
 		case 'n': frames = atoi(optarg); break;
+		case 'o': off_secs = atoi(optarg); break;
 		default:
 			usage();
 			return 64;
@@ -671,7 +761,7 @@ int main(int argc, char **argv)
 	if (!strcmp(cmd, "info"))
 		rc = cmd_info(fd);
 	else if (!strcmp(cmd, "show"))
-		rc = cmd_show(fd, secs, cycles);
+		rc = cmd_show(fd, secs, cycles, off_secs);
 	else if (!strcmp(cmd, "flip"))
 		rc = cmd_flip(fd, frames);
 	else {
