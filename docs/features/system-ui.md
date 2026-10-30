@@ -472,6 +472,7 @@ reconnect re-sends the page's hold and scan wants. See the
 |---|---|
 | Power short, screen off | wake (the platform default), on the page that was open |
 | Power short during the [boot splash](#boot-splash) | screen off (the platform default) |
+| Power short during the [shutdown screen](#shutdown-screen) | ignored, the screen stays lit |
 | Power short on the hub | screen off |
 | Power short on any other page | Back |
 | Power held | power-off as always (buttond, not claimed) |
@@ -603,7 +604,10 @@ B01 in the design: a full-panel view above the status bar and the hub, in the
 theme's background, with `chef-cyclo` (Barlow Condensed 600, 150 px, centred in
 the panel minus 200 px at the bottom), the build line under it (muted, 40 px)
 and, 360 px above the bottom, the current step with its count (`2 / 6`) over a
-24 px progress bar (`apps/settings/splash.c`, steps in `sys/bootsteps.c`).
+24 px progress bar. The view is `apps/settings/cover.c`, which the
+[shutdown screen](#shutdown-screen) draws too; `splash.c` keeps the wiring, holds,
+marker and end rules, and the steps are `sys/bootsteps.c`, the boot table on the
+shared step tracker `sys/steptrack.c` (the inotify watching is `sys/dirwatch.c`).
 
 | # | Shown while waiting | Done when | Failed when (label) |
 |---|---|---|---|
@@ -620,8 +624,8 @@ The openrc directories are `/run/openrc/started` and `failed`. `modem-ready` is
 `modem-up`'s public copy of its lock's `ready`, information only (the lock
 directory stays the ownership contract, and `chefui` must not join the `qmux`
 group). An inotify watch on the two directories and `/run/chef` rescans on any
-change; a directory that is missing is tried again every second. A step that
-finishes stays finished.
+change; a directory that is missing is tried again every second; a step that
+finishes stays finished (`steptrack.c` driving `dirwatch.c`).
 
 The display walks the steps in order: the text is the first step not yet shown
 through, with an ellipsis (`Ready` after the last), the count is its number and
@@ -653,7 +657,8 @@ stays dark with the splash logic running unseen; a wake shows its current state.
 (`failed at` for a failed step; the names are storage, GPS modem, Sensors,
 Bluetooth, Wi-Fi; times are `CLOCK_BOOTTIME`), `boot splash: <label> not finished
 after 30 s` for each step waiting at the cap, and `boot splash: ended at 14.52 s`
-(`(cap)` appended when the cap ended it).
+(`(cap)` appended when the cap ended it). When the [shutdown screen](#shutdown-screen)
+ended it, `boot splash: ended by shutdown at 14.52 s` follows as one more line.
 
 **Captures.** `--fake-state apps/settings/boot-k0.state` (also `boot-k1`, `boot-k6`)
 with `design.state` freezes the splash with K steps done (fake-state key `boot K`),
@@ -663,6 +668,75 @@ without `boot K`, nor with `--snapshot`. `host-test` writes the six captures
 `B01-<theme>-k<K>.png` (`compare-ref.py`, notch `0-80:262-818` masked) the mean
 difference is 0.14 to 0.18 of 255, no band shifted, band residuals 0.1 to 3.0.
 Tests: `test-bootsteps`, `test-splash`.
+
+## Shutdown screen
+
+B02: the same view as the [boot splash](#boot-splash), drawn by the same
+`apps/settings/cover.c` (title, build line, step row with its count and bar,
+layout, fonts, colours and theme handling are the splash's), with shutdown text
+and no status bar. `apps/settings/shutdown.c` is its wiring, `sys/shutsteps.c`
+its step table on the same tracker (`sys/steptrack.c`) as the boot splash. Its cover
+is a child of `lv_layer_sys()`, so nothing the app draws (pages, pull-downs, the
+guided prompt card, the splash) can cover it.
+
+**When.** For as long as `/run/chef/shutting-down` exists ([runtime files](runtime-files.md)).
+`chef-state shutdown` writes it as its first act when init starts the shutdown, and
+`chef-reboot` writes it with the reason `reboot`. `chef-settings` watches `/run/chef`
+for the marker for its whole life (`sys/dirwatch.c`, also when the directory is missing at
+first) and looks at start, so it shows at once also when it started with the marker
+there. The marker going away (a `chef-reboot` that gave up and resumed init) takes the
+screen down and the hub shows; the system is then half stopped, which is `chef-reboot`'s
+failure. TERM while it shows ends the app as always. The reason is the marker's one
+line: `poweroff` (powerd's low-battery power-off, buttond's hold, or `poweroff` by
+hand while one of those hints exists), `reboot` or `unknown`; step 6 reads
+`Powering off`, `Restarting` or `Shutting down` for them (an unreadable or
+garbled marker is `unknown`; no marker, no screen).
+
+| # | Shown while waiting | Finished when |
+|---|---|---|
+| 1 | Saving state | `/run/openrc/softlevel` reads `shutdown`: `openrc shutdown` has begun, so `chef-state shutdown` and `log-save` are over |
+| 2 | Stopping Wi-Fi | `networkmanager` stopped |
+| 3 | Stopping Bluetooth | `bt-up` and `bluetooth` stopped |
+| 4 | Stopping sensors | `sensord` and `sensors-up` stopped |
+| 5 | Stopping GPS modem | `modem-up` stopped (not the `modem-ready` marker, which `modem-up` removes before its 10 s close) |
+| 6 | the reason's text | never: shown once 1 to 5 have finished, until `chef-settings` is stopped |
+
+A service is stopped when it has no link in `/run/openrc/starting`, `started`, `inactive`
+or `stopping` (existence only, `lstat`; checked in that order, because OpenRC links a
+service's new state before it unlinks the old one, so a service on the move is never seen
+in none of them). A service that failed at boot or never started is already stopped. Steps finish in any
+order (`chef-state shutdown` stops sensord before `openrc shutdown` begins); the text is the
+first unfinished step with an ellipsis, the count its number, the bar the steps finished
+from the first on, and full once step 6 shows. There are no failed states, no cap and no
+holds: a stop that never finishes keeps its step on screen until `chef-settings` itself
+is stopped (by `openrc shutdown`, normally about 1 s before the power is cut).
+
+**Panel and input.** If the screen is off when it starts (Power held in the dark, powerd's
+low-battery power-off), the screen is turned on through the app's normal screen path. Touch is
+swallowed (no activity, no pulse), a short Power press is claimed and ignored (the screen stays
+lit; buttond's own hold-to-power-off is untouched) and auto-sleep does not run, nor count the
+time it showed. A running boot splash ends at once (no `Ready` hold, its end hook and
+`splash-done` marker as on any end).
+
+**Log.** Syslog, stable wording, times `CLOCK_BOOTTIME`: `shutdown screen: shown at 123.45 s
+(poweroff)`, one line per finished step (`state saved`, `Wi-Fi stopped`, `Bluetooth stopped`,
+`sensors stopped`, `GPS modem stopped`, each `at 125.02 s`), and `shutdown screen: ended at 130.00 s
+(marker removed)` or `(terminated)`. `syslogd` outlives `chef-settings`, so these reach `logread`, but not the
+ring saved on `/data` (`log-save` ran before them); the splash's line `boot splash: ended by shutdown at`
+is logged too when it replaced a splash.
+
+**Captures.** Fake-state key `shutdown K REASON` (K 0..6, 5 and 6 both show step 6 with a full bar;
+REASON `poweroff`, `reboot` or `unknown`) freezes the screen with no sources, watches, timers or log
+lines, and wins over `boot`. The fixtures `apps/settings/shutdown-k0.state` (`Saving state`, `1 / 6`),
+`shutdown-k4.state` (`Stopping GPS modem`, `5 / 6`) and `shutdown-k6-reboot.state` (`Restarting`,
+`6 / 6`, bar full) give `host-test` its six captures (`shutdown-k{0,4,6-reboot}-{dark,light}.ppm`).
+There is no design reference: against the boot splash captures of the same fill
+(`compare-ref.py`, the step text row `1780-1835:100-700` masked) the mean difference is 0.00 and
+every band matches without a shift; unmasked, only the step text differs. Tests:
+`test-shutsteps`, `test-shutdown` (shown at start and on the marker's arrival, the walk through the
+six steps, reasons, the panel lit from off, touch, Power, auto-sleep, the splash replaced, the marker
+removed, a missing and a replaced run directory), `test_chef_state.py`, `test_chef_reboot.py` and `test-buttond` for the
+marker's writers.
 
 ## Boot and crash recovery
 
@@ -835,7 +909,7 @@ lines, usage scan on a 128 KB stack, sysfs address read), `test-timeview` (the
 chronyc client incl. an adversarial held-open pipe), `test-settings` (v1 to v3), `test-als`, `test-alsclient`, `test-prompt`,
 `scripts/tests/test_chef_image_info.py`.
 
-**Reference comparison.** `host-test` writes 67 captures (the six boot splash ones are described in [Boot splash](#boot-splash); the rest are 61: M5 adds display-auto, display-auto-nosensor and hub-auto in both themes plus display-theme-auto, and the prompt card over P02 in both themes, 9 files): the 52 earlier ones are the 30 below plus sound, time,
+**Reference comparison.** `host-test` writes 73 captures (the six boot splash ones are described in [Boot splash](#boot-splash), the six shutdown screen ones in [Shutdown screen](#shutdown-screen); the rest are 61: M5 adds display-auto, display-auto-nosensor and hub-auto in both themes plus display-theme-auto, and the prompt card over P02 in both themes, 9 files): the 52 earlier ones are the 30 below plus sound, time,
 time-12h, time-unverified, storage, storage-estimate, storage-ram, storage-calc, about,
 about-unknown and hub-12h (the first 30 are hub, display,
 wifi-off, wifi, wifi-password typed "ridefast2", wifi-details, wifi-hidden,
@@ -878,6 +952,13 @@ instead of "Cadence"; Pair pill about 6 px narrower from kerning; power/CSC
 detail adds cadence; non-live RSSI says "(last seen)"; empty lists have help
 lines. P09 keeps the actual list under its scrim, whereas the reference
 uses a simplified background.
+
+**Shared watch and tracker code.** `sys/dirwatch.c` is the one inotify watch list (the fd, the watches,
+the drain, a directory watched again when it is back): `sys/steptrack.c` (the step tracker: rules
+over files, sticky results, cap, counting), `apps/settings/prompt.c` and the shutdown screen's marker
+watch are built on it, and `bootsteps.c` and `shutsteps.c` are two step tables on `steptrack.c`.
+`cover.c` is likewise the splash's and the shutdown screen's one view. New code that watches
+directories or lists steps goes through these.
 
 ## Live acceptance of the device pages
 
