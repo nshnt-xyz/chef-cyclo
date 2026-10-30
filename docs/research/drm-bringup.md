@@ -2,7 +2,7 @@
 
 [Display research](display-modernization.md) · [Roadmap](../next-steps/ui-and-ride-app.md)
 
-**Historical:** on 2026-10-03 the DRM/Wayland route was shelved in favour of LVGL on the existing fbdev; see the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack) and [prototype](lvgl-fbdev-prototype.md). It was reopened for research on 2026-10-24 and paused again the same day; see [October 24: in-tree SDE driver](#october-24-in-tree-sde-driver-e1-to-e2d). Resumed on 2026-10-30, when panel re-initialisation after a DRM power-off was made to work; see [October 30: re-init after power-off](#october-30-re-init-after-power-off-e2e-to-e2i). LVGL on fbdev stays the production stack.
+**Historical:** on 2026-10-03 the DRM/Wayland route was shelved in favour of LVGL on the existing fbdev; see the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack) and [prototype](lvgl-fbdev-prototype.md). It was reopened for research on 2026-10-24 and paused again the same day; see [October 24: in-tree SDE driver](#october-24-in-tree-sde-driver-e1-to-e2d). Resumed on 2026-10-30, when panel re-initialisation after a DRM power-off was made to work; see [October 30: re-init after power-off](#october-30-re-init-after-power-off-e2e-to-e3). LVGL on fbdev stays the production stack.
 
 October 3 result: both DRM-core and full built-in DRM configurations now boot with unchanged userspace reencoded to smaller LZMA ramdisks. DRM initialization is observed, but no DRM card or native scanout exists. The [actual loader budget investigation](chef-loader-kernel-budget.md) records the binary research, failed minimal control calibration, successful full-userspace tests and remaining limits. Earlier failures below are historical evidence, not the current runtime status.
 
@@ -142,9 +142,9 @@ Gaps that needed patches: `SDE_HW_VER_320`; a component master with no `connecto
 
 Native DRM works up to and including scanout, page flips and backlight; panel re-initialisation after power-off does not. Next steps if resumed: dump the full controller state at every enable (the one good re-enable against the bad ones), align dsi-staging's enable/disable sequence with fbdev's (`mdss_dsi_host_init()`, soft reset with clocks forced on, waiting for command DMA idle before disable, `DMA_FIFO_CTRL`), fix the msm_bus client-name lifetime, then the touch notifier (the NT36525 still depends on fb blank events) and blank/unblank power.
 
-## October 30: re-init after power-off (E2e to E2i)
+## October 30: re-init after power-off (E2e to E3)
 
-Resumed on 2026-10-30. Same method as October 24: `fastboot boot` RAM images only, nothing flashed. Code is on the pushed `experiment/drm-sde` branches (superproject `f18afce8`, kernel `7f270ae8a`); specs and live logs are `HANDOFF-E2E.md` to `HANDOFF-E2I.md` and `live/E2E-E2I-RESULT.md` in `~/chef-cyclo-evidence/drm-sde-20261024/`. `tools/drmtest show` now draws the enable number on screen so the user can say which enables lit.
+Resumed on 2026-10-30. Same method as October 24: `fastboot boot` RAM images only, nothing flashed. Code is on the pushed `experiment/drm-sde` branches (superproject `12871345`, kernel `93fe9a82b`); specs and live logs are `HANDOFF-E2E.md` to `HANDOFF-E3.md`, `live/E2E-E2I-RESULT.md` and `live/E3-RESULT.md` in `~/chef-cyclo-evidence/drm-sde-20261024/`. `tools/drmtest show` now draws the enable number on screen so the user can say which enables lit.
 
 **Result:** with three changes every enable lights the panel (the user saw all five of five enables, 29 of 29 panel-on commands each):
 
@@ -160,4 +160,14 @@ What the collapse loses is still unknown. Right after host enable, the DSI PHY/P
 
 - Idle cost of the held GDSC, measured unplugged (the A/B method of the October 17 idle visit); a reading on USB is useless while charging. If it matters, find what the collapse loses instead of holding the GDSC.
 - Panel-off commands still fail twice per session: they are sent in video mode after the INTF has stopped. Harmless today because power is cut right after, but the off sequence is effectively skipped.
-- E3: the NT36525 touch still depends on fb blank notifications, and blank/unblank power handling.
+- Touch I2C NACKs at boot (2.1 to 2.5 s), before the first DRM enable, while the touch driver still believes the panel is up.
+
+### E3: touch and backlight on DRM blank
+
+Same day, kernel `93fe9a82b`, superproject `12871345`, result `live/E3-RESULT.md`. The NT36525 driver suspended and resumed only on fbdev blank events, so under DRM it never learned about panel power: its IRQ stormed with I2C NACKs at every panel power-up and nothing re-initialised it. Nothing turned the WLED off either; `sde-backlight` changes only on userspace writes, so the backlight stayed lit with the panel dark.
+
+- An msm DRM blank notifier (`include/linux/msm_drm_notify.h`, `msm_drm_register_client()`, the API shape of later msm kernels). The DSI bridge sends `MSM_DRM_EARLY_EVENT_BLANK` before and `MSM_DRM_EVENT_BLANK` after every panel power change.
+- The touch driver registers a DRM client (only when `CONFIG_DRM_MSM` is on, so the fbdev production kernel is unchanged). It suspends on every early event, including the first enable after boot, which resets the panel because there is no DSI splash handoff, and resumes after unblank (bootloader reset and firmware state check).
+- The DSI display sets the backlight to 0 before panel-off and restores the last userspace level after panel-on (the `sde-backlight` maximum before userspace sets one); userspace writes while blanked are only remembered.
+
+Live: with the user tapping, enables 1 to 3 got 359, 196 and 324 touch interrupts and none while dark; WLED read 255 while lit and 0 while blanked; no I2C errors after boot.
