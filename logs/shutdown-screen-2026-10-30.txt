@@ -1,0 +1,87 @@
+Shutdown screen (B02), 2026-10-25 to 2026-10-30
+================================================
+
+Plan: docs/archive/shutdown-screen-handoff.md (the B01 boot splash's view
+with six shutdown steps, fed by OpenRC's state links and a new
+/run/chef/shutting-down marker). Pair: shutdown_impl (Claude Sonnet 5.5)
+and shutdown_review (Claude Opus 5.5), coordinator shutdown_coord.
+Evidence: ~/chef-cyclo-evidence/shutdown-screen-20261025/ (review/ diffs,
+m3/ captures and NOTE.md, reviewer/ snapshots and probes, live/ the test
+image, streams and decoded frames).
+
+Commits on main (each approved by shutdown_review and checked against the
+reviewed snapshot; hashes after the rebase onto dc9ef84, review-time
+hashes in brackets):
+  4f96c1c [9d6d9ec] M1  the marker: chef-state shutdown [poweroff|reboot]
+           writes it first (before `ours`), reason from powerd's
+           shutdown-pending or buttond's new hint (-P, default
+           /run/chef/buttond/poweroff, O_NOFOLLOW), chef-reboot passes
+           reboot and removes it on its resume paths
+  07f378b [2be1017] M1b the marker through put() with a MODE argument
+           (no second temp-and-rename)
+  07b1847 [695ed4b] M2a sys/steptrack (shared tracker machinery),
+           bootsteps as its boot table (test_bootsteps rename-only),
+           sys/shutsteps; state links checked in lifecycle order (an
+           lstat --wrap test fails on the old order)
+  0065e19 [8910540] M2b tests/steptest.h shared test helpers
+  e6c0819 [f69896b] M3  apps/settings/cover.c (the B01 view, shared),
+           shutdown.c (thin), sys/dirwatch (the one inotify unit), fake
+           key `shutdown K REASON`, fixtures; boot-k captures
+           byte-identical before and after
+  91f233a [f6462cd] M3b prompt.c onto dirwatch (test_prompt untouched,
+           247/247)
+  95f0fa6 [e92be69] M4  docs: system-ui.md "Shutdown screen", services,
+           buttons
+
+Decisions (user, 2026-10-25): mirror B01; light the panel when it is
+off; reason-specific last step (Powering off, Restarting, Shutting
+down); "make sure the screen is mostly just reused from the start
+splash"; "do not have duplicate code" (so cover.c, steptrack, dirwatch,
+put MODE, steptest.h, and prompt.c moved onto dirwatch).
+
+Host checks: make test at the root passes at every milestone; chefui
+host-test; counts: bootsteps 100, shutsteps 104, shutdown 99, splash 75,
+prompt 247.
+
+Live check (coordinator, 2026-10-30 about 20:29 to 20:40 IST, user away)
+  RAM image of e92be69 (dirty: the coordinator's handoff and the audio
+  plan), kernel #24 unchanged, out/boot-ram.img sha256
+  d59dc833c2efd9fe8ef29948fb86e9826977234d67cf49a5332ea03698c25bee,
+  booted with phone-boot.sh (nothing flashed). Nobody watched the panel:
+  chef-settings snapshots (SIGUSR1) were streamed every 0.4 to 0.9 s and
+  decoded on the host (live/*-png/sheet.png), with logread -f.
+  A  chef-reboot bootloader, a guided prompt card on screen:
+       shown at 46.52 s (reboot); sensors stopped 46.60, state saved
+       47.33, Wi-Fi 47.46, Bluetooth 55.56, GPS modem 69.54; ended
+       69.88 (terminated); fastboot about 34 s after the command.
+       Frames: hub with the prompt card, then the cover over it
+       (Saving state 1/6, Stopping Bluetooth 3/6, Stopping GPS modem
+       5/6 from 56 s to 69.5 s). Build line "dev · e92be694+dirty".
+  B  screen off by a 30 s auto-sleep (args --sleep 30), then poweroff
+     with no hint: shown at 80.52 s (unknown), "screen on (235 ms)"
+     next; the flag files: off=1 lit=0 until 80.52, off=0 lit=1 from
+     80.57 (50 ms after the marker), lit=0 at 92.63 (chef-settings'
+     exit). Frames: Saving state, Stopping Wi-Fi, Stopping GPS modem
+     (81.7 s to 92.6 s).
+  C  /run/chef/buttond/poweroff created by hand, then poweroff: shown at
+     33.70 s (poweroff), steps as in B.
+  D  poweroff with only a process watch: syslogd (pid 993) alive until
+     38.87 s, after chef-settings' exit (38.61); modem-up stopping from
+     27.68 to 38.35 (the kernel's 10 s modem ack timeout at 38.27).
+  Reviewer's open questions: the panel lights from off (B, 50 ms, the
+  cover made before the screen-on); the cover stays over the prompt card
+  (A); OpenRC writes `shutdown` to softlevel (every run logged "state
+  saved" at the start of openrc shutdown).
+
+Found
+  F1 Step 6 is never seen. chef-settings is stopped within 0.3 s of
+     modem-up's stop (A: 69.54 to 69.88), and its exit powers the panel
+     down, so the last thing on the panel is "Stopping GPS modem... 5 / 6"
+     and then black; no frame in A, B or C caught step 6. Not a code
+     defect (the handoff's no-delay rule); a design call for the user.
+  F2 `logread -f` dies on a power-off: "logread: semop[SMrdn]: Invalid
+     argument" right after Bluetooth stopped, in B and C (2 of 2
+     power-offs), not in A (chef-reboot). syslogd itself stays up (D),
+     so it is the reader; whether later lines reach the ring is not
+     known (the ring is lost at power-off and log-save ran earlier).
+     Recorded in docs/next-steps/power-and-reliability.md.
