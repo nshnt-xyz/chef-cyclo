@@ -6,7 +6,7 @@ These records preserve completed investigations, original designs, experiment pl
 
 - [Offline maps](offline-maps.md): October 17 survey of OSM map and elevation sources, measured regional sizes, raster versus on-device vector rendering, and refreshing tiles over Wi-Fi.
 - [LVGL fbdev prototype](lvgl-fbdev-prototype.md): October 3 prototype behind the LVGL-on-fbdev UI decision: pixel path, page flips, cost, screen power and touch-driver findings.
-- [DRM bring-up](drm-bringup.md): hardware revision/resource mapping, the October 3 compile and boot experiments, and the October 24 in-tree SDE bring-up (scanout and page flips work, panel re-init after power-off does not; paused).
+- [DRM bring-up](drm-bringup.md): hardware revision/resource mapping, the October 3 compile and boot experiments, and the October 24 and 30 in-tree SDE bring-up (scanout, page flips and panel re-init after power-off work; the MDSS GDSC is held on).
 - [Display modernization](display-modernization.md): initial DRM/KMS kernel support investigation and standard touch discovery work on October 2 (historical).
 - [Battery and charging](battery-and-charging.md): stock policy research and the September 26 powerd implementation.
 - [Wi-Fi](wifi.md): matching Motorola driver sources, modem dependency and board-data handshake for October 1 bring-up.

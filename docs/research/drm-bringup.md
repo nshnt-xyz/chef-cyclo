@@ -2,7 +2,7 @@
 
 [Display research](display-modernization.md) · [Roadmap](../next-steps/ui-and-ride-app.md)
 
-**Historical:** on 2026-10-03 the DRM/Wayland route was shelved in favour of LVGL on the existing fbdev; see the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack) and [prototype](lvgl-fbdev-prototype.md). It was reopened for research on 2026-10-24 and paused again the same day; see [October 24: in-tree SDE driver](#october-24-in-tree-sde-driver-e1-to-e2d). LVGL on fbdev stays the production stack.
+**Historical:** on 2026-10-03 the DRM/Wayland route was shelved in favour of LVGL on the existing fbdev; see the [UI roadmap](../next-steps/ui-and-ride-app.md#ui-stack) and [prototype](lvgl-fbdev-prototype.md). It was reopened for research on 2026-10-24 and paused again the same day; see [October 24: in-tree SDE driver](#october-24-in-tree-sde-driver-e1-to-e2d). Resumed on 2026-10-30, when panel re-initialisation after a DRM power-off was made to work; see [October 30: re-init after power-off](#october-30-re-init-after-power-off-e2e-to-e2i). LVGL on fbdev stays the production stack.
 
 October 3 result: both DRM-core and full built-in DRM configurations now boot with unchanged userspace reencoded to smaller LZMA ramdisks. DRM initialization is observed, but no DRM card or native scanout exists. The [actual loader budget investigation](chef-loader-kernel-budget.md) records the binary research, failed minimal control calibration, successful full-userspace tests and remaining limits. Earlier failures below are historical evidence, not the current runtime status.
 
@@ -141,3 +141,23 @@ Gaps that needed patches: `SDE_HW_VER_320`; a component master with no `connecto
 ### Where to resume
 
 Native DRM works up to and including scanout, page flips and backlight; panel re-initialisation after power-off does not. Next steps if resumed: dump the full controller state at every enable (the one good re-enable against the bad ones), align dsi-staging's enable/disable sequence with fbdev's (`mdss_dsi_host_init()`, soft reset with clocks forced on, waiting for command DMA idle before disable, `DMA_FIFO_CTRL`), fix the msm_bus client-name lifetime, then the touch notifier (the NT36525 still depends on fb blank events) and blank/unblank power.
+
+## October 30: re-init after power-off (E2e to E2i)
+
+Resumed on 2026-10-30. Same method as October 24: `fastboot boot` RAM images only, nothing flashed. Code is on the pushed `experiment/drm-sde` branches (superproject `f18afce8`, kernel `7f270ae8a`); specs and live logs are `HANDOFF-E2E.md` to `HANDOFF-E2I.md` and `live/E2E-E2I-RESULT.md` in `~/chef-cyclo-evidence/drm-sde-20261024/`. `tools/drmtest show` now draws the enable number on screen so the user can say which enables lit.
+
+**Result:** with three changes every enable lights the panel (the user saw all five of five enables, 29 of 29 panel-on commands each):
+
+1. **Reset the DSI controller with the link clocks running.** dsi-staging's only enable-time soft reset is in `dsi_ctrl_host_init()`, which `dsi_display_prepare()` reaches before `dsi_display_ctrl_link_clk_on()`. fbdev turns the link clocks on first ("DSI link clocks need to be on prior to ctrl sw reset", `mdss_dsi_on()`), and so does mainline. Without the byte clock the reset never reaches the byte-clock domain: on the first enable of every boot the controller still held the bootloader's video stream (`DSI_STATUS` 0x08 with `VIDEO_MODE_EN` off, all four lane FIFOs overflowed, errors 0xf0000). A second reset after the link clocks are on clears it (`dsi_ctrl_link_reset()`).
+2. **Send panel commands through the TPG FIFO, not memory DMA.** Every memory-DMA command raised an SMMU fault (iova 0x9b79b000, next to the bootloader's leftover `DMA_CMD_OFFSET` 0x9b7a0000) while reporting success, and the panel stayed dark. `chef_dsi_mem_dma` now defaults to off.
+3. **Keep the MDSS GDSC on across DRM disables.** The GDSC stays on through the first disable (the bootloader handoff vote) and really powers off after the second; every enable after a real power collapse failed, with the lanes stuck in LP-11 stop state and no command DMA starting. The DSI controller now holds one extra GDSC vote from probe.
+
+What the collapse loses is still unknown. Right after host enable, the DSI PHY/PLL block (0x000 to 0x584) and the controller (0x000 to 0x2fc) read the same on a good and a bad enable, apart from bootloader leftovers that soft reset does not clear; clocks and DSI supplies while on are identical. One real loss was found: MDP top `DISP_INTF_SEL` (0x100, INTF_1 = DSI) resets to 0 and this SDE never writes it (SDE 4.x has fixed INTF routing; it only reads it for splash detection). Restoring it in `sde_kms_prepare_commit()` fixed the vblank timeouts but not the commands, and that register access caused SError oopses when a new DRM client committed with MDSS powered down, so it was removed. Remaining candidates: MDSS top, VBIF, controller 0x300 and up, MMSS misc (0xc828000; reads there were unreliable).
+
+**Boot panic fixed:** the intermittent `msm_bus_debugfs_init()` oops (October 24, and 2 of about 6 boots on October 30) was not the DSI controller. Every DRM boot fails the first component bind with `-517` (the panel backlight is not ready yet), and `msm_load()` then returned without unregistering the `mdss_sde`/`mdss_reg` bus clients it had just registered; the component framework freed their devm pdata, leaving dangling pointers in msm_bus's debug list. The bind-failure path now unwinds the power handle. No oops since.
+
+### Where to resume
+
+- Idle cost of the held GDSC, measured unplugged (the A/B method of the October 17 idle visit); a reading on USB is useless while charging. If it matters, find what the collapse loses instead of holding the GDSC.
+- Panel-off commands still fail twice per session: they are sent in video mode after the INTF has stopped. Harmless today because power is cut right after, but the off sequence is effectively skipped.
+- E3: the NT36525 touch still depends on fb blank notifications, and blank/unblank power handling.
