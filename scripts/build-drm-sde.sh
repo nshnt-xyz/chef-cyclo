@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # DRM experiment: build a boot image whose kernel has the SDE KMS driver
-# (DRM_SDE_STAGE selects the image name, e3b by default) and the static
+# (DRM_SDE_STAGE selects the image name, e3c by default) and the static
 # tools/drmtest client. Output only under out/kernel-drm-sde/ and
-# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1, E2, E2b, E2c, E2d, E2e, E2f, E2g, E2h, E2i and E3
+# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1, E2, E2b, E2c, E2d, E2e, E2f, E2g, E2h, E2i, E3 and E3b
 # images are hashed before and after.
 # Never boots anything. --rebuild reuses an existing out/kernel-drm-sde.
 set -euo pipefail
@@ -26,13 +26,14 @@ baseline_files=(
     "$CHEF_ROOT/out/boot-drm-sde-e2h.img"
     "$CHEF_ROOT/out/boot-drm-sde-e2i.img"
     "$CHEF_ROOT/out/boot-drm-sde-e3.img"
+    "$CHEF_ROOT/out/boot-drm-sde-e3b.img"
 )
 export KERNEL_OUT="$CHEF_ROOT/out/kernel-drm-sde"
-STAGE=${DRM_SDE_STAGE:-e3b}
+STAGE=${DRM_SDE_STAGE:-e3c}
 BOOT_OUT=out/boot-drm-sde-$STAGE.img
 dtb_name=sdm636-chef-evt-drm
 rebuild=no
-[[ "$STAGE" != e1 && "$STAGE" != e2 && "$STAGE" != e2b && "$STAGE" != e2c && "$STAGE" != e2d && "$STAGE" != e2e && "$STAGE" != e2f && "$STAGE" != e2g && "$STAGE" != e2h && "$STAGE" != e2i && "$STAGE" != e3 ]] || { echo "Refusing to write the earlier image out/boot-drm-sde-$STAGE.img" >&2; exit 1; }
+[[ "$STAGE" != e1 && "$STAGE" != e2 && "$STAGE" != e2b && "$STAGE" != e2c && "$STAGE" != e2d && "$STAGE" != e2e && "$STAGE" != e2f && "$STAGE" != e2g && "$STAGE" != e2h && "$STAGE" != e2i && "$STAGE" != e3 && "$STAGE" != e3b ]] || { echo "Refusing to write the earlier image out/boot-drm-sde-$STAGE.img" >&2; exit 1; }
 case "${1:-}" in
     '') ;;
     --rebuild) rebuild=yes ;;
