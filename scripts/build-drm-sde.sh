@@ -5,6 +5,10 @@
 # out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1, E2, E2b, E2c, E2d, E2e, E2f, E2g, E2h, E2i, E3, E3b, E3c, E2j, E2k, E2l, E2m, E2n, E2o and E2p
 # images are hashed before and after.
 # Never boots anything. --rebuild reuses an existing out/kernel-drm-sde.
+# DRM_SDE_FBDEV=1 builds the fbdev trace image instead: the checked out
+# kernel (experiment/fbdev-trace) with the production config unchanged,
+# into out/kernel-fbdev-trace/ and out/boot-fbdev-trace.img, with the same
+# baseline hashing; no DRM config edits, drmtest or single-DTB check.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
@@ -36,9 +40,15 @@ baseline_files=(
     "$CHEF_ROOT/out/boot-drm-sde-e2o.img"
     "$CHEF_ROOT/out/boot-drm-sde-e2p.img"
 )
-export KERNEL_OUT="$CHEF_ROOT/out/kernel-drm-sde"
+fbdev=${DRM_SDE_FBDEV:-0}
 STAGE=${DRM_SDE_STAGE:-e2q}
-BOOT_OUT=out/boot-drm-sde-$STAGE.img
+if [[ "$fbdev" == 1 ]]; then
+    export KERNEL_OUT="$CHEF_ROOT/out/kernel-fbdev-trace"
+    BOOT_OUT=out/boot-fbdev-trace.img
+else
+    export KERNEL_OUT="$CHEF_ROOT/out/kernel-drm-sde"
+    BOOT_OUT=out/boot-drm-sde-$STAGE.img
+fi
 dtb_name=sdm636-chef-evt-drm
 rebuild=no
 [[ "$STAGE" != e1 && "$STAGE" != e2 && "$STAGE" != e2b && "$STAGE" != e2c && "$STAGE" != e2d && "$STAGE" != e2e && "$STAGE" != e2f && "$STAGE" != e2g && "$STAGE" != e2h && "$STAGE" != e2i && "$STAGE" != e3 && "$STAGE" != e3b && "$STAGE" != e3c && "$STAGE" != e2j && "$STAGE" != e2k && "$STAGE" != e2l && "$STAGE" != e2m && "$STAGE" != e2n && "$STAGE" != e2o && "$STAGE" != e2p ]] || { echo "Refusing to write the earlier image out/boot-drm-sde-$STAGE.img" >&2; exit 1; }
@@ -63,6 +73,13 @@ trap 'status=$?; trap - EXIT; sha256sum -c "$KERNEL_OUT/baseline.sha256" > "$KER
 
 check_config() {
     local setting
+    if [[ "$fbdev" == 1 ]]; then
+        for setting in FB_MSM_MDSS=y DEBUG_FS=y; do
+            grep -qxF "CONFIG_$setting" "$KERNEL_OUT/.config" || { echo "Unexpected trace config: $setting" >&2; exit 1; }
+        done
+        [[ "$(kernel/scripts/config --file "$KERNEL_OUT/.config" --state DRM_MSM)" != y ]] || { echo "Unexpected enabled option: DRM_MSM" >&2; exit 1; }
+        return
+    fi
     for setting in DRM=y DRM_MSM=y SYSVIPC=y RD_GZIP=y QCOM_KGSL=y FB_MSM_MDSS=y DRM_SDE_HDMI=y BACKLIGHT_LCD_SUPPORT=y \
                    "BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES=\"qcom/$dtb_name\""; do
         grep -qxF "CONFIG_$setting" "$KERNEL_OUT/.config" || { echo "Unexpected experiment config: $setting" >&2; exit 1; }
@@ -75,6 +92,8 @@ check_config() {
 
 if [[ "$rebuild" == yes ]]; then
     check_config
+elif [[ "$fbdev" == 1 ]]; then
+    cp "$baseline" "$KERNEL_OUT/.config"
 else
     cp "$baseline" "$KERNEL_OUT/.config"
     kernel/scripts/config --file "$KERNEL_OUT/.config" --enable DRM --enable DRM_MSM \
@@ -97,8 +116,9 @@ cp "$KERNEL_OUT/.config" "$KERNEL_OUT/experiment.config"
 python3 kernel/scripts/diffconfig "$baseline" "$KERNEL_OUT/.config" > "$KERNEL_OUT/config.diff"
 kmake -j"$(nproc)" > "$KERNEL_OUT/build.log" 2>&1
 
-# abl takes every appended DTB; exactly one must be there, and it must be ours.
 image="$KERNEL_OUT/arch/arm64/boot/Image.gz-dtb"
+if [[ "$fbdev" != 1 ]]; then
+# abl takes every appended DTB; exactly one must be there, and it must be ours.
 python3 - "$image" "$KERNEL_OUT/arch/arm64/boot/dts/qcom/$dtb_name.dtb" <<'EOF'
 import importlib.util
 import sys
@@ -128,6 +148,8 @@ gcc -std=gnu11 -Wall -Wextra -Werror -fsyntax-only tools/drmtest.c
 "$CHEF_ROOT/toolchain/aarch64-musl/bin/aarch64-buildroot-linux-musl-gcc" \
     -std=gnu11 -Wall -Wextra -Werror -O2 -static -o "$KERNEL_OUT/drmtest" tools/drmtest.c
 sha256sum "$KERNEL_OUT/drmtest"
+
+fi
 
 KERNEL="$image" RAMDISK=out/stage1.cpio.gz OUT="$BOOT_OUT" scripts/mkboot.sh
 sha256sum "$BOOT_OUT"
