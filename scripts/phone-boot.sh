@@ -15,10 +15,14 @@
 # save and chronyd's drift write). If the first
 # `fastboot boot` fails (seen as garbled getvar replies / "unknown command"
 # right after adb reboot), it runs `fastboot reboot bootloader` and retries
-# once. See docs/live-testing.md.
+# once. Every adb/fastboot call is pinned to the phone's serial
+# (CHEF_SERIAL, default ZF6223WZGL; our images' USB gadget reports the same
+# one), and it refuses to run while another adb or fastboot device is
+# attached. See docs/live-testing.md.
 set -eu
 cd "$(dirname "$0")/.."
 IMAGE=${1:-out/boot.img}
+SERIAL=${CHEF_SERIAL:-ZF6223WZGL}
 [ -f "$IMAGE" ] || { echo "no such image: $IMAGE" >&2; exit 1; }
 SUM=$(sha256sum "$IMAGE" | cut -d' ' -f1)
 echo "$IMAGE sha256 $SUM"
@@ -27,19 +31,37 @@ if [ -n "${EXPECT:-}" ] && [ "$SUM" != "$EXPECT" ]; then
     exit 1
 fi
 
-in_fastboot() { fastboot devices 2>/dev/null | grep -q fastboot; }
+in_fastboot() { fastboot devices 2>/dev/null | awk -v s="$SERIAL" '$1 == s && $2 == "fastboot" { f = 1 } END { exit !f }'; }
+# Never let a bare adb/fastboot pick some other attached phone.
+refuse_other_fastboot() {
+    other=$(fastboot devices 2>/dev/null | awk -v s="$SERIAL" 'NF && $1 != s { print $1 }')
+    [ -z "$other" ] || { echo "refusing: other fastboot device(s) attached: $other (ours is $SERIAL)" >&2; exit 1; }
+}
+# 172.16.42.1 is the postmarketOS-style default, so check the USB serial
+# behind the host interface on 172.16.42.0/24 too.
+our_usbnet() {
+    ping -c1 -W1 172.16.42.1 >/dev/null 2>&1 || return 1
+    iface=$(ip -o -4 addr show to 172.16.42.0/24 | awk '{ print $2; exit }')
+    [ -n "$iface" ] && [ "$(cat "/sys/class/net/$iface/device/../serial" 2>/dev/null)" = "$SERIAL" ]
+}
 
+refuse_other_fastboot
 if in_fastboot; then
     echo "phone already in fastboot"
-elif adb devices 2>/dev/null | grep -q 'device$'; then
-    echo "stock Android: adb reboot bootloader"
-    adb reboot bootloader
-elif ping -c1 -W1 172.16.42.1 >/dev/null 2>&1; then
+elif our_usbnet; then
     echo "our image on 172.16.42.1: chef-reboot bootloader"
     python3 scripts/phone.py -t 20 run 'setsid sh -c "cd /; if command -v chef-reboot >/dev/null; then exec chef-reboot bootloader; fi; if command -v chef-storage >/dev/null; then chef-storage shutdown --pause-init || exit 1; fi; sync; sleep 2; btprobe restart bootloader" </dev/null >/run/bootloader-restart.log 2>&1 & sleep 1'
 else
-    echo "phone not in fastboot, adb or on 172.16.42.1" >&2
-    exit 1
+    # Last resort only: starting the adb server attaches to every phone.
+    other=$(adb devices 2>/dev/null | awk -v s="$SERIAL" 'NR > 1 && NF && $1 != s { print $1 }')
+    [ -z "$other" ] || { echo "refusing: other adb device(s) attached: $other (ours is $SERIAL)" >&2; exit 1; }
+    if [ "$(adb -s "$SERIAL" get-state 2>/dev/null)" = device ]; then
+        echo "stock Android: adb reboot bootloader"
+        adb -s "$SERIAL" reboot bootloader
+    else
+        echo "phone $SERIAL not in fastboot, adb or on 172.16.42.1" >&2
+        exit 1
+    fi
 fi
 
 # 240 s: chef-reboot's bounded steps can take up to 193 s before it reboots.
@@ -53,17 +75,19 @@ wait_fastboot() {
 }
 
 wait_fastboot
-if ! fastboot boot "$IMAGE"; then
+refuse_other_fastboot
+if ! fastboot -s "$SERIAL" boot "$IMAGE"; then
     echo "fastboot boot failed; fastboot reboot bootloader and retry once"
-    fastboot reboot bootloader || true
+    fastboot -s "$SERIAL" reboot bootloader || true
     sleep 5
     wait_fastboot
-    fastboot boot "$IMAGE"
+    refuse_other_fastboot
+    fastboot -s "$SERIAL" boot "$IMAGE"
 fi
 echo "booted at $(date -u +%FT%TZ); waiting for 172.16.42.1"
 
 i=0
-until ping -c1 -W1 172.16.42.1 >/dev/null 2>&1; do
+until our_usbnet; do
     i=$((i + 1))
     [ $i -le 120 ] || { echo "no network from the booted image after ~2 min" >&2; exit 1; }
     sleep 1

@@ -25,6 +25,14 @@ as it can right after `adb reboot bootloader` (garbled `getvar` replies,
 `FAILED (remote: 'unknown command')`), it runs `fastboot reboot bootloader` and
 retries once. If that fails too, move the cable to another USB port.
 
+Every adb and fastboot call is pinned to the phone's serial (`CHEF_SERIAL`,
+default `ZF6223WZGL`, which our images' USB gadget also reports), and the
+172.16.42.1 checks also require the host interface on 172.16.42.0/24 to belong
+to a USB device with that serial. The script refuses to run while another
+fastboot device is attached, and before falling back to adb, while another adb
+device is attached: on 2026-10-31 a second phone was plugged in, and the old
+unscoped `adb reboot bootloader` would have hit it first.
+
 To return to fastboot by hand from one of our images, run `chef-reboot
 bootloader` (in a telnet session or detached with `setsid`) rather than a bare
 `btprobe restart bootloader`: it pauses init, runs `chef-state shutdown` (RTC
