@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # DRM experiment: build a boot image whose kernel has the SDE KMS driver
-# (DRM_SDE_STAGE selects the image name, e2o by default) and the static
+# (DRM_SDE_STAGE selects the image name, e2p by default) and the static
 # tools/drmtest client. Output only under out/kernel-drm-sde/ and
-# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1, E2, E2b, E2c, E2d, E2e, E2f, E2g, E2h, E2i, E3, E3b, E3c, E2j, E2k, E2l, E2m and E2n
+# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1, E2, E2b, E2c, E2d, E2e, E2f, E2g, E2h, E2i, E3, E3b, E3c, E2j, E2k, E2l, E2m, E2n and E2o
 # images are hashed before and after.
 # Never boots anything. --rebuild reuses an existing out/kernel-drm-sde.
 set -euo pipefail
@@ -33,13 +33,14 @@ baseline_files=(
     "$CHEF_ROOT/out/boot-drm-sde-e2l.img"
     "$CHEF_ROOT/out/boot-drm-sde-e2m.img"
     "$CHEF_ROOT/out/boot-drm-sde-e2n.img"
+    "$CHEF_ROOT/out/boot-drm-sde-e2o.img"
 )
 export KERNEL_OUT="$CHEF_ROOT/out/kernel-drm-sde"
-STAGE=${DRM_SDE_STAGE:-e2o}
+STAGE=${DRM_SDE_STAGE:-e2p}
 BOOT_OUT=out/boot-drm-sde-$STAGE.img
 dtb_name=sdm636-chef-evt-drm
 rebuild=no
-[[ "$STAGE" != e1 && "$STAGE" != e2 && "$STAGE" != e2b && "$STAGE" != e2c && "$STAGE" != e2d && "$STAGE" != e2e && "$STAGE" != e2f && "$STAGE" != e2g && "$STAGE" != e2h && "$STAGE" != e2i && "$STAGE" != e3 && "$STAGE" != e3b && "$STAGE" != e3c && "$STAGE" != e2j && "$STAGE" != e2k && "$STAGE" != e2l && "$STAGE" != e2m && "$STAGE" != e2n ]] || { echo "Refusing to write the earlier image out/boot-drm-sde-$STAGE.img" >&2; exit 1; }
+[[ "$STAGE" != e1 && "$STAGE" != e2 && "$STAGE" != e2b && "$STAGE" != e2c && "$STAGE" != e2d && "$STAGE" != e2e && "$STAGE" != e2f && "$STAGE" != e2g && "$STAGE" != e2h && "$STAGE" != e2i && "$STAGE" != e3 && "$STAGE" != e3b && "$STAGE" != e3c && "$STAGE" != e2j && "$STAGE" != e2k && "$STAGE" != e2l && "$STAGE" != e2m && "$STAGE" != e2n && "$STAGE" != e2o ]] || { echo "Refusing to write the earlier image out/boot-drm-sde-$STAGE.img" >&2; exit 1; }
 case "${1:-}" in
     '') ;;
     --rebuild) rebuild=yes ;;
