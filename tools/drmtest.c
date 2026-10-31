@@ -5,7 +5,7 @@
  *
  *   drmtest info              resources, connectors with their modes,
  *                             encoders, CRTCs and planes
- *   drmtest show [-t SECS] [-c CYCLES] [-o SECS]
+ *   drmtest show [-t SECS] [-c CYCLES] [-o SECS] [-e N]
  *                             draw a test pattern into one dumb buffer and
  *                             SETCRTC it on the first connected connector
  *   drmtest flip [-n FRAMES]  page flip two dumb buffers with a moving bar
@@ -15,7 +15,8 @@
  * CRTC (else the first CRTC in the encoder's possible_crtcs), holds the
  * pattern for -t seconds (default 20), then -c times (default 0) disables
  * the CRTC, waits -o seconds (default 3) and sets the same mode again. Every
- * enable redraws the pattern with the enable number (1, 2, ...) in white
+ * enable redraws the pattern with the enable number (-e N for the first,
+ * default 1; later enables count up from it) in white
  * seven-segment digits on a black box in the middle, so the user can say
  * which enables lit up; "enable N" is printed with a timestamp right before
  * each SETCRTC on. Every SETCRTC is
@@ -502,7 +503,7 @@ static int show_enable(int fd, const struct target *t, int n)
 	return set_crtc(fd, t, true);
 }
 
-static int cmd_show(int fd, int secs, int cycles, int off_secs)
+static int cmd_show(int fd, int secs, int cycles, int off_secs, int first)
 {
 	struct sigaction sa = { .sa_handler = on_signal };
 	struct target t = { 0 };
@@ -517,7 +518,7 @@ static int cmd_show(int fd, int secs, int cycles, int off_secs)
 	       t.mode.vrefresh);
 	if (make_fb(fd, &t))
 		return 1;
-	if (show_enable(fd, &t, 1))
+	if (show_enable(fd, &t, first))
 		return 1;
 	nap(secs);
 	for (i = 0; i < cycles && !stop; i++) {
@@ -526,7 +527,7 @@ static int cmd_show(int fd, int secs, int cycles, int off_secs)
 		nap(off_secs);
 		if (stop)
 			break;
-		if (show_enable(fd, &t, i + 2))
+		if (show_enable(fd, &t, first + i + 1))
 			return 1;
 		nap(secs);
 	}
@@ -722,13 +723,13 @@ static void usage(void)
 {
 	fprintf(stderr,
 		"usage: drmtest info\n"
-		"       drmtest show [-t secs] [-c cycles] [-o secs]\n"
+		"       drmtest show [-t secs] [-c cycles] [-o secs] [-e n]\n"
 		"       drmtest flip [-n frames]\n");
 }
 
 int main(int argc, char **argv)
 {
-	int secs = 20, cycles = 0, frames = 600, off_secs = OFF_SECS, opt, fd, rc;
+	int secs = 20, cycles = 0, frames = 600, off_secs = OFF_SECS, first = 1, opt, fd, rc;
 	const char *cmd;
 
 	setvbuf(stdout, NULL, _IOLBF, 0);
@@ -738,12 +739,13 @@ int main(int argc, char **argv)
 	}
 	cmd = argv[1];
 	optind = 2;
-	while ((opt = getopt(argc, argv, "t:c:n:o:")) != -1) {
+	while ((opt = getopt(argc, argv, "t:c:n:o:e:")) != -1) {
 		switch (opt) {
 		case 't': secs = atoi(optarg); break;
 		case 'c': cycles = atoi(optarg); break;
 		case 'n': frames = atoi(optarg); break;
 		case 'o': off_secs = atoi(optarg); break;
+		case 'e': first = atoi(optarg); break;
 		default:
 			usage();
 			return 64;
@@ -761,7 +763,7 @@ int main(int argc, char **argv)
 	if (!strcmp(cmd, "info"))
 		rc = cmd_info(fd);
 	else if (!strcmp(cmd, "show"))
-		rc = cmd_show(fd, secs, cycles, off_secs);
+		rc = cmd_show(fd, secs, cycles, off_secs, first);
 	else if (!strcmp(cmd, "flip"))
 		rc = cmd_flip(fd, frames);
 	else {
