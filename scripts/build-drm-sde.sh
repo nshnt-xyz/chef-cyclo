@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # DRM experiment: build a boot image whose kernel has the SDE KMS driver
-# (DRM_SDE_STAGE selects the image name, e2q by default) and the static
+# (DRM_SDE_STAGE selects the image name, e2t by default) and the static
 # tools/drmtest client. Output only under out/kernel-drm-sde/ and
-# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1, E2, E2b, E2c, E2d, E2e, E2f, E2g, E2h, E2i, E3, E3b, E3c, E2j, E2k, E2l, E2m, E2n, E2o and E2p
+# out/boot-drm-sde-$STAGE.img; the baseline build and the earlier E1, E2, E2b, E2c, E2d, E2e, E2f, E2g, E2h, E2i, E3, E3b, E3c, E2j, E2k, E2l, E2m, E2n, E2o, E2p and E2q
 # images are hashed before and after.
 # Never boots anything. --rebuild reuses an existing out/kernel-drm-sde.
 # DRM_SDE_FBDEV=1 builds the fbdev trace image instead: the checked out
@@ -39,9 +39,10 @@ baseline_files=(
     "$CHEF_ROOT/out/boot-drm-sde-e2n.img"
     "$CHEF_ROOT/out/boot-drm-sde-e2o.img"
     "$CHEF_ROOT/out/boot-drm-sde-e2p.img"
+    "$CHEF_ROOT/out/boot-drm-sde-e2q.img"
 )
 fbdev=${DRM_SDE_FBDEV:-0}
-STAGE=${DRM_SDE_STAGE:-e2q}
+STAGE=${DRM_SDE_STAGE:-e2t}
 if [[ "$fbdev" == 1 ]]; then
     export KERNEL_OUT="$CHEF_ROOT/out/kernel-fbdev-trace"
     BOOT_OUT=out/boot-fbdev-trace.img
@@ -51,7 +52,7 @@ else
 fi
 dtb_name=sdm636-chef-evt-drm
 rebuild=no
-[[ "$STAGE" != e1 && "$STAGE" != e2 && "$STAGE" != e2b && "$STAGE" != e2c && "$STAGE" != e2d && "$STAGE" != e2e && "$STAGE" != e2f && "$STAGE" != e2g && "$STAGE" != e2h && "$STAGE" != e2i && "$STAGE" != e3 && "$STAGE" != e3b && "$STAGE" != e3c && "$STAGE" != e2j && "$STAGE" != e2k && "$STAGE" != e2l && "$STAGE" != e2m && "$STAGE" != e2n && "$STAGE" != e2o && "$STAGE" != e2p ]] || { echo "Refusing to write the earlier image out/boot-drm-sde-$STAGE.img" >&2; exit 1; }
+[[ "$STAGE" != e1 && "$STAGE" != e2 && "$STAGE" != e2b && "$STAGE" != e2c && "$STAGE" != e2d && "$STAGE" != e2e && "$STAGE" != e2f && "$STAGE" != e2g && "$STAGE" != e2h && "$STAGE" != e2i && "$STAGE" != e3 && "$STAGE" != e3b && "$STAGE" != e3c && "$STAGE" != e2j && "$STAGE" != e2k && "$STAGE" != e2l && "$STAGE" != e2m && "$STAGE" != e2n && "$STAGE" != e2o && "$STAGE" != e2p && "$STAGE" != e2q ]] || { echo "Refusing to write the earlier image out/boot-drm-sde-$STAGE.img" >&2; exit 1; }
 case "${1:-}" in
     '') ;;
     --rebuild) rebuild=yes ;;
