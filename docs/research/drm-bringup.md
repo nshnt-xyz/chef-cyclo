@@ -159,7 +159,7 @@ What the collapse loses is still unknown. Right after host enable, the DSI PHY/P
 ### Where to resume
 
 - Idle cost of the held GDSC, measured unplugged (the A/B method of the October 17 idle visit); a reading on USB is useless while charging. If it matters, find what the collapse loses instead of holding the GDSC.
-- Panel-off commands still fail twice per session: they are sent in video mode after the INTF has stopped. Harmless today because power is cut right after, but the off sequence is effectively skipped.
+- Panel-off commands still fail twice per session: they are sent in video mode after the INTF has stopped. Harmless today because power is cut right after, but the off sequence is effectively skipped. Fixed on October 31 (E3b and E3c below).
 - Touch I2C NACKs at boot (2.1 to 2.5 s), before the first DRM enable, while the touch driver still believes the panel is up.
 
 ### E3: touch and backlight on DRM blank
@@ -171,3 +171,14 @@ Same day, kernel `93fe9a82b`, superproject `12871345`, result `live/E3-RESULT.md
 - The DSI display sets the backlight to 0 before panel-off and restores the last userspace level after panel-on (the `sde-backlight` maximum before userspace sets one); userspace writes while blanked are only remembered.
 
 Live: with the user tapping, enables 1 to 3 got 359, 196 and 324 touch interrupts and none while dark; WLED read 255 while lit and 0 while blanked; no I2C errors after boot.
+
+## October 31: panel-off commands (E3b, E3c)
+
+Kernel `c814e5c6e` (E3b) and `27d458ad7` (E3c), superproject `a0d8b7f`; specs `HANDOFF-E3B.md` and `HANDOFF-E3C.md`, logs `live/e3b-*.txt` and `live/e3c-*.txt` in the evidence dir.
+
+The two failed commands on every DRM disable were the panel's whole `DSI_CMD_SET_OFF` set (0x28 display off, wait 35 ms; 0x10 sleep in, wait 120 ms). `dsi_host_transfer()` drops the poll timeout, so the set carried on and the failure never reached the caller. Two causes stacked:
+
+1. **Order.** dsi-staging sent the set from `dsi_bridge_post_disable()`, after the SDE encoder had stopped the INTF timing engine. DSI_CTRL still had the video engine on (0x1f7), so command DMA waited for a blanking period that never came (status 0x0b, DMA_DONE never). fbdev sends this panel's off commands (`qcom,mdss-dsi-off-command-state = "dsi_hs_mode"`) at `MDSS_EVENT_BLANK`, before `mdss_mdp_video_ctx_stop()` clears `INTF_TIMING_ENGINE_EN`. E3b sends the set from `dsi_display_pre_disable()` in video mode (param `chef_dsi_off_early`, default on), and `dsi_display_disable()` skips it.
+2. **Poll length.** With the INTF running the commands did complete, but 1 to 5 ms after `dsi_message_tx()` gave up: its DMA_DONE poll was a fixed 10 x 1 ms, and in video mode a command waits for the next blanking period, up to one 16.7 ms frame. fbdev and later msm kernels wait up to 200 ms. E3c makes the poll `chef_dsi_tx_poll_ms` (default 50).
+
+Live (user watching, 5 cycles plus 2 with the old order): with both changes every disable reads `session tx ok 31 fail 0`, off commands done after 11 to 15 ms; every enable lit with 29/29 on-commands. With `chef_dsi_off_early=0` and the 50 ms poll the set still fails twice per disable, so the order is required and the longer poll alone does not help.
