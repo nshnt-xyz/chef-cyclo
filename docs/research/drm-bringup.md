@@ -150,7 +150,7 @@ Resumed on 2026-10-30. Same method as October 24: `fastboot boot` RAM images onl
 
 1. **Reset the DSI controller with the link clocks running.** dsi-staging's only enable-time soft reset is in `dsi_ctrl_host_init()`, which `dsi_display_prepare()` reaches before `dsi_display_ctrl_link_clk_on()`. fbdev turns the link clocks on first ("DSI link clocks need to be on prior to ctrl sw reset", `mdss_dsi_on()`), and so does mainline. Without the byte clock the reset never reaches the byte-clock domain: on the first enable of every boot the controller still held the bootloader's video stream (`DSI_STATUS` 0x08 with `VIDEO_MODE_EN` off, all four lane FIFOs overflowed, errors 0xf0000). A second reset after the link clocks are on clears it (`dsi_ctrl_link_reset()`).
 2. **Send panel commands through the TPG FIFO, not memory DMA.** Every memory-DMA command raised an SMMU fault (iova 0x9b79b000, next to the bootloader's leftover `DMA_CMD_OFFSET` 0x9b7a0000) while reporting success, and the panel stayed dark. `chef_dsi_mem_dma` now defaults to off.
-3. **Keep the MDSS GDSC on across DRM disables.** The GDSC stays on through the first disable (the bootloader handoff vote) and really powers off after the second; every enable after a real power collapse failed, with the lanes stuck in LP-11 stop state and no command DMA starting. The DSI controller now holds one extra GDSC vote from probe.
+3. **Keep the MDSS GDSC on across DRM disables.** (Superseded on October 31: the real cause was timing double buffering, see E2j to E2t below; the hold is now off by default.) The GDSC stays on through the first disable (the bootloader handoff vote) and really powers off after the second; every enable after a real power collapse failed, with the lanes stuck in LP-11 stop state and no command DMA starting. The DSI controller now holds one extra GDSC vote from probe.
 
 What the collapse loses is still unknown. Right after host enable, the DSI PHY/PLL block (0x000 to 0x584) and the controller (0x000 to 0x2fc) read the same on a good and a bad enable, apart from bootloader leftovers that soft reset does not clear; clocks and DSI supplies while on are identical. One real loss was found: MDP top `DISP_INTF_SEL` (0x100, INTF_1 = DSI) resets to 0 and this SDE never writes it (SDE 4.x has fixed INTF routing; it only reads it for splash detection). Restoring it in `sde_kms_prepare_commit()` fixed the vblank timeouts but not the commands, and that register access caused SError oopses when a new DRM client committed with MDSS powered down, so it was removed. Remaining candidates: MDSS top, VBIF, controller 0x300 and up, MMSS misc (0xc828000; reads there were unreliable).
 
@@ -158,7 +158,7 @@ What the collapse loses is still unknown. Right after host enable, the DSI PHY/P
 
 ### Where to resume
 
-- Idle cost of the held GDSC, measured unplugged (the A/B method of the October 17 idle visit); a reading on USB is useless while charging. If it matters, find what the collapse loses instead of holding the GDSC.
+- Idle cost of the held GDSC, measured unplugged (the A/B method of the October 17 idle visit); a reading on USB is useless while charging. If it matters, find what the collapse loses instead of holding the GDSC. Moot since E2t on October 31: the GDSC now collapses as under fbdev.
 - Panel-off commands still fail twice per session: they are sent in video mode after the INTF has stopped. Harmless today because power is cut right after, but the off sequence is effectively skipped. Fixed on October 31 (E3b and E3c below).
 - Touch I2C NACKs at boot (2.1 to 2.5 s), before the first DRM enable, while the touch driver still believes the panel is up.
 
@@ -182,3 +182,28 @@ The two failed commands on every DRM disable were the panel's whole `DSI_CMD_SET
 2. **Poll length.** With the INTF running the commands did complete, but 1 to 5 ms after `dsi_message_tx()` gave up: its DMA_DONE poll was a fixed 10 x 1 ms, and in video mode a command waits for the next blanking period, up to one 16.7 ms frame. fbdev and later msm kernels wait up to 200 ms. E3c makes the poll `chef_dsi_tx_poll_ms` (default 50).
 
 Live (user watching, 5 cycles plus 2 with the old order): with both changes every disable reads `session tx ok 31 fail 0`, off commands done after 11 to 15 ms; every enable lit with 29/29 on-commands. With `chef_dsi_off_early=0` and the 50 ms poll the set still fails twice per disable, so the order is required and the longer poll alone does not help.
+
+## October 31: the MDSS power collapse (E2j to E2t)
+
+Kernel `da0864519` to `f939d8158` (the fix), superproject `564eda9` to `5086fa8`, plus a production-kernel tracer on kernel `experiment/fbdev-trace` (`65cb4c480` to `95d34b4cd`); specs `HANDOFF-E2J.md` to `HANDOFF-E2T.md`, logs `live/e2j-*` to `live/e2t-watch.txt`, `live/fbtrace-*.txt` in the evidence dir.
+
+Production fbdev collapses the MDSS GDSC at every screen-off (regulator use 3 to 0) and recovers, so E2i's GDSC hold was a workaround, not a fix.
+
+**Root cause:** dsi-staging turns on DSI timing double buffering (`DSI_TIMING_DB_MODE`, ctrl 0x1e8 = 1) in its video engine setup (`dsi_ctrl_hw_1_4.c`). fbdev does that only for panels with `qcom,timing-db-mode`, and ours has none. With double buffering on, command DMA never starts after a GDSC collapse: no DMA_DONE, no SMMU fault, status 0, in LP or HS, FIFO or memory DMA. Enables before the first collapse work with double buffering on; why only a collapse breaks it is not known. E2t writes 0 there (param `chef_dsi_timing_db`, default off) and drops the hold (`chef_gdsc_hold` now defaults to off).
+
+**Live (user watching):** 5 enables, GDSC use 0 4 0 4 0 4 0 4 0 4 0 (a real collapse before every enable), every enable 29/29 on-commands and 31/31 per session, the user saw all five numbers.
+
+How it was found, in order (each ruled out live after a real collapse):
+
+- E2j, E2k: fbdev's `qcom,mdp-settings` and `qcom,vbif-settings`, `DISP_INTF_SEL`, and the bootloader's DSI leftovers that soft reset keeps (TPG enable, command-mode MDP registers, `DMA_CMD_OFFSET`). Memory DMA fails like the FIFO. Reading MMSS misc offset 0 and the byte/esc RCG M/N/D registers (0x2128) is a synchronous external abort; DRM then wedges and only sysrq `u` + `b` reboots.
+- E2l, E2m: DSI ctrl and PHY are the same right before and after the first command on good and bad enables. After a collapse the video path still works (video engine busy, MISR follows content); only command DMA is dead, and it stays dead on later enables even with the GDSC held, until a reboot through the bootloader.
+- E2n to E2q: a full snapshot (MDSS, DSI0/1 ctrl and PHY, VBIF, MMSS CC) and a runtime poke list (`chef_pokes`, `chef_poke_at`, `chef_poke_now`). Poking back all 76 good/bad differences, the bootloader's DSI1 PHY lanes, `DMA_FIFO_CTRL`, MMSS misc fixes, the MDP core CBCR retention bits and GDSCR bit 11, and skipping the PHY software reset all fail. `TIMING_DB_MODE` reads 1 on good and bad enables alike, so no good/bad comparison could show it.
+- E2r: an MMIO/clk/regulator write tracer force-included into the production fbdev driver, recording a real screen-off/on. Poking every fbdev-only DSI write into dsi-staging does not help either.
+- E2s: a snapshot of fbdev at its first command DMA trigger after a collapse (in `mdss_dsi_cmd_dma_tx()`), diffed against dsi-staging's bad state. The difference that matters is `TIMING_DB_MODE`: fbdev 0, dsi-staging 1. A poke bisect after a collapse: 0x1e8 = 0 at host enable gives 29/29; `TIMING_FLUSH` alone does not, and the poke is needed on every enable because the driver rewrites it.
+
+Lesson: comparing a driver with itself (good enable against bad) found nothing in 9 experiments, because the culprit register read the same both times; comparing it with the working driver after the same event found the cause in one.
+
+### Where to resume
+
+- Idle current on DRM with the GDSC collapsing, against fbdev's 100.4 mA (October 17 method, unplugged).
+- E4: chefui on DRM.
